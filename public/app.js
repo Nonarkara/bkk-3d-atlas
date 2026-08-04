@@ -13,7 +13,16 @@ const ESRI_IMAGERY_TILES = [
 const ESRI_ATTRIBUTION =
   "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community";
 
-const BUILDING_SOURCE_CANDIDATES = ["openfreemap", "openmaptiles"];
+const BUILDING_SOURCE_CANDIDATES = ["openfreemap", "openmaptiles", "bkkx-pmtiles-buildings"];
+
+// BKKx 3D buildings PMTiles. 432,077 OSM building footprints for
+// the Bangkok metro (100.30–100.95 E, 13.45–14.10 N), served as a
+// static file (with HTTP Range support from the Cloudflare edge).
+// Each feature carries `render_height` (m) and `render_min_height`
+// (m) so the fill-extrusion layer renders without any client-side
+// joins.
+const BKKX_BUILDINGS_PMTILES_URL = "/bkk-buildings.pmtiles";
+const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
 
 const BUILDING_PAINT = {
   "fill-extrusion-color": "#c9ff38",
@@ -277,14 +286,56 @@ function flashShareButton(message) {
 function findBuildingSource(map) {
   const style = map.getStyle();
   if (!style.sources) return null;
+  // Prefer the BKKx PMTiles source (432K real OSM buildings) when
+  // available; fall back to the OpenFreeMap building source during
+  // the bootstrap render.
+  if (style.sources[BKKX_BUILDINGS_PMTILES_LAYER]) {
+    return {
+      name: BKKX_BUILDINGS_PMTILES_LAYER,
+      isPmtiles: true,
+      sourceLayer: "buildings",
+    };
+  }
   for (const [name] of Object.entries(style.sources)) {
-    if (BUILDING_SOURCE_CANDIDATES.includes(name)) return name;
+    if (BUILDING_SOURCE_CANDIDATES.includes(name)) {
+      return { name, isPmtiles: false, sourceLayer: "building" };
+    }
   }
   return null;
 }
 
+function registerPmtilesProtocol() {
+  if (typeof pmtiles === "undefined") return;
+  if (registerPmtilesProtocol._done) return;
+  registerPmtilesProtocol._done = true;
+  const protocol = new pmtiles.Protocol();
+  maplibregl.addProtocol("pmtiles", protocol.tile);
+}
+
 function attachLayers(map) {
+  // Register the PMTiles protocol as soon as the map is ready so the
+  // PMTiles source (added below) can be loaded by MapLibre.
+  registerPmtilesProtocol();
+
+  // Add the BKKx buildings PMTiles source. 432,077 OSM buildings
+  // for the Bangkok metro, with render_height + render_min_height
+  // baked in. The Worker serves the file from R2 with HTTP Range
+  // support; the pmtiles lib on the client issues range requests.
+  if (!map.getSource(BKKX_BUILDINGS_PMTILES_LAYER)) {
+    try {
+      map.addSource(BKKX_BUILDINGS_PMTILES_LAYER, {
+        type: "vector",
+        url: "pmtiles://" + BKKX_BUILDINGS_PMTILES_URL,
+        attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx 3D buildings",
+      });
+    } catch (error) {
+      console.warn("BKKx PMTiles source failed to register:", error);
+    }
+  }
+
   const source = findBuildingSource(map);
+  const sourceName = source?.name;
+  const sourceLayer = source?.sourceLayer ?? "building";
 
   // 1. Esri satellite as the new base
   if (!map.getSource("bkkx-esri-imagery")) {
@@ -313,14 +364,15 @@ function attachLayers(map) {
     }
   }
 
-  // 2. Tiered roads from the same OpenFreeMap source
-  if (source && !map.getLayer("bkkx-roads-minor")) {
+  // 2. Tiered roads (only when we're on the OpenFreeMap fallback,
+  //    since the PMTiles layer doesn't have a transportation layer).
+  if (sourceName && source && !source.isPmtiles && !map.getLayer("bkkx-roads-minor")) {
     const addLine = (id, filter, color, width, opacity) => {
       try {
         map.addLayer({
           id,
           type: "line",
-          source,
+          source: sourceName,
           "source-layer": "transportation",
           filter,
           layout: { "line-join": "round", "line-cap": "round" },
@@ -339,16 +391,16 @@ function attachLayers(map) {
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
   }
 
-  // 3. 3D buildings on top. minzoom 11 keeps the whole Bangkok urban
-  //    area visible as a 3D silhouette at city scale; the opacity
-  //    ramp in BUILDING_PAINT does the rest.
-  if (source && !map.getLayer("bkkx-3d-buildings")) {
+  // 3. 3D buildings on top, from the BKKx PMTiles source
+  //    (preferred, 432K features with real heights) or the
+  //    OpenFreeMap MVT fallback.
+  if (sourceName && !map.getLayer("bkkx-3d-buildings")) {
     try {
       map.addLayer({
         id: "bkkx-3d-buildings",
         type: "fill-extrusion",
-        source,
-        "source-layer": "building",
+        source: sourceName,
+        "source-layer": sourceLayer,
         minzoom: 11,
         paint: BUILDING_PAINT,
       });

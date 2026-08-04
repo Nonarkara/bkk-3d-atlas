@@ -13,3 +13,12 @@ out/
 # are generated on demand by scripts/osm-buildings-to-geojson.py.
 !public/*.geojson
 
+# 3D building PMTiles (432,077 OSM buildings, ~17 MB) lives in R2
+# bucket bkk-tiles, not in public/. The Worker proxies
+# /bkk-buildings.pmtiles from R2 with HTTP Range passthrough so the
+# pmtiles client lib can stream. Regenerate via
+# scripts/generate-3d-tiles.sh and push with:
+#   npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles \
+#     --file=/tmp/bkk-buildings/bangkok-buildings-h.pmtiles --remote
+public/*.pmtiles
+

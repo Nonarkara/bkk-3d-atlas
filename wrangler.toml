@@ -11,6 +11,15 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./public"
 binding = "ASSETS"
 
+# R2 bucket that holds the 3D building PMTiles (432,077 OSM buildings,
+# ~17 MB). Served via the Worker at /bkk-buildings.pmtiles with HTTP
+# Range passthrough so the pmtiles client lib can stream tiles. The
+# Workers [assets] binding does NOT honor Range requests, so large
+# binary blobs have to go through R2 + the proxy.
+[[r2_buckets]]
+binding = "BKK_TILES"
+bucket_name = "bkk-tiles"
+
 # Custom domain. atlas.nonarkara.org is already on Cloudflare DNS
 # (the nonarkara.org zone is in this account; bkk.nonarkara.org
 # was already bound to a Worker in the BKKx edge-proxy).
@@ -28,13 +37,11 @@ custom_domain = true
 LONGDO_FEED = "https://traffic.longdo.com/api/feed/itsth"
 LONGDO_DATA_ORIGIN = "https://itic.longdo.com/opendata/"
 
-# R2 bucket for the 3D Tiles dataset (follow-up; uncomment when the
-# generate-3d-tiles.sh pipeline is run and the bucket is created).
-#
-# [[r2_buckets]]
-# binding = "BKKX_TILES"
-# bucket_name = "bkk-3d-tiles"
-# preview_bucket_name = "bkk-3d-tiles-preview"
+# 3D buildings PMTiles (432,077 OSM buildings, 17 MB) is served
+# as a static file from the assets binding. Cloudflare's edge
+# handles HTTP Range requests natively, so the pmtiles client lib
+# can stream-tile. The full Bangkok metro (100.30–100.95 E,
+# 13.45–14.10 N) is covered at zoom 11–15.
 
 [observability]
 enabled = true

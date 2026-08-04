@@ -21,12 +21,20 @@ dashboards, anything else that needs Bangkok) can pull in:
    GeoJSON with `height` + `base_height` on every feature. Drop
    it into MapLibre, deck.gl, Cesium, or three.js; extrude on the
    client. The script is the canonical Bangkok 3D buildings asset.
-3. **`scripts/generate-3d-tiles.sh`** — turn the same OSM data
-   into 3D Tiles (b3dm) for streaming into deck.gl, Cesium, or
-   three-tile-loader. Currently a placeholder pipeline; the script
-   is runnable but the OBJ / py3dtiles stages need to be wired up
-   in a follow-up. Until then, the live viewer uses
-   OpenFreeMap's MVT buildings (already 3D-extruded client-side).
+3. **`scripts/generate-3d-tiles.sh`** — turn the same OSM data into
+   a PMTiles archive (MVT, gzipped) that the live viewer streams
+   via the `pmtiles` JS lib + HTTP Range requests. The 432,077-feature
+   Bangkok metro PMTiles lives in the Cloudflare R2 bucket
+   `bkk-tiles/buildings/bangkok.pmtiles` (~17 MB) and is served at
+   `/bkk-buildings.pmtiles` with full Range passthrough. Until
+   this PMTiles is uploaded, the viewer falls back to OpenFreeMap's
+   MVT buildings (sparse at city-scale zoom 10–11).
+4. **`src/index.ts`** has a `serveBuildingsPmtiles` route at
+   `/bkk-buildings.pmtiles` that handles the three Range shapes
+   the `pmtiles` lib issues (closed, open-ended, suffix) and
+   ETag/If-None-Match for 304 caching. The Workers `[assets]`
+   binding does NOT honor HTTP Range requests, so large binary
+   blobs have to live in R2 + the proxy — never in `public/`.
 
 ## Stack
 
@@ -34,14 +42,17 @@ dashboards, anything else that needs Bangkok) can pull in:
   GL 4.7.1 from unpkg, Esri World Imagery from
   `services.arcgisonline.com`, OpenFreeMap dark style as the
   base style, OpenStreetMap `transportation` for roads,
-  OpenStreetMap `building` for 3D extrusions.
-- **Worker** — `src/index.ts` is a thin Cloudflare Worker that
-  passes the request to the static asset binding. Future server-side
-  logic (analytics ingest, geocoding, R2 reads for 3D Tiles) has
-  a place to land here.
-- **Hosting** — Cloudflare Workers. Initial URL is on
-  `*.workers.dev`; a custom domain (`atlas.nonarkara.org` or
-  similar) can be added in `wrangler.toml` + Cloudflare DNS.
+  **432,077 OSM buildings streamed from our own PMTiles** for 3D
+  extrusions (see `bkk-buildings.pmtiles` at the R2 route below).
+- **Worker** — `src/index.ts` is a Cloudflare Worker that handles
+  three things: (1) proxies `/api/traffic` to the iTIC/Longdo feed
+  with a secret API key, (2) serves `/bkk-buildings.pmtiles` from
+  R2 with HTTP Range passthrough so the `pmtiles` JS lib can stream
+  tile-by-tile, and (3) falls back to the static asset binding for
+  everything else.
+- **Hosting** — Cloudflare Workers + R2 on the custom domain
+  `atlas.nonarkara.org`. R2 bucket `bkk-tiles` holds the 17 MB
+  PMTiles.
 
 ## Local dev
 
@@ -102,14 +113,55 @@ Cesium.GeoJsonDataSource.load("/bkk-buildings.geojson", { clampToGround: false }
   .then((ds) => viewer.dataSources.add(ds));
 ```
 
-### 3. 3D Tiles — the streaming format (follow-up)
+### 3. PMTiles — the streaming format (live now)
 
-`scripts/generate-3d-tiles.sh` is the placeholder. When the OBJ /
-py3dtiles stages are wired up, the resulting `tileset.json` can be
-hosted on Cloudflare R2 and consumed by deck.gl `Tile3DLayer`,
-Cesium `Cesium3DTileset`, or `three-tile-loader`. The script
-documents the full pipeline; the missing pieces are the
-extrusion-to-OBJ and py3dtiles conversion.
+432,077 Bangkok OSM building footprints, baked into a single
+gzipped MVT PMTiles (~17 MB, 2,863 tiles, zoom 11–15). Hosted on
+Cloudflare R2 and served at `/bkk-buildings.pmtiles` with full
+HTTP Range passthrough. The browser's `pmtiles` JS lib
+(<https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js>) registers a
+`pmtiles://` protocol handler and issues per-tile Range requests
+that the Worker passes through to R2.
+
+**Why PMTiles over a single GeoJSON**: the same data as one
+GeoJSON is ~120 MB, unworkable in a browser. PMTiles streams
+tile-by-tile based on the viewport, so 17 MB serves 432K buildings
+smoothly at every zoom.
+
+**Why R2 over the `[assets]` static binding**: the Workers static
+asset binding does NOT honor HTTP Range requests — every GET
+returns the full 17 MB. The `pmtiles` lib streams by issuing
+Range requests for the directory and individual tiles, so a
+Range-honoring source is mandatory. R2 is the obvious fit; the
+Worker proxy just translates the `Range` header into a R2
+`get({ range })` call and writes the 206 back.
+
+**Regenerate** (when the upstream OSM data changes):
+
+```sh
+# 1. extract Bangkok from a fresh Thailand PBF
+python3 scripts/osm-buildings-to-geojson.py \
+  --bbox 100.30,13.45,100.95,14.10 \
+  --output /tmp/bkk-buildings/bangkok-buildings.geojson
+
+# 2. add height defaults (residential=9m, apartments=18m, office=24m, hotel=30m, ...)
+python3 scripts/preprocess-buildings.py \
+  --input /tmp/bkk-buildings/bangkok-buildings.geojson \
+  --output /tmp/bkk-buildings/bangkok-buildings-h.geojson
+
+# 3. tippecanoe → PMTiles
+tippecanoe -Z11 -z15 --no-tile-size-limit --no-feature-limit \
+  --simplification=20 --read-parallel --force \
+  --include=render_height --include=render_min_height \
+  -o /tmp/bkk-buildings/bangkok-buildings-h.pmtiles \
+  -l buildings /tmp/bkk-buildings/bangkok-buildings-h.geojson
+
+# 4. push to R2
+npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles \
+  --file=/tmp/bkk-buildings/bangkok-buildings-h.pmtiles --remote
+```
+
+The `scripts/generate-3d-tiles.sh` wrapper runs all four stages.
 
 ## Live traffic layer (iTIC / Longdo)
 
@@ -156,8 +208,10 @@ key is missing or the upstream fails.
 3. `transportation` major roads (OpenFreeMap, paper-dim) — the grid.
 4. `transportation` motorways (OpenFreeMap, **signal yellow**) — the
    expressways.
-5. `building` fill-extrusion (OpenFreeMap, **signal yellow**, 0.7
-   opacity, vertical gradient) — the city silhouette.
+5. `building` fill-extrusion (**our own 432K PMTiles, signal yellow**,
+   0.32 → 0.82 opacity ramp from z11 → z17) — the entire Bangkok
+   metro extruded, not just the OpenFreeMap city-scale outline.
+   Falls back to OpenFreeMap's MVT if the PMTiles is unreachable.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
 frame. Sharp edges. No rounded corners. No shadows.
