@@ -121,6 +121,86 @@ button { font: inherit; }
   padding-top: 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
+.atlas-layers-blurb {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.atlas-stack-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.atlas-preset-btn {
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.atlas-preset-btn:hover, .atlas-preset-btn:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.atlas-preset-btn.is-active {
+  border-color: var(--signal);
+  background: rgba(201, 255, 56, 0.12);
+  color: var(--signal);
+}
+.atlas-stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.atlas-stack-chip {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.atlas-stack-chip.is-weather {
+  border-color: rgba(201, 255, 56, 0.45);
+  color: var(--signal);
+}
+.atlas-opacity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-opacity strong { color: var(--signal); font-weight: 800; }
+.atlas-opacity input[type="range"] {
+  width: 100%;
+  accent-color: var(--signal);
+}
+.atlas-labs-list-shipped li { border-color: rgba(201, 255, 56, 0.28); }
+.atlas-labs-list code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
 .atlas-layer-list {
   list-style: none;
   margin: 0;

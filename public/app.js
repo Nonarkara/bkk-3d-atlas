@@ -313,7 +313,109 @@ const state = {
   rainLastFetch: 0,
   inspectMarker: null,
   trafficSource: null, // "live" | "sample" | null
+  landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
+  overlayOpacity: 0.45, // rain + AQI share this so the city still reads
+  layerOn: Object.create(null), // id → boolean, source of truth for presets
 };
+
+// Bottom → top paint order. Weather overlays sit above the city so you
+// can read rain / pollution without losing the 3D silhouette.
+const LAYER_STACK = [
+  "bkkx-satellite",
+  "bkkx-3d-buildings",
+  RATTANAKOSIN_BUILDINGS_LAYER,
+  "bkkx-roads-minor",
+  "bkkx-roads-major",
+  "bkkx-roads-motorway",
+  KHLONG_RIVER_LAYER,
+  KHLONG_CANAL_LAYER,
+  RAIL_LAYER,
+  TRAFFIC_LAYER,
+  LAND_PRICE_FILL,
+  AQI_LAYER,
+  RAIN_LAYER,
+];
+
+function ensureStackOrder(map) {
+  if (!map) return;
+  for (const id of LAYER_STACK) {
+    if (map.getLayer(id)) {
+      try { map.moveLayer(id); } catch { /* layer may be mid-add */ }
+    }
+  }
+  applyOverlayCompositing(map);
+}
+
+function setLayersVisible(map, layerIds, visible) {
+  const value = visible ? "visible" : "none";
+  for (const id of layerIds) {
+    if (map.getLayer(id)) {
+      try { map.setLayoutProperty(id, "visibility", value); } catch {}
+    }
+  }
+}
+
+/** Keep city readable under rain + AQI. Softens buildings when overlays are on. */
+function applyOverlayCompositing(map) {
+  if (!map) return;
+  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi);
+  const rainOpacity = state.overlayOpacity;
+  const aqiOpacity = Math.min(0.72, state.overlayOpacity + 0.12);
+  const buildingOpacity = weatherOn
+    ? ["interpolate", ["linear"], ["zoom"], 11, 0.28, 13, 0.48, 15, 0.62, 17, 0.72]
+    : (state.buildingPaint === "type"
+      ? BUILDING_PAINT_BY_TYPE["fill-extrusion-opacity"]
+      : BUILDING_PAINT_MONOCHROME["fill-extrusion-opacity"]);
+
+  if (map.getLayer(RAIN_LAYER)) {
+    try { map.setPaintProperty(RAIN_LAYER, "raster-opacity", rainOpacity); } catch {}
+  }
+  if (map.getLayer(AQI_LAYER)) {
+    try { map.setPaintProperty(AQI_LAYER, "heatmap-opacity", aqiOpacity); } catch {}
+  }
+  if (map.getLayer("bkkx-3d-buildings")) {
+    try { map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", buildingOpacity); } catch {}
+  }
+  if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+    try {
+      map.setPaintProperty(
+        RATTANAKOSIN_BUILDINGS_LAYER,
+        "fill-extrusion-opacity",
+        weatherOn ? 0.72 : (state.buildingPaint === "type" ? 0.92 : 0.82),
+      );
+    } catch {}
+  }
+  updateStackChips();
+}
+
+function updateStackChips() {
+  const el = document.getElementById("atlas-stack-chips");
+  if (!el) return;
+  const labels = {
+    buildings: "City",
+    rail: "Rail",
+    traffic: "Traffic",
+    khlongs: "Khlongs",
+    terrain: "Terrain",
+    "land-price": "Land ฿",
+    aqi: "AQI",
+    rain: "Rain",
+  };
+  const on = Object.keys(labels).filter((id) => state.layerOn[id]);
+  el.innerHTML = "";
+  if (on.length === 0) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  for (const id of on) {
+    const chip = document.createElement("span");
+    chip.className = "atlas-stack-chip";
+    if (id === "rain" || id === "aqi") chip.classList.add("is-weather");
+    chip.textContent = labels[id];
+    el.appendChild(chip);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Layer registry — declarative. Each entry describes how to install,
@@ -326,9 +428,10 @@ const LAYERS = [
     name: "3D buildings",
     description: "OSM heights · 432,077 features",
     defaultOn: true,
-    layers: ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER],
-    install: (map) => { installBuildings(map); installRattanakosin(map); },
-    uninstall: (map) => { uninstallBuildings(map); uninstallRattanakosin(map); },
+    softUninstall: true,
+    layers: ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    install: async (map) => { installBuildings(map); installRattanakosin(map); ensureStackOrder(map); },
+    uninstall: (map) => { setLayersVisible(map, ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"], false); },
     legend: [
       { color: "#f5b800", label: "temple / pagoda" },
       { color: "#a8c84a", label: "mosque" },
@@ -350,35 +453,39 @@ const LAYERS = [
     name: "Rail lines",
     description: "BTS / MRT / ARL · 9 lines",
     defaultOn: true,
+    softUninstall: true,
     layers: [RAIL_LAYER],
-    install: (map) => loadRailData(map),
-    uninstall: () => {},
+    install: async (map) => { await loadRailData(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [RAIL_LAYER], false),
   },
   {
     id: "traffic",
     name: "Live traffic",
     description: "iTIC / Longdo · expressways",
     defaultOn: true,
+    softUninstall: true,
     layers: [TRAFFIC_LAYER],
-    install: (map) => loadTrafficData(map, { preferLive: true }),
-    uninstall: () => {},
+    install: async (map) => { await loadTrafficData(map, { preferLive: true }); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [TRAFFIC_LAYER], false),
   },
   {
     id: "khlongs",
     name: "Canals & rivers",
     description: "Chao Phraya + 3,026 khlongs",
     defaultOn: true,
+    softUninstall: true,
     layers: [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER],
-    install: (map) => loadKhlongData(map),
-    uninstall: () => {},
+    install: async (map) => { await loadKhlongData(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER], false),
   },
   {
     id: "terrain",
     name: "3D terrain",
     description: "AWS Terrarium DEM · 30m grid",
     defaultOn: false,
+    softUninstall: false,
     layers: [],
-    install: (map) => installTerrain(map),
+    install: async (map) => { installTerrain(map); },
     uninstall: (map) => uninstallTerrain(map),
   },
   {
@@ -386,9 +493,10 @@ const LAYERS = [
     name: "Air quality",
     description: "Open-Meteo CAMS · PM2.5 heatmap",
     defaultOn: false,
+    softUninstall: true,
     layers: [AQI_LAYER],
-    install: (map) => installAqi(map),
-    uninstall: (map) => uninstallAqi(map),
+    install: async (map) => { await installAqi(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [AQI_LAYER], false),
     legend: [
       { color: "#10b981", label: "good (0–12)" },
       { color: "#84cc16", label: "moderate (12–35)" },
@@ -402,18 +510,20 @@ const LAYERS = [
     name: "Rain radar",
     description: "RainViewer · last 2 hours",
     defaultOn: false,
+    softUninstall: true,
     layers: [RAIN_LAYER],
-    install: (map) => installRain(map),
-    uninstall: (map) => uninstallRain(map),
+    install: async (map) => { await installRain(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [RAIN_LAYER], false),
   },
   {
     id: "land-price",
     name: "Land price (ราคาประเมิน)",
     description: "Treasury 2024–2028 · ฿/sq.wah",
     defaultOn: false,
+    softUninstall: true,
     layers: [LAND_PRICE_FILL],
-    install: (map) => installLandPrice(map),
-    uninstall: (map) => uninstallLandPrice(map),
+    install: async (map) => { await installLandPrice(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [LAND_PRICE_FILL], false),
     legend: [
       { color: "#fef9c3", label: "< 20,000 ฿" },
       { color: "#fde047", label: "20k–50k ฿" },
@@ -832,9 +942,14 @@ async function fetchAqiGrid() {
 }
 
 async function installAqi(map) {
-  if (map.getLayer(AQI_LAYER)) return;
+  if (map.getLayer(AQI_LAYER)) {
+    setLayersVisible(map, [AQI_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
   const geojson = await fetchAqiGrid();
   if (!geojson || geojson.features.length === 0) {
+    setLayerStatus("aqi", "unavailable · Open-Meteo failed");
     console.warn("AQI fetch returned no data");
     return;
   }
@@ -843,6 +958,7 @@ async function installAqi(map) {
       map.addSource(AQI_SOURCE, { type: "geojson", data: geojson });
     } catch (error) {
       console.warn("AQI source failed:", error);
+      setLayerStatus("aqi", "unavailable · source failed");
       return;
     }
   }
@@ -869,27 +985,33 @@ async function installAqi(map) {
           "interpolate", ["linear"], ["zoom"],
           10, 22, 14, 50,
         ],
-        "heatmap-opacity": 0.7,
+        "heatmap-opacity": Math.min(0.72, state.overlayOpacity + 0.12),
         "heatmap-color": [
           "interpolate", ["linear"], ["heatmap-density"],
           0,    "rgba(16, 185, 129, 0)",
-          0.15, "rgba(132, 204, 22, 0.6)",
-          0.3,  "rgba(234, 179, 8, 0.7)",
-          0.5,  "rgba(249, 115, 22, 0.78)",
-          0.7,  "rgba(239, 68, 68, 0.85)",
-          0.85, "rgba(185, 28, 28, 0.9)",
-          1,    "rgba(127, 29, 29, 0.95)",
+          0.15, "rgba(132, 204, 22, 0.55)",
+          0.3,  "rgba(234, 179, 8, 0.62)",
+          0.5,  "rgba(249, 115, 22, 0.7)",
+          0.7,  "rgba(239, 68, 68, 0.78)",
+          0.85, "rgba(185, 28, 28, 0.85)",
+          1,    "rgba(127, 29, 29, 0.9)",
         ],
       },
     });
+    const when = geojson._capturedAt ? ` · ${geojson._capturedAt.replace("T", " ").slice(0, 16)} UTC` : "";
+    setLayerStatus("aqi", `Open-Meteo CAMS · PM2.5${when}`);
   } catch (error) {
     console.warn("AQI layer failed:", error);
+    setLayerStatus("aqi", "unavailable · layer failed");
   }
 }
 
-function uninstallAqi(map) {
-  if (map.getLayer(AQI_LAYER)) try { map.removeLayer(AQI_LAYER); } catch {}
-  if (map.getSource(AQI_SOURCE)) try { map.removeSource(AQI_SOURCE); } catch {}
+function setLayerStatus(layerId, text) {
+  const detail = document.querySelector(`#toggle-${layerId} ~ .atlas-layer-name small, label:has(#toggle-${layerId}) .atlas-layer-name small`);
+  // Prefer explicit detail ids when present
+  const byId = document.getElementById(`toggle-${layerId}-detail`);
+  const el = byId || detail;
+  if (el) el.textContent = text;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -903,14 +1025,30 @@ async function fetchRainManifest() {
 }
 
 async function installRain(map) {
-  // Refetch at most every 5 minutes — RainViewer frames are static
-  // and refresh only every 10 minutes anyway.
+  if (map.getLayer(RAIN_LAYER) && state.rainFramePath) {
+    setLayersVisible(map, [RAIN_LAYER], true);
+    if (Date.now() - state.rainLastFetch >= 5 * 60_000) {
+      // Refresh tiles in background; keep current frame visible.
+      fetchRainManifest().then((manifest) => {
+        const latest = manifest?.radar?.past?.[manifest.radar.past.length - 1];
+        if (latest?.path) {
+          state.rainFramePath = latest.path;
+          state.rainLastFetch = Date.now();
+          setRainTiles(map, latest.path);
+        }
+      }).catch(() => {});
+    }
+    applyOverlayCompositing(map);
+    return;
+  }
   if (Date.now() - state.rainLastFetch < 5 * 60_000 && state.rainFramePath) {
     setRainTiles(map, state.rainFramePath);
+    ensureStackOrder(map);
     return;
   }
   const manifest = await fetchRainManifest();
   if (!manifest?.radar?.past?.length) {
+    setLayerStatus("rain", "unavailable · RainViewer failed");
     console.warn("RainViewer manifest returned no past frames");
     return;
   }
@@ -919,6 +1057,7 @@ async function installRain(map) {
   state.rainFramePath = path;
   state.rainLastFetch = Date.now();
   setRainTiles(map, path);
+  setLayerStatus("rain", "RainViewer · latest frame");
 }
 
 function setRainTiles(map, path) {
@@ -934,27 +1073,34 @@ function setRainTiles(map, path) {
         maxzoom: 12,
         attribution: "Radar © RainViewer",
       });
+    } catch (error) {
+      console.warn("Rain source failed:", error);
+      setLayerStatus("rain", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(RAIN_SOURCE).setTiles(tiles); } catch {}
+  }
+  if (!map.getLayer(RAIN_LAYER)) {
+    try {
       map.addLayer({
         id: RAIN_LAYER,
         type: "raster",
         source: RAIN_SOURCE,
         paint: {
-          "raster-opacity": 0.65,
-          "raster-saturation": -0.2,
+          "raster-opacity": state.overlayOpacity,
+          "raster-saturation": -0.15,
           "raster-fade-duration": 250,
         },
       });
     } catch (error) {
-      console.warn("Rain source failed:", error);
+      console.warn("Rain layer failed:", error);
+      setLayerStatus("rain", "unavailable · layer failed");
     }
   } else {
-    map.getSource(RAIN_SOURCE).setTiles(tiles);
+    setLayersVisible(map, [RAIN_LAYER], true);
+    applyOverlayCompositing(map);
   }
-}
-
-function uninstallRain(map) {
-  if (map.getLayer(RAIN_LAYER)) try { map.removeLayer(RAIN_LAYER); } catch {}
-  if (map.getSource(RAIN_SOURCE)) try { map.removeSource(RAIN_SOURCE); } catch {}
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -962,17 +1108,23 @@ function uninstallRain(map) {
 // ─────────────────────────────────────────────────────────────────
 
 async function installLandPrice(map) {
-  if (map.getLayer(LAND_PRICE_FILL)) return;
+  if (map.getLayer(LAND_PRICE_FILL)) {
+    setLayersVisible(map, [LAND_PRICE_FILL], true);
+    return;
+  }
   let geojson;
   try {
     const res = await fetch(LAND_PRICE_DATA_URL, { cache: "force-cache" });
     if (!res.ok) {
       console.warn(`Land price GeoJSON returned ${res.status}`);
+      setLayerStatus("land-price", "unavailable · geojson failed");
       return;
     }
     geojson = await res.json();
+    if (geojson?.features) state.landPriceFeatures = geojson.features;
   } catch (error) {
     console.warn("Land price fetch failed:", error);
+    setLayerStatus("land-price", "unavailable · fetch failed");
     return;
   }
   if (!map.getSource(LAND_PRICE_SOURCE)) {
@@ -981,13 +1133,9 @@ async function installLandPrice(map) {
     } catch (error) {
       console.warn("Land price source failed:", error);
       return;
-  }
+    }
   }
   try {
-    // Circle layer — each UTMMAP3 zone is a point in the static
-    // GeoJSON. The radius scales with zoom so the price pattern is
-    // visible at city scale and the dots don't overlap at street
-    // level. Stroke picks up the yellow house style.
     map.addLayer({
       id: LAND_PRICE_FILL,
       type: "circle",
@@ -996,26 +1144,22 @@ async function installLandPrice(map) {
       paint: {
         "circle-radius": [
           "interpolate", ["linear"], ["zoom"],
-          10, 6,
-          13, 14,
-          15, 22,
-          17, 30,
+          10, 5,
+          13, 12,
+          15, 18,
+          17, 26,
         ],
         "circle-color": LAND_PRICE_COLOR_RAMP,
-        "circle-opacity": 0.78,
+        "circle-opacity": 0.62,
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 0.8,
-        "circle-stroke-opacity": 0.9,
+        "circle-stroke-opacity": 0.85,
       },
     });
+    setLayerStatus("land-price", "Treasury 2024–2028 · ฿/sq.wah");
   } catch (error) {
     console.warn("Land price layer failed:", error);
   }
-}
-
-function uninstallLandPrice(map) {
-  if (map.getLayer(LAND_PRICE_FILL)) try { map.removeLayer(LAND_PRICE_FILL); } catch {}
-  if (map.getSource(LAND_PRICE_SOURCE)) try { map.removeSource(LAND_PRICE_SOURCE); } catch {}
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1044,10 +1188,22 @@ function addTrafficLayer(map, geojson) {
   if (map.getSource(TRAFFIC_SOURCE)) {
     const src = map.getSource(TRAFFIC_SOURCE);
     if (src && "setData" in src) src.setData(geojson);
+    if (map.getLayer(TRAFFIC_LAYER)) {
+      setLayersVisible(map, [TRAFFIC_LAYER], true);
+      return;
+    }
+  } else {
+    try {
+      map.addSource(TRAFFIC_SOURCE, { type: "geojson", data: geojson });
+    } catch {
+      return;
+    }
+  }
+  if (map.getLayer(TRAFFIC_LAYER)) {
+    setLayersVisible(map, [TRAFFIC_LAYER], true);
     return;
   }
   try {
-    map.addSource(TRAFFIC_SOURCE, { type: "geojson", data: geojson });
     map.addLayer({
       id: TRAFFIC_LAYER,
       type: "line",
@@ -1060,7 +1216,9 @@ function addTrafficLayer(map, geojson) {
         "line-opacity": 0.9,
       },
     });
-  } catch {}
+  } catch (error) {
+    console.warn("Traffic layer failed:", error);
+  }
 }
 
 async function loadTrafficData(map, { preferLive = false } = {}) {
@@ -1109,10 +1267,16 @@ async function fetchJson(url) {
 }
 
 async function loadRailData(map) {
+  if (map.getLayer(RAIL_LAYER)) {
+    setLayersVisible(map, [RAIL_LAYER], true);
+    return;
+  }
   const geojson = await fetchJson(RAIL_DATA_URL);
   if (!geojson) return;
   try {
-    map.addSource(RAIL_SOURCE, { type: "geojson", data: geojson });
+    if (!map.getSource(RAIL_SOURCE)) {
+      map.addSource(RAIL_SOURCE, { type: "geojson", data: geojson });
+    }
     map.addLayer({
       id: RAIL_LAYER,
       type: "line",
@@ -1125,33 +1289,47 @@ async function loadRailData(map) {
         "line-opacity": 0.95,
       },
     });
-  } catch {}
+  } catch (error) {
+    console.warn("Rail layer failed:", error);
+  }
 }
 
 async function loadKhlongData(map) {
+  if (map.getLayer(KHLONG_RIVER_LAYER) || map.getLayer(KHLONG_CANAL_LAYER)) {
+    setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER], true);
+    return;
+  }
   const geojson = await fetchJson(KHLONG_DATA_URL);
   if (!geojson) return;
   try {
-    map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson });
-    map.addLayer({
-      id: KHLONG_RIVER_LAYER,
-      type: "line",
-      source: KHLONG_SOURCE,
-      minzoom: 9,
-      filter: ["==", ["get", "waterway"], "river"],
-      layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": "#3FA7E0", "line-width": KHLONG_RIVER_WIDTH, "line-opacity": 0.85 },
-    });
-    map.addLayer({
-      id: KHLONG_CANAL_LAYER,
-      type: "line",
-      source: KHLONG_SOURCE,
-      minzoom: 11,
-      filter: ["==", ["get", "waterway"], "canal"],
-      layout: { "line-join": "round", "line-cap": "round" },
-      paint: { "line-color": "#2C7FB8", "line-width": KHLONG_CANAL_WIDTH, "line-opacity": 0.7 },
-    });
-  } catch {}
+    if (!map.getSource(KHLONG_SOURCE)) {
+      map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson });
+    }
+    if (!map.getLayer(KHLONG_RIVER_LAYER)) {
+      map.addLayer({
+        id: KHLONG_RIVER_LAYER,
+        type: "line",
+        source: KHLONG_SOURCE,
+        minzoom: 9,
+        filter: ["==", ["get", "waterway"], "river"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#3FA7E0", "line-width": KHLONG_RIVER_WIDTH, "line-opacity": 0.85 },
+      });
+    }
+    if (!map.getLayer(KHLONG_CANAL_LAYER)) {
+      map.addLayer({
+        id: KHLONG_CANAL_LAYER,
+        type: "line",
+        source: KHLONG_SOURCE,
+        minzoom: 11,
+        filter: ["==", ["get", "waterway"], "canal"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#2C7FB8", "line-width": KHLONG_CANAL_WIDTH, "line-opacity": 0.7 },
+      });
+    }
+  } catch (error) {
+    console.warn("Khlong layer failed:", error);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1211,11 +1389,68 @@ async function fetchNearestLandPrice(lng, lat) {
     const res = await fetch(`/api/land-price?lng=${encodeURIComponent(lng)}&lat=${encodeURIComponent(lat)}`, {
       cache: "no-store",
     });
+    if (res.ok) return await res.json();
+  } catch {
+    /* fall through to client nearest — laptop / offline path */
+  }
+  return nearestLandPriceClient(Number(lng), Number(lat));
+}
+
+function haversineMeters(lng1, lat1, lng2, lat2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function ensureLandPriceFeatures() {
+  if (state.landPriceFeatures?.length) return state.landPriceFeatures;
+  try {
+    const res = await fetch(LAND_PRICE_DATA_URL, { cache: "force-cache" });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    state.landPriceFeatures = data.features ?? [];
+    return state.landPriceFeatures;
   } catch {
     return null;
   }
+}
+
+async function nearestLandPriceClient(lng, lat) {
+  const features = await ensureLandPriceFeatures();
+  if (!features?.length) return null;
+  let best = null;
+  for (const feature of features) {
+    if (feature.geometry?.type !== "Point") continue;
+    const [zLng, zLat] = feature.geometry.coordinates;
+    if (!Number.isFinite(zLng) || !Number.isFinite(zLat)) continue;
+    const distanceM = haversineMeters(lng, lat, zLng, zLat);
+    if (!best || distanceM < best.distanceM) {
+      best = { zone: feature.properties, lng: zLng, lat: zLat, distanceM };
+    }
+  }
+  if (!best) return null;
+  return {
+    tool: "land-price",
+    query: { lng, lat },
+    nearestZone: {
+      zone_id: best.zone.zone_id,
+      price_per_wah: best.zone.price_per_wah,
+      min_price: best.zone.min_price,
+      max_price: best.zone.max_price,
+      parcel_count: best.zone.parcel_count,
+      displayLng: best.lng,
+      displayLat: best.lat,
+      distanceM: Math.round(best.distanceM),
+    },
+    notes:
+      "Client-side nearest (API unavailable). Display positions are grid-layout approximations of UTMMAP3 zones.",
+    assessment: "Treasury Department ราคาประเมินที่ดิน 2024–2028",
+  };
 }
 
 function landRowsFromApi(payload) {
@@ -1346,42 +1581,44 @@ function wireLayerToggles(map) {
     const stateEl = document.getElementById(`toggle-${layer.id}-state`);
     if (!toggle) continue;
     toggle.checked = layer.defaultOn;
+    state.layerOn[layer.id] = layer.defaultOn;
     const legendEl = document.getElementById(`legend-${layer.id}`);
     const apply = async () => {
       const on = toggle.checked;
+      state.layerOn[layer.id] = on;
       if (on) {
         try { await layer.install(map); } catch (error) { console.warn(`${layer.id} install failed:`, error); }
-        if (layer.layers.length > 0) {
-          for (const layerId of layer.layers) {
-            if (map.getLayer(layerId)) try { map.setLayoutProperty(layerId, "visibility", "visible"); } catch {}
-          }
-        }
+        if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
         if (legendEl && layer.legend) renderLegend(legendEl, layer.legend);
       } else {
-        if (layer.layers.length > 0) {
-          for (const layerId of layer.layers) {
-            if (map.getLayer(layerId)) try { map.setLayoutProperty(layerId, "visibility", "none"); } catch {}
-          }
-        }
         try { layer.uninstall(map); } catch {}
+        if (layer.layers.length > 0) setLayersVisible(map, layer.layers, false);
         if (legendEl) hideLegend(legendEl);
       }
+      ensureStackOrder(map);
       if (stateEl) stateEl.textContent = on ? "on" : "off";
     };
     toggle.addEventListener("change", apply);
-    if (layer.defaultOn) apply();
-    else if (stateEl) stateEl.textContent = "off";
+    // Stagger heavy GeoJSON so the city paints first on a laptop.
+    if (layer.defaultOn) {
+      if (layer.id === "khlongs" || layer.id === "traffic") {
+        const delay = layer.id === "traffic" ? 80 : 220;
+        setTimeout(() => { apply(); }, delay);
+      } else {
+        apply();
+      }
+    } else if (stateEl) {
+      stateEl.textContent = "off";
+    }
   }
 
-  // Building paint mode (sub-toggle under "3D buildings"). Toggling
-  // this also reveals the legend so the type → colour mapping is
-  // visible while the type-coloured map is on screen.
   const colorToggle = document.getElementById("toggle-building-color");
   const colorLegend = document.getElementById("legend-buildings");
   if (colorToggle) {
     const applyColor = () => {
       state.buildingPaint = colorToggle.checked ? "type" : "monochrome";
       applyBuildingPaint(map);
+      applyOverlayCompositing(map);
       if (colorToggle.checked) {
         const layerDef = LAYERS.find((l) => l.id === "buildings");
         if (layerDef?.legend) renderLegend(colorLegend, layerDef.legend);
@@ -1391,6 +1628,76 @@ function wireLayerToggles(map) {
     };
     colorToggle.addEventListener("change", applyColor);
   }
+
+  wireOverlayOpacity(map);
+  wireStackPresets(map);
+  updateStackChips();
+}
+
+function wireOverlayOpacity(map) {
+  const slider = document.getElementById("overlay-opacity");
+  const label = document.getElementById("overlay-opacity-value");
+  if (!slider) return;
+  const sync = () => {
+    state.overlayOpacity = Number(slider.value) / 100;
+    if (label) label.textContent = `${Math.round(state.overlayOpacity * 100)}%`;
+    applyOverlayCompositing(map);
+  };
+  slider.value = String(Math.round(state.overlayOpacity * 100));
+  slider.addEventListener("input", sync);
+  sync();
+}
+
+async function setLayerToggle(map, layerId, on) {
+  const layer = LAYERS.find((l) => l.id === layerId);
+  const toggle = document.getElementById(`toggle-${layerId}`);
+  const stateEl = document.getElementById(`toggle-${layerId}-state`);
+  const legendEl = document.getElementById(`legend-${layerId}`);
+  if (!layer || !toggle) return;
+
+  toggle.checked = on;
+  state.layerOn[layerId] = on;
+
+  if (on) {
+    try { await layer.install(map); } catch (error) { console.warn(`${layerId} install failed:`, error); }
+    if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
+    if (legendEl && layer.legend) renderLegend(legendEl, layer.legend);
+  } else {
+    try { layer.uninstall(map); } catch {}
+    if (layer.layers.length > 0) setLayersVisible(map, layer.layers, false);
+    if (legendEl) hideLegend(legendEl);
+  }
+  if (stateEl) stateEl.textContent = on ? "on" : "off";
+  ensureStackOrder(map);
+  updateStackChips();
+}
+
+function wireStackPresets(map) {
+  const root = document.getElementById("atlas-stack-presets");
+  if (!root) return;
+  root.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-preset]");
+    if (!btn) return;
+    const preset = btn.dataset.preset;
+    root.querySelectorAll("[data-preset]").forEach((el) => {
+      el.classList.toggle("is-active", el === btn);
+    });
+    const wants = {
+      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, "land-price": false, terrain: false },
+      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, "land-price": false, terrain: false },
+      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, "land-price": false, terrain: false },
+      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, "land-price": false, terrain: false },
+    }[preset];
+    if (!wants) return;
+    // City first so the silhouette is on-screen before overlays arrive.
+    if (wants.buildings) await setLayerToggle(map, "buildings", true);
+    for (const [id, on] of Object.entries(wants)) {
+      if (id === "buildings") continue;
+      await setLayerToggle(map, id, on);
+    }
+    ensureStackOrder(map);
+    updateStackChips();
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────

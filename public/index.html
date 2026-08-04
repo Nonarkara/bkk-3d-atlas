@@ -73,7 +73,21 @@
 
       <section class="atlas-layers" id="atlas-layers">
         <p class="atlas-eyebrow">Layers</p>
-        <h2 class="atlas-data-heading">Show / hide</h2>
+        <h2 class="atlas-data-heading">Stack the city</h2>
+        <p class="atlas-layers-blurb">
+          Combine layers. The city stays underneath; rain and AQI
+          sit on top at a soft opacity so you can still read the
+          silhouette.
+        </p>
+
+        <div class="atlas-stack-presets" id="atlas-stack-presets" role="group" aria-label="Layer stack presets">
+          <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
+          <button type="button" class="atlas-preset-btn" data-preset="rain">City + rain</button>
+          <button type="button" class="atlas-preset-btn" data-preset="aqi">City + AQI</button>
+          <button type="button" class="atlas-preset-btn" data-preset="pulse">Full pulse</button>
+        </div>
+        <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
+
         <ul class="atlas-layer-list">
           <li class="atlas-layer-group">
             <label class="atlas-layer-toggle">
@@ -139,7 +153,7 @@
               <input type="checkbox" id="toggle-land-price" />
               <span class="atlas-layer-name">
                 <strong>Land price (ราคาประเมิน)</strong>
-                <small>Treasury 2024–2028 · ฿/sq.wah</small>
+                <small id="toggle-land-price-detail">Treasury 2024–2028 · ฿/sq.wah</small>
               </span>
               <span class="atlas-layer-state" id="toggle-land-price-state" aria-live="polite">off</span>
             </label>
@@ -147,14 +161,14 @@
           </li>
         </ul>
 
-        <p class="atlas-eyebrow atlas-eyebrow-sub">Weather</p>
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Weather overlays</p>
         <ul class="atlas-layer-list atlas-layer-list-sub">
           <li>
             <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-rain" />
               <span class="atlas-layer-name">
                 <strong>Rain radar</strong>
-                <small>RainViewer · last 2 h</small>
+                <small id="toggle-rain-detail">RainViewer · last 2 h</small>
               </span>
               <span class="atlas-layer-state" id="toggle-rain-state" aria-live="polite">off</span>
             </label>
@@ -164,22 +178,29 @@
               <input type="checkbox" id="toggle-aqi" />
               <span class="atlas-layer-name">
                 <strong>Air quality</strong>
-                <small>Open-Meteo CAMS · PM2.5</small>
+                <small id="toggle-aqi-detail">Open-Meteo CAMS · PM2.5</small>
               </span>
               <span class="atlas-layer-state" id="toggle-aqi-state" aria-live="polite">off</span>
             </label>
             <div class="atlas-legend" id="legend-aqi" hidden></div>
           </li>
         </ul>
+
+        <label class="atlas-opacity">
+          <span>Overlay strength <strong id="overlay-opacity-value">45%</strong></span>
+          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain and AQI overlay opacity" />
+        </label>
       </section>
 
       <section class="atlas-labs" id="atlas-labs">
         <p class="atlas-eyebrow">Labs</p>
-        <h2 class="atlas-data-heading">Wildest ideas we can ship</h2>
+        <h2 class="atlas-data-heading">What ships next from one laptop</h2>
         <p class="atlas-labs-blurb">
           Built by a Bangkokian born in 1981 — more than 30 years
-          inside this city. The data is here. The maps are here.
-          The ideas are below. <strong>My city, not theirs.</strong>
+          inside this city. Everything below is sized for a single
+          developer machine: static GeoJSON, free APIs, Cloudflare
+          Workers + R2. No cluster. No consulting fee.
+          <strong>My city, not theirs.</strong>
         </p>
 
         <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
@@ -187,79 +208,120 @@
           <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
         </a>
 
-        <ol class="atlas-labs-list">
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Shipped on this atlas</p>
+        <ol class="atlas-labs-list atlas-labs-list-shipped">
           <li>
-            <strong>1. BKKx Digital Twin — handover to BMA.</strong>
+            <strong>Multi-layer city stack.</strong>
+            Buildings + rail + traffic under translucent rain and
+            AQI. Presets: City · City+rain · City+AQI · Full pulse.
+            Overlay strength slider keeps the silhouette readable.
+          </li>
+          <li>
+            <strong>Inspect + land-price API.</strong>
+            Click a building → OSM type/height + nearest Treasury
+            zone. <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
+            with client-side fallback when the Worker is unreachable.
+          </li>
+          <li>
+            <strong>Honest traffic.</strong>
+            Toggle shows live vs sample · mock levels so the map
+            never pretends a static GeoJSON is a live feed.
+          </li>
+        </ol>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
+        <ol class="atlas-labs-list" start="4">
+          <li>
+            <strong>Flood Resilience Sandbox.</strong>
+            Reuse terrain DEM + rain radar + building heights.
+            Drop a static 2011 / 1-in-100 flood extent GeoJSON,
+            opacity slider, count buildings inside the envelope.
+            No hydrodynamic model — envelope × intersect is enough
+            for a civic demo.
+          </li>
+          <li>
+            <strong>Property Tax Verifier (ภาษีที่ดิน) v2.</strong>
+            Deed-number or parcel-id lookup over Treasury zones.
+            Compare assessed ฿/sq.wah against a typed tax bill.
+            Surfaces the gap between assessment and collection.
+          </li>
+          <li>
+            <strong>BTS/MRT isochrones.</strong>
+            5 / 10 / 15-minute walksheds from every rail station
+            using the rail GeoJSON we already ship. Tippecanoe →
+            PMTiles, same R2 path as buildings.
+          </li>
+          <li>
+            <strong>Heat + khlong cooling.</strong>
+            Open-Meteo temperature grid overlaid on the khlong
+            network — show which canals sit under the hottest
+            blocks. Same AQI fetch pattern, new variable.
+          </li>
+          <li>
+            <strong>Insurance risk score (lite).</strong>
+            <code>GET /api/risk?lng=&amp;lat=</code> → land price ×
+            nearest AQI cell × rain intensity × building height.
+            One Worker route, no GPU.
+          </li>
+          <li>
+            <strong>Night lights / blackout view.</strong>
+            Toggle satellite saturation + building emissive paint
+            for a “city after dark” mode. Pure client paint — zero
+            new data.
+          </li>
+          <li>
+            <strong>Offline atlas pack.</strong>
+            <code>scripts/pack-offline.sh</code>: pin MapLibre +
+            pmtiles + sample traffic + land-price + areas into a
+            folder you can open from a USB stick when the fibre
+            dies. Laptop-native by design.
+          </li>
+        </ol>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon — still possible, heavier lift</p>
+        <ol class="atlas-labs-list" start="11">
+          <li>
+            <strong>BKKx Digital Twin — handover to BMA.</strong>
             Open-source, no lock-in, no ฿5.4M consulting fee. The
             system proves the technical path; the political
-            handover is the deliverable. BMA gets it for free if
-            they promise to maintain it.
+            handover is the deliverable.
           </li>
           <li>
-            <strong>2. Property-tech API.</strong> 432K buildings
-            + heights + 477 land-price zones, served as
-            JSON / GeoJSON / MVT to REITs, developers, banks,
-            insurance underwriters. ฿0.50 per lookup. The data
-            is already on the bucket — just wrap it.
-            <em class="atlas-labs-shipped"> Shipped lite: <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>.</em>
+            <strong>Property-tech API (full).</strong>
+            432K buildings + heights + cadastral polygons as
+            JSON / GeoJSON / MVT. Needs Royal Thai Survey
+            boundary files — the hard part is institutional, not
+            code.
           </li>
           <li>
-            <strong>3. Bangkok Flood Resilience Sandbox.</strong>
-            Terrain DEM + rain radar + building heights. Drop a
-            1-in-100-year storm on the map, watch which blocks
-            flood. Citizens, planners, insurers — same model.
+            <strong>Tourist AR — point, learn.</strong>
+            Rattanakosin detail PMTiles + temple / museum tags as
+            a PWA. No app store.
           </li>
           <li>
-            <strong>4. Property Tax Verifier (ภาษีที่ดิน).</strong>
-            Click a building, see OSM height/type and the nearest
-            Treasury assessed price (฿/sq.wah). Full deed-number
-            verifier is the follow-up; this is the civic surface
-            that ships today.
-            <em class="atlas-labs-shipped"> Live above ↑ — click the map.</em>
-          </li>
-          <li>
-            <strong>5. Bangkok in the Metaverse.</strong> Faithful
-            1:1 twin of the city, with the same 432K buildings,
-            sell premium virtual plots in Sukhumvit / Silom /
-            Phrom Phuk. ฿50k per virtual address, real estate
-            brokers already asking.
-          </li>
-          <li>
-            <strong>6. Tourist AR — point, learn.</strong>
-            Rattanakosin detail PMTiles + 1,727 temple tags + 75
-            museums + 498 tombs = a PWA that turns every shrine
-            into a story. No app store. Bangkokians and tourists
-            use the same one.
-          </li>
-          <li>
-            <strong>7. Urban Planning Decision Support.</strong>
-            Drag a new BTS station onto the map, watch land prices
-            around it change. Drag a flood barrier, watch AQI
-            drop. The whole system becomes a sandbox for the
+            <strong>Urban Planning Decision Support.</strong>
+            Drag a BTS station, watch land-price heat move. Drag
+            a flood barrier, watch AQI cells shift. Sandbox for
             decisions BMA should be making.
           </li>
           <li>
-            <strong>8. Insurance Risk API.</strong>
-            Premium = parcel × assessed value × flood risk × AQI
-            × building height. One REST call returns the score.
-            ฿2 per lookup, sell to every insurer in Thailand.
+            <strong>BMA Command Center.</strong>
+            Live ops dashboard of every layer on one screen.
+            Same Worker, denser chrome, training for operators.
           </li>
           <li>
-            <strong>9. BMA Command Center.</strong> Live ops
-            dashboard combining every layer this atlas has. A
-            deputy governor walks in, sees the city as a single
-            screen. They don't know how to read it, but at least
-            the data is there. BKKx trains the operators.
+            <strong>Open Data Marketplace.</strong>
+            Anonymized patterns from PMTiles + tourism + land-
+            price changes. The anonymity promise is real because
+            the tiles never tracked people.
           </li>
           <li>
-            <strong>10. Open Data Marketplace.</strong> Anonymized
-            foot-traffic patterns derived from pmtiles +
-            tourism data + land-price changes. Sell to retail
-            chains, FMCG brands, urban economists. The "anonymous"
-            promise is real because the underlying PMTiles never
-            tracked people in the first place.
+            <strong>Bangkok in the Metaverse.</strong>
+            1:1 twin for virtual plots — only after the civic
+            layers above are boringly reliable.
           </li>
         </ol>
+
         <p class="atlas-labs-rant">
           BMA — the Bangkok Metropolitan Administration — has been
           "planning a smart city" since 2016. Ten years. Ten
@@ -267,8 +329,9 @@
           zero digital twin. Meanwhile the buildings are getting
           taller, the floods are getting deeper, and the only
           dashboard the public gets is a 1990s PDF map. We
-          built the whole thing on a one-laptop budget in an
-          afternoon. The system is not the hard part.
+          built the whole thing on a one-laptop budget. The
+          system is not the hard part — keeping every layer
+          honest and stackable is.
         </p>
       </section>
 

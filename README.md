@@ -60,8 +60,17 @@ dashboards, anything else that needs Bangkok) can pull in:
 
 ```sh
 npm install        # one time, installs wrangler
+npm run verify     # laptop smoke check (JSON, stack helpers, no network)
+npm run typecheck  # Worker TypeScript
 npm run dev        # http://localhost:8787
 ```
+
+The atlas is sized for a single laptop: static GeoJSON in `public/`,
+free tile APIs (Esri, RainViewer, Open-Meteo), and Cloudflare Workers
++ R2 for PMTiles Range. Heavy layers (khlongs, traffic) load after the
+city paints. Inspect falls back to client-side nearest land-price when
+`/api/land-price` is unreachable. Layer toggles soft-hide instead of
+tearing down WebGL sources, so re-toggling rain/AQI stays cheap.
 
 ## Deploy
 
