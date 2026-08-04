@@ -6,7 +6,7 @@
 //   (1) proxies /api/traffic to the iTIC/Longdo feed using a secret key
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
 //   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
-//   (4) serves /api/risk land × flood schematic score
+//   (4) serves /api/risk land × flood × PM2.5 civic score
 //   (5) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
@@ -389,15 +389,18 @@ function parseBangkokLngLat(request: Request): { lng: number; lat: number } | Re
   return { lng, lat };
 }
 
-/** Risk lite: land price × schematic flood severity → 0–100 civic score. */
+/** Risk: land price × schematic flood × live PM2.5 → 0–100 civic score. */
 async function lookupRisk(request: Request, env: Env): Promise<Response> {
   const parsed = parseBangkokLngLat(request);
   if (parsed instanceof Response) return parsed;
   const { lng, lat } = parsed;
+  const url = new URL(request.url);
+  const pm25Override = Number.parseFloat(url.searchParams.get("pm25") ?? "");
 
-  const [landCollection, floodCollection] = await Promise.all([
+  const [landCollection, floodCollection, pm25Live] = await Promise.all([
     loadLandPriceCollection(env, request),
     loadFloodCollection(env, request),
+    Number.isFinite(pm25Override) ? Promise.resolve(pm25Override) : fetchPointPm25(lat, lng),
   ]);
 
   const nearest = landCollection ? nearestLandPrice(landCollection, lng, lat) : null;
@@ -409,11 +412,19 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
   const severityWeight = ({ none: 0, low: 0.35, medium: 0.65, high: 1 } as Record<string, number>)[severity] ?? 0;
   const price = nearest?.zone.price_per_wah ?? 0;
   const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
-  const score = Math.round(100 * (0.45 * landFactor + 0.55 * severityWeight));
+  const pm25 = pm25Live;
+  const aqiFactor =
+    pm25 == null || !Number.isFinite(pm25)
+      ? 0
+      : Math.min(1, Math.max(0, (pm25 - 12) / 138)); // 12 → 0, 150 → 1
+  const score = Math.round(
+    100 * (0.35 * landFactor + 0.4 * severityWeight + 0.25 * aqiFactor),
+  );
 
   return jsonResponse(
     {
       tool: "risk",
+      version: 2,
       query: { lng, lat },
       score,
       band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
@@ -424,6 +435,8 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
         floodSeverity: severity,
         floodEnvelope: flood.top?.name ?? null,
         depthHintM: flood.top?.depthHintM ?? null,
+        pm25: pm25 ?? null,
+        aqiFactor: Math.round(aqiFactor * 100) / 100,
       },
       nearestZone: nearest
         ? {
@@ -443,6 +456,27 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
       },
     },
   );
+}
+
+async function fetchPointPm25(lat: number, lng: number): Promise<number | null> {
+  try {
+    const aqUrl =
+      `https://air-quality-api.open-meteo.com/v1/air-quality` +
+      `?latitude=${lat}&longitude=${lng}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
+    const res = await fetch(aqUrl, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { hourly?: { pm2_5?: Array<number | null>; time?: string[] } };
+    const values = data?.hourly?.pm2_5;
+    if (!values?.length) return null;
+    let idx = values.length - 1;
+    while (idx > 0 && (values[idx] == null || Number.isNaN(Number(values[idx])))) idx--;
+    const v = values[idx];
+    return v == null ? null : Number(v);
+  } catch {
+    return null;
+  }
 }
 
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {

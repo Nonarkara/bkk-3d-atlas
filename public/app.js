@@ -280,6 +280,11 @@ const LAND_PRICE_FILL = "bkkx-land-price-fill";
 const LAND_PRICE_LINE = "bkkx-land-price-line";
 const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
 
+// Heat (Open-Meteo forecast temperature_2m). Same 8×8 grid pattern as AQI.
+const HEAT_SOURCE = "bkkx-heat";
+const HEAT_LAYER = "bkkx-heat-heat";
+const HEAT_API = "https://api.open-meteo.com/v1/forecast";
+
 // Schematic flood envelopes (Labs sandbox). NOT official DDPM/BMA
 // flood lines — generalized 2011-style corridors + monsoon pockets.
 const FLOOD_SOURCE = "bkkx-flood";
@@ -331,6 +336,7 @@ const state = {
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
   floodOpacity: 0.38,
+  nightMode: false,
   layerOn: Object.create(null), // id → boolean, source of truth for presets
 };
 
@@ -350,6 +356,7 @@ const LAYER_STACK = [
   LAND_PRICE_FILL,
   FLOOD_FILL,
   FLOOD_LINE,
+  HEAT_LAYER,
   AQI_LAYER,
   RAIN_LAYER,
 ];
@@ -373,17 +380,16 @@ function setLayersVisible(map, layerIds, visible) {
   }
 }
 
-/** Keep city readable under rain + AQI + flood. Softens buildings when overlays are on. */
+/** Keep city readable under rain + AQI + flood + heat. Softens buildings when overlays are on. */
 function applyOverlayCompositing(map) {
   if (!map) return;
-  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.flood);
+  // Night mode sets colours first; opacity softens after.
+  applyNightMode(map);
+
+  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.flood || state.layerOn.heat);
   const rainOpacity = state.overlayOpacity;
   const aqiOpacity = Math.min(0.72, state.overlayOpacity + 0.12);
-  const buildingOpacity = weatherOn
-    ? ["interpolate", ["linear"], ["zoom"], 11, 0.28, 13, 0.48, 15, 0.62, 17, 0.72]
-    : (state.buildingPaint === "type"
-      ? BUILDING_PAINT_BY_TYPE["fill-extrusion-opacity"]
-      : BUILDING_PAINT_MONOCHROME["fill-extrusion-opacity"]);
+  const heatOpacity = Math.min(0.68, state.overlayOpacity + 0.08);
 
   if (map.getLayer(RAIN_LAYER)) {
     try { map.setPaintProperty(RAIN_LAYER, "raster-opacity", rainOpacity); } catch {}
@@ -391,22 +397,81 @@ function applyOverlayCompositing(map) {
   if (map.getLayer(AQI_LAYER)) {
     try { map.setPaintProperty(AQI_LAYER, "heatmap-opacity", aqiOpacity); } catch {}
   }
+  if (map.getLayer(HEAT_LAYER)) {
+    try { map.setPaintProperty(HEAT_LAYER, "heatmap-opacity", heatOpacity); } catch {}
+  }
   if (map.getLayer(FLOOD_FILL)) {
     try { map.setPaintProperty(FLOOD_FILL, "fill-opacity", state.floodOpacity); } catch {}
   }
-  if (map.getLayer("bkkx-3d-buildings")) {
-    try { map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", buildingOpacity); } catch {}
-  }
-  if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
-    try {
-      map.setPaintProperty(
-        RATTANAKOSIN_BUILDINGS_LAYER,
-        "fill-extrusion-opacity",
-        weatherOn ? 0.72 : (state.buildingPaint === "type" ? 0.92 : 0.82),
-      );
-    } catch {}
+
+  if (!state.nightMode) {
+    const buildingOpacity = weatherOn
+      ? ["interpolate", ["linear"], ["zoom"], 11, 0.28, 13, 0.48, 15, 0.62, 17, 0.72]
+      : (state.buildingPaint === "type"
+        ? BUILDING_PAINT_BY_TYPE["fill-extrusion-opacity"]
+        : BUILDING_PAINT_MONOCHROME["fill-extrusion-opacity"]);
+    if (map.getLayer("bkkx-3d-buildings")) {
+      try { map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", buildingOpacity); } catch {}
+    }
+    if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+      try {
+        map.setPaintProperty(
+          RATTANAKOSIN_BUILDINGS_LAYER,
+          "fill-extrusion-opacity",
+          weatherOn ? 0.72 : (state.buildingPaint === "type" ? 0.92 : 0.82),
+        );
+      } catch {}
+    }
   }
   updateStackChips();
+}
+
+function applyNightMode(map) {
+  if (!map) return;
+  document.documentElement.classList.toggle("is-night", state.nightMode);
+  document.body.classList.toggle("is-night", state.nightMode);
+
+  if (map.getLayer("bkkx-satellite")) {
+    try {
+      map.setPaintProperty("bkkx-satellite", "raster-opacity", state.nightMode ? 0.38 : 0.78);
+      map.setPaintProperty("bkkx-satellite", "raster-saturation", state.nightMode ? -0.85 : -0.45);
+      map.setPaintProperty("bkkx-satellite", "raster-brightness-min", state.nightMode ? 0 : 0.04);
+      map.setPaintProperty("bkkx-satellite", "raster-brightness-max", state.nightMode ? 0.55 : 0.96);
+      map.setPaintProperty("bkkx-satellite", "raster-contrast", state.nightMode ? 0.22 : 0.08);
+    } catch {}
+  }
+
+  // Emissive night buildings — warm amber wash over type colours.
+  if (state.nightMode && map.getLayer("bkkx-3d-buildings")) {
+    try {
+      map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-color", [
+        "interpolate", ["linear"], ["zoom"],
+        11, "#c9ff38",
+        14, "#ffb84d",
+        17, "#ffe08a",
+      ]);
+      map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", [
+        "interpolate", ["linear"], ["zoom"],
+        11, 0.45, 13, 0.7, 15, 0.88, 17, 0.95,
+      ]);
+    } catch {}
+  } else if (map.getLayer("bkkx-3d-buildings")) {
+    applyBuildingPaint(map);
+  }
+
+  if (state.nightMode && map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+    try {
+      map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, "fill-extrusion-color", "#ffe08a");
+      map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, "fill-extrusion-opacity", 0.95);
+    } catch {}
+  } else if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+    applyRattanakosinPaint(map);
+  }
+
+  const nightToggle = document.getElementById("toggle-night");
+  if (nightToggle) nightToggle.checked = state.nightMode;
+  const nightState = document.getElementById("toggle-night-state");
+  if (nightState) nightState.textContent = state.nightMode ? "on" : "off";
 }
 
 function updateStackChips() {
@@ -420,20 +485,27 @@ function updateStackChips() {
     terrain: "Terrain",
     "land-price": "Land ฿",
     flood: "Flood",
+    heat: "Heat",
     aqi: "AQI",
     rain: "Rain",
   };
   const on = Object.keys(labels).filter((id) => state.layerOn[id]);
   el.innerHTML = "";
-  if (on.length === 0) {
+  if (on.length === 0 && !state.nightMode) {
     el.hidden = true;
     return;
   }
   el.hidden = false;
+  if (state.nightMode) {
+    const chip = document.createElement("span");
+    chip.className = "atlas-stack-chip is-night";
+    chip.textContent = "Night";
+    el.appendChild(chip);
+  }
   for (const id of on) {
     const chip = document.createElement("span");
     chip.className = "atlas-stack-chip";
-    if (id === "rain" || id === "aqi" || id === "flood") chip.classList.add("is-weather");
+    if (id === "rain" || id === "aqi" || id === "flood" || id === "heat") chip.classList.add("is-weather");
     chip.textContent = labels[id];
     el.appendChild(chip);
   }
@@ -509,6 +581,23 @@ const LAYERS = [
     layers: [],
     install: async (map) => { installTerrain(map); },
     uninstall: (map) => uninstallTerrain(map),
+  },
+  {
+    id: "heat",
+    name: "Heat",
+    description: "Open-Meteo · temperature °C",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [HEAT_LAYER],
+    install: async (map) => { await installHeat(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [HEAT_LAYER], false),
+    legend: [
+      { color: "#38bdf8", label: "< 28°C" },
+      { color: "#facc15", label: "28–32°C" },
+      { color: "#fb923c", label: "32–35°C" },
+      { color: "#ef4444", label: "35–38°C" },
+      { color: "#9f1239", label: "38°C+" },
+    ],
   },
   {
     id: "aqi",
@@ -936,18 +1025,15 @@ function uninstallTerrain(map) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// AQI heatmap (Open-Meteo CAMS)
+// Heat heatmap (Open-Meteo forecast temperature_2m)
 // ─────────────────────────────────────────────────────────────────
 
-async function fetchAqiGrid() {
-  // 8×8 grid over the Bangkok bbox. Open-Meteo multi-location returns
-  // an array of location objects (one per lat/lon pair), each with its
-  // own hourly.pm2_5 series — not a single flattened hourly block.
+async function fetchOpenMeteoGrid({ apiBase, hourlyKey, propKey, extraParams = "" }) {
   const lats = [];
   const lons = [];
   for (let i = 0; i < 8; i++) lats.push((13.49 + (14.10 - 13.49) * (i / 7)).toFixed(3));
   for (let j = 0; j < 8; j++) lons.push((100.30 + (100.95 - 100.30) * (j / 7)).toFixed(3));
-  const url = `${AQI_API}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
+  const url = `${apiBase}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&hourly=${hourlyKey}&forecast_days=1${extraParams}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
   const data = await res.json();
@@ -959,7 +1045,7 @@ async function fetchAqiGrid() {
   for (let i = 0; i < locations.length; i++) {
     const loc = locations[i];
     const times = loc?.hourly?.time;
-    const values = loc?.hourly?.pm2_5;
+    const values = loc?.hourly?.[hourlyKey];
     if (!times?.length || !values?.length) continue;
     let idx = times.length - 1;
     while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
@@ -970,12 +1056,97 @@ async function fetchAqiGrid() {
     const lon = Number(loc.longitude ?? lons[i % lons.length] ?? lons[0]);
     features.push({
       type: "Feature",
-      properties: { pm25: v },
+      properties: { [propKey]: v },
       geometry: { type: "Point", coordinates: [lon, lat] },
     });
   }
   if (features.length === 0) return null;
   return { type: "FeatureCollection", features, _capturedAt: capturedAt };
+}
+
+async function fetchHeatGrid() {
+  return fetchOpenMeteoGrid({
+    apiBase: HEAT_API,
+    hourlyKey: "temperature_2m",
+    propKey: "tempC",
+  });
+}
+
+async function installHeat(map) {
+  if (map.getLayer(HEAT_LAYER)) {
+    setLayersVisible(map, [HEAT_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchHeatGrid();
+  if (!geojson || geojson.features.length === 0) {
+    setLayerStatus("heat", "unavailable · Open-Meteo failed");
+    console.warn("Heat fetch returned no data");
+    return;
+  }
+  if (!map.getSource(HEAT_SOURCE)) {
+    try {
+      map.addSource(HEAT_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Heat source failed:", error);
+      setLayerStatus("heat", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: HEAT_LAYER,
+      type: "heatmap",
+      source: HEAT_SOURCE,
+      maxzoom: 15,
+      paint: {
+        "heatmap-weight": [
+          "interpolate", ["linear"], ["get", "tempC"],
+          26, 0.05,
+          30, 0.35,
+          33, 0.6,
+          36, 0.85,
+          40, 1.0,
+        ],
+        "heatmap-intensity": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 1, 14, 2.2,
+        ],
+        "heatmap-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 24, 14, 52,
+        ],
+        "heatmap-opacity": Math.min(0.68, state.overlayOpacity + 0.08),
+        "heatmap-color": [
+          "interpolate", ["linear"], ["heatmap-density"],
+          0,    "rgba(56, 189, 248, 0)",
+          0.2,  "rgba(56, 189, 248, 0.45)",
+          0.4,  "rgba(250, 204, 21, 0.55)",
+          0.6,  "rgba(251, 146, 60, 0.7)",
+          0.8,  "rgba(239, 68, 68, 0.82)",
+          1,    "rgba(159, 18, 57, 0.9)",
+        ],
+      },
+    });
+    const when = geojson._capturedAt ? ` · ${geojson._capturedAt.replace("T", " ").slice(0, 16)} UTC` : "";
+    setLayerStatus("heat", `Open-Meteo · °C${when}`);
+  } catch (error) {
+    console.warn("Heat layer failed:", error);
+    setLayerStatus("heat", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// AQI heatmap (Open-Meteo CAMS)
+// ─────────────────────────────────────────────────────────────────
+
+async function fetchAqiGrid() {
+  return fetchOpenMeteoGrid({
+    apiBase: AQI_API,
+    hourlyKey: "pm2_5",
+    propKey: "pm25",
+    extraParams: "&domains=cams_global",
+  });
 }
 
 async function installAqi(map) {
@@ -1710,22 +1881,44 @@ async function fetchRisk(lng, lat) {
 }
 
 async function composeRiskClient(lng, lat) {
-  const [land, flood] = await Promise.all([
+  const [land, flood, pm25] = await Promise.all([
     nearestLandPriceClient(lng, lat),
     floodHitAt(lng, lat),
+    fetchPointPm25Client(lat, lng),
   ]);
-  return buildRiskPayload(lng, lat, land?.nearestZone ?? null, flood);
+  return buildRiskPayload(lng, lat, land?.nearestZone ?? null, flood, pm25);
 }
 
-function buildRiskPayload(lng, lat, zone, flood) {
+async function fetchPointPm25Client(lat, lng) {
+  try {
+    const url =
+      `${AQI_API}?latitude=${lat}&longitude=${lng}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const values = data?.hourly?.pm2_5;
+    if (!values?.length) return null;
+    let idx = values.length - 1;
+    while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
+    return values[idx] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function buildRiskPayload(lng, lat, zone, flood, pm25 = null) {
   const severity = flood?.inside ? (flood.top?.severity ?? "medium") : "none";
   const severityWeight = { none: 0, low: 0.35, medium: 0.65, high: 1 }[severity] ?? 0;
   const price = zone?.price_per_wah ?? 0;
-  // Laptop-simple score: log land value × flood severity (0–100).
   const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
-  const score = Math.round(100 * (0.45 * landFactor + 0.55 * severityWeight));
+  const aqiFactor =
+    pm25 == null || Number.isNaN(Number(pm25))
+      ? 0
+      : Math.min(1, Math.max(0, (Number(pm25) - 12) / 138));
+  const score = Math.round(100 * (0.35 * landFactor + 0.4 * severityWeight + 0.25 * aqiFactor));
   return {
     tool: "risk",
+    version: 2,
     query: { lng, lat },
     score,
     band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
@@ -1734,6 +1927,8 @@ function buildRiskPayload(lng, lat, zone, flood) {
       floodInside: !!flood?.inside,
       floodSeverity: severity,
       floodEnvelope: flood?.top?.name ?? null,
+      pm25: pm25 ?? null,
+      aqiFactor: Math.round(aqiFactor * 100) / 100,
     },
     disclaimer: "Schematic civic score — not for insurance underwriting.",
   };
@@ -1857,8 +2052,21 @@ function wireLayerToggles(map) {
   }
 
   wireOverlayOpacity(map);
+  wireNightMode(map);
   wireStackPresets(map);
   updateStackChips();
+}
+
+function wireNightMode(map) {
+  const toggle = document.getElementById("toggle-night");
+  if (!toggle) return;
+  toggle.checked = state.nightMode;
+  toggle.addEventListener("change", () => {
+    state.nightMode = toggle.checked;
+    applyNightMode(map);
+    updateStackChips();
+  });
+  applyNightMode(map);
 }
 
 function wireOverlayOpacity(map) {
@@ -1924,16 +2132,20 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, flood: false, "land-price": false, terrain: false },
-      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, flood: false, "land-price": false, terrain: false },
-      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, flood: false, "land-price": false, terrain: false },
-      flood: { buildings: true, rail: true, traffic: false, khlongs: true, rain: true, aqi: false, flood: true, "land-price": false, terrain: true },
-      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, flood: true, "land-price": false, terrain: false },
+      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      heat: { buildings: true, rail: true, traffic: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, "land-price": false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, traffic: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, "land-price": false, terrain: true, night: false },
+      night: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: true },
+      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, "land-price": false, terrain: false, night: false },
     }[preset];
     if (!wants) return;
+    state.nightMode = !!wants.night;
+    applyNightMode(map);
     if (wants.buildings) await setLayerToggle(map, "buildings", true);
     for (const [id, on] of Object.entries(wants)) {
-      if (id === "buildings") continue;
+      if (id === "buildings" || id === "night") continue;
       await setLayerToggle(map, id, on);
     }
     ensureStackOrder(map);

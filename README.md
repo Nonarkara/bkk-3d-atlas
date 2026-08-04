@@ -46,12 +46,8 @@ dashboards, anything else that needs Bangkok) can pull in:
   **432,077 OSM buildings streamed from our own PMTiles** for 3D
   extrusions (see `bkk-buildings.pmtiles` at the R2 route below).
 - **Worker** — `src/index.ts` is a Cloudflare Worker that handles
-  four things: (1) proxies `/api/traffic` to the iTIC/Longdo feed
-  with a secret API key, (2) serves `/bkk-buildings.pmtiles` from
-  R2 with HTTP Range passthrough so the `pmtiles` JS lib can stream
-  tile-by-tile, (3) serves `/api/land-price?lng=&lat=` nearest-zone
-  lookup over the 477 Treasury zones, and (4) falls back to the
-  static asset binding for everything else.
+  land-price + risk APIs, traffic proxy, PMTiles Range from R2, and
+  static assets. `/api/risk` scores land × schematic flood × live PM2.5.
 - **Hosting** — Cloudflare Workers + R2 on the custom domain
   `atlas.nonarkara.org`. R2 bucket `bkk-tiles` holds the 17 MB
   PMTiles.
@@ -71,6 +67,8 @@ free tile APIs (Esri, RainViewer, Open-Meteo), and Cloudflare Workers
 city paints. Inspect falls back to client-side nearest land-price when
 `/api/land-price` is unreachable. Layer toggles soft-hide instead of
 tearing down WebGL sources, so re-toggling rain/AQI stays cheap.
+Presets stack city + rain / heat / AQI / flood / night without losing
+the silhouette.
 
 ## Deploy
 
@@ -109,17 +107,17 @@ const { nearestZone } = await res.json();
 Property-tech lite. Zone display points are grid approximations until
 cadastral polygons ship; see the `notes` field on the response.
 
-### 1c. `/api/risk` — land × flood schematic score
+### 1c. `/api/risk` — land × flood × PM2.5
 
 ```js
 const res = await fetch(
   "https://atlas.nonarkara.org/api/risk?lng=100.5321&lat=13.7367"
 );
 const { score, band, factors } = await res.json();
-// factors.floodInside, factors.floodSeverity, factors.landPricePerWah
+// factors.floodInside, factors.pm25, factors.landPricePerWah
 ```
 
-Civic demo score (0–100). Flood envelopes in
+Civic demo score (0–100). Optional `?pm25=` override. Flood envelopes in
 `public/bkk-flood-envelope.geojson` are **schematic** — not official
 DDPM/BMA maps. Do not underwrite insurance from this.
 

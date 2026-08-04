@@ -103,7 +103,7 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -113,6 +113,8 @@ if (!worker.includes("/api/land-price")) fail("Worker missing /api/land-price");
 else ok("Worker exposes /api/land-price");
 if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
 else ok("Worker exposes /api/risk");
+if (!worker.includes("fetchPointPm25")) fail("Worker risk missing PM2.5 fetch");
+else ok("Worker risk folds live PM2.5");
 
 console.log(notes.join("\n"));
 if (errors.length) {

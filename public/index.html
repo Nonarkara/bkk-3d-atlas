@@ -88,7 +88,9 @@
           <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
           <button type="button" class="atlas-preset-btn" data-preset="rain">City + rain</button>
           <button type="button" class="atlas-preset-btn" data-preset="aqi">City + AQI</button>
+          <button type="button" class="atlas-preset-btn" data-preset="heat">City + heat</button>
           <button type="button" class="atlas-preset-btn" data-preset="flood">Flood watch</button>
+          <button type="button" class="atlas-preset-btn" data-preset="night">Night</button>
           <button type="button" class="atlas-preset-btn" data-preset="pulse">Full pulse</button>
         </div>
         <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
@@ -191,6 +193,17 @@
           </li>
           <li>
             <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-heat" />
+              <span class="atlas-layer-name">
+                <strong>Heat</strong>
+                <small id="toggle-heat-detail">Open-Meteo · temperature °C</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-heat-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-heat" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-aqi" />
               <span class="atlas-layer-name">
                 <strong>Air quality</strong>
@@ -202,9 +215,23 @@
           </li>
         </ul>
 
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Look</p>
+        <ul class="atlas-layer-list atlas-layer-list-sub">
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-night" />
+              <span class="atlas-layer-name">
+                <strong>Night lights</strong>
+                <small>Blackout satellite · emissive buildings</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-night-state" aria-live="polite">off</span>
+            </label>
+          </li>
+        </ul>
+
         <label class="atlas-opacity">
           <span>Weather overlay strength <strong id="overlay-opacity-value">45%</strong></span>
-          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain and AQI overlay opacity" />
+          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain heat and AQI overlay opacity" />
         </label>
         <label class="atlas-opacity">
           <span>Flood envelope strength <strong id="flood-opacity-value">38%</strong></span>
@@ -232,33 +259,40 @@
         <ol class="atlas-labs-list atlas-labs-list-shipped">
           <li>
             <strong>Multi-layer city stack.</strong>
-            Buildings + rail + traffic under translucent rain,
-            AQI, and flood envelopes. Presets: City · City+rain ·
-            City+AQI · Flood watch · Full pulse.
+            Buildings under translucent rain, heat, AQI, and flood.
+            Presets: City · rain · AQI · heat · Flood watch · Night · Full pulse.
+          </li>
+          <li>
+            <strong>Night lights / blackout.</strong>
+            Desaturated satellite + emissive building wash. Pure
+            client paint — zero new data.
+          </li>
+          <li>
+            <strong>Heat + khlong cooling (lite).</strong>
+            Open-Meteo temperature grid over the city; stack with
+            khlongs via the City + heat preset.
           </li>
           <li>
             <strong>Flood Resilience Sandbox (lite).</strong>
-            Schematic 2011-style corridors + monsoon drain
-            pockets. Click the map to see if a point sits inside
-            an envelope. Not an official flood map — civic demo.
+            Schematic 2011-style corridors. Click to see if a point
+            sits inside an envelope. Civic demo — not official.
           </li>
           <li>
             <strong>Inspect + land-price + risk APIs.</strong>
             <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
             ·
             <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>
-            (land × flood severity score). Client fallback when
-            the Worker is unreachable.
+            (land × flood × live PM2.5). Client fallback when the
+            Worker is unreachable.
           </li>
           <li>
             <strong>Honest traffic.</strong>
-            Toggle shows live vs sample · mock levels so the map
-            never pretends a static GeoJSON is a live feed.
+            Toggle shows live vs sample · mock levels.
           </li>
         </ol>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
-        <ol class="atlas-labs-list" start="5">
+        <ol class="atlas-labs-list" start="7">
           <li>
             <strong>Official flood extents.</strong>
             Swap the schematic envelope for DDPM/BMA published
@@ -276,19 +310,9 @@
             using the rail GeoJSON we already ship.
           </li>
           <li>
-            <strong>Heat + khlong cooling.</strong>
-            Open-Meteo temperature grid overlaid on the khlong
-            network — hottest blocks vs cooling canals.
-          </li>
-          <li>
-            <strong>Risk API v2.</strong>
-            Fold live AQI cell + rain intensity into
-            <code>/api/risk</code> (today: land × flood only).
-          </li>
-          <li>
-            <strong>Night lights / blackout view.</strong>
-            Toggle satellite saturation + building emissive paint.
-            Pure client paint — zero new data.
+            <strong>Risk API v3.</strong>
+            Fold rain intensity + building height into the score
+            (today: land × flood × PM2.5).
           </li>
           <li>
             <strong>Offline atlas pack.</strong>

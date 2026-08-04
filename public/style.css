@@ -184,6 +184,19 @@ button { font: inherit; }
   border-color: rgba(201, 255, 56, 0.45);
   color: var(--signal);
 }
+.atlas-stack-chip.is-night {
+  border-color: #ffe08a;
+  color: #ffe08a;
+}
+body.is-night .atlas-page {
+  background: #070708;
+}
+body.is-night .atlas-panel {
+  background: #09090b;
+}
+body.is-night .atlas-header {
+  background: rgba(7, 7, 8, 0.92);
+}
 .atlas-opacity {
   display: flex;
   flex-direction: column;
