@@ -68,6 +68,62 @@ const TRAFFIC_WIDTH_EXPRESSION = [
   17, 5.6,
 ];
 
+const RAIL_SOURCE = "bkkx-rail";
+const RAIL_LAYER = "bkkx-rail-line";
+const RAIL_DATA_URL = "/bkk-rail.geojson";
+
+const RAIL_COLOR_EXPRESSION = [
+  "match",
+  ["get", "line"],
+  "BTS-Sukhumvit", "#00853F",
+  "BTS-Silom",     "#00853F",
+  "BTS-Gold",      "#8B6914",
+  "MRT-Blue",      "#0033A0",
+  "MRT-Purple",   "#6F1F7A",
+  "MRT-Orange",    "#F58220",
+  "MRT-Pink",      "#E94B97",
+  "MRT-Yellow",    "#FFC815",
+  "ARL",           "#C8102E",
+  "SRT",           "#7B3F00",
+  "#888888",
+];
+
+const RAIL_WIDTH_EXPRESSION = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  9,  0.8,
+  12, 2.0,
+  14, 3.2,
+  16, 4.4,
+  18, 5.6,
+];
+
+const KHLONG_SOURCE = "bkkx-khlongs";
+const KHLONG_RIVER_LAYER = "bkkx-khlongs-river";
+const KHLONG_CANAL_LAYER = "bkkx-khlongs-canal";
+const KHLONG_DATA_URL = "/bkk-khlongs.geojson";
+
+const KHLONG_RIVER_WIDTH = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  9,  1.6,
+  12, 3.0,
+  14, 4.0,
+  16, 5.0,
+];
+
+const KHLONG_CANAL_WIDTH = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  11, 0.6,
+  13, 1.0,
+  15, 1.4,
+  17, 1.8,
+];
+
 const ROAD_FILTERS = {
   motorway: ["==", "class", "motorway"],
   major: ["in", "class", "trunk", "primary", "secondary"],
@@ -309,6 +365,21 @@ function attachLayers(map) {
   if (!map.getSource(TRAFFIC_SOURCE)) {
     loadTrafficData(map, { preferLive: true });
   }
+
+  // 5. Rail (BTS / MRT / ARL / SRT) — colored polylines from a
+  //    Overpass-derived GeoJSON, sourced from OpenStreetMap. Sits
+  //    above roads, below buildings, so the yellow 3D silhouette
+  //    stays the visual anchor.
+  if (!map.getSource(RAIL_SOURCE)) {
+    loadRailData(map);
+  }
+
+  // 6. Canals + rivers — Bangkok's historic water network. Two
+  //    layers: thicker main rivers (Chao Phraya + branches) and
+  //    thinner canals. Renders below the 3D buildings.
+  if (!map.getSource(KHLONG_SOURCE)) {
+    loadKhlongData(map);
+  }
 }
 
 function defaultCenter(areas) {
@@ -392,37 +463,107 @@ async function loadTrafficData(map, { preferLive = false } = {}) {
   }
 }
 
+async function fetchJson(url) {
+  try {
+    const response = await fetch(url, { cache: "force-cache" });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function loadRailData(map) {
+  const geojson = await fetchJson(RAIL_DATA_URL);
+  if (!geojson) return;
+  try {
+    map.addSource(RAIL_SOURCE, { type: "geojson", data: geojson });
+    map.addLayer({
+      id: RAIL_LAYER,
+      type: "line",
+      source: RAIL_SOURCE,
+      minzoom: 9,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": RAIL_COLOR_EXPRESSION,
+        "line-width": RAIL_WIDTH_EXPRESSION,
+        "line-opacity": 0.95,
+      },
+    });
+  } catch {
+    // ignore
+  }
+}
+
+async function loadKhlongData(map) {
+  const geojson = await fetchJson(KHLONG_DATA_URL);
+  if (!geojson) return;
+  try {
+    map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson });
+    // Main rivers first (drawn under canals), thicker line.
+    map.addLayer({
+      id: KHLONG_RIVER_LAYER,
+      type: "line",
+      source: KHLONG_SOURCE,
+      minzoom: 9,
+      filter: ["==", ["get", "waterway"], "river"],
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": "#3FA7E0",
+        "line-width": KHLONG_RIVER_WIDTH,
+        "line-opacity": 0.85,
+      },
+    });
+    // Canals on top, thinner line. Hidden at city scale (zoom 11
+    // threshold) so they don't visually fight the 3D buildings.
+    map.addLayer({
+      id: KHLONG_CANAL_LAYER,
+      type: "line",
+      source: KHLONG_SOURCE,
+      minzoom: 11,
+      filter: ["==", ["get", "waterway"], "canal"],
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": "#2C7FB8",
+        "line-width": KHLONG_CANAL_WIDTH,
+        "line-opacity": 0.7,
+      },
+    });
+  } catch {
+    // ignore
+  }
+}
+
 function wireLayerToggles(map) {
   const trafficToggle = document.getElementById("toggle-traffic");
   const trafficState = document.getElementById("toggle-traffic-state");
   const buildingsToggle = document.getElementById("toggle-3d-buildings");
   const buildingsState = document.getElementById("toggle-3d-buildings-state");
+  const railToggle = document.getElementById("toggle-rail");
+  const railState = document.getElementById("toggle-rail-state");
+  const khlongsToggle = document.getElementById("toggle-khlongs");
+  const khlongsState = document.getElementById("toggle-khlongs-state");
 
-  if (trafficToggle) {
+  function wire(toggle, state, layerIds) {
+    if (!toggle) return;
     const apply = () => {
-      const on = trafficToggle.checked;
+      const on = toggle.checked;
       const visibility = on ? "visible" : "none";
-      if (map.getLayer(TRAFFIC_LAYER)) {
-        map.setLayoutProperty(TRAFFIC_LAYER, "visibility", visibility);
+      for (const layerId of layerIds) {
+        if (map.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", visibility);
+        }
       }
-      trafficState.textContent = on ? "on" : "off";
+      if (state) state.textContent = on ? "on" : "off";
     };
-    trafficToggle.addEventListener("change", apply);
+    toggle.addEventListener("change", apply);
     apply();
   }
 
-  if (buildingsToggle) {
-    const apply = () => {
-      const on = buildingsToggle.checked;
-      const visibility = on ? "visible" : "none";
-      if (map.getLayer("bkkx-3d-buildings")) {
-        map.setLayoutProperty("bkkx-3d-buildings", "visibility", visibility);
-      }
-      buildingsState.textContent = on ? "on" : "off";
-    };
-    buildingsToggle.addEventListener("change", apply);
-    apply();
-  }
+  wire(trafficToggle, trafficState, [TRAFFIC_LAYER]);
+  wire(buildingsToggle, buildingsState, ["bkkx-3d-buildings"]);
+  wire(railToggle, railState, [RAIL_LAYER]);
+  wire(khlongsToggle, khlongsState, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER]);
 }
 
 async function init() {

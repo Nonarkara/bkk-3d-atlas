@@ -45,6 +45,26 @@
         <ul class="atlas-layer-list">
           <li>
             <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-3d-buildings" checked />
+              <span class="atlas-layer-name">
+                <strong>3D buildings</strong>
+                <small>OSM heights · BKKx signal</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-3d-buildings-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-rail" checked />
+              <span class="atlas-layer-name">
+                <strong>Rail lines</strong>
+                <small>BTS / MRT / ARL · 9 lines, official colors</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-rail-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-traffic" checked />
               <span class="atlas-layer-name">
                 <strong>Live traffic</strong>
@@ -55,12 +75,12 @@
           </li>
           <li>
             <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-3d-buildings" checked />
+              <input type="checkbox" id="toggle-khlongs" checked />
               <span class="atlas-layer-name">
-                <strong>3D buildings</strong>
-                <small>OSM heights · BKKx signal</small>
+                <strong>Canals &amp; rivers</strong>
+                <small>Chao Phraya + 3,026 khlongs</small>
               </span>
-              <span class="atlas-layer-state" id="toggle-3d-buildings-state" aria-live="polite">on</span>
+              <span class="atlas-layer-state" id="toggle-khlongs-state" aria-live="polite">on</span>
             </label>
           </li>
         </ul>
@@ -84,16 +104,28 @@
         <h2 class="atlas-data-heading">For Chula, UNL, anything else</h2>
         <ul class="atlas-data-list">
           <li>
-            <a href="/bkk-areas.json" download>15-area curated tour</a>
-            <small>JSON · 15 districts with center, zoom, pitch, key stats</small>
+            <a href="/bkk-areas.json" download>16-area curated tour</a>
+            <small>JSON · 15 districts + 1 city-scale "Bangkok from above"</small>
+          </li>
+          <li>
+            <a href="/bkk-rail.geojson" download>126 BTS/MRT/ARL/SRT segments</a>
+            <small>GeoJSON · 9 lines, official line colors, OSM-derived</small>
+          </li>
+          <li>
+            <a href="/bkk-khlongs.geojson" download>4,063 canals &amp; rivers</a>
+            <small>GeoJSON · Chao Phraya + 3,026 khlongs, OSM-derived</small>
           </li>
           <li>
             <a href="/bkk-buildings-rattanakosin.geojson" download>9.3K Rattanakosin buildings</a>
             <small>GeoJSON · real OSM data, height + base_height per feature</small>
           </li>
+          <li>
+            <a href="/bkk-traffic-sample.geojson" download>1.9K expressway traffic segments</a>
+            <small>GeoJSON · iTIC-compatible · level + color per segment</small>
+          </li>
         </ul>
         <p class="atlas-data-extra">
-          Need the full city? Run <code>python3 scripts/osm-buildings-to-geojson.py</code> with a Bangkok bbox or a local PBF. The script is the canonical extractor.
+          Need the full city? Run <code>python3 scripts/osm-buildings-to-geojson.py</code> with a Bangkok bbox or a local PBF. Same pattern works for rail, canals, and traffic — the scripts are the canonical extractors.
         </p>
       </section>
 
