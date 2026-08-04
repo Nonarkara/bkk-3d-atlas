@@ -1,0 +1,273 @@
+{
+  "$schema": "https://bkk-3d-atlas.nonarkara.org/schemas/bkk-area.v1.json",
+  "name": "Bangkok key areas",
+  "version": "2026-08-04",
+  "license": "ODbL-1.0 (derived from OpenStreetMap)",
+  "projection": "EPSG:4326 (lng/lat)",
+  "areas": [
+    {
+      "id": "rattanakosin",
+      "name": "Rattanakosin",
+      "thai": "รัตนโกสินทร์",
+      "category": "historic-core",
+      "chapter": "The royal island",
+      "description": "The 18th-century walled city on the east bank of the Chao Phraya. Grand Palace, Wat Pho, Wat Phra Kaew, the National Museum, the old defensive canals.",
+      "center": [100.4928, 13.7510],
+      "zoom": 14.6,
+      "pitch": 60,
+      "bearing": -22,
+      "keyStats": {
+        "landmarks": 24,
+        "temples": 12,
+        "museums": 6
+      },
+      "tags": ["unesco-tentative", "temples", "palaces", "old-city"]
+    },
+    {
+      "id": "yaowarat-chinatown",
+      "name": "Yaowarat (Chinatown)",
+      "thai": "เยาวราช",
+      "category": "district",
+      "chapter": "The merchant's spine",
+      "description": "Bangkok's commercial heart for two centuries. Gold shops by day, street food by night. Soi Texas, Talat Mai, the temple Wat Traimit with the solid-gold Buddha.",
+      "center": [100.5103, 13.7398],
+      "zoom": 15.4,
+      "pitch": 62,
+      "bearing": 18,
+      "keyStats": {
+        "foodStalls": 200,
+        "goldShops": 120,
+        "temples": 8
+      },
+      "tags": ["street-food", "gold", "chinese-thai", "markets"]
+    },
+    {
+      "id": "sukhumvit",
+      "name": "Sukhumvit",
+      "thai": "สุขุมวิท",
+      "category": "artery",
+      "chapter": "The long east-west spine",
+      "description": "Bangkok's longest road as a single coherent district. Nana, Asok, Phrom Phong, Thonglor, Ekkamai, On Nut — a stacked gradient of foreign embassies, malls, expat housing, and night markets.",
+      "center": [100.5683, 13.7308],
+      "zoom": 13.2,
+      "pitch": 55,
+      "bearing": 75,
+      "keyStats": {
+        "lengthKm": 28,
+        "btsStations": 14,
+        "malls": 11
+      },
+      "tags": ["bts", "malls", "expat", "nightlife"]
+    },
+    {
+      "id": "silom-sathorn",
+      "name": "Silom / Sathorn",
+      "thai": "สีลม / สาทร",
+      "category": "business",
+      "chapter": "The central business district",
+      "description": "Tower cluster on the east of the old city. Stock Exchange of Thailand, the original skyscrapers, Lumphini Park, Patpong night market, the Indian textile quarter on Pahurat just to the west.",
+      "center": [100.5295, 13.7248],
+      "zoom": 14.4,
+      "pitch": 58,
+      "bearing": 0,
+      "keyStats": {
+        "towersOver30floors": 38,
+        "embassies": 14,
+        "parks": 1
+      },
+      "tags": ["cbd", "skyscrapers", "stock-exchange", "embassies"]
+    },
+    {
+      "id": "chatuchak",
+      "name": "Chatuchak",
+      "thai": "จตุจักร",
+      "category": "market",
+      "chapter": "The weekend city",
+      "description": "The 35-acre weekend market, the largest in Southeast Asia. Surrounded by the Chatuchak Park, Queen Sirikit Park, the train market (Talat Rot Fai), and a dense network of sois.",
+      "center": [100.5533, 13.7999],
+      "zoom": 15.0,
+      "pitch": 55,
+      "bearing": -8,
+      "keyStats": {
+        "stallsWeekend": 15000,
+        "visitorsWeekend": 200000,
+        "sections": 27
+      },
+      "tags": ["weekend-market", "parks", "north"]
+    },
+    {
+      "id": "khao-san",
+      "name": "Khao San",
+      "thai": "ข้าวสาร",
+      "category": "district",
+      "chapter": "The backpacker citadel",
+      "description": "Five blocks of guesthouses, bars, tattoo shops and pad thai. The starting point for overland travelers since the 1980s. Anchors the north end of Rattanakosin to Banglamphu.",
+      "center": [100.4975, 13.7589],
+      "zoom": 16.0,
+      "pitch": 65,
+      "bearing": 30,
+      "keyStats": {
+        "guesthouses": 120,
+        "bars": 80
+      },
+      "tags": ["backpacker", "banglamphu", "guesthouses"]
+    },
+    {
+      "id": "phaya-thai",
+      "name": "Phaya Thai",
+      "thai": "พญาไท",
+      "category": "transport",
+      "chapter": "Where the BTS meets the airport",
+      "description": "The two rail systems cross: BTS Sukhumvit and the Airport Rail Link. Surrounding it are the Baiyoke Tower II, Pratunam wholesale market, the old government hospital belt.",
+      "center": [100.5358, 13.7568],
+      "zoom": 15.4,
+      "pitch": 60,
+      "bearing": -40,
+      "keyStats": {
+        "btsStations": 2,
+        "arlStations": 1,
+        "wholesaleMarkets": 3
+      },
+      "tags": ["bts", "arl", "wholesale", "tallest-tower"]
+    },
+    {
+      "id": "victory-monument",
+      "name": "Victory Monument",
+      "thai": "อนุสาวรีย์ชัยสมรภูมิ",
+      "category": "transport",
+      "chapter": "The five-way roundabout",
+      "description": "Bangkok's busiest roundabout, a monument that behaves more like a traffic machine. Buses, vans, the BTS viaduct, the old airport expressway all meet here.",
+      "center": [100.5383, 13.7649],
+      "zoom": 16.2,
+      "pitch": 64,
+      "bearing": 12,
+      "keyStats": {
+        "busLines": 47,
+        "vanRoutes": 18,
+        "btsStations": 1
+      },
+      "tags": ["bts", "buses", "roundabout", "ratchathewi"]
+    },
+    {
+      "id": "ari",
+      "name": "Ari",
+      "thai": "อารีย์",
+      "category": "neighborhood",
+      "chapter": "The hip north",
+      "description": "A leafy sois off Phahonyothin Road: cafes, design shops, weekend brunch, the old Rama VI bridge approach. A working-class neighborhood that gentrified without losing its grid.",
+      "center": [100.5450, 13.7793],
+      "zoom": 15.6,
+      "pitch": 60,
+      "bearing": -15,
+      "keyStats": {
+        "cafes": 60,
+        "designShops": 12
+      },
+      "tags": ["cafes", "north", "leafy", "design"]
+    },
+    {
+      "id": "thonglor",
+      "name": "Thonglor / Ekkamai",
+      "thai": "ทองหล่อ / เอกมัย",
+      "category": "neighborhood",
+      "chapter": "The expat nightlight",
+      "description": "Two BTS stops that became Bangkok's most concentrated strip of bars, restaurants, and condos. Japanese expat, fashion shoots, late-night izakaya, design hotels.",
+      "center": [100.5805, 13.7290],
+      "zoom": 15.0,
+      "pitch": 55,
+      "bearing": 28,
+      "keyStats": {
+        "bars": 90,
+        "restaurants": 220
+      },
+      "tags": ["nightlife", "expat", "condos", "bts"]
+    },
+    {
+      "id": "chao-phraya-riverside",
+      "name": "Chao Phraya Riverside",
+      "thai": "แม่น้ำเจ้าพระยา",
+      "category": "river",
+      "chapter": "The river as main room",
+      "description": "The 372-km Chao Phraya running through the city. Riverside temples (Wat Arun on the Thonburi bank, Wat Kalayanamit, Santa Cruz), the IconSiam mall, the Oriental, the river boats.",
+      "center": [100.4925, 13.7395],
+      "zoom": 13.2,
+      "pitch": 50,
+      "bearing": 50,
+      "keyStats": {
+        "riverKm": 16,
+        "templesOnBanks": 24,
+        "piers": 38
+      },
+      "tags": ["river", "temples", "boats", "thonburi"]
+    },
+    {
+      "id": "lumphini",
+      "name": "Lumphini Park",
+      "thai": "สวนลุมพินี",
+      "category": "park",
+      "chapter": "The central green",
+      "description": "Bangkok's first public park (1920s), shaped by the same landscape architect as Manhattan's Central Park. Monitor lizards, paddle boats, surrounded by the densest tower cluster in the city.",
+      "center": [100.5418, 13.7307],
+      "zoom": 15.4,
+      "pitch": 60,
+      "bearing": 0,
+      "keyStats": {
+        "hectares": 57,
+        "lakes": 1
+      },
+      "tags": ["park", "lizards", "central", "tower-cluster"]
+    },
+    {
+      "id": "chulalongkorn",
+      "name": "Chulalongkorn University",
+      "thai": "จุฬาลงกรณ์มหาวิทยาลัย",
+      "category": "campus",
+      "chapter": "The university compound",
+      "description": "Thailand's oldest university (1917), a self-contained 600-rai campus in the middle of the city. Green quads, the Centenary Park, the CU Sports Complex, surrounded by the Pathumwan and Siam commercial belts.",
+      "center": [100.5326, 13.7380],
+      "zoom": 15.2,
+      "pitch": 58,
+      "bearing": 22,
+      "keyStats": {
+        "rai": 600,
+        "faculties": 19,
+        "students": 38000
+      },
+      "tags": ["university", "campus", "siam", "central"]
+    },
+    {
+      "id": "don-mueang",
+      "name": "Don Mueang",
+      "thai": "ดอนเมือง",
+      "category": "transport",
+      "chapter": "The old airport",
+      "description": "Bangkok's original airport (1914), now low-cost carrier hub. The Royal Thai Air Force Museum, the old terminal, and the eastern approach of the BTS extension.",
+      "center": [100.6066, 13.9130],
+      "zoom": 13.8,
+      "pitch": 50,
+      "bearing": -30,
+      "keyStats": {
+        "flightsDaily": 350,
+        "airlines": 50
+      },
+      "tags": ["airport", "aviation-history", "north"]
+    },
+    {
+      "id": "ratchathewi",
+      "name": "Ratchathewi",
+      "thai": "ราชเทวี",
+      "category": "district",
+      "chapter": "Bangkok in motion",
+      "description": "The rail lines, markets and superblocks that pull Bangkok toward Victory Monument, Pratunam and Makkasan. A district defined by what passes through it.",
+      "center": [100.5349, 13.7587],
+      "zoom": 14.4,
+      "pitch": 60,
+      "bearing": -10,
+      "keyStats": {
+        "areaKm2": 7.13,
+        "population": 76000
+      },
+      "tags": ["transit", "markets", "makkasan"]
+    }
+  ]
+}

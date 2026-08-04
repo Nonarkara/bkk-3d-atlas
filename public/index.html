@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>BKKx 3D Atlas — Bangkok block by block</title>
+  <meta name="description" content="A 3D browser atlas of Bangkok. Real Esri satellite imagery, OpenFreeMap building extrusions, tiered roads, and quick-jump to the city's key areas. Reusable data for Chula, UNL and other dashboards." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
+  <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="atlas-page">
+    <header class="atlas-header">
+      <a class="wordmark" href="/" aria-label="BKKx 3D Atlas home">
+        <span>BKK</span><b>x</b>
+      </a>
+      <div class="atlas-header-meta">
+        <span class="atlas-eyebrow">3D Atlas · Bangkok</span>
+        <strong>Walk the city in browser</strong>
+        <small>Esri satellite · OpenFreeMap buildings · OpenStreetMap roads</small>
+      </div>
+      <nav class="atlas-header-nav" aria-label="Atlas navigation">
+        <a href="#atlas-areas">Quick jump</a>
+        <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
+          Data on GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </nav>
+    </header>
+
+    <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok"></div>
+
+    <aside class="atlas-panel" aria-live="polite">
+      <section class="atlas-quick" id="atlas-areas">
+        <p class="atlas-eyebrow">Quick jump</p>
+        <h2 class="atlas-quick-heading">15 key areas</h2>
+        <div id="atlas-area-grid" class="atlas-area-grid" role="list" aria-label="Bangkok key areas"></div>
+      </section>
+
+      <section class="atlas-active" id="atlas-active" hidden>
+        <p class="atlas-eyebrow" id="atlas-active-category"></p>
+        <h2 class="atlas-active-name" id="atlas-active-name"></h2>
+        <p class="atlas-active-thai" id="atlas-active-thai"></p>
+        <p class="atlas-active-chapter" id="atlas-active-chapter"></p>
+        <p class="atlas-active-desc" id="atlas-active-desc"></p>
+        <dl class="atlas-active-stats" id="atlas-active-stats"></dl>
+        <ul class="atlas-active-tags" id="atlas-active-tags"></ul>
+        <button class="atlas-share" id="atlas-share" type="button" aria-label="Copy deep link">
+          Copy deep link
+        </button>
+      </section>
+
+      <footer class="atlas-panel-foot">
+        <p>Data is © OpenStreetMap contributors under ODbL 1.0. Buildings and roads stream from the public <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> tile service. Imagery is © Esri, Maxar, Earthstar Geographics.</p>
+      </footer>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
+  <script src="/app.js" type="module" defer></script>
+</body>
+</html>

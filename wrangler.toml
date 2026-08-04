@@ -1,0 +1,34 @@
+name = "bkk-3d-atlas"
+main = "src/index.ts"
+compatibility_date = "2026-05-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Static asset binding serves everything under public/ on the
+# worker's origin. The Worker below is intentionally thin so the
+# entire surface area is the static files in public/.
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Custom domain. atlas.nonarkara.org is already on Cloudflare DNS,
+# so the route binds without extra registrar work. Workers Routes
+# require the zone_id (Nonarkara's Cloudflare account) — fill in
+# below once and `wrangler deploy` is enough to wire the URL.
+# To find the zone_id, run: npx wrangler whoami --token <token> --accounts
+# and match against the public Cloudflare dashboard for nonarkara.org.
+#
+# [[routes]]
+# pattern = "atlas.nonarkara.org/*"
+# custom_domain = true
+
+# R2 bucket for the 3D Tiles dataset (follow-up; uncomment when the
+# generate-3d-tiles.sh pipeline is run and the bucket is created).
+#
+# [[r2_buckets]]
+# binding = "BKKX_TILES"
+# bucket_name = "bkk-3d-tiles"
+# preview_bucket_name = "bkk-3d-tiles-preview"
+
+[observability]
+enabled = true

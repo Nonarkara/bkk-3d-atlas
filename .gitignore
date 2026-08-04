@@ -1,8 +1,11 @@
 node_modules
 dist
 .wrangler
+out/
 *.log
 .DS_Store
 .env
 .env.local
+*.geojson
+*.pbf
 
