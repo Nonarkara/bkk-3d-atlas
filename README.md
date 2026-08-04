@@ -6,6 +6,8 @@ yellow, tiered roads, and **quick-jump buttons to 15 curated key areas**
 (historic cores, transit hubs, market districts, the university campus,
 the airport). No Minecraft, no install.
 
+**Live:** https://atlas.nonarkara.org
+
 The atlas is one of three deliverables. The other two are **reusable
 data files** that Dr Non's other projects (Chula dashboards, UNL
 dashboards, anything else that needs Bangkok) can pull in:

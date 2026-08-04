@@ -11,16 +11,12 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./public"
 binding = "ASSETS"
 
-# Custom domain. atlas.nonarkara.org is already on Cloudflare DNS,
-# so the route binds without extra registrar work. Workers Routes
-# require the zone_id (Nonarkara's Cloudflare account) — fill in
-# below once and `wrangler deploy` is enough to wire the URL.
-# To find the zone_id, run: npx wrangler whoami --token <token> --accounts
-# and match against the public Cloudflare dashboard for nonarkara.org.
-#
-# [[routes]]
-# pattern = "atlas.nonarkara.org/*"
-# custom_domain = true
+# Custom domain. atlas.nonarkara.org is already on Cloudflare DNS
+# (the nonarkara.org zone is in this account; bkk.nonarkara.org
+# was already bound to a Worker in the BKKx edge-proxy).
+[[routes]]
+pattern = "atlas.nonarkara.org"
+custom_domain = true
 
 # R2 bucket for the 3D Tiles dataset (follow-up; uncomment when the
 # generate-3d-tiles.sh pipeline is run and the bucket is created).
