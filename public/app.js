@@ -36,11 +36,17 @@ const RATTANAKOSIN_BUILDINGS_LAYER = "bkkx-rattanakosin-buildings";
 // has corrupt building:levels tags (e.g. "12345678910111212") that
 // would otherwise produce 50-petrometre sky-pillars. Anything below
 // 0 or above 500 m falls back to the building-type default.
+//
+// The MapLibre `let` expression takes variable bindings then a
+// SINGLE return expression. The return here is a `case` that
+// returns `raw` when valid, else the 9 m fallback. (A previous
+// version put 3 elements where the return should go, which made
+// every building render at height 0 or 1 — invisible.)
 const HEIGHT_GET = [
   "let",
   "raw", ["coalesce", ["get", "render_height"], ["get", "height"], 9],
   "valid", ["all", [">=", ["var", "raw"], 1], ["<=", ["var", "raw"], 500]],
-  ["var", "valid"], ["var", "raw"], 9,
+  ["case", ["var", "valid"], ["var", "raw"], 9],
 ];
 const MIN_HEIGHT_GET = [
   "coalesce",
