@@ -1,10 +1,12 @@
-// BKKx 3D Atlas — MapLibre viewer with quick-jump to Bangkok key areas.
-// No build step. Loads from /bkk-areas.json (the reusable data file).
-// The layer stack is the same recipe as the BKKx public atlas:
-//   1. Esri World Imagery (raster, desaturated)
-//   2. minor / major / motorway road tiers
-//   3. 3D building fill-extrusion in BKKx signal yellow
+// BKKx 3D Atlas — MapLibre viewer with toggleable data layers.
+// No build step. Layers are declared in the LAYERS registry below;
+// each entry owns its source(s), paint, and toggle behavior.
+//
 // Sharp edges only. No rounded corners on the chrome.
+// Signal yellow `#c9ff38` is reserved for the primary buildings layer
+// when in monochrome mode. The "type colors" mode pulls from the
+// BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
+// residential / industrial palettes).
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -15,36 +17,48 @@ const ESRI_ATTRIBUTION =
 
 const BUILDING_SOURCE_CANDIDATES = ["openfreemap", "openmaptiles", "bkkx-pmtiles-buildings"];
 
-// BKKx 3D buildings PMTiles. 432,077 OSM building footprints for
-// the Bangkok metro (100.30–100.95 E, 13.45–14.10 N), served as a
-// static file (with HTTP Range support from the Cloudflare edge).
-// Each feature carries `render_height` (m) and `render_min_height`
-// (m) so the fill-extrusion layer renders without any client-side
-// joins.
+// BKKx 3D buildings PMTiles. 432,077 OSM building footprints for the
+// Bangkok metro (100.30–100.95 E, 13.45–14.10 N). The Worker serves
+// the file from R2 with HTTP Range support.
 const BKKX_BUILDINGS_PMTILES_URL = "/bkk-buildings.pmtiles";
 const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
 
-const BUILDING_PAINT = {
+// Rattanakosin (Old Town) high-zoom PMTiles. 9,275 features covering
+// 100.49–100.52 E, 13.74–13.76 N (Grand Palace, Wat Pho, Wat Phra
+// Kaew, Wat Suthat, the royal field). Zoom 14–18 — way past the
+// metro-level PMTiles' maxzoom 15, so individual temple buildings
+// stay sharp and you can see the ordination halls' geometry.
+const BKKX_RATTANAKOSIN_PMTILES_URL = "/bkk-buildings-rattanakosin.pmtiles";
+const BKKX_RATTANAKOSIN_PMTILES_LAYER = "bkkx-pmtiles-rattanakosin";
+const RATTANAKOSIN_BUILDINGS_LAYER = "bkkx-rattanakosin-buildings";
+
+// Building height — clamp to a sane range. OSM data occasionally
+// has corrupt building:levels tags (e.g. "12345678910111212") that
+// would otherwise produce 50-petrometre sky-pillars. Anything below
+// 0 or above 500 m falls back to the building-type default.
+const HEIGHT_GET = [
+  "let",
+  "raw", ["coalesce", ["get", "render_height"], ["get", "height"], 9],
+  "valid", ["all", [">=", ["var", "raw"], 1], ["<=", ["var", "raw"], 500]],
+  ["var", "valid"], ["var", "raw"], 9,
+];
+const MIN_HEIGHT_GET = [
+  "coalesce",
+  ["get", "render_min_height"],
+  ["get", "min_height"],
+  0,
+];
+
+const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
+const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
+
+// 3D buildings — monochrome (signal yellow) for the default atlas mode.
+const BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#c9ff38",
-  "fill-extrusion-height": [
-    "coalesce",
-    ["get", "render_height"],
-    ["get", "height"],
-    0,
-  ],
-  "fill-extrusion-base": [
-    "coalesce",
-    ["get", "render_min_height"],
-    ["get", "min_height"],
-    0,
-  ],
-  // Opacity ramps up with zoom so the whole-city view (zoom 11) shows
-  // a yellow silhouette over the satellite instead of a solid yellow
-  // blob, and street-level (zoom 17) keeps the buildings fully solid.
+  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
   "fill-extrusion-opacity": [
-    "interpolate",
-    ["linear"],
-    ["zoom"],
+    "interpolate", ["linear"], ["zoom"],
     11, 0.32,
     13, 0.55,
     15, 0.7,
@@ -53,28 +67,148 @@ const BUILDING_PAINT = {
   "fill-extrusion-vertical-gradient": true,
 };
 
+// 3D buildings — by OSM type. Cultural / civic / commercial /
+// residential / industrial / hospitality each get their own swatch
+// (sharp hues, none too saturated, all BKKx-adjacent). Falls back to
+// signal yellow for the 333K untagged "yes" buildings so the city
+// silhouette still reads at city scale. The Rattanakosin detail
+// layer uses a special map for the temple complex (gold for the
+// prangs, paper for the cloisters, magenta for the palace).
+const BUILDING_COLOR_BY_TYPE = [
+  "match", ["get", "building"],
+  // cultural / religious
+  "temple", "#c9a227",
+  "pagoda", "#c9a227",
+  "shrine", "#c9a227",
+  "wayside_shrine", "#c9a227",
+  "monastery", "#b08c1f",
+  "mosque", "#7b9b3d",
+  "church", "#8b6914",
+  "cathedral", "#8b6914",
+  "chapel", "#8b6914",
+  "synagogue", "#5b7c8c",
+  // civic / public
+  "civic", "#a3a3a3",
+  "public", "#a3a3a3",
+  "government", "#7a7a7a",
+  "fire_station", "#dc2626",
+  "police", "#1e40af",
+  "townhall", "#a3a3a3",
+  // hospitality / tourism
+  "hotel", "#e94b97",
+  "motel", "#e94b97",
+  "guest_house", "#d63384",
+  "hostel", "#d63384",
+  "museum", "#8b5cf6",
+  // education
+  "school", "#3b82f6",
+  "kindergarten", "#3b82f6",
+  "university", "#1e3a8a",
+  "college", "#1e3a8a",
+  // healthcare
+  "hospital", "#16a34a",
+  "clinic", "#16a34a",
+  // commercial / retail
+  "commercial", "#f1efe8",
+  "retail", "#f1efe8",
+  "office", "#e8e6df",
+  "supermarket", "#e8e6df",
+  "mall", "#e8e6df",
+  "marketplace", "#e8e6df",
+  "market", "#e8e6df",
+  "shophouse", "#e8e6df",
+  "kiosk", "#e8e6df",
+  // industrial
+  "industrial", "#6b7280",
+  "warehouse", "#6b7280",
+  "factory", "#6b7280",
+  "manufacture", "#6b7280",
+  "data_center", "#52525b",
+  // residential variants
+  "house", "#d4ff5b",
+  "residential", "#d4ff5b",
+  "detached", "#d4ff5b",
+  "terrace", "#d4ff5b",
+  "semidetached_house", "#d4ff5b",
+  "townhouse", "#d4ff5b",
+  "bungalow", "#d4ff5b",
+  "hut", "#d4ff5b",
+  "apartments", "#ff8b3d",
+  "dormitory", "#ff8b3d",
+  "condominium", "#ff8b3d",
+  // transport
+  "train_station", "#f1efe8",
+  "transportation", "#c9a227",
+  "parking", "#525252",
+  "garage", "#525252",
+  "garages", "#525252",
+  "carport", "#525252",
+  "fuel", "#a3a3a3",
+  // storage / outbuildings — fall into the monochrome
+  "shed", "#c9ff38",
+  "roof", "#c9ff38",
+  "stilt_house", "#d4ff5b",
+  "construction", "#c9ff38",
+  // default
+  "#c9ff38",
+];
+
+const BUILDING_PAINT_BY_TYPE = {
+  "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
+  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-opacity": [
+    "interpolate", ["linear"], ["zoom"],
+    11, 0.42,
+    13, 0.65,
+    15, 0.78,
+    17, 0.9,
+  ],
+  "fill-extrusion-vertical-gradient": true,
+};
+
+// Rattanakosin Old Town — same type-color logic, plus higher opacity
+// at every zoom (the layer is only visible at zoom 14+ so we don't
+// need to ramp it up gradually).
+const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
+  "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
+  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-opacity": 0.92,
+  "fill-extrusion-vertical-gradient": true,
+};
+const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
+  "fill-extrusion-color": "#c9ff38",
+  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-opacity": 0.82,
+  "fill-extrusion-vertical-gradient": true,
+};
+
+// 3D terrain — AWS Terrarium DEM, free, no key. MapLibre's setTerrain
+// uses the terrarium encoding: elevation_m = (R*256 + G + B/256) - 32768
+const TERRAIN_SOURCE = "bkkx-terrain";
+const TERRAIN_TILES = [
+  "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png",
+];
+const TERRAIN_ATTRIBUTION =
+  "Terrain © Mapzen / Tilezen · AWS Open Data · SRTM, ASTER, GMTED2010";
+
 const TRAFFIC_SOURCE = "bkkx-traffic";
 const TRAFFIC_LAYER = "bkkx-traffic-line";
 const TRAFFIC_SAMPLE_URL = "/bkk-traffic-sample.geojson";
 const TRAFFIC_LIVE_URL = "/api/traffic";
 
 const TRAFFIC_COLOR_EXPRESSION = [
-  "match",
-  ["get", "level"],
+  "match", ["get", "level"],
   "heavy", "#E3252C",
   "medium", "#F2A63B",
   "light", "#54C00C",
   "#888888",
 ];
-
 const TRAFFIC_WIDTH_EXPRESSION = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  10, 1.2,
-  13, 2.4,
-  15, 4.0,
-  17, 5.6,
+  "interpolate", ["linear"], ["zoom"],
+  10, 1.2, 13, 2.4, 15, 4.0, 17, 5.6,
 ];
 
 const RAIL_SOURCE = "bkkx-rail";
@@ -82,8 +216,7 @@ const RAIL_LAYER = "bkkx-rail-line";
 const RAIL_DATA_URL = "/bkk-rail.geojson";
 
 const RAIL_COLOR_EXPRESSION = [
-  "match",
-  ["get", "line"],
+  "match", ["get", "line"],
   "BTS-Sukhumvit", "#00853F",
   "BTS-Silom",     "#00853F",
   "BTS-Gold",      "#8B6914",
@@ -96,16 +229,9 @@ const RAIL_COLOR_EXPRESSION = [
   "SRT",           "#7B3F00",
   "#888888",
 ];
-
 const RAIL_WIDTH_EXPRESSION = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  9,  0.8,
-  12, 2.0,
-  14, 3.2,
-  16, 4.4,
-  18, 5.6,
+  "interpolate", ["linear"], ["zoom"],
+  9, 0.8, 12, 2.0, 14, 3.2, 16, 4.4, 18, 5.6,
 ];
 
 const KHLONG_SOURCE = "bkkx-khlongs";
@@ -114,23 +240,51 @@ const KHLONG_CANAL_LAYER = "bkkx-khlongs-canal";
 const KHLONG_DATA_URL = "/bkk-khlongs.geojson";
 
 const KHLONG_RIVER_WIDTH = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  9,  1.6,
-  12, 3.0,
-  14, 4.0,
-  16, 5.0,
+  "interpolate", ["linear"], ["zoom"],
+  9, 1.6, 12, 3.0, 14, 4.0, 16, 5.0,
+];
+const KHLONG_CANAL_WIDTH = [
+  "interpolate", ["linear"], ["zoom"],
+  11, 0.6, 13, 1.0, 15, 1.4, 17, 1.8,
 ];
 
-const KHLONG_CANAL_WIDTH = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  11, 0.6,
-  13, 1.0,
-  15, 1.4,
-  17, 1.8,
+// Air quality (Open-Meteo Air Quality API, free, no key). Grid
+// resolution is ~5km; we sample 8×8 = 64 points across the Bangkok
+// bbox and render as a heatmap with a US-EPA-style colour ramp.
+const AQI_SOURCE = "bkkx-aqi";
+const AQI_LAYER = "bkkx-aqi-heat";
+const AQI_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
+
+// Rain radar (RainViewer, free, no key). The /public/weather-maps.json
+// manifest returns a list of past + forecast tile URLs. We pick the
+// most-recent past frame.
+const RAIN_SOURCE = "bkkx-rain";
+const RAIN_LAYER = "bkkx-rain-tiles";
+const RAIN_MANIFEST = "https://api.rainviewer.com/public/weather-maps.json";
+
+// Treasury Department land appraisal price (ราคาประเมินที่ดิน).
+// 2024–2028 assessment, aggregated from 2.28M parcels to 477 UTMMAP3
+// zones across Bangkok. The static GeoJSON is a point-per-zone
+// representation; the actual zone boundaries are a follow-up (the
+// Royal Thai Survey Department cadastral shapefile is non-trivial
+// to fetch). The price range is 500–435,000 ฿/sq.wah — central
+// Silom/Sathorn tops out, outer districts bottom out.
+const LAND_PRICE_SOURCE = "bkkx-land-price";
+const LAND_PRICE_FILL = "bkkx-land-price-fill";
+const LAND_PRICE_LINE = "bkkx-land-price-line";
+const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
+
+// Colour ramp steps (Thai Baht per square wah). Tuned to the 2024–2028
+// Bangkok distribution: median 24k, top decile starts at ~100k, top 1%
+// starts at ~250k, max ~435k.
+const LAND_PRICE_COLOR_RAMP = [
+  "step", ["coalesce", ["get", "price_per_wah"], 0],
+  "#fef3c7", 20000,
+  "#fde68a", 50000,
+  "#fcd34d", 100000,
+  "#f59e0b", 200000,
+  "#d97706", 350000,
+  "#92400e",
 ];
 
 const ROAD_FILTERS = {
@@ -147,7 +301,124 @@ const state = {
   areas: [],
   activeId: null,
   map: null,
+  buildingPaint: "monochrome", // or "type"
+  rainFramePath: null,
+  rainLastFetch: 0,
 };
+
+// ─────────────────────────────────────────────────────────────────
+// Layer registry — declarative. Each entry describes how to install,
+// uninstall, and toggle a layer. UI is built from this list.
+// ─────────────────────────────────────────────────────────────────
+
+const LAYERS = [
+  {
+    id: "buildings",
+    name: "3D buildings",
+    description: "OSM heights · 432,077 features",
+    defaultOn: true,
+    layers: ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER],
+    install: (map) => { installBuildings(map); installRattanakosin(map); },
+    uninstall: (map) => { uninstallBuildings(map); uninstallRattanakosin(map); },
+    legend: [
+      { color: "#c9ff38", label: "monochrome (default)" },
+      { color: "#c9a227", label: "temple / pagoda" },
+      { color: "#7b9b3d", label: "mosque" },
+      { color: "#8b6914", label: "church / cathedral" },
+      { color: "#3b82f6", label: "school" },
+      { color: "#1e3a8a", label: "university" },
+      { color: "#16a34a", label: "hospital" },
+      { color: "#e94b97", label: "hotel" },
+      { color: "#8b5cf6", label: "museum" },
+      { color: "#f1efe8", label: "commercial / retail" },
+      { color: "#d4ff5b", label: "house" },
+      { color: "#ff8b3d", label: "apartments" },
+      { color: "#6b7280", label: "industrial" },
+    ],
+  },
+  {
+    id: "rail",
+    name: "Rail lines",
+    description: "BTS / MRT / ARL · 9 lines",
+    defaultOn: true,
+    layers: [RAIL_LAYER],
+    install: (map) => loadRailData(map),
+    uninstall: () => {},
+  },
+  {
+    id: "traffic",
+    name: "Live traffic",
+    description: "iTIC / Longdo · expressways",
+    defaultOn: true,
+    layers: [TRAFFIC_LAYER],
+    install: (map) => loadTrafficData(map, { preferLive: true }),
+    uninstall: () => {},
+  },
+  {
+    id: "khlongs",
+    name: "Canals & rivers",
+    description: "Chao Phraya + 3,026 khlongs",
+    defaultOn: true,
+    layers: [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER],
+    install: (map) => loadKhlongData(map),
+    uninstall: () => {},
+  },
+  {
+    id: "terrain",
+    name: "3D terrain",
+    description: "AWS Terrarium DEM · 30m grid",
+    defaultOn: false,
+    layers: [],
+    install: (map) => installTerrain(map),
+    uninstall: (map) => uninstallTerrain(map),
+  },
+  {
+    id: "aqi",
+    name: "Air quality",
+    description: "Open-Meteo CAMS · PM2.5 heatmap",
+    defaultOn: false,
+    layers: [AQI_LAYER],
+    install: (map) => installAqi(map),
+    uninstall: (map) => uninstallAqi(map),
+    legend: [
+      { color: "#10b981", label: "good (0–12)" },
+      { color: "#84cc16", label: "moderate (12–35)" },
+      { color: "#eab308", label: "unhealthy for sensitive (35–55)" },
+      { color: "#f97316", label: "unhealthy (55–150)" },
+      { color: "#dc2626", label: "very unhealthy (150+)" },
+    ],
+  },
+  {
+    id: "rain",
+    name: "Rain radar",
+    description: "RainViewer · last 2 hours",
+    defaultOn: false,
+    layers: [RAIN_LAYER],
+    install: (map) => installRain(map),
+    uninstall: (map) => uninstallRain(map),
+  },
+  {
+    id: "land-price",
+    name: "Land price (ราคาประเมิน)",
+    description: "Treasury 2024–2028 · ฿/sq.wah",
+    defaultOn: false,
+    layers: [LAND_PRICE_FILL],
+    install: (map) => installLandPrice(map),
+    uninstall: (map) => uninstallLandPrice(map),
+    legend: [
+      { color: "#fef3c7", label: "< 20,000 ฿" },
+      { color: "#fde68a", label: "20k–50k ฿" },
+      { color: "#fcd34d", label: "50k–100k ฿" },
+      { color: "#f59e0b", label: "100k–200k ฿" },
+      { color: "#d97706", label: "200k–350k ฿" },
+      { color: "#92400e", label: "350k+ ฿" },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// Map setup
+// ─────────────────────────────────────────────────────────────────
 
 async function fetchAreas() {
   const response = await fetch("/bkk-areas.json", { cache: "no-store" });
@@ -283,12 +554,13 @@ function flashShareButton(message) {
   }, 1500);
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Building source
+// ─────────────────────────────────────────────────────────────────
+
 function findBuildingSource(map) {
   const style = map.getStyle();
   if (!style.sources) return null;
-  // Prefer the BKKx PMTiles source (432K real OSM buildings) when
-  // available; fall back to the OpenFreeMap building source during
-  // the bootstrap render.
   if (style.sources[BKKX_BUILDINGS_PMTILES_LAYER]) {
     return {
       name: BKKX_BUILDINGS_PMTILES_LAYER,
@@ -312,15 +584,9 @@ function registerPmtilesProtocol() {
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
 
-function attachLayers(map) {
-  // Register the PMTiles protocol as soon as the map is ready so the
-  // PMTiles source (added below) can be loaded by MapLibre.
+function installBuildings(map) {
   registerPmtilesProtocol();
 
-  // Add the BKKx buildings PMTiles source. 432,077 OSM buildings
-  // for the Bangkok metro, with render_height + render_min_height
-  // baked in. The Worker serves the file from R2 with HTTP Range
-  // support; the pmtiles lib on the client issues range requests.
   if (!map.getSource(BKKX_BUILDINGS_PMTILES_LAYER)) {
     try {
       map.addSource(BKKX_BUILDINGS_PMTILES_LAYER, {
@@ -333,11 +599,8 @@ function attachLayers(map) {
     }
   }
 
-  const source = findBuildingSource(map);
-  const sourceName = source?.name;
-  const sourceLayer = source?.sourceLayer ?? "building";
-
-  // 1. Esri satellite as the new base
+  // Esri satellite base (re-applied here so toggle on/off works
+  // when the user disabled the buildings layer first).
   if (!map.getSource("bkkx-esri-imagery")) {
     try {
       map.addSource("bkkx-esri-imagery", {
@@ -359,14 +622,18 @@ function attachLayers(map) {
           "raster-brightness-max": 0.96,
         },
       });
-    } catch {
-      // ignore — fall back to dark style as-is
-    }
+    } catch { /* fall back to dark style */ }
   }
 
-  // 2. Tiered roads (only when we're on the OpenFreeMap fallback,
-  //    since the PMTiles layer doesn't have a transportation layer).
-  if (sourceName && source && !source.isPmtiles && !map.getLayer("bkkx-roads-minor")) {
+  const source = findBuildingSource(map);
+  if (!source) return;
+  const sourceName = source.name;
+  const sourceLayer = source.sourceLayer;
+
+  // Tiered roads on top of the OpenFreeMap fallback (the PMTiles
+  // source is buildings-only, so road layers stay on the OFM
+  // source when present).
+  if (!source.isPmtiles && !map.getLayer("bkkx-roads-minor")) {
     const addLine = (id, filter, color, width, opacity) => {
       try {
         map.addLayer({
@@ -376,25 +643,16 @@ function attachLayers(map) {
           "source-layer": "transportation",
           filter,
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: {
-            "line-color": color,
-            "line-width": width,
-            "line-opacity": opacity,
-          },
+          paint: { "line-color": color, "line-width": width, "line-opacity": opacity },
         });
-      } catch {
-        // style schema may omit transportation; ignore
-      }
+      } catch { /* style schema may omit transportation */ }
     };
     addLine("bkkx-roads-minor", ROAD_FILTERS.minor, "#2c2d28", lineWidth(0.3, 2.4), 0.7);
     addLine("bkkx-roads-major", ROAD_FILTERS.major, "#5e6157", lineWidth(0.4, 3.6), 0.9);
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
   }
 
-  // 3. 3D buildings on top, from the BKKx PMTiles source
-  //    (preferred, 432K features with real heights) or the
-  //    OpenFreeMap MVT fallback.
-  if (sourceName && !map.getLayer("bkkx-3d-buildings")) {
+  if (!map.getLayer("bkkx-3d-buildings")) {
     try {
       map.addLayer({
         id: "bkkx-3d-buildings",
@@ -402,47 +660,353 @@ function attachLayers(map) {
         source: sourceName,
         "source-layer": sourceLayer,
         minzoom: 11,
-        paint: BUILDING_PAINT,
+        paint: state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME,
       });
-    } catch {
-      // ignore
+    } catch { /* ignore */ }
+  } else {
+    applyBuildingPaint(map);
+  }
+}
+
+function applyBuildingPaint(map) {
+  if (map.getLayer("bkkx-3d-buildings")) {
+    const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
+    for (const [key, value] of Object.entries(paint)) {
+      try { map.setPaintProperty("bkkx-3d-buildings", key, value); } catch {}
     }
   }
-
-  // 4. Traffic layer. The source is loaded from the static sample
-  //    first (so the toggle is visibly populated immediately), then
-  //    we try to upgrade to the iTIC/Longdo live feed via the
-  //    Worker proxy. The live data is in Longdo's TMC format; the
-  //    static sample is already in GeoJSON LineString form.
-  if (!map.getSource(TRAFFIC_SOURCE)) {
-    loadTrafficData(map, { preferLive: true });
-  }
-
-  // 5. Rail (BTS / MRT / ARL / SRT) — colored polylines from a
-  //    Overpass-derived GeoJSON, sourced from OpenStreetMap. Sits
-  //    above roads, below buildings, so the yellow 3D silhouette
-  //    stays the visual anchor.
-  if (!map.getSource(RAIL_SOURCE)) {
-    loadRailData(map);
-  }
-
-  // 6. Canals + rivers — Bangkok's historic water network. Two
-  //    layers: thicker main rivers (Chao Phraya + branches) and
-  //    thinner canals. Renders below the 3D buildings.
-  if (!map.getSource(KHLONG_SOURCE)) {
-    loadKhlongData(map);
+  if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+    applyRattanakosinPaint(map);
   }
 }
 
-function defaultCenter(areas) {
-  if (areas.length === 0) return [100.5018, 13.7563];
-  const [lng, lat] = areas[0].center;
-  return [lng, lat];
+function uninstallBuildings(map) {
+  for (const id of ["bkkx-3d-buildings", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
+    if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
+  }
+  for (const id of ["bkkx-esri-imagery", BKKX_BUILDINGS_PMTILES_LAYER]) {
+    if (map.getSource(id)) try { map.removeSource(id); } catch {}
+  }
 }
 
-function defaultZoom(areas) {
-  return areas[0]?.zoom ?? 14;
+// Rattanakosin high-zoom detail layer. Activated when zoom >= 14
+// and the buildings layer is on. Sits on top of the metro PMTiles
+// (which only goes to zoom 15) and continues the rendering up to
+// zoom 18 with full building geometry.
+function installRattanakosin(map) {
+  if (!map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) {
+    try {
+      map.addSource(BKKX_RATTANAKOSIN_PMTILES_LAYER, {
+        type: "vector",
+        url: "pmtiles://" + BKKX_RATTANAKOSIN_PMTILES_URL,
+        attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx Rattanakosin",
+      });
+    } catch (error) {
+      console.warn("Rattanakosin PMTiles source failed:", error);
+    }
+  }
+  if (!map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
+    try {
+      map.addLayer({
+        id: RATTANAKOSIN_BUILDINGS_LAYER,
+        type: "fill-extrusion",
+        source: BKKX_RATTANAKOSIN_PMTILES_LAYER,
+        "source-layer": "buildings",
+        minzoom: 14,
+        paint: state.buildingPaint === "type"
+          ? RATTANAKOSIN_BUILDING_PAINT_BY_TYPE
+          : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME,
+      });
+    } catch (error) {
+      console.warn("Rattanakosin buildings layer failed:", error);
+    }
+  } else {
+    applyRattanakosinPaint(map);
+  }
 }
+
+function applyRattanakosinPaint(map) {
+  if (!map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) return;
+  const paint = state.buildingPaint === "type"
+    ? RATTANAKOSIN_BUILDING_PAINT_BY_TYPE
+    : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME;
+  for (const [key, value] of Object.entries(paint)) {
+    try { map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, key, value); } catch {}
+  }
+}
+
+function uninstallRattanakosin(map) {
+  if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) try { map.removeLayer(RATTANAKOSIN_BUILDINGS_LAYER); } catch {}
+  if (map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) try { map.removeSource(BKKX_RATTANAKOSIN_PMTILES_LAYER); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 3D terrain (AWS Terrarium DEM)
+// ─────────────────────────────────────────────────────────────────
+
+function installTerrain(map) {
+  if (!map.getSource(TERRAIN_SOURCE)) {
+    try {
+      map.addSource(TERRAIN_SOURCE, {
+        type: "raster-dem",
+        tiles: TERRAIN_TILES,
+        tileSize: 256,
+        encoding: "terrarium",
+        minzoom: 0,
+        maxzoom: 15,
+        attribution: TERRAIN_ATTRIBUTION,
+      });
+    } catch (error) {
+      console.warn("Terrain DEM source failed:", error);
+      return;
+    }
+  }
+  try {
+    // Bangkok is mostly flat, but Khao San Road / old town sit on a
+    // ~5m ridge and there are a few real hills in neighbouring
+    // provinces. exaggeration 1.5 is enough to feel the relief
+    // without distorting the silhouette.
+    map.setTerrain({ source: TERRAIN_SOURCE, exaggeration: 1.5 });
+  } catch (error) {
+    console.warn("setTerrain failed:", error);
+  }
+}
+
+function uninstallTerrain(map) {
+  try { map.setTerrain(null); } catch {}
+  if (map.getSource(TERRAIN_SOURCE)) try { map.removeSource(TERRAIN_SOURCE); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// AQI heatmap (Open-Meteo CAMS)
+// ─────────────────────────────────────────────────────────────────
+
+async function fetchAqiGrid() {
+  // 8×8 grid over the Bangkok bbox. Open-Meteo returns a value per
+  // lat/lon pair, so 64 points = 64 individual readings.
+  const lats = [];
+  const lons = [];
+  for (let i = 0; i < 8; i++) lats.push((13.49 + (14.10 - 13.49) * (i / 7)).toFixed(3));
+  for (let j = 0; j < 8; j++) lons.push((100.30 + (100.95 - 100.30) * (j / 7)).toFixed(3));
+  const url = `${AQI_API}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data?.hourly?.pm2_5 || !data?.hourly?.time) return null;
+  // Pick the most-recent hour that has a non-null reading.
+  const times = data.hourly.time;
+  const values = data.hourly.pm2_5;
+  let idx = times.length - 1;
+  while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
+  const pm25 = values[idx] ?? null;
+  if (pm25 == null) return null;
+  // The response is indexed as (lat × lon), flatten to a grid.
+  const features = [];
+  for (let i = 0; i < lats.length; i++) {
+    for (let j = 0; j < lons.length; j++) {
+      const flat = i * lons.length + j;
+      const v = data.hourly.pm2_5[flat];
+      if (v == null || Number.isNaN(v)) continue;
+      features.push({
+        type: "Feature",
+        properties: { pm25: v },
+        geometry: { type: "Point", coordinates: [Number(lons[j]), Number(lats[i])] },
+      });
+    }
+  }
+  return { type: "FeatureCollection", features, _capturedAt: times[idx] };
+}
+
+async function installAqi(map) {
+  if (map.getLayer(AQI_LAYER)) return;
+  const geojson = await fetchAqiGrid();
+  if (!geojson || geojson.features.length === 0) {
+    console.warn("AQI fetch returned no data");
+    return;
+  }
+  if (!map.getSource(AQI_SOURCE)) {
+    try {
+      map.addSource(AQI_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("AQI source failed:", error);
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: AQI_LAYER,
+      type: "heatmap",
+      source: AQI_SOURCE,
+      maxzoom: 15,
+      paint: {
+        "heatmap-weight": [
+          "interpolate", ["linear"], ["get", "pm25"],
+          0, 0.05,
+          12, 0.2,
+          35, 0.45,
+          55, 0.7,
+          150, 1.0,
+        ],
+        "heatmap-intensity": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 1, 14, 2.5,
+        ],
+        "heatmap-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 22, 14, 50,
+        ],
+        "heatmap-opacity": 0.7,
+        "heatmap-color": [
+          "interpolate", ["linear"], ["heatmap-density"],
+          0,    "rgba(16, 185, 129, 0)",
+          0.2,  "rgba(16, 185, 129, 0.55)",
+          0.4,  "rgba(132, 204, 22, 0.65)",
+          0.55, "rgba(234, 179, 8, 0.7)",
+          0.7,  "rgba(249, 115, 22, 0.75)",
+          0.85, "rgba(220, 38, 38, 0.8)",
+          1,    "rgba(127, 29, 29, 0.85)",
+        ],
+      },
+    });
+  } catch (error) {
+    console.warn("AQI layer failed:", error);
+  }
+}
+
+function uninstallAqi(map) {
+  if (map.getLayer(AQI_LAYER)) try { map.removeLayer(AQI_LAYER); } catch {}
+  if (map.getSource(AQI_SOURCE)) try { map.removeSource(AQI_SOURCE); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Rain radar (RainViewer)
+// ─────────────────────────────────────────────────────────────────
+
+async function fetchRainManifest() {
+  const res = await fetch(RAIN_MANIFEST, { cache: "no-store" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function installRain(map) {
+  // Refetch at most every 5 minutes — RainViewer frames are static
+  // and refresh only every 10 minutes anyway.
+  if (Date.now() - state.rainLastFetch < 5 * 60_000 && state.rainFramePath) {
+    setRainTiles(map, state.rainFramePath);
+    return;
+  }
+  const manifest = await fetchRainManifest();
+  if (!manifest?.radar?.past?.length) {
+    console.warn("RainViewer manifest returned no past frames");
+    return;
+  }
+  const latest = manifest.radar.past[manifest.radar.past.length - 1];
+  const path = latest.path;
+  state.rainFramePath = path;
+  state.rainLastFetch = Date.now();
+  setRainTiles(map, path);
+}
+
+function setRainTiles(map, path) {
+  const tiles = [
+    `https://tilecache.rainviewer.com${path}/256/{z}/{x}/{y}/2/1_1.png`,
+  ];
+  if (!map.getSource(RAIN_SOURCE)) {
+    try {
+      map.addSource(RAIN_SOURCE, {
+        type: "raster",
+        tiles,
+        tileSize: 256,
+        maxzoom: 12,
+        attribution: "Radar © RainViewer",
+      });
+      map.addLayer({
+        id: RAIN_LAYER,
+        type: "raster",
+        source: RAIN_SOURCE,
+        paint: {
+          "raster-opacity": 0.65,
+          "raster-saturation": -0.2,
+          "raster-fade-duration": 250,
+        },
+      });
+    } catch (error) {
+      console.warn("Rain source failed:", error);
+    }
+  } else {
+    map.getSource(RAIN_SOURCE).setTiles(tiles);
+  }
+}
+
+function uninstallRain(map) {
+  if (map.getLayer(RAIN_LAYER)) try { map.removeLayer(RAIN_LAYER); } catch {}
+  if (map.getSource(RAIN_SOURCE)) try { map.removeSource(RAIN_SOURCE); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Land price (Treasury Department 2024-2028)
+// ─────────────────────────────────────────────────────────────────
+
+async function installLandPrice(map) {
+  if (map.getLayer(LAND_PRICE_FILL)) return;
+  let geojson;
+  try {
+    const res = await fetch(LAND_PRICE_DATA_URL, { cache: "force-cache" });
+    if (!res.ok) {
+      console.warn(`Land price GeoJSON returned ${res.status}`);
+      return;
+    }
+    geojson = await res.json();
+  } catch (error) {
+    console.warn("Land price fetch failed:", error);
+    return;
+  }
+  if (!map.getSource(LAND_PRICE_SOURCE)) {
+    try {
+      map.addSource(LAND_PRICE_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Land price source failed:", error);
+      return;
+  }
+  }
+  try {
+    // Circle layer — each UTMMAP3 zone is a point in the static
+    // GeoJSON. The radius scales with zoom so the price pattern is
+    // visible at city scale and the dots don't overlap at street
+    // level. Stroke picks up the yellow house style.
+    map.addLayer({
+      id: LAND_PRICE_FILL,
+      type: "circle",
+      source: LAND_PRICE_SOURCE,
+      minzoom: 10,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 6,
+          13, 14,
+          15, 22,
+          17, 30,
+        ],
+        "circle-color": LAND_PRICE_COLOR_RAMP,
+        "circle-opacity": 0.78,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 0.8,
+        "circle-stroke-opacity": 0.9,
+      },
+    });
+  } catch (error) {
+    console.warn("Land price layer failed:", error);
+  }
+}
+
+function uninstallLandPrice(map) {
+  if (map.getLayer(LAND_PRICE_FILL)) try { map.removeLayer(LAND_PRICE_FILL); } catch {}
+  if (map.getSource(LAND_PRICE_SOURCE)) try { map.removeSource(LAND_PRICE_SOURCE); } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Traffic / rail / khlongs (unchanged from before)
+// ─────────────────────────────────────────────────────────────────
 
 async function fetchLiveTraffic() {
   try {
@@ -451,9 +1015,7 @@ async function fetchLiveTraffic() {
     const body = await response.json();
     if (!body || !body.features || body.features.length === 0) return null;
     return body;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function fetchSampleTraffic() {
@@ -461,9 +1023,7 @@ async function fetchSampleTraffic() {
     const response = await fetch(TRAFFIC_SAMPLE_URL, { cache: "force-cache" });
     if (!response.ok) return null;
     return await response.json();
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function addTrafficLayer(map, geojson) {
@@ -486,9 +1046,7 @@ function addTrafficLayer(map, geojson) {
         "line-opacity": 0.9,
       },
     });
-  } catch {
-    // ignore — fallback path will retry
-  }
+  } catch {}
 }
 
 async function loadTrafficData(map, { preferLive = false } = {}) {
@@ -496,6 +1054,7 @@ async function loadTrafficData(map, { preferLive = false } = {}) {
   let source = "sample";
   if (preferLive) {
     geojson = await fetchLiveTraffic();
+    if (geojson) source = "live";
   }
   if (!geojson) {
     geojson = await fetchSampleTraffic();
@@ -503,14 +1062,9 @@ async function loadTrafficData(map, { preferLive = false } = {}) {
   }
   if (!geojson) return;
   addTrafficLayer(map, geojson);
-  // Best-effort: try to upgrade to live in the background. If the
-  // worker is configured with LONGDO_KEY, the live feed will replace
-  // the static sample. If not, the sample stays.
   if (preferLive && source === "sample") {
     fetchLiveTraffic().then((live) => {
-      if (live && map.getSource(TRAFFIC_SOURCE)) {
-        addTrafficLayer(map, live);
-      }
+      if (live && map.getSource(TRAFFIC_SOURCE)) addTrafficLayer(map, live);
     });
   }
 }
@@ -520,9 +1074,7 @@ async function fetchJson(url) {
     const response = await fetch(url, { cache: "force-cache" });
     if (!response.ok) return null;
     return await response.json();
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function loadRailData(map) {
@@ -542,9 +1094,7 @@ async function loadRailData(map) {
         "line-opacity": 0.95,
       },
     });
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 async function loadKhlongData(map) {
@@ -552,7 +1102,6 @@ async function loadKhlongData(map) {
   if (!geojson) return;
   try {
     map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson });
-    // Main rivers first (drawn under canals), thicker line.
     map.addLayer({
       id: KHLONG_RIVER_LAYER,
       type: "line",
@@ -560,14 +1109,8 @@ async function loadKhlongData(map) {
       minzoom: 9,
       filter: ["==", ["get", "waterway"], "river"],
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: {
-        "line-color": "#3FA7E0",
-        "line-width": KHLONG_RIVER_WIDTH,
-        "line-opacity": 0.85,
-      },
+      paint: { "line-color": "#3FA7E0", "line-width": KHLONG_RIVER_WIDTH, "line-opacity": 0.85 },
     });
-    // Canals on top, thinner line. Hidden at city scale (zoom 11
-    // threshold) so they don't visually fight the 3D buildings.
     map.addLayer({
       id: KHLONG_CANAL_LAYER,
       type: "line",
@@ -575,54 +1118,107 @@ async function loadKhlongData(map) {
       minzoom: 11,
       filter: ["==", ["get", "waterway"], "canal"],
       layout: { "line-join": "round", "line-cap": "round" },
-      paint: {
-        "line-color": "#2C7FB8",
-        "line-width": KHLONG_CANAL_WIDTH,
-        "line-opacity": 0.7,
-      },
+      paint: { "line-color": "#2C7FB8", "line-width": KHLONG_CANAL_WIDTH, "line-opacity": 0.7 },
     });
-  } catch {
-    // ignore
+  } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Toggle wiring (data-driven from LAYERS registry)
+// ─────────────────────────────────────────────────────────────────
+
+function renderLegend(legendEl, items) {
+  if (!legendEl || !items) return;
+  legendEl.innerHTML = "";
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "atlas-legend-row";
+    const swatch = document.createElement("span");
+    swatch.className = "atlas-legend-swatch";
+    swatch.style.background = item.color;
+    const label = document.createElement("span");
+    label.textContent = item.label;
+    row.append(swatch, label);
+    legendEl.appendChild(row);
   }
+  legendEl.hidden = false;
+}
+
+function hideLegend(legendEl) {
+  if (legendEl) legendEl.hidden = true;
 }
 
 function wireLayerToggles(map) {
-  const trafficToggle = document.getElementById("toggle-traffic");
-  const trafficState = document.getElementById("toggle-traffic-state");
-  const buildingsToggle = document.getElementById("toggle-3d-buildings");
-  const buildingsState = document.getElementById("toggle-3d-buildings-state");
-  const railToggle = document.getElementById("toggle-rail");
-  const railState = document.getElementById("toggle-rail-state");
-  const khlongsToggle = document.getElementById("toggle-khlongs");
-  const khlongsState = document.getElementById("toggle-khlongs-state");
-
-  function wire(toggle, state, layerIds) {
-    if (!toggle) return;
-    const apply = () => {
+  for (const layer of LAYERS) {
+    const toggle = document.getElementById(`toggle-${layer.id}`);
+    const stateEl = document.getElementById(`toggle-${layer.id}-state`);
+    if (!toggle) continue;
+    toggle.checked = layer.defaultOn;
+    const legendEl = document.getElementById(`legend-${layer.id}`);
+    const apply = async () => {
       const on = toggle.checked;
-      const visibility = on ? "visible" : "none";
-      for (const layerId of layerIds) {
-        if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", visibility);
+      if (on) {
+        try { await layer.install(map); } catch (error) { console.warn(`${layer.id} install failed:`, error); }
+        if (layer.layers.length > 0) {
+          for (const layerId of layer.layers) {
+            if (map.getLayer(layerId)) try { map.setLayoutProperty(layerId, "visibility", "visible"); } catch {}
+          }
         }
+        if (legendEl && layer.legend) renderLegend(legendEl, layer.legend);
+      } else {
+        if (layer.layers.length > 0) {
+          for (const layerId of layer.layers) {
+            if (map.getLayer(layerId)) try { map.setLayoutProperty(layerId, "visibility", "none"); } catch {}
+          }
+        }
+        try { layer.uninstall(map); } catch {}
+        if (legendEl) hideLegend(legendEl);
       }
-      if (state) state.textContent = on ? "on" : "off";
+      if (stateEl) stateEl.textContent = on ? "on" : "off";
     };
     toggle.addEventListener("change", apply);
-    apply();
+    if (layer.defaultOn) apply();
+    else if (stateEl) stateEl.textContent = "off";
   }
 
-  wire(trafficToggle, trafficState, [TRAFFIC_LAYER]);
-  wire(buildingsToggle, buildingsState, ["bkkx-3d-buildings"]);
-  wire(railToggle, railState, [RAIL_LAYER]);
-  wire(khlongsToggle, khlongsState, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER]);
+  // Building paint mode (sub-toggle under "3D buildings"). Toggling
+  // this also reveals the legend so the type → colour mapping is
+  // visible while the type-coloured map is on screen.
+  const colorToggle = document.getElementById("toggle-building-color");
+  const colorLegend = document.getElementById("legend-buildings");
+  if (colorToggle) {
+    const applyColor = () => {
+      state.buildingPaint = colorToggle.checked ? "type" : "monochrome";
+      applyBuildingPaint(map);
+      if (colorToggle.checked) {
+        const layerDef = LAYERS.find((l) => l.id === "buildings");
+        if (layerDef?.legend) renderLegend(colorLegend, layerDef.legend);
+      } else {
+        hideLegend(colorLegend);
+      }
+    };
+    colorToggle.addEventListener("change", applyColor);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────
+
+function defaultCenter(areas) {
+  if (areas.length === 0) return [100.5018, 13.7563];
+  const [lng, lat] = areas[0].center;
+  return [lng, lat];
+}
+
+function defaultZoom(areas) {
+  return areas[0]?.zoom ?? 14;
 }
 
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
 
-  // Build quick-jump UI before map is ready so it's interactive from the start.
   renderQuickJump(state.areas);
   document.getElementById("atlas-share").addEventListener("click", copyDeepLink);
 
@@ -649,11 +1245,8 @@ async function init() {
   map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }), "bottom-left");
 
   map.on("load", () => {
-    attachLayers(map);
     wireLayerToggles(map);
-    if (initialArea) {
-      setActiveArea(initialArea.id);
-    }
+    if (initialArea) setActiveArea(initialArea.id);
   });
 
   window.addEventListener("hashchange", () => {

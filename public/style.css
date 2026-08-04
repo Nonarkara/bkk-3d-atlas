@@ -192,6 +192,76 @@ button { font: inherit; }
 }
 .atlas-layer-toggle input[type="checkbox"]:checked ~ .atlas-layer-state { color: var(--signal); }
 
+.atlas-eyebrow-sub {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+}
+
+.atlas-layer-list-sub { gap: 4px; }
+
+.atlas-layer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.atlas-layer-sub {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 28px;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-top: none;
+}
+.atlas-layer-sub:hover { color: var(--paper); }
+.atlas-layer-sub input[type="checkbox"] {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.atlas-layer-sub input[type="checkbox"]:checked {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+
+.atlas-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: none;
+  background: rgba(0, 0, 0, 0.18);
+}
+.atlas-legend[hidden] { display: none; }
+.atlas-legend-row {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.atlas-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 .atlas-area-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

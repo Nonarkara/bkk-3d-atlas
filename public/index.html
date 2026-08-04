@@ -43,22 +43,27 @@
         <p class="atlas-eyebrow">Layers</p>
         <h2 class="atlas-data-heading">Show / hide</h2>
         <ul class="atlas-layer-list">
-          <li>
+          <li class="atlas-layer-group">
             <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-3d-buildings" checked />
+              <input type="checkbox" id="toggle-buildings" checked />
               <span class="atlas-layer-name">
                 <strong>3D buildings</strong>
-                <small>OSM heights · BKKx signal</small>
+                <small>OSM · 432,077 features</small>
               </span>
-              <span class="atlas-layer-state" id="toggle-3d-buildings-state" aria-live="polite">on</span>
+              <span class="atlas-layer-state" id="toggle-buildings-state" aria-live="polite">on</span>
             </label>
+            <label class="atlas-layer-sub">
+              <input type="checkbox" id="toggle-building-color" />
+              <span>Color by type (temple, hotel, school…)</span>
+            </label>
+            <div class="atlas-legend" id="legend-buildings" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-rail" checked />
               <span class="atlas-layer-name">
                 <strong>Rail lines</strong>
-                <small>BTS / MRT / ARL · 9 lines, official colors</small>
+                <small>BTS / MRT / ARL · 9 lines</small>
               </span>
               <span class="atlas-layer-state" id="toggle-rail-state" aria-live="polite">on</span>
             </label>
@@ -82,6 +87,56 @@
               </span>
               <span class="atlas-layer-state" id="toggle-khlongs-state" aria-live="polite">on</span>
             </label>
+          </li>
+        </ul>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Landscape</p>
+        <ul class="atlas-layer-list atlas-layer-list-sub">
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-terrain" />
+              <span class="atlas-layer-name">
+                <strong>3D terrain</strong>
+                <small>AWS Terrarium DEM · 30 m</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-terrain-state" aria-live="polite">off</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-land-price" />
+              <span class="atlas-layer-name">
+                <strong>Land price (ราคาประเมิน)</strong>
+                <small>Treasury 2024–2028 · ฿/sq.wah</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-land-price-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-land-price" hidden></div>
+          </li>
+        </ul>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Weather</p>
+        <ul class="atlas-layer-list atlas-layer-list-sub">
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-rain" />
+              <span class="atlas-layer-name">
+                <strong>Rain radar</strong>
+                <small>RainViewer · last 2 h</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-rain-state" aria-live="polite">off</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-aqi" />
+              <span class="atlas-layer-name">
+                <strong>Air quality</strong>
+                <small>Open-Meteo CAMS · PM2.5</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-aqi-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-aqi" hidden></div>
           </li>
         </ul>
       </section>

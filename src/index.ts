@@ -21,6 +21,8 @@ export interface Env {
 const SPA_FALLBACK_PATHS = new Set<string>(["/atlas", "/atlas/"]);
 const PMTILES_PATH = "/bkk-buildings.pmtiles";
 const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
+const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
+const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
@@ -59,16 +61,24 @@ function parseRange(header: string | null): { offset: number; length?: number } 
 }
 
 async function serveBuildingsPmtiles(request: Request, env: Env): Promise<Response> {
+  return servePmtilesFromR2(request, env, PMTILES_R2_KEY, PMTILES_PATH);
+}
+
+async function serveRattanakosinPmtiles(request: Request, env: Env): Promise<Response> {
+  return servePmtilesFromR2(request, env, RATTANAKOSIN_PMTILES_R2_KEY, RATTANAKOSIN_PMTILES_PATH);
+}
+
+async function servePmtilesFromR2(request: Request, env: Env, key: string, _logicalPath: string): Promise<Response> {
   const range = parseRange(request.headers.get("range"));
   // For a suffix range we first read the metadata to know the total
   // size, then issue a ranged get for the trailing N bytes.
   if (range && "suffix" in range && range.suffix) {
-    const head = await env.BKK_TILES.head(PMTILES_R2_KEY);
+    const head = await env.BKK_TILES.head(key);
     if (head === null) return new Response("not found", { status: 404 });
     const suffixLen = range.length ?? 0;
     const length = Math.min(suffixLen, head.size);
     const offset = head.size - length;
-    const obj = await env.BKK_TILES.get(PMTILES_R2_KEY, { range: { offset, length } });
+    const obj = await env.BKK_TILES.get(key, { range: { offset, length } });
     if (obj === null || !("body" in obj) || obj.body === null) {
       return new Response(null, { status: 304 });
     }
@@ -77,13 +87,13 @@ async function serveBuildingsPmtiles(request: Request, env: Env): Promise<Respon
     headers.set("accept-ranges", "bytes");
     headers.set("cache-control", "public, max-age=31536000, immutable");
     if (obj.httpEtag) headers.set("etag", obj.httpEtag);
-    headers.set("x-bkkx-source", "R2 bkk-tiles/" + PMTILES_R2_KEY);
+    headers.set("x-bkkx-source", "R2 bkk-tiles/" + key);
     headers.set("content-range", `bytes ${offset}-${offset + length - 1}/${head.size}`);
     headers.set("content-length", String(length));
     return new Response(obj.body, { status: 206, headers });
   }
 
-  const obj = await env.BKK_TILES.get(PMTILES_R2_KEY, {
+  const obj = await env.BKK_TILES.get(key, {
     range: range ?? undefined,
     onlyIf: {
       etagMatches: request.headers.get("if-match") ?? undefined,
@@ -106,7 +116,7 @@ async function serveBuildingsPmtiles(request: Request, env: Env): Promise<Respon
   headers.set("accept-ranges", "bytes");
   headers.set("cache-control", "public, max-age=31536000, immutable");
   if (obj.httpEtag) headers.set("etag", obj.httpEtag);
-  headers.set("x-bkkx-source", "R2 bkk-tiles/" + PMTILES_R2_KEY);
+  headers.set("x-bkkx-source", "R2 bkk-tiles/" + key);
 
   if (range) {
     const length = range.length ?? obj.size - range.offset;
@@ -177,6 +187,9 @@ export default {
     }
     if (url.pathname === PMTILES_PATH) {
       return serveBuildingsPmtiles(request, env);
+    }
+    if (url.pathname === RATTANAKOSIN_PMTILES_PATH) {
+      return serveRattanakosinPmtiles(request, env);
     }
     if (SPA_FALLBACK_PATHS.has(url.pathname)) {
       const fallback = new URL("/", url);

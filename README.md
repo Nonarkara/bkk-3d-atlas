@@ -163,6 +163,34 @@ npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles \
 
 The `scripts/generate-3d-tiles.sh` wrapper runs all four stages.
 
+## Layer registry
+
+Layers are declared in a single `LAYERS` array at the top of
+`public/app.js`. Each entry is an object with:
+
+- `id` / `name` / `description` — what shows in the toggle panel
+- `defaultOn` — whether the layer starts visible
+- `layers` — the MapLibre layer IDs to flip visibility on/off
+- `install(map)` / `uninstall(map)` — async hooks for source +
+  layer wiring (AQI fetches Open-Meteo, terrain calls `setTerrain`,
+  rain fetches RainViewer's manifest, etc.)
+- `legend?` — optional colour swatch set rendered in the panel
+  when the layer is on
+
+This means new layers are a one-object addition; the toggle UI,
+visibility flipping, and legend rendering are all generic.
+
+## R2 objects in this project
+
+- `bkk-tiles/buildings/bangkok.pmtiles` — 20.3 MB, 432,077 features,
+  zoom 11–15. The metro-level buildings layer.
+- `bkk-tiles/buildings/bangkok-rattanakosin.pmtiles` — 1.27 MB,
+  9,275 features, zoom 14–18. The Old Town detail layer.
+
+Both are served via the Worker at `/bkk-buildings.pmtiles` and
+`/bkk-buildings-rattanakosin.pmtiles` with full HTTP Range
+passthrough. The Worker proxy is in `src/index.ts` (`servePmtilesFromR2`).
+
 ## Live traffic layer (iTIC / Longdo)
 
 The atlas includes a "Live traffic" layer in the side panel that
@@ -212,6 +240,33 @@ key is missing or the upstream fails.
    0.32 → 0.82 opacity ramp from z11 → z17) — the entire Bangkok
    metro extruded, not just the OpenFreeMap city-scale outline.
    Falls back to OpenFreeMap's MVT if the PMTiles is unreachable.
+6. **Rattanakosin detail** (z14–18 PMTiles, 9,275 features) — auto-
+   loaded with the buildings layer. Covers the Grand Palace, Wat
+   Pho, Wat Phra Kaew, Wat Suthat, the royal field. The metro
+   PMTiles maxes at z15; this layer takes over to z18 for the Old
+   Town's temple geometry.
+7. **Building type colors** (sub-toggle) — switches the 3D buildings
+   from signal-yellow monochrome to a category-coloured paint
+   expression by OSM `building` tag (temple=gold, school=blue,
+   hotel=pink, museum=purple, hospital=green, commercial=paper,
+   house=light yellow, apartments=orange, industrial=gray, etc.).
+8. **3D terrain** (AWS Terrarium DEM, free, no key) — toggleable
+   `setTerrain({ source, exaggeration: 1.5 })`. Bangkok is mostly
+   flat but Khao San / old town sit on a ~5 m ridge and the
+   neighbouring provinces have real hills.
+9. **Live traffic** (iTIC / Longdo) — proxy at `/api/traffic`.
+10. **Rail lines** (BTS / MRT / ARL / SRT) — 9 lines in official colors.
+11. **Canals & rivers** (Chao Phraya + 3,026 khlongs).
+12. **Air quality** (Open-Meteo CAMS) — heatmap of PM2.5 from an
+    8×8 grid over the Bangkok bbox, EPA-style colour ramp.
+13. **Rain radar** (RainViewer) — most-recent past frame from
+    `api.rainviewer.com/public/weather-maps.json`, 5-min client
+    cache, opacity 0.65.
+14. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
+    assessment, aggregated from 2.28M parcels to 477 UTMMAP3 zones.
+    Each zone is a point on the map coloured by average appraisal
+    price (500–435,000 ฿/sq.wah). Six-step ramp from cream to dark
+    amber.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
 frame. Sharp edges. No rounded corners. No shadows.
