@@ -82,9 +82,16 @@ def estimate_height(tags: dict[str, str]) -> tuple[float, float]:
 def fetch_overpass(bbox: tuple[float, float, float, float], *, retries: int = 3) -> dict[str, Any]:
     south, west, north, east = bbox
     query = (
+        # `building:part` matters as much as `building` here: OSM maps tall
+        # towers as a plain outline plus parts, and the parts are what carry
+        # the height. Baiyoke Tower II is the case that caught this — its
+        # 304 m geometry is tagged building:part only, so a building-only
+        # query drops Bangkok's landmark tower entirely.
         "[out:json][timeout:120];\n"
         f"(way[\"building\"]({south},{west},{north},{east});"
-        "relation[\"building\"]({south},{west},{north},{east}););"
+        f"way[\"building:part\"]({south},{west},{north},{east});"
+        "relation[\"building\"]({south},{west},{north},{east});"
+        "relation[\"building:part\"]({south},{west},{north},{east}););"
         "out body geom;".format(south=south, west=west, north=north, east=east)
     )
     last_error: Exception | None = None
