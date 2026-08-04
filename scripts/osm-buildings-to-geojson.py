@@ -47,6 +47,7 @@ import time
 from typing import Any, Iterable
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_USER_AGENT = "BKKx-3D-Atlas/1.0 (https://atlas.nonarkara.org; data extraction)"
 
 
 def parse_levels(value: str | None) -> float | None:
@@ -90,7 +91,12 @@ def fetch_overpass(bbox: tuple[float, float, float, float], *, retries: int = 3)
     for attempt in range(1, retries + 1):
         try:
             import requests
-            response = requests.post(OVERPASS_URL, data={"data": query}, timeout=180)
+            response = requests.post(
+                OVERPASS_URL,
+                data={"data": query},
+                headers={"User-Agent": OVERPASS_USER_AGENT, "Accept": "application/json"},
+                timeout=180,
+            )
             response.raise_for_status()
             return response.json()
         except Exception as exc:  # noqa: BLE001
@@ -137,6 +143,7 @@ def overpass_to_features(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
         if len(ring) < 3:
             continue
         yield {
+            "id": element.get("id"),
             "tags": element.get("tags", {}),
             "polygon": ring,
         }
@@ -153,7 +160,7 @@ def to_geojson_feature(element: dict[str, Any]) -> dict[str, Any]:
         from shapely.geometry import mapping
         polygon = [list(geom.exterior.coords)]
     properties: dict[str, Any] = {
-        "id": f"bkk-building-{abs(hash(tuple(polygon[0]))) % 10**10}",
+        "id": f"bkk-building-{element.get('id', 0)}",
         "height": height,
         "base_height": base,
     }

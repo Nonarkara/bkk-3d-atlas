@@ -29,7 +29,18 @@ const BUILDING_PAINT = {
     ["get", "min_height"],
     0,
   ],
-  "fill-extrusion-opacity": 0.7,
+  // Opacity ramps up with zoom so the whole-city view (zoom 11) shows
+  // a yellow silhouette over the satellite instead of a solid yellow
+  // blob, and street-level (zoom 17) keeps the buildings fully solid.
+  "fill-extrusion-opacity": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    11, 0.32,
+    13, 0.55,
+    15, 0.7,
+    17, 0.82,
+  ],
   "fill-extrusion-vertical-gradient": true,
 };
 
@@ -248,7 +259,9 @@ function attachLayers(map) {
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
   }
 
-  // 3. 3D buildings on top
+  // 3. 3D buildings on top. minzoom 11 keeps the whole Bangkok urban
+  //    area visible as a 3D silhouette at city scale; the opacity
+  //    ramp in BUILDING_PAINT does the rest.
   if (source && !map.getLayer("bkkx-3d-buildings")) {
     try {
       map.addLayer({
@@ -256,7 +269,7 @@ function attachLayers(map) {
         type: "fill-extrusion",
         source,
         "source-layer": "building",
-        minzoom: 13,
+        minzoom: 11,
         paint: BUILDING_PAINT,
       });
     } catch {

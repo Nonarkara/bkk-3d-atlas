@@ -6,6 +6,24 @@
   "projection": "EPSG:4326 (lng/lat)",
   "areas": [
     {
+      "id": "bangkok-from-above",
+      "name": "Bangkok from above",
+      "thai": "กรุงเทพฯ จากเบื้องบน",
+      "category": "city-scale",
+      "chapter": "The whole city in 3D",
+      "description": "All of Bangkok at once. Every building in the OpenStreetMap coverage rendered as a 3D extrusion in BKKx signal yellow, faded low so the Esri satellite still reads. The whole-city view uses opacity 0.32 — the silhouette of a working city, not a solid block.",
+      "center": [100.6200, 13.7300],
+      "zoom": 10.6,
+      "pitch": 35,
+      "bearing": 0,
+      "keyStats": {
+        "bboxKm": "70 × 72",
+        "scale": "city-wide",
+        "buildingsSource": "OpenStreetMap via OpenFreeMap"
+      },
+      "tags": ["city-scale", "satellite", "all-buildings", "low-zoom"]
+    },
+    {
       "id": "rattanakosin",
       "name": "Rattanakosin",
       "thai": "รัตนโกสินทร์",

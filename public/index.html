@@ -52,6 +52,24 @@
         </button>
       </section>
 
+      <section class="atlas-data" id="atlas-data">
+        <p class="atlas-eyebrow">Reusable data</p>
+        <h2 class="atlas-data-heading">For Chula, UNL, anything else</h2>
+        <ul class="atlas-data-list">
+          <li>
+            <a href="/bkk-areas.json" download>15-area curated tour</a>
+            <small>JSON · 15 districts with center, zoom, pitch, key stats</small>
+          </li>
+          <li>
+            <a href="/bkk-buildings-rattanakosin.geojson" download>9.3K Rattanakosin buildings</a>
+            <small>GeoJSON · real OSM data, height + base_height per feature</small>
+          </li>
+        </ul>
+        <p class="atlas-data-extra">
+          Need the full city? Run <code>python3 scripts/osm-buildings-to-geojson.py</code> with a Bangkok bbox or a local PBF. The script is the canonical extractor.
+        </p>
+      </section>
+
       <footer class="atlas-panel-foot">
         <p>Data is © OpenStreetMap contributors under ODbL 1.0. Buildings and roads stream from the public <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> tile service. Imagery is © Esri, Maxar, Earthstar Geographics.</p>
       </footer>

@@ -6,6 +6,10 @@ out/
 .DS_Store
 .env
 .env.local
-*.geojson
 *.pbf
+
+# Sample building GeoJSONs are committed so the live atlas can
+# serve them directly. Larger / per-area extracts stay in out/ and
+# are generated on demand by scripts/osm-buildings-to-geojson.py.
+!public/*.geojson
 

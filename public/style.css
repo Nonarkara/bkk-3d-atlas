@@ -225,6 +225,62 @@ button { font: inherit; }
 }
 .atlas-panel-foot a { color: var(--paper); border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
 
+.atlas-data {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+.atlas-data-heading {
+  margin: 6px 0 10px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+.atlas-data-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-data-list li {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.atlas-data-list li:hover { border-color: var(--signal); }
+.atlas-data-list a {
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.atlas-data-list a:hover, .atlas-data-list a:focus-visible { color: var(--signal); }
+.atlas-data-list small {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.atlas-data-extra {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.atlas-data-extra code {
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
 @media (max-width: 1000px) {
   .atlas-page {
     grid-template-columns: 1fr;
