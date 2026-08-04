@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. Real Esri satellite imagery, OpenFreeMap building extrusions, tiered roads, and quick-jump to the city's key areas. Reusable data for Chula, UNL and other dashboards." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, terrain, air quality, rain radar, Treasury land prices, BTS/MRT lines, canals. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
@@ -18,12 +18,13 @@
         <span>BKK</span><b>x</b>
       </a>
       <div class="atlas-header-meta">
-        <span class="atlas-eyebrow">3D Atlas · Bangkok</span>
+        <span class="atlas-eyebrow">3D Atlas · Bangkok · 1981 →</span>
         <strong>Walk the city in browser</strong>
-        <small>Esri satellite · OpenFreeMap buildings · OpenStreetMap roads</small>
+        <small>432,077 OSM buildings · terrain · AQI · rain radar · land prices · BTS/MRT</small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
+        <a href="#atlas-labs">Labs</a>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
           Data on GitHub <span aria-hidden="true">↗</span>
         </a>
@@ -53,7 +54,7 @@
               <span class="atlas-layer-state" id="toggle-buildings-state" aria-live="polite">on</span>
             </label>
             <label class="atlas-layer-sub">
-              <input type="checkbox" id="toggle-building-color" />
+              <input type="checkbox" id="toggle-building-color" checked />
               <span>Color by type (temple, hotel, school…)</span>
             </label>
             <div class="atlas-legend" id="legend-buildings" hidden></div>
@@ -139,6 +140,105 @@
             <div class="atlas-legend" id="legend-aqi" hidden></div>
           </li>
         </ul>
+      </section>
+
+      <section class="atlas-labs" id="atlas-labs">
+        <p class="atlas-eyebrow">Labs</p>
+        <h2 class="atlas-data-heading">Wildest ideas we can ship</h2>
+        <p class="atlas-labs-blurb">
+          Built by a Bangkokian born in 1981 — more than 30 years
+          inside this city. The data is here. The maps are here.
+          The ideas are below. <strong>My city, not theirs.</strong>
+        </p>
+
+        <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
+          <span class="atlas-paper-btn-eyebrow">Research paper</span>
+          <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
+        </a>
+
+        <ol class="atlas-labs-list">
+          <li>
+            <strong>1. BKKx Digital Twin — handover to BMA.</strong>
+            Open-source, no lock-in, no ฿5.4M consulting fee. The
+            system proves the technical path; the political
+            handover is the deliverable. BMA gets it for free if
+            they promise to maintain it.
+          </li>
+          <li>
+            <strong>2. Property-tech API.</strong> 432K buildings
+            + heights + 477 land-price zones, served as
+            JSON / GeoJSON / MVT to REITs, developers, banks,
+            insurance underwriters. ฿0.50 per lookup. The data
+            is already on the bucket — just wrap it.
+          </li>
+          <li>
+            <strong>3. Bangkok Flood Resilience Sandbox.</strong>
+            Terrain DEM + rain radar + building heights. Drop a
+            1-in-100-year storm on the map, watch which blocks
+            flood. Citizens, planners, insurers — same model.
+          </li>
+          <li>
+            <strong>4. Property Tax Verifier (ภาษีที่ดิน).</strong>
+            Every parcel + Treasury assessed value. Property
+            owners enter their deed number, see the official
+            price, compare against their tax bill. Surfaces the
+            gap between what's assessed and what's collected.
+            Civic anti-corruption tool that pays for itself in
+            week one.
+          </li>
+          <li>
+            <strong>5. Bangkok in the Metaverse.</strong> Faithful
+            1:1 twin of the city, with the same 432K buildings,
+            sell premium virtual plots in Sukhumvit / Silom /
+            Phrom Phuk. ฿50k per virtual address, real estate
+            brokers already asking.
+          </li>
+          <li>
+            <strong>6. Tourist AR — point, learn.</strong>
+            Rattanakosin detail PMTiles + 1,727 temple tags + 75
+            museums + 498 tombs = a PWA that turns every shrine
+            into a story. No app store. Bangkokians and tourists
+            use the same one.
+          </li>
+          <li>
+            <strong>7. Urban Planning Decision Support.</strong>
+            Drag a new BTS station onto the map, watch land prices
+            around it change. Drag a flood barrier, watch AQI
+            drop. The whole system becomes a sandbox for the
+            decisions BMA should be making.
+          </li>
+          <li>
+            <strong>8. Insurance Risk API.</strong>
+            Premium = parcel × assessed value × flood risk × AQI
+            × building height. One REST call returns the score.
+            ฿2 per lookup, sell to every insurer in Thailand.
+          </li>
+          <li>
+            <strong>9. BMA Command Center.</strong> Live ops
+            dashboard combining every layer this atlas has. A
+            deputy governor walks in, sees the city as a single
+            screen. They don't know how to read it, but at least
+            the data is there. BKKx trains the operators.
+          </li>
+          <li>
+            <strong>10. Open Data Marketplace.</strong> Anonymized
+            foot-traffic patterns derived from pmtiles +
+            tourism data + land-price changes. Sell to retail
+            chains, FMCG brands, urban economists. The "anonymous"
+            promise is real because the underlying PMTiles never
+            tracked people in the first place.
+          </li>
+        </ol>
+        <p class="atlas-labs-rant">
+          BMA — the Bangkok Metropolitan Administration — has been
+          "planning a smart city" since 2016. Ten years. Ten
+          digital strategies. Zero public APIs, zero open data,
+          zero digital twin. Meanwhile the buildings are getting
+          taller, the floods are getting deeper, and the only
+          dashboard the public gets is a 1990s PDF map. We
+          built the whole thing on a one-laptop budget in an
+          afternoon. The system is not the hard part.
+        </p>
       </section>
 
       <section class="atlas-active" id="atlas-active" hidden>

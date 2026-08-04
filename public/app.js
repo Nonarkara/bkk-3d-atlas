@@ -69,9 +69,88 @@ const BUILDING_PAINT_MONOCHROME = {
 
 // 3D buildings — by OSM type. Cultural / civic / commercial /
 // residential / industrial / hospitality each get their own swatch
-// (sharp hues, none too saturated, all BKKx-adjacent). Falls back to
-// signal yellow for the 333K untagged "yes" buildings so the city
-// silhouette still reads at city scale. The Rattanakosin detail
+// (high-saturation, BKKx-adjacent). Falls back to signal yellow for
+// the 333K untagged "yes" buildings so the city silhouette still
+// reads at city scale. This is the default paint (see `state.buildingPaint`
+// = "type") — the monochrome signal-yellow look is the alt.
+const BUILDING_COLOR_BY_TYPE = [
+  "match", ["get", "building"],
+  // cultural / religious — gold + warm bronze
+  "temple", "#f5b800",
+  "pagoda", "#f5b800",
+  "shrine", "#e9a91a",
+  "wayside_shrine", "#e9a91a",
+  "monastery", "#b08c1f",
+  "mosque", "#a8c84a",
+  "church", "#c89b3c",
+  "cathedral", "#c89b3c",
+  "chapel", "#c89b3c",
+  "synagogue", "#5b9cb8",
+  // civic / public
+  "civic", "#b8b8b8",
+  "public", "#b8b8b8",
+  "government", "#888888",
+  "fire_station", "#ef4444",
+  "police", "#3b5cdb",
+  "townhall", "#b8b8b8",
+  // hospitality / tourism
+  "hotel", "#ec4899",
+  "motel", "#ec4899",
+  "guest_house", "#d946a0",
+  "hostel", "#d946a0",
+  "museum", "#a855f7",
+  // education — clear blues
+  "school", "#3b82f6",
+  "kindergarten", "#60a5fa",
+  "university", "#1e40af",
+  "college", "#1e40af",
+  // healthcare
+  "hospital", "#10b981",
+  "clinic", "#10b981",
+  // commercial / retail — warm paper
+  "commercial", "#fef3c7",
+  "retail", "#fef3c7",
+  "office", "#e5e5e5",
+  "supermarket", "#e5e5e5",
+  "mall", "#e5e5e5",
+  "marketplace", "#e5e5e5",
+  "market", "#e5e5e5",
+  "shophouse", "#e5e5e5",
+  "kiosk", "#e5e5e5",
+  // industrial
+  "industrial", "#6b7280",
+  "warehouse", "#6b7280",
+  "factory", "#6b7280",
+  "manufacture", "#6b7280",
+  "data_center", "#52525b",
+  // residential variants
+  "house", "#d4ff5b",
+  "residential", "#d4ff5b",
+  "detached", "#d4ff5b",
+  "terrace", "#d4ff5b",
+  "semidetached_house", "#d4ff5b",
+  "townhouse", "#d4ff5b",
+  "bungalow", "#d4ff5b",
+  "hut", "#d4ff5b",
+  "apartments", "#fb923c",
+  "dormitory", "#fb923c",
+  "condominium", "#fb923c",
+  // transport
+  "train_station", "#f1efe8",
+  "transportation", "#f5b800",
+  "parking", "#525252",
+  "garage", "#525252",
+  "garages", "#525252",
+  "carport", "#525252",
+  "fuel", "#a3a3a3",
+  // storage / outbuildings
+  "shed", "#c9ff38",
+  "roof", "#c9ff38",
+  "stilt_house", "#d4ff5b",
+  "construction", "#c9ff38",
+  // default
+  "#c9ff38",
+]; The Rattanakosin detail
 // layer uses a special map for the temple complex (gold for the
 // prangs, paper for the cloisters, magenta for the palace).
 const BUILDING_COLOR_BY_TYPE = [
@@ -276,15 +355,16 @@ const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
 
 // Colour ramp steps (Thai Baht per square wah). Tuned to the 2024–2028
 // Bangkok distribution: median 24k, top decile starts at ~100k, top 1%
-// starts at ~250k, max ~435k.
+// starts at ~250k, max ~435k. Vivid enough to read against the
+// monochrome satellite base.
 const LAND_PRICE_COLOR_RAMP = [
   "step", ["coalesce", ["get", "price_per_wah"], 0],
-  "#fef3c7", 20000,
-  "#fde68a", 50000,
-  "#fcd34d", 100000,
-  "#f59e0b", 200000,
-  "#d97706", 350000,
-  "#92400e",
+  "#fef9c3", 20000,
+  "#fde047", 50000,
+  "#fbbf24", 100000,
+  "#f97316", 200000,
+  "#dc2626", 350000,
+  "#7f1d1d",
 ];
 
 const ROAD_FILTERS = {
@@ -301,7 +381,7 @@ const state = {
   areas: [],
   activeId: null,
   map: null,
-  buildingPaint: "monochrome", // or "type"
+  buildingPaint: "type", // "type" (default) or "monochrome"
   rainFramePath: null,
   rainLastFetch: 0,
 };
@@ -321,19 +401,19 @@ const LAYERS = [
     install: (map) => { installBuildings(map); installRattanakosin(map); },
     uninstall: (map) => { uninstallBuildings(map); uninstallRattanakosin(map); },
     legend: [
-      { color: "#c9ff38", label: "monochrome (default)" },
-      { color: "#c9a227", label: "temple / pagoda" },
-      { color: "#7b9b3d", label: "mosque" },
-      { color: "#8b6914", label: "church / cathedral" },
+      { color: "#f5b800", label: "temple / pagoda" },
+      { color: "#a8c84a", label: "mosque" },
+      { color: "#c89b3c", label: "church / cathedral" },
       { color: "#3b82f6", label: "school" },
-      { color: "#1e3a8a", label: "university" },
-      { color: "#16a34a", label: "hospital" },
-      { color: "#e94b97", label: "hotel" },
-      { color: "#8b5cf6", label: "museum" },
-      { color: "#f1efe8", label: "commercial / retail" },
+      { color: "#1e40af", label: "university" },
+      { color: "#10b981", label: "hospital" },
+      { color: "#ec4899", label: "hotel" },
+      { color: "#a855f7", label: "museum" },
+      { color: "#fef3c7", label: "commercial / retail" },
       { color: "#d4ff5b", label: "house" },
-      { color: "#ff8b3d", label: "apartments" },
+      { color: "#fb923c", label: "apartments" },
       { color: "#6b7280", label: "industrial" },
+      { color: "#c9ff38", label: "untagged" },
     ],
   },
   {
@@ -406,12 +486,12 @@ const LAYERS = [
     install: (map) => installLandPrice(map),
     uninstall: (map) => uninstallLandPrice(map),
     legend: [
-      { color: "#fef3c7", label: "< 20,000 ฿" },
-      { color: "#fde68a", label: "20k–50k ฿" },
-      { color: "#fcd34d", label: "50k–100k ฿" },
-      { color: "#f59e0b", label: "100k–200k ฿" },
-      { color: "#d97706", label: "200k–350k ฿" },
-      { color: "#92400e", label: "350k+ ฿" },
+      { color: "#fef9c3", label: "< 20,000 ฿" },
+      { color: "#fde047", label: "20k–50k ฿" },
+      { color: "#fbbf24", label: "50k–100k ฿" },
+      { color: "#f97316", label: "100k–200k ฿" },
+      { color: "#dc2626", label: "200k–350k ฿" },
+      { color: "#7f1d1d", label: "350k+ ฿" },
     ],
   },
 ];
@@ -859,12 +939,12 @@ async function installAqi(map) {
         "heatmap-color": [
           "interpolate", ["linear"], ["heatmap-density"],
           0,    "rgba(16, 185, 129, 0)",
-          0.2,  "rgba(16, 185, 129, 0.55)",
-          0.4,  "rgba(132, 204, 22, 0.65)",
-          0.55, "rgba(234, 179, 8, 0.7)",
-          0.7,  "rgba(249, 115, 22, 0.75)",
-          0.85, "rgba(220, 38, 38, 0.8)",
-          1,    "rgba(127, 29, 29, 0.85)",
+          0.15, "rgba(132, 204, 22, 0.6)",
+          0.3,  "rgba(234, 179, 8, 0.7)",
+          0.5,  "rgba(249, 115, 22, 0.78)",
+          0.7,  "rgba(239, 68, 68, 0.85)",
+          0.85, "rgba(185, 28, 28, 0.9)",
+          1,    "rgba(127, 29, 29, 0.95)",
         ],
       },
     });

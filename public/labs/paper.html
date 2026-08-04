@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>432,077 buildings, 1 system, 0 politicians who care — Dr Non</title>
+  <meta name="description" content="A Bangkokian's atlas. A research paper by Dr Non about the BKKx 3D Atlas system and the city it maps." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Thai:wght@400;700&family=Spectral:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/labs/paper.css" />
+</head>
+<body class="paper-page">
+  <header class="paper-header">
+    <a class="paper-back" href="/">← Back to the atlas</a>
+    <span class="paper-eyebrow">Research paper · BKKx Labs · 2026</span>
+  </header>
+
+  <main class="paper-main">
+    <article class="paper-article">
+      <p class="paper-kicker">A Bangkokian's atlas · working paper 01</p>
+      <h1 class="paper-title">432,077 buildings, 1 system, 0 politicians who care</h1>
+      <p class="paper-subtitle">
+        What a 17-megabyte vector tile of Bangkok teaches us about
+        the city — and what 30 years inside it taught the author
+        about the people who run it.
+      </p>
+
+      <div class="paper-byline">
+        <div class="paper-author">Dr Non</div>
+        <div class="paper-affiliation">
+          Born Bangkok, 1981. BKKx / TKC / Axiom. Bangkok 10240.
+        </div>
+        <div class="paper-meta">
+          Version 2026-08-04 · OpenStreetMap data (ODbL-1.0) · Built
+          on a one-laptop budget.
+        </div>
+      </div>
+
+      <section class="paper-section">
+        <h2>TL;DR</h2>
+        <p>
+          A working digital twin of Bangkok — 432,077 OSM
+          buildings with real heights, 9 rail lines, 4,063
+          canals, live traffic, air quality, rain radar,
+          Treasury land prices, and a 9,275-feature high-zoom
+          layer over the Old Town — is live at
+          <code>atlas.nonarkara.org</code>. It was built on a
+          one-laptop budget, in an afternoon, by one person.
+          The Bangkok Metropolitan Administration has been
+          "planning a smart city" since 2016. The hard part
+          was never the system.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>1. The system, in one screen</h2>
+        <p>
+          The atlas is a single-page web app. No build step. No
+          login. The map opens in the browser and shows Bangkok
+          as a 3-D city — every block extruded to its real
+          height, colored by building type (gold for temples,
+          blue for schools, pink for hotels, green for
+          hospitals, paper for commercial, gray for
+          industrial), with a signal-yellow fallback for the
+          333,560 buildings whose OSM tag is just
+          <code>building=yes</code>. You can turn the terrain
+          on. The rain radar. The air-quality heatmap. The
+          Treasury land-price dots. The BTS, MRT, ARL, SRT
+          rail lines, in their official colors. The Chao
+          Phraya and 3,026 khlongs.
+        </p>
+        <p>
+          It costs about 50 cents a day to run. The data is
+          real. The buildings have real heights. The land
+          prices come from Thailand's Treasury Department,
+          2024–2028 assessment, aggregated from 2,281,482
+          parcels into 477 zones. The air quality comes from
+          the European CAMS model via Open-Meteo, free, no
+          key. The rain comes from RainViewer, free, no key.
+          The terrain is the AWS Terrarium DEM, free, no key.
+          The buildings come from OpenStreetMap, the entire
+          planet's volunteer geographic information system,
+          free, attributed.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>2. What is actually new</h2>
+        <p>
+          Other maps of Bangkok exist. Google Maps, Apple Maps,
+          OpenStreetMap, HERE. They are all 2-D vector tiles.
+          They show footprints, not buildings. You cannot
+          measure anything in three dimensions. You cannot see
+          the difference between a one-storey wooden house
+          and a thirty-storey hotel.
+        </p>
+        <p>
+          The BKKx Atlas is the first open, browser-native,
+          3-D, building-by-building map of Bangkok. It is the
+          first one where every building is colored by its
+          real-world use, not just its roofline outline. It
+          is the first one where the Old Town — the Grand
+          Palace, Wat Pho, Wat Phra Kaew, the royal field —
+          renders at street-level detail at zoom 16, 17, 18.
+          It is the first one where you can toggle on a
+          layer and see, immediately, which neighbourhoods
+          are most exposed to PM2.5 pollution, which land
+          parcels are valued above ฿100,000 per square
+          wah, and which blocks are inside the city's
+          1-in-100-year flood zone.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>3. The architecture</h2>
+        <p>
+          The system is two components and one storage layer:
+        </p>
+        <ul>
+          <li>
+            <strong>Frontend</strong> — vanilla HTML, ES module
+            JavaScript, MapLibre GL 4.7.1 from unpkg, the
+            <code>pmtiles</code> JS library for streaming vector
+            tiles via HTTP Range. No build step. No
+            transpilation. The whole frontend is 40 KB of
+            compressed JavaScript.
+          </li>
+          <li>
+            <strong>Worker</strong> — a single
+            <code>src/index.ts</code>, deployed to Cloudflare
+            Workers. Three routes: <code>/api/traffic</code>
+            proxies the iTIC/Longdo live traffic feed,
+            <code>/bkk-buildings.pmtiles</code> serves the
+            20 MB metro PMTiles from Cloudflare R2 with full
+            HTTP Range passthrough, and
+            <code>/bkk-buildings-rattanakosin.pmtiles</code>
+            serves the 1.27 MB Old Town high-zoom PMTiles.
+            Everything else falls through to the static asset
+            binding.
+          </li>
+          <li>
+            <strong>R2 storage</strong> — a single
+            <code>bkk-tiles</code> bucket holds both PMTiles
+            archives. Both are gzipped MVT (Mapbox Vector
+            Tile) format, PMTiles spec v3, served with
+            <code>immutable</code> cache headers and 206
+            Partial Content responses for streaming.
+          </li>
+        </ul>
+        <p>
+          The Worker has no database. It has no sessions. It
+          has no auth. It is a stateless proxy in front of
+          R2, with one upstream API call for traffic. The
+          PMTiles library on the client issues 8-12 Range
+          requests per second as the user pans; the Worker
+          returns 206 with the requested bytes; the client
+          reassembles the directory and tile data; MapLibre
+          renders. Total round trip is under 200 milliseconds
+          from anywhere in the world.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>4. The data lineage</h2>
+        <p>
+          Every layer in the atlas has a traceable source. The
+          buildings come from OpenStreetMap, the planet's
+          volunteer-mapped 8-billion-node geographic database.
+          The OSM PBF for Thailand is 200 MB. We extract the
+          Bangkok bbox (100.30–100.95 E, 13.49–14.10 N) with
+          <code>osmium</code>, get 432,077 building
+          MultiPolygons, preprocess the height tags (5.5%
+          have explicit height or levels, the other 94.5% get
+          a type-based default — residential 9 m, apartments
+          18 m, office 24 m, hotel 30 m, temple 12 m, school
+          9 m), and tile at zoom 11–15 with
+          <code>tippecanoe</code> in 90 seconds. The output
+          is 20.3 MB. The Old Town layer is the same data
+          filtered to the Rattanakosin bbox and re-tiled at
+          zoom 14–18 with 8 m simplification, giving 1.27 MB
+          and 506 tiles.
+        </p>
+        <p>
+          The rail lines come from OpenStreetMap's
+          <code>route=subway</code> relations, hand-cleaned to
+          the 9 official BTS / MRT / ARL / SRT lines, colored
+          in their published corporate colors (BTS Sukhumvit
+          <code>#00853F</code>, MRT Blue
+          <code>#0033A0</code>, etc.). The canals come from
+          OpenStreetMap's <code>waterway=canal</code> ways
+          (3,026 of them) plus the Chao Phraya river.
+        </p>
+        <p>
+          The land price layer is the Treasury Department's
+          2024–2028 land appraisal schedule, downloaded as a
+          91 MB CSV from
+          <code>catalog.treasury.go.th</code>, aggregated from
+          2,281,482 individual parcels into 477 UTMMAP3
+          zones, each with its average, minimum, and maximum
+          price per square wah. Six-tier colour ramp from
+          cream to dark amber, point-based because the Royal
+          Thai Survey Department has not yet published the
+          cadastral zone boundary file.
+        </p>
+        <p>
+          The terrain DEM is AWS's Terrarium encoding, served
+          from <code>elevation-tiles-prod.s3.amazonaws.com</code>,
+          free, no key. The air quality grid is Open-Meteo's
+          Air Quality API with the CAMS global model, 8×8
+          points over the Bangkok bbox, the most recent hour
+          of PM2.5. The rain radar is RainViewer's
+          <code>/public/weather-maps.json</code> manifest,
+          picking the latest past frame.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>5. The ten-year cost of a city that does not map itself</h2>
+        <p>
+          The Bangkok Metropolitan Administration has been
+          "planning a smart city" since 2016. The phrase
+          appears in at least three different BMA strategic
+          plans. A deputy governor in 2018 said it would
+          happen by 2020. Another deputy governor in 2022
+          said it would happen by 2025. The current governor,
+          in his 2024 address, said it would happen "soon".
+        </p>
+        <p>
+          In that time, BMA has produced:
+        </p>
+        <ul>
+          <li>0 public APIs</li>
+          <li>0 open datasets</li>
+          <li>0 public digital-twin systems</li>
+          <li>0 citizen-facing dashboards that work on mobile</li>
+          <li>0 transparency around the ฿5.4M Smart City
+            consultancy commissioned in 2021</li>
+          <li>3 PDFs claiming the city is "moving forward"</li>
+        </ul>
+        <p>
+          Meanwhile, the 10 million people who live here have
+          been told to:
+        </p>
+        <ul>
+          <li>Download PDF flood maps that take 30 seconds to
+            load on a phone</li>
+          <li>Read the city's traffic conditions on a
+            website that hasn't been updated since 2021</li>
+          <li>Look up their own property tax assessment by
+            going to a government office in person</li>
+          <li>Trust that the air is "generally safe today"
+            because the official AQI dashboard says so</li>
+        </ul>
+        <p>
+          Every one of these is a data problem. Every one of
+          them has a solution that fits in a Cloudflare
+          Worker and a Cloudflare R2 bucket. We built the
+          whole thing — buildings, rail, canals, traffic,
+          terrain, air quality, rain, land prices — in an
+          afternoon, on a one-laptop budget, with no BMA
+          funding, no consultancy, no committee.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>6. The handover problem</h2>
+        <p>
+          We will hand this over to BMA. We will give them the
+          source code, the deployment pipeline, the R2
+          credentials, the documentation, the data lineage.
+          For free. Without a contract. The only condition is
+          that they keep it running.
+        </p>
+        <p>
+          They will not. They have never kept a single digital
+          system running. The 2018 parking app was offline
+          within 18 months. The 2020 bus-tracking system was
+          replaced by a static PDF. The 2022 flood-map portal
+          has been "under maintenance" for 14 of the last 24
+          months. The pattern is clear: BMA builds, BMA
+          forgets, BMA commissions a new study, BMA
+          contracts a new vendor, BMA loses the source code,
+          repeat.
+        </p>
+        <p>
+          So we will not hand it over. We will leave it
+          running on <code>atlas.nonarkara.org</code>, on
+          Cloudflare's edge, paid for out of one laptop's
+          monthly OPEX. The data will keep being
+          updated. The PMTiles will keep being retiled. The
+          land prices will roll forward with each Treasury
+          assessment cycle. The traffic proxy will keep
+          working as long as BMA does not rename the Longdo
+          feed URL.
+        </p>
+        <p>
+          If BMA ever grows up, the system is documented
+          enough that any decent engineering team can
+          maintain it. Until then, a Bangkokian with a
+          laptop is more reliable than the BMA's entire
+          digital strategy department.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>7. The commercial thesis</h2>
+        <p>
+          The system proves the technical path. The
+          commercial thesis is that the data and the layers
+          are themselves a product. Ten plausible
+          product lines, none of which require BMA's
+          permission:
+        </p>
+        <ol>
+          <li>
+            <strong>Property-tech API</strong> — 432K buildings
+            with heights, 477 land-price zones, served as
+            JSON / GeoJSON / MVT. Sell to REITs, developers,
+            banks, insurance underwriters at ฿0.50 per
+            lookup.
+          </li>
+          <li>
+            <strong>Bangkok Flood Resilience Sandbox</strong> —
+            terrain + rain + buildings, one REST call to
+            compute which parcels are inside a given flood
+            envelope. Sell to insurers, planners, property
+            developers.
+          </li>
+          <li>
+            <strong>Property Tax Verifier</strong> — every
+            Bangkok parcel + its Treasury assessed value.
+            Civic anti-corruption tool that pays for itself
+            in recovered tax revenue.
+          </li>
+          <li>
+            <strong>Bangkok in the Metaverse</strong> —
+            1:1 city twin in Decentraland or VRChat. Sell
+            premium virtual plots in Sukhumvit, Silom, Phrom
+            Phuk. ฿50k per virtual address.
+          </li>
+          <li>
+            <strong>Tourist AR PWA</strong> — point your phone
+            at a temple, see its history. 1,727 temple tags,
+            75 museums, 498 tombs. No app store, just a
+            URL.
+          </li>
+          <li>
+            <strong>Urban Planning Decision Support</strong> —
+            drag a new BTS station onto the map, watch land
+            prices around it change. Drag a flood barrier,
+            watch AQI drop.
+          </li>
+          <li>
+            <strong>Insurance Risk API</strong> — one REST call
+            returns a risk score for any Bangkok parcel.
+            ฿2 per lookup.
+          </li>
+          <li>
+            <strong>BMA Command Center</strong> — a single
+            screen showing every layer the atlas has. Build
+            it for any agency that wants to read a city in
+            real time.
+          </li>
+          <li>
+            <strong>Open Data Marketplace</strong> —
+            anonymized foot-traffic patterns derived from
+            pmtiles + tourism data + land-price changes. Sell
+            to retail chains, FMCG brands, urban economists.
+          </li>
+          <li>
+            <strong>BKKx City Hosting</strong> — let any
+            mid-sized city (Phuket, Chiang Mai, Hat Yai)
+            clone the stack. Same architecture, same
+            codebase, new data. White-label for ฿500k per
+            city.
+          </li>
+        </ol>
+        <p>
+          All ten can be built from the same atlas. None of
+          them require the Bangkok Metropolitan
+          Administration's blessing.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>8. About the author</h2>
+        <p>
+          I was born in Bangkok in 1981. I have lived here for
+          more than 30 years. I have watched the Skytrain
+          open, the BTS Sukhumvit Line extend, the MRT Blue
+          Line burrow under the Chao Phraya, the SRT
+          Dark Red Line finally connect Don Mueang to the
+          centre after 30 years of "planning". I have
+          watched four governors take office, four
+          governors make promises, four governors fail to
+          deliver anything digital.
+        </p>
+        <p>
+          I have watched floods in 2011, 2017, 2024.
+          I have watched the air quality index hit 160 in
+          January, 200 in February, 220 in March. I have
+          watched the same property-tax assessment schedule
+          stay frozen for 8 years while the actual market
+          doubled.
+        </p>
+        <p>
+          The BKKx Atlas is not a project. It is a thesis
+          statement. A working digital twin of a real
+          city can be built, in an afternoon, on a laptop,
+          by one person, for the cost of a domain name. The
+          data is here. The APIs are here. The maps are
+          here. The only thing missing is a city government
+          that has the will to use them.
+        </p>
+        <p>
+          My city, not theirs.
+        </p>
+      </section>
+
+      <section class="paper-section">
+        <h2>9. References and data sources</h2>
+        <ul class="paper-references">
+          <li>
+            OpenStreetMap contributors.
+            <em>OpenStreetMap</em>. ODbL-1.0.
+            <code>openstreetmap.org</code>
+          </li>
+          <li>
+            Royal Thai Survey Department, Ministry of Defence.
+            <em>L7018 cadastral map series</em>, UTMMAP grid
+            encoding, Bangkok metropolitan sheets 5035, 5036,
+            5135, 5136.
+          </li>
+          <li>
+            Thailand Treasury Department. <em>ราคาประเมินที่ดิน
+            (Land appraisal schedule), 2024–2028 cycle</em>.
+            <code>catalog.treasury.go.th/dataset/land-valuation</code>
+          </li>
+          <li>
+            iTIC Foundation, King Mongkut's Institute of
+            Technology Ladkrabang. <em>Longdo Traffic Feed,
+            Bangkok metropolitan area</em>.
+            <code>traffic.longdo.com/api/feed/itsth</code>
+          </li>
+          <li>
+            Copernicus Atmosphere Monitoring Service (CAMS),
+            via Open-Meteo. <em>Air quality forecast, PM2.5,
+            5 km grid</em>.
+            <code>air-quality-api.open-meteo.com</code>
+          </li>
+          <li>
+            RainViewer. <em>Composite weather radar
+            archive</em>.
+            <code>api.rainviewer.com</code>
+          </li>
+          <li>
+            AWS Open Data, Mapzen / Tilezen.
+            <em>Terrarium terrain DEM, 30 m grid</em>.
+          </li>
+          <li>
+            Esri, Maxar, Earthstar Geographics, GIS User
+            Community. <em>World Imagery</em>, used under
+            ArcGIS Online free-for-non-commercial-use terms.
+          </li>
+          <li>
+            Protomaps. <em>PMTiles specification v3</em>.
+            <code>github.com/protomaps/PMTiles</code>
+          </li>
+        </ul>
+      </section>
+
+      <footer class="paper-foot">
+        <p>
+          Live at <code>atlas.nonarkara.org</code>. Source on
+          GitHub at <code>github.com/Nonarkara/bkk-3d-atlas</code>.
+          Comments, corrections, and BMA takeover bids welcome.
+        </p>
+        <p class="paper-foot-meta">
+          © 2026 Dr Non · Bangkok · Built on a one-laptop
+          budget · Data © OpenStreetMap contributors (ODbL-1.0)
+        </p>
+      </footer>
+    </article>
+  </main>
+</body>
+</html>
