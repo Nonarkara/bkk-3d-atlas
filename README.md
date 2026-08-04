@@ -109,6 +109,20 @@ const { nearestZone } = await res.json();
 Property-tech lite. Zone display points are grid approximations until
 cadastral polygons ship; see the `notes` field on the response.
 
+### 1c. `/api/risk` — land × flood schematic score
+
+```js
+const res = await fetch(
+  "https://atlas.nonarkara.org/api/risk?lng=100.5321&lat=13.7367"
+);
+const { score, band, factors } = await res.json();
+// factors.floodInside, factors.floodSeverity, factors.landPricePerWah
+```
+
+Civic demo score (0–100). Flood envelopes in
+`public/bkk-flood-envelope.geojson` are **schematic** — not official
+DDPM/BMA maps. Do not underwrite insurance from this.
+
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
 
 ```sh

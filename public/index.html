@@ -45,9 +45,9 @@
         <p class="atlas-eyebrow">Inspect</p>
         <h2 class="atlas-data-heading">Click any building</h2>
         <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
-          Tap the map. See the OSM building (height, type) and the
-          nearest Treasury land-price zone (ราคาประเมิน · ฿/sq.wah).
-          Property-tax verifier, lite — no deed number required.
+          Tap the map. See the OSM building (height, type), nearest
+          Treasury land-price zone, and whether you are inside the
+          schematic flood envelope. Risk API included.
         </p>
         <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
           <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
@@ -61,10 +61,14 @@
               <dl class="atlas-inspect-stats" id="atlas-inspect-land"></dl>
             </div>
           </div>
+          <div class="atlas-inspect-flood" id="atlas-inspect-flood-wrap">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Flood &amp; risk</p>
+            <dl class="atlas-inspect-stats" id="atlas-inspect-flood"></dl>
+          </div>
           <p class="atlas-inspect-note" id="atlas-inspect-note"></p>
           <div class="atlas-inspect-actions">
-            <a class="atlas-inspect-api" id="atlas-inspect-api" href="/api/land-price" target="_blank" rel="noreferrer">
-              Open /api/land-price ↗
+            <a class="atlas-inspect-api" id="atlas-inspect-api" href="/api/risk" target="_blank" rel="noreferrer">
+              Open /api/risk ↗
             </a>
             <button type="button" class="atlas-inspect-clear" id="atlas-inspect-clear">Clear</button>
           </div>
@@ -84,6 +88,7 @@
           <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
           <button type="button" class="atlas-preset-btn" data-preset="rain">City + rain</button>
           <button type="button" class="atlas-preset-btn" data-preset="aqi">City + AQI</button>
+          <button type="button" class="atlas-preset-btn" data-preset="flood">Flood watch</button>
           <button type="button" class="atlas-preset-btn" data-preset="pulse">Full pulse</button>
         </div>
         <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
@@ -159,6 +164,17 @@
             </label>
             <div class="atlas-legend" id="legend-land-price" hidden></div>
           </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-flood" />
+              <span class="atlas-layer-name">
+                <strong>Flood envelope</strong>
+                <small id="toggle-flood-detail">Schematic 2011-style · civic demo</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-flood-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-flood" hidden></div>
+          </li>
         </ul>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Weather overlays</p>
@@ -187,8 +203,12 @@
         </ul>
 
         <label class="atlas-opacity">
-          <span>Overlay strength <strong id="overlay-opacity-value">45%</strong></span>
+          <span>Weather overlay strength <strong id="overlay-opacity-value">45%</strong></span>
           <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain and AQI overlay opacity" />
+        </label>
+        <label class="atlas-opacity">
+          <span>Flood envelope strength <strong id="flood-opacity-value">38%</strong></span>
+          <input type="range" id="flood-opacity" min="15" max="70" value="38" step="1" aria-label="Flood envelope opacity" />
         </label>
       </section>
 
@@ -212,15 +232,23 @@
         <ol class="atlas-labs-list atlas-labs-list-shipped">
           <li>
             <strong>Multi-layer city stack.</strong>
-            Buildings + rail + traffic under translucent rain and
-            AQI. Presets: City · City+rain · City+AQI · Full pulse.
-            Overlay strength slider keeps the silhouette readable.
+            Buildings + rail + traffic under translucent rain,
+            AQI, and flood envelopes. Presets: City · City+rain ·
+            City+AQI · Flood watch · Full pulse.
           </li>
           <li>
-            <strong>Inspect + land-price API.</strong>
-            Click a building → OSM type/height + nearest Treasury
-            zone. <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
-            with client-side fallback when the Worker is unreachable.
+            <strong>Flood Resilience Sandbox (lite).</strong>
+            Schematic 2011-style corridors + monsoon drain
+            pockets. Click the map to see if a point sits inside
+            an envelope. Not an official flood map — civic demo.
+          </li>
+          <li>
+            <strong>Inspect + land-price + risk APIs.</strong>
+            <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
+            ·
+            <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>
+            (land × flood severity score). Client fallback when
+            the Worker is unreachable.
           </li>
           <li>
             <strong>Honest traffic.</strong>
@@ -230,56 +258,47 @@
         </ol>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
-        <ol class="atlas-labs-list" start="4">
+        <ol class="atlas-labs-list" start="5">
           <li>
-            <strong>Flood Resilience Sandbox.</strong>
-            Reuse terrain DEM + rain radar + building heights.
-            Drop a static 2011 / 1-in-100 flood extent GeoJSON,
-            opacity slider, count buildings inside the envelope.
-            No hydrodynamic model — envelope × intersect is enough
-            for a civic demo.
+            <strong>Official flood extents.</strong>
+            Swap the schematic envelope for DDPM/BMA published
+            GeoJSON when the files are open. Same layer, better
+            truth.
           </li>
           <li>
             <strong>Property Tax Verifier (ภาษีที่ดิน) v2.</strong>
             Deed-number or parcel-id lookup over Treasury zones.
             Compare assessed ฿/sq.wah against a typed tax bill.
-            Surfaces the gap between assessment and collection.
           </li>
           <li>
             <strong>BTS/MRT isochrones.</strong>
             5 / 10 / 15-minute walksheds from every rail station
-            using the rail GeoJSON we already ship. Tippecanoe →
-            PMTiles, same R2 path as buildings.
+            using the rail GeoJSON we already ship.
           </li>
           <li>
             <strong>Heat + khlong cooling.</strong>
             Open-Meteo temperature grid overlaid on the khlong
-            network — show which canals sit under the hottest
-            blocks. Same AQI fetch pattern, new variable.
+            network — hottest blocks vs cooling canals.
           </li>
           <li>
-            <strong>Insurance risk score (lite).</strong>
-            <code>GET /api/risk?lng=&amp;lat=</code> → land price ×
-            nearest AQI cell × rain intensity × building height.
-            One Worker route, no GPU.
+            <strong>Risk API v2.</strong>
+            Fold live AQI cell + rain intensity into
+            <code>/api/risk</code> (today: land × flood only).
           </li>
           <li>
             <strong>Night lights / blackout view.</strong>
-            Toggle satellite saturation + building emissive paint
-            for a “city after dark” mode. Pure client paint — zero
-            new data.
+            Toggle satellite saturation + building emissive paint.
+            Pure client paint — zero new data.
           </li>
           <li>
             <strong>Offline atlas pack.</strong>
             <code>scripts/pack-offline.sh</code>: pin MapLibre +
-            pmtiles + sample traffic + land-price + areas into a
-            folder you can open from a USB stick when the fibre
-            dies. Laptop-native by design.
+            pmtiles + samples onto a USB stick.
           </li>
         </ol>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon — still possible, heavier lift</p>
-        <ol class="atlas-labs-list" start="11">
+        <ol class="atlas-labs-list" start="12">
           <li>
             <strong>BKKx Digital Twin — handover to BMA.</strong>
             Open-source, no lock-in, no ฿5.4M consulting fee. The
@@ -371,6 +390,10 @@
           <li>
             <a href="/bkk-traffic-sample.geojson" download>1.9K expressway traffic segments</a>
             <small>GeoJSON · iTIC-compatible · level + color per segment</small>
+          </li>
+          <li>
+            <a href="/bkk-flood-envelope.geojson" download>5 schematic flood envelopes</a>
+            <small>GeoJSON · civic demo · NOT an official flood map</small>
           </li>
         </ul>
         <p class="atlas-data-extra">

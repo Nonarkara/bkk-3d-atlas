@@ -65,6 +65,18 @@ mustJson("public/bkk-land-price.geojson", (data) => {
   else ok(`${n} land-price zones`);
 });
 
+mustJson("public/bkk-flood-envelope.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 1) fail("flood envelope empty");
+  else ok(`${n} flood envelope polygons`);
+  if (!String(data.disclaimer || data.source || "").toLowerCase().includes("schematic")
+    && !String(data.license || "").includes("schematic")) {
+    // soft note only — disclaimer field is enough
+  }
+  if (!data.disclaimer) fail("flood envelope missing disclaimer");
+  else ok("flood envelope has disclaimer");
+});
+
 mustJson("public/bkk-rail.geojson", (data) => {
   ok(`${data.features?.length ?? 0} rail segments`);
 });
@@ -91,7 +103,7 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -99,6 +111,8 @@ for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceCl
 const worker = readFileSync(join(root, "src/index.ts"), "utf8");
 if (!worker.includes("/api/land-price")) fail("Worker missing /api/land-price");
 else ok("Worker exposes /api/land-price");
+if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
+else ok("Worker exposes /api/risk");
 
 console.log(notes.join("\n"));
 if (errors.length) {

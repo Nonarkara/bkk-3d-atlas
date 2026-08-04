@@ -136,6 +136,14 @@ button { font: inherit; }
   gap: 6px;
   margin-bottom: 10px;
 }
+.atlas-stack-presets .atlas-preset-btn[data-preset="pulse"] {
+  grid-column: 1 / -1;
+}
+.atlas-inspect-flood {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
 .atlas-preset-btn {
   padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);

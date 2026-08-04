@@ -280,6 +280,20 @@ const LAND_PRICE_FILL = "bkkx-land-price-fill";
 const LAND_PRICE_LINE = "bkkx-land-price-line";
 const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
 
+// Schematic flood envelopes (Labs sandbox). NOT official DDPM/BMA
+// flood lines — generalized 2011-style corridors + monsoon pockets.
+const FLOOD_SOURCE = "bkkx-flood";
+const FLOOD_FILL = "bkkx-flood-fill";
+const FLOOD_LINE = "bkkx-flood-line";
+const FLOOD_DATA_URL = "/bkk-flood-envelope.geojson";
+const FLOOD_FILL_COLOR = [
+  "match", ["get", "severity"],
+  "high", "#1d4ed8",
+  "medium", "#3b82f6",
+  "low", "#93c5fd",
+  "#3b82f6",
+];
+
 // Colour ramp steps (Thai Baht per square wah). Tuned to the 2024–2028
 // Bangkok distribution: median 24k, top decile starts at ~100k, top 1%
 // starts at ~250k, max ~435k. Vivid enough to read against the
@@ -314,7 +328,9 @@ const state = {
   inspectMarker: null,
   trafficSource: null, // "live" | "sample" | null
   landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
+  floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
+  floodOpacity: 0.38,
   layerOn: Object.create(null), // id → boolean, source of truth for presets
 };
 
@@ -332,6 +348,8 @@ const LAYER_STACK = [
   RAIL_LAYER,
   TRAFFIC_LAYER,
   LAND_PRICE_FILL,
+  FLOOD_FILL,
+  FLOOD_LINE,
   AQI_LAYER,
   RAIN_LAYER,
 ];
@@ -355,10 +373,10 @@ function setLayersVisible(map, layerIds, visible) {
   }
 }
 
-/** Keep city readable under rain + AQI. Softens buildings when overlays are on. */
+/** Keep city readable under rain + AQI + flood. Softens buildings when overlays are on. */
 function applyOverlayCompositing(map) {
   if (!map) return;
-  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi);
+  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.flood);
   const rainOpacity = state.overlayOpacity;
   const aqiOpacity = Math.min(0.72, state.overlayOpacity + 0.12);
   const buildingOpacity = weatherOn
@@ -372,6 +390,9 @@ function applyOverlayCompositing(map) {
   }
   if (map.getLayer(AQI_LAYER)) {
     try { map.setPaintProperty(AQI_LAYER, "heatmap-opacity", aqiOpacity); } catch {}
+  }
+  if (map.getLayer(FLOOD_FILL)) {
+    try { map.setPaintProperty(FLOOD_FILL, "fill-opacity", state.floodOpacity); } catch {}
   }
   if (map.getLayer("bkkx-3d-buildings")) {
     try { map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", buildingOpacity); } catch {}
@@ -398,6 +419,7 @@ function updateStackChips() {
     khlongs: "Khlongs",
     terrain: "Terrain",
     "land-price": "Land ฿",
+    flood: "Flood",
     aqi: "AQI",
     rain: "Rain",
   };
@@ -411,7 +433,7 @@ function updateStackChips() {
   for (const id of on) {
     const chip = document.createElement("span");
     chip.className = "atlas-stack-chip";
-    if (id === "rain" || id === "aqi") chip.classList.add("is-weather");
+    if (id === "rain" || id === "aqi" || id === "flood") chip.classList.add("is-weather");
     chip.textContent = labels[id];
     el.appendChild(chip);
   }
@@ -514,6 +536,21 @@ const LAYERS = [
     layers: [RAIN_LAYER],
     install: async (map) => { await installRain(map); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [RAIN_LAYER], false),
+  },
+  {
+    id: "flood",
+    name: "Flood envelope",
+    description: "Schematic 2011-style corridors",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [FLOOD_FILL, FLOOD_LINE],
+    install: async (map) => { await installFlood(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [FLOOD_FILL, FLOOD_LINE], false),
+    legend: [
+      { color: "#1d4ed8", label: "high severity corridor" },
+      { color: "#3b82f6", label: "medium" },
+      { color: "#93c5fd", label: "low / drain pocket" },
+    ],
   },
   {
     id: "land-price",
@@ -1163,6 +1200,128 @@ async function installLandPrice(map) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Flood envelope (schematic Labs sandbox)
+// ─────────────────────────────────────────────────────────────────
+
+async function installFlood(map) {
+  if (map.getLayer(FLOOD_FILL)) {
+    setLayersVisible(map, [FLOOD_FILL, FLOOD_LINE], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  let geojson;
+  try {
+    const res = await fetch(FLOOD_DATA_URL, { cache: "force-cache" });
+    if (!res.ok) {
+      setLayerStatus("flood", "unavailable · geojson failed");
+      return;
+    }
+    geojson = await res.json();
+    if (geojson?.features) state.floodFeatures = geojson.features;
+  } catch (error) {
+    console.warn("Flood envelope fetch failed:", error);
+    setLayerStatus("flood", "unavailable · fetch failed");
+    return;
+  }
+  if (!map.getSource(FLOOD_SOURCE)) {
+    try {
+      map.addSource(FLOOD_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Flood source failed:", error);
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: FLOOD_FILL,
+      type: "fill",
+      source: FLOOD_SOURCE,
+      paint: {
+        "fill-color": FLOOD_FILL_COLOR,
+        "fill-opacity": state.floodOpacity,
+      },
+    });
+    map.addLayer({
+      id: FLOOD_LINE,
+      type: "line",
+      source: FLOOD_SOURCE,
+      paint: {
+        "line-color": "#93c5fd",
+        "line-width": 1.2,
+        "line-opacity": 0.85,
+      },
+    });
+    setLayerStatus("flood", "schematic · not an official flood map");
+  } catch (error) {
+    console.warn("Flood layer failed:", error);
+  }
+}
+
+async function ensureFloodFeatures() {
+  if (state.floodFeatures?.length) return state.floodFeatures;
+  try {
+    const res = await fetch(FLOOD_DATA_URL, { cache: "force-cache" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    state.floodFeatures = data.features ?? [];
+    return state.floodFeatures;
+  } catch {
+    return null;
+  }
+}
+
+/** Ray-cast point-in-polygon for GeoJSON Polygon / MultiPolygon. */
+function pointInRing(lng, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat))
+      && (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInFloodFeature(lng, lat, feature) {
+  const g = feature.geometry;
+  if (!g) return false;
+  if (g.type === "Polygon") {
+    if (!pointInRing(lng, lat, g.coordinates[0])) return false;
+    for (let h = 1; h < g.coordinates.length; h++) {
+      if (pointInRing(lng, lat, g.coordinates[h])) return false;
+    }
+    return true;
+  }
+  if (g.type === "MultiPolygon") {
+    for (const poly of g.coordinates) {
+      if (!pointInRing(lng, lat, poly[0])) continue;
+      let inHole = false;
+      for (let h = 1; h < poly.length; h++) {
+        if (pointInRing(lng, lat, poly[h])) { inHole = true; break; }
+      }
+      if (!inHole) return true;
+    }
+  }
+  return false;
+}
+
+async function floodHitAt(lng, lat) {
+  const features = await ensureFloodFeatures();
+  if (!features?.length) return null;
+  const hits = [];
+  for (const feature of features) {
+    if (pointInFloodFeature(lng, lat, feature)) hits.push(feature.properties ?? {});
+  }
+  if (hits.length === 0) return { inside: false, envelopes: [] };
+  const rank = { high: 3, medium: 2, low: 1 };
+  hits.sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0));
+  return { inside: true, envelopes: hits, top: hits[0] };
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Traffic / rail / khlongs (unchanged from before)
 // ─────────────────────────────────────────────────────────────────
 
@@ -1505,6 +1664,7 @@ async function runInspect(map, event) {
   const coordsEl = document.getElementById("atlas-inspect-coords");
   const buildingEl = document.getElementById("atlas-inspect-building");
   const landEl = document.getElementById("atlas-inspect-land");
+  const floodEl = document.getElementById("atlas-inspect-flood");
   const noteEl = document.getElementById("atlas-inspect-note");
   const apiLink = document.getElementById("atlas-inspect-api");
 
@@ -1515,20 +1675,87 @@ async function runInspect(map, event) {
   }
   fillInspectDl(buildingEl, buildingRowsFromFeature(feature));
   fillInspectDl(landEl, [["Zone", "Loading…"], ["฿/sq.wah", "…"]]);
+  fillInspectDl(floodEl, [["Envelope", "Loading…"], ["Risk", "…"]]);
   if (noteEl) noteEl.textContent = "";
   if (apiLink) {
-    apiLink.href = `/api/land-price?lng=${lng.toFixed(5)}&lat=${lat.toFixed(5)}`;
+    apiLink.href = `/api/risk?lng=${lng.toFixed(5)}&lat=${lat.toFixed(5)}`;
   }
 
-  const payload = await fetchNearestLandPrice(lng.toFixed(5), lat.toFixed(5));
+  const [payload, flood, risk] = await Promise.all([
+    fetchNearestLandPrice(lng.toFixed(5), lat.toFixed(5)),
+    floodHitAt(lng, lat),
+    fetchRisk(lng.toFixed(5), lat.toFixed(5)),
+  ]);
   fillInspectDl(landEl, landRowsFromApi(payload));
+  fillInspectDl(floodEl, floodRiskRows(flood, risk, feature));
   if (noteEl) {
-    noteEl.textContent = payload?.notes
-      ?? "Zone positions are grid approximations — not exact cadastral centroids.";
+    const bits = [];
+    if (payload?.notes) bits.push(payload.notes);
+    bits.push("Flood envelopes are schematic civic demos — not official DDPM/BMA maps.");
+    noteEl.textContent = bits.join(" ");
   }
 
   const section = document.getElementById("atlas-inspect");
   if (section) section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function fetchRisk(lng, lat) {
+  try {
+    const res = await fetch(`/api/risk?lng=${encodeURIComponent(lng)}&lat=${encodeURIComponent(lat)}`, {
+      cache: "no-store",
+    });
+    if (res.ok) return await res.json();
+  } catch { /* client compose below */ }
+  return composeRiskClient(Number(lng), Number(lat));
+}
+
+async function composeRiskClient(lng, lat) {
+  const [land, flood] = await Promise.all([
+    nearestLandPriceClient(lng, lat),
+    floodHitAt(lng, lat),
+  ]);
+  return buildRiskPayload(lng, lat, land?.nearestZone ?? null, flood);
+}
+
+function buildRiskPayload(lng, lat, zone, flood) {
+  const severity = flood?.inside ? (flood.top?.severity ?? "medium") : "none";
+  const severityWeight = { none: 0, low: 0.35, medium: 0.65, high: 1 }[severity] ?? 0;
+  const price = zone?.price_per_wah ?? 0;
+  // Laptop-simple score: log land value × flood severity (0–100).
+  const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
+  const score = Math.round(100 * (0.45 * landFactor + 0.55 * severityWeight));
+  return {
+    tool: "risk",
+    query: { lng, lat },
+    score,
+    band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
+    factors: {
+      landPricePerWah: price || null,
+      floodInside: !!flood?.inside,
+      floodSeverity: severity,
+      floodEnvelope: flood?.top?.name ?? null,
+    },
+    disclaimer: "Schematic civic score — not for insurance underwriting.",
+  };
+}
+
+function floodRiskRows(flood, risk, buildingFeature) {
+  const height = buildingFeature?.properties?.render_height
+    ?? buildingFeature?.properties?.height
+    ?? null;
+  const rows = [
+    ["Inside envelope", flood?.inside ? "Yes" : "No"],
+  ];
+  if (flood?.inside && flood.top) {
+    rows.push(["Corridor", String(flood.top.name ?? flood.top.id ?? "—")]);
+    rows.push(["Severity", String(flood.top.severity ?? "—")]);
+    if (flood.top.depthHintM != null) rows.push(["Depth hint", `${flood.top.depthHintM} m`]);
+  }
+  if (risk?.score != null) {
+    rows.push(["Risk score", `${risk.score} · ${risk.band ?? "—"}`]);
+  }
+  if (height != null) rows.push(["Building height", `${height} m`]);
+  return rows;
 }
 
 function wireInspect(map) {
@@ -1637,15 +1864,29 @@ function wireLayerToggles(map) {
 function wireOverlayOpacity(map) {
   const slider = document.getElementById("overlay-opacity");
   const label = document.getElementById("overlay-opacity-value");
-  if (!slider) return;
-  const sync = () => {
-    state.overlayOpacity = Number(slider.value) / 100;
-    if (label) label.textContent = `${Math.round(state.overlayOpacity * 100)}%`;
-    applyOverlayCompositing(map);
-  };
-  slider.value = String(Math.round(state.overlayOpacity * 100));
-  slider.addEventListener("input", sync);
-  sync();
+  if (slider) {
+    const sync = () => {
+      state.overlayOpacity = Number(slider.value) / 100;
+      if (label) label.textContent = `${Math.round(state.overlayOpacity * 100)}%`;
+      applyOverlayCompositing(map);
+    };
+    slider.value = String(Math.round(state.overlayOpacity * 100));
+    slider.addEventListener("input", sync);
+    sync();
+  }
+
+  const floodSlider = document.getElementById("flood-opacity");
+  const floodLabel = document.getElementById("flood-opacity-value");
+  if (floodSlider) {
+    const syncFlood = () => {
+      state.floodOpacity = Number(floodSlider.value) / 100;
+      if (floodLabel) floodLabel.textContent = `${Math.round(state.floodOpacity * 100)}%`;
+      applyOverlayCompositing(map);
+    };
+    floodSlider.value = String(Math.round(state.floodOpacity * 100));
+    floodSlider.addEventListener("input", syncFlood);
+    syncFlood();
+  }
 }
 
 async function setLayerToggle(map, layerId, on) {
@@ -1683,13 +1924,13 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, "land-price": false, terrain: false },
-      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, "land-price": false, terrain: false },
-      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, "land-price": false, terrain: false },
-      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, "land-price": false, terrain: false },
+      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, flood: false, "land-price": false, terrain: false },
+      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, flood: false, "land-price": false, terrain: false },
+      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, flood: false, "land-price": false, terrain: false },
+      flood: { buildings: true, rail: true, traffic: false, khlongs: true, rain: true, aqi: false, flood: true, "land-price": false, terrain: true },
+      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, flood: true, "land-price": false, terrain: false },
     }[preset];
     if (!wants) return;
-    // City first so the silhouette is on-screen before overlays arrive.
     if (wants.buildings) await setLayerToggle(map, "buildings", true);
     for (const [id, on] of Object.entries(wants)) {
       if (id === "buildings") continue;
