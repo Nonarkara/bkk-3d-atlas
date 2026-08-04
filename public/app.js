@@ -44,6 +44,30 @@ const BUILDING_PAINT = {
   "fill-extrusion-vertical-gradient": true,
 };
 
+const TRAFFIC_SOURCE = "bkkx-traffic";
+const TRAFFIC_LAYER = "bkkx-traffic-line";
+const TRAFFIC_SAMPLE_URL = "/bkk-traffic-sample.geojson";
+const TRAFFIC_LIVE_URL = "/api/traffic";
+
+const TRAFFIC_COLOR_EXPRESSION = [
+  "match",
+  ["get", "level"],
+  "heavy", "#E3252C",
+  "medium", "#F2A63B",
+  "light", "#54C00C",
+  "#888888",
+];
+
+const TRAFFIC_WIDTH_EXPRESSION = [
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  10, 1.2,
+  13, 2.4,
+  15, 4.0,
+  17, 5.6,
+];
+
 const ROAD_FILTERS = {
   motorway: ["==", "class", "motorway"],
   major: ["in", "class", "trunk", "primary", "secondary"],
@@ -276,6 +300,15 @@ function attachLayers(map) {
       // ignore
     }
   }
+
+  // 4. Traffic layer. The source is loaded from the static sample
+  //    first (so the toggle is visibly populated immediately), then
+  //    we try to upgrade to the iTIC/Longdo live feed via the
+  //    Worker proxy. The live data is in Longdo's TMC format; the
+  //    static sample is already in GeoJSON LineString form.
+  if (!map.getSource(TRAFFIC_SOURCE)) {
+    loadTrafficData(map, { preferLive: true });
+  }
 }
 
 function defaultCenter(areas) {
@@ -286,6 +319,110 @@ function defaultCenter(areas) {
 
 function defaultZoom(areas) {
   return areas[0]?.zoom ?? 14;
+}
+
+async function fetchLiveTraffic() {
+  try {
+    const response = await fetch(TRAFFIC_LIVE_URL, { cache: "no-store" });
+    if (!response.ok) return null;
+    const body = await response.json();
+    if (!body || !body.features || body.features.length === 0) return null;
+    return body;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSampleTraffic() {
+  try {
+    const response = await fetch(TRAFFIC_SAMPLE_URL, { cache: "force-cache" });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function addTrafficLayer(map, geojson) {
+  if (map.getSource(TRAFFIC_SOURCE)) {
+    const src = map.getSource(TRAFFIC_SOURCE);
+    if (src && "setData" in src) src.setData(geojson);
+    return;
+  }
+  try {
+    map.addSource(TRAFFIC_SOURCE, { type: "geojson", data: geojson });
+    map.addLayer({
+      id: TRAFFIC_LAYER,
+      type: "line",
+      source: TRAFFIC_SOURCE,
+      minzoom: 10,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": TRAFFIC_COLOR_EXPRESSION,
+        "line-width": TRAFFIC_WIDTH_EXPRESSION,
+        "line-opacity": 0.9,
+      },
+    });
+  } catch {
+    // ignore — fallback path will retry
+  }
+}
+
+async function loadTrafficData(map, { preferLive = false } = {}) {
+  let geojson = null;
+  let source = "sample";
+  if (preferLive) {
+    geojson = await fetchLiveTraffic();
+  }
+  if (!geojson) {
+    geojson = await fetchSampleTraffic();
+    source = "sample";
+  }
+  if (!geojson) return;
+  addTrafficLayer(map, geojson);
+  // Best-effort: try to upgrade to live in the background. If the
+  // worker is configured with LONGDO_KEY, the live feed will replace
+  // the static sample. If not, the sample stays.
+  if (preferLive && source === "sample") {
+    fetchLiveTraffic().then((live) => {
+      if (live && map.getSource(TRAFFIC_SOURCE)) {
+        addTrafficLayer(map, live);
+      }
+    });
+  }
+}
+
+function wireLayerToggles(map) {
+  const trafficToggle = document.getElementById("toggle-traffic");
+  const trafficState = document.getElementById("toggle-traffic-state");
+  const buildingsToggle = document.getElementById("toggle-3d-buildings");
+  const buildingsState = document.getElementById("toggle-3d-buildings-state");
+
+  if (trafficToggle) {
+    const apply = () => {
+      const on = trafficToggle.checked;
+      const visibility = on ? "visible" : "none";
+      if (map.getLayer(TRAFFIC_LAYER)) {
+        map.setLayoutProperty(TRAFFIC_LAYER, "visibility", visibility);
+      }
+      trafficState.textContent = on ? "on" : "off";
+    };
+    trafficToggle.addEventListener("change", apply);
+    apply();
+  }
+
+  if (buildingsToggle) {
+    const apply = () => {
+      const on = buildingsToggle.checked;
+      const visibility = on ? "visible" : "none";
+      if (map.getLayer("bkkx-3d-buildings")) {
+        map.setLayoutProperty("bkkx-3d-buildings", "visibility", visibility);
+      }
+      buildingsState.textContent = on ? "on" : "off";
+    };
+    buildingsToggle.addEventListener("change", apply);
+    apply();
+  }
 }
 
 async function init() {
@@ -320,6 +457,7 @@ async function init() {
 
   map.on("load", () => {
     attachLayers(map);
+    wireLayerToggles(map);
     if (initialArea) {
       setActiveArea(initialArea.id);
     }

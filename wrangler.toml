@@ -18,6 +18,16 @@ binding = "ASSETS"
 pattern = "atlas.nonarkara.org"
 custom_domain = true
 
+# Longdo API key for the iTIC traffic proxy at /api/traffic.
+# Set the actual value as a Cloudflare secret (never commit it):
+#   npx wrangler secret put LONGDO_KEY
+# Until that's done, the /api/traffic endpoint returns 503 and the
+# client falls back to /bkk-traffic-sample.geojson (a static
+# OSM-derived sample that ships in the repo).
+[vars]
+LONGDO_FEED = "https://traffic.longdo.com/api/feed/itsth"
+LONGDO_DATA_ORIGIN = "https://itic.longdo.com/opendata/"
+
 # R2 bucket for the 3D Tiles dataset (follow-up; uncomment when the
 # generate-3d-tiles.sh pipeline is run and the bucket is created).
 #

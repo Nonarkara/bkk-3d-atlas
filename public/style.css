@@ -114,6 +114,84 @@ button { font: inherit; }
   letter-spacing: -0.05em;
 }
 
+.atlas-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+.atlas-layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-layer-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition: border-color 160ms ease;
+}
+.atlas-layer-toggle:hover { border-color: var(--signal); }
+.atlas-layer-toggle input[type="checkbox"] {
+  appearance: none;
+  width: 32px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.atlas-layer-toggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.4);
+  transition: transform 160ms ease, background 160ms ease;
+}
+.atlas-layer-toggle input[type="checkbox"]:checked {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+.atlas-layer-toggle input[type="checkbox"]:checked::after {
+  transform: translateX(14px);
+  background: var(--ink);
+}
+.atlas-layer-name strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--paper);
+}
+.atlas-layer-name small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.atlas-layer-state {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.atlas-layer-toggle input[type="checkbox"]:checked ~ .atlas-layer-state { color: var(--signal); }
+
 .atlas-area-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -39,6 +39,33 @@
         <div id="atlas-area-grid" class="atlas-area-grid" role="list" aria-label="Bangkok key areas"></div>
       </section>
 
+      <section class="atlas-layers" id="atlas-layers">
+        <p class="atlas-eyebrow">Layers</p>
+        <h2 class="atlas-data-heading">Show / hide</h2>
+        <ul class="atlas-layer-list">
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-traffic" checked />
+              <span class="atlas-layer-name">
+                <strong>Live traffic</strong>
+                <small>iTIC / Longdo · expressways</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-traffic-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-3d-buildings" checked />
+              <span class="atlas-layer-name">
+                <strong>3D buildings</strong>
+                <small>OSM heights · BKKx signal</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-3d-buildings-state" aria-live="polite">on</span>
+            </label>
+          </li>
+        </ul>
+      </section>
+
       <section class="atlas-active" id="atlas-active" hidden>
         <p class="atlas-eyebrow" id="atlas-active-category"></p>
         <h2 class="atlas-active-name" id="atlas-active-name"></h2>
