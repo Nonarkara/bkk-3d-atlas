@@ -2,9 +2,10 @@
 
 A 3D browser atlas of Bangkok, hosted on Cloudflare Workers. Real Esri
 satellite imagery, OpenStreetMap buildings extruded in BKKx signal
-yellow, tiered roads, and **quick-jump buttons to 15 curated key areas**
+yellow, tiered roads, and **quick-jump buttons to 16 curated key areas**
 (historic cores, transit hubs, market districts, the university campus,
-the airport). No Minecraft, no install.
+the airport). Click any building to inspect height/type plus the nearest
+Treasury land-price zone. No Minecraft, no install.
 
 **Live:** https://atlas.nonarkara.org
 
@@ -12,7 +13,7 @@ The atlas is one of three deliverables. The other two are **reusable
 data files** that Dr Non's other projects (Chula dashboards, UNL
 dashboards, anything else that needs Bangkok) can pull in:
 
-1. **`public/bkk-areas.json`** — 15 curated Bangkok areas with
+1. **`public/bkk-areas.json`** — 16 curated Bangkok areas with
    centre, zoom, pitch, bearing, key stats, and tags. Used by the
    viewer's quick-jump panel; load it from any other project to do
    the same curated tour.
@@ -45,11 +46,12 @@ dashboards, anything else that needs Bangkok) can pull in:
   **432,077 OSM buildings streamed from our own PMTiles** for 3D
   extrusions (see `bkk-buildings.pmtiles` at the R2 route below).
 - **Worker** — `src/index.ts` is a Cloudflare Worker that handles
-  three things: (1) proxies `/api/traffic` to the iTIC/Longdo feed
+  four things: (1) proxies `/api/traffic` to the iTIC/Longdo feed
   with a secret API key, (2) serves `/bkk-buildings.pmtiles` from
   R2 with HTTP Range passthrough so the `pmtiles` JS lib can stream
-  tile-by-tile, and (3) falls back to the static asset binding for
-  everything else.
+  tile-by-tile, (3) serves `/api/land-price?lng=&lat=` nearest-zone
+  lookup over the 477 Treasury zones, and (4) falls back to the
+  static asset binding for everything else.
 - **Hosting** — Cloudflare Workers + R2 on the custom domain
   `atlas.nonarkara.org`. R2 bucket `bkk-tiles` holds the 17 MB
   PMTiles.
@@ -84,6 +86,19 @@ map.flyTo({ center: ratchathewi.center, zoom: ratchathewi.zoom });
 ```
 
 Same data, same camera angles, no rebuild.
+
+### 1b. `/api/land-price` — nearest Treasury zone
+
+```js
+const res = await fetch(
+  "https://atlas.nonarkara.org/api/land-price?lng=100.5321&lat=13.7367"
+);
+const { nearestZone } = await res.json();
+// nearestZone.price_per_wah, zone_id, min_price, max_price, distanceM
+```
+
+Property-tech lite. Zone display points are grid approximations until
+cadastral polygons ship; see the `notes` field on the response.
 
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
 

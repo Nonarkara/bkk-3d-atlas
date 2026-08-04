@@ -5,7 +5,8 @@
 // has a place to land. Today it:
 //   (1) proxies /api/traffic to the iTIC/Longdo feed using a secret key
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
-//   (3) falls back to the static asset binding for everything else
+//   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
+//   (4) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -18,19 +19,51 @@ export interface Env {
   LONGDO_KEY?: string;
 }
 
-const SPA_FALLBACK_PATHS = new Set<string>(["/atlas", "/atlas/"]);
+const SPA_FALLBACK_PATHS = new Set<string>([
+  "/atlas",
+  "/atlas/",
+]);
 const PMTILES_PATH = "/bkk-buildings.pmtiles";
 const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
 const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
 const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
+const LAND_PRICE_ASSET = "/bkk-land-price.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
+const LAND_PRICE_CACHE_TTL_SECONDS = 3600;
+
+type LandPriceProps = {
+  zone_id: string;
+  price_per_wah: number;
+  min_price: number;
+  max_price: number;
+  parcel_count: number;
+};
+
+type LandPriceFeature = {
+  type: "Feature";
+  properties: LandPriceProps;
+  geometry: { type: "Point"; coordinates: [number, number] };
+};
+
+type LandPriceCollection = {
+  type: "FeatureCollection";
+  features: LandPriceFeature[];
+  notes?: string;
+  license?: string;
+  source?: string;
+  version?: string;
+};
+
+let landPriceCache: LandPriceCollection | null = null;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", `public, max-age=${TRAFFIC_CACHE_TTL_SECONDS}`);
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", `public, max-age=${TRAFFIC_CACHE_TTL_SECONDS}`);
+  }
   return new Response(JSON.stringify(body), { ...init, headers });
 }
 
@@ -130,6 +163,116 @@ async function servePmtilesFromR2(request: Request, env: Env, key: string, _logi
   return new Response(obj.body, { status: 200, headers });
 }
 
+function haversineMeters(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function loadLandPriceCollection(env: Env, request: Request): Promise<LandPriceCollection | null> {
+  if (landPriceCache) return landPriceCache;
+  const assetUrl = new URL(LAND_PRICE_ASSET, request.url);
+  const res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  if (!res.ok) return null;
+  const body = (await res.json()) as LandPriceCollection;
+  if (!body?.features?.length) return null;
+  landPriceCache = body;
+  return body;
+}
+
+function nearestLandPrice(
+  collection: LandPriceCollection,
+  lng: number,
+  lat: number,
+): { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null {
+  let best: { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null = null;
+  for (const feature of collection.features) {
+    if (feature.geometry?.type !== "Point") continue;
+    const [zLng, zLat] = feature.geometry.coordinates;
+    if (!Number.isFinite(zLng) || !Number.isFinite(zLat)) continue;
+    const distanceM = haversineMeters(lng, lat, zLng, zLat);
+    if (!best || distanceM < best.distanceM) {
+      best = { zone: feature.properties, lng: zLng, lat: zLat, distanceM };
+    }
+  }
+  return best;
+}
+
+/** Property-tech lite: nearest Treasury land-price zone for a lng/lat. */
+async function lookupLandPrice(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const lng = Number.parseFloat(url.searchParams.get("lng") ?? "");
+  const lat = Number.parseFloat(url.searchParams.get("lat") ?? "");
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return jsonResponse(
+      {
+        error: "invalid_coordinates",
+        message: "Pass ?lng=&lat= as WGS84 decimals (Bangkok ≈ 100.5, 13.75).",
+      },
+      { status: 400 },
+    );
+  }
+  if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
+    return jsonResponse(
+      {
+        error: "out_of_bangkok_bbox",
+        message: "Coordinates fall outside the Bangkok metro bbox used by this atlas.",
+        lng,
+        lat,
+      },
+      { status: 400 },
+    );
+  }
+
+  const collection = await loadLandPriceCollection(env, request);
+  if (!collection) {
+    return jsonResponse(
+      { error: "land_price_unavailable", message: "Could not load bkk-land-price.geojson from assets." },
+      { status: 503 },
+    );
+  }
+
+  const nearest = nearestLandPrice(collection, lng, lat);
+  if (!nearest) {
+    return jsonResponse({ error: "no_zones", message: "Land-price collection has no point features." }, { status: 404 });
+  }
+
+  return jsonResponse(
+    {
+      tool: "land-price",
+      query: { lng, lat },
+      nearestZone: {
+        zone_id: nearest.zone.zone_id,
+        price_per_wah: nearest.zone.price_per_wah,
+        min_price: nearest.zone.min_price,
+        max_price: nearest.zone.max_price,
+        parcel_count: nearest.zone.parcel_count,
+        displayLng: nearest.lng,
+        displayLat: nearest.lat,
+        distanceM: Math.round(nearest.distanceM),
+      },
+      notes:
+        collection.notes ??
+        "Display positions are grid-layout approximations of UTMMAP3 zones, not exact cadastral centroids.",
+      license: collection.license ?? null,
+      source: collection.source ?? null,
+      version: collection.version ?? null,
+      assessment: "Treasury Department ราคาประเมินที่ดิน 2024–2028",
+    },
+    {
+      headers: {
+        "cache-control": `public, max-age=${LAND_PRICE_CACHE_TTL_SECONDS}`,
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     return jsonResponse(
@@ -185,11 +328,18 @@ export default {
     if (url.pathname === "/api/traffic") {
       return proxyTraffic(request, env);
     }
+    if (url.pathname === "/api/land-price") {
+      return lookupLandPrice(request, env);
+    }
     if (url.pathname === PMTILES_PATH) {
       return serveBuildingsPmtiles(request, env);
     }
     if (url.pathname === RATTANAKOSIN_PMTILES_PATH) {
       return serveRattanakosinPmtiles(request, env);
+    }
+    if (url.pathname === "/labs/paper") {
+      const paper = new URL("/labs/paper/", url);
+      return env.ASSETS.fetch(new Request(paper, request));
     }
     if (SPA_FALLBACK_PATHS.has(url.pathname)) {
       const fallback = new URL("/", url);

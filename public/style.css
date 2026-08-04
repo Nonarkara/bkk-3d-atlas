@@ -503,6 +503,112 @@ button { font: inherit; }
   font-size: 9px;
 }
 
+/* Inspect — click building + land price */
+.atlas-inspect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.atlas-inspect-blurb {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.atlas-inspect-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--signal);
+  background: rgba(201, 255, 56, 0.06);
+}
+.atlas-inspect-coords {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--signal);
+}
+.atlas-inspect-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.atlas-inspect-stats {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+.atlas-inspect-stats dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-inspect-stats dd {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-align: right;
+}
+.atlas-inspect-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.atlas-inspect-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.atlas-inspect-api {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--signal);
+  border-bottom: 1px solid rgba(201, 255, 56, 0.35);
+}
+.atlas-inspect-api:hover, .atlas-inspect-api:focus-visible {
+  border-bottom-color: var(--signal);
+}
+.atlas-inspect-clear {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-inspect-clear:hover, .atlas-inspect-clear:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.atlas-inspect-pin {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  background: var(--signal);
+  transform: translateY(2px);
+}
+.atlas-labs-shipped {
+  display: inline;
+  color: var(--signal);
+  font-style: normal;
+  font-weight: 700;
+}
+.atlas-labs-shipped a { color: var(--signal); border-bottom: 1px solid rgba(201, 255, 56, 0.4); }
+
 @media (max-width: 1000px) {
   .atlas-page {
     grid-template-columns: 1fr;
@@ -512,4 +618,5 @@ button { font: inherit; }
   .atlas-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.16); max-height: 45vh; }
   .atlas-header-nav a:not([href^="https"]) { display: none; }
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atlas-inspect-cols { grid-template-columns: 1fr; }
 }

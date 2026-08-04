@@ -22,8 +22,9 @@
         <strong>Walk the city in browser</strong>
         <small>432,077 OSM buildings · terrain · AQI · rain radar · land prices · BTS/MRT</small>
       </div>
-      <nav class="atlas-header-nav" aria-label="Atlas navigation">
+        <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
+        <a href="#atlas-inspect">Inspect</a>
         <a href="#atlas-labs">Labs</a>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
           Data on GitHub <span aria-hidden="true">↗</span>
@@ -36,8 +37,38 @@
     <aside class="atlas-panel" aria-live="polite">
       <section class="atlas-quick" id="atlas-areas">
         <p class="atlas-eyebrow">Quick jump</p>
-        <h2 class="atlas-quick-heading">15 key areas</h2>
+        <h2 class="atlas-quick-heading">16 key areas</h2>
         <div id="atlas-area-grid" class="atlas-area-grid" role="list" aria-label="Bangkok key areas"></div>
+      </section>
+
+      <section class="atlas-inspect" id="atlas-inspect" aria-live="polite">
+        <p class="atlas-eyebrow">Inspect</p>
+        <h2 class="atlas-data-heading">Click any building</h2>
+        <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
+          Tap the map. See the OSM building (height, type) and the
+          nearest Treasury land-price zone (ราคาประเมิน · ฿/sq.wah).
+          Property-tax verifier, lite — no deed number required.
+        </p>
+        <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
+          <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
+          <div class="atlas-inspect-cols">
+            <div>
+              <p class="atlas-eyebrow atlas-eyebrow-sub">Building</p>
+              <dl class="atlas-inspect-stats" id="atlas-inspect-building"></dl>
+            </div>
+            <div>
+              <p class="atlas-eyebrow atlas-eyebrow-sub">Land price</p>
+              <dl class="atlas-inspect-stats" id="atlas-inspect-land"></dl>
+            </div>
+          </div>
+          <p class="atlas-inspect-note" id="atlas-inspect-note"></p>
+          <div class="atlas-inspect-actions">
+            <a class="atlas-inspect-api" id="atlas-inspect-api" href="/api/land-price" target="_blank" rel="noreferrer">
+              Open /api/land-price ↗
+            </a>
+            <button type="button" class="atlas-inspect-clear" id="atlas-inspect-clear">Clear</button>
+          </div>
+        </div>
       </section>
 
       <section class="atlas-layers" id="atlas-layers">
@@ -74,7 +105,7 @@
               <input type="checkbox" id="toggle-traffic" checked />
               <span class="atlas-layer-name">
                 <strong>Live traffic</strong>
-                <small>iTIC / Longdo · expressways</small>
+                <small id="toggle-traffic-detail">iTIC / Longdo · expressways</small>
               </span>
               <span class="atlas-layer-state" id="toggle-traffic-state" aria-live="polite">on</span>
             </label>
@@ -170,6 +201,7 @@
             JSON / GeoJSON / MVT to REITs, developers, banks,
             insurance underwriters. ฿0.50 per lookup. The data
             is already on the bucket — just wrap it.
+            <em class="atlas-labs-shipped"> Shipped lite: <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>.</em>
           </li>
           <li>
             <strong>3. Bangkok Flood Resilience Sandbox.</strong>
@@ -179,12 +211,11 @@
           </li>
           <li>
             <strong>4. Property Tax Verifier (ภาษีที่ดิน).</strong>
-            Every parcel + Treasury assessed value. Property
-            owners enter their deed number, see the official
-            price, compare against their tax bill. Surfaces the
-            gap between what's assessed and what's collected.
-            Civic anti-corruption tool that pays for itself in
-            week one.
+            Click a building, see OSM height/type and the nearest
+            Treasury assessed price (฿/sq.wah). Full deed-number
+            verifier is the follow-up; this is the civic surface
+            that ships today.
+            <em class="atlas-labs-shipped"> Live above ↑ — click the map.</em>
           </li>
           <li>
             <strong>5. Bangkok in the Metaverse.</strong> Faithful
@@ -260,7 +291,7 @@
         <ul class="atlas-data-list">
           <li>
             <a href="/bkk-areas.json" download>16-area curated tour</a>
-            <small>JSON · 15 districts + 1 city-scale "Bangkok from above"</small>
+            <small>JSON · 16 districts + city-scale "Bangkok from above"</small>
           </li>
           <li>
             <a href="/bkk-rail.geojson" download>126 BTS/MRT/ARL/SRT segments</a>

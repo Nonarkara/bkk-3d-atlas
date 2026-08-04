@@ -37,11 +37,11 @@ custom_domain = true
 LONGDO_FEED = "https://traffic.longdo.com/api/feed/itsth"
 LONGDO_DATA_ORIGIN = "https://itic.longdo.com/opendata/"
 
-# 3D buildings PMTiles (432,077 OSM buildings, 17 MB) is served
-# as a static file from the assets binding. Cloudflare's edge
-# handles HTTP Range requests natively, so the pmtiles client lib
-# can stream-tile. The full Bangkok metro (100.30–100.95 E,
-# 13.45–14.10 N) is covered at zoom 11–15.
+# 3D buildings PMTiles (432,077 OSM buildings, ~17 MB) is served
+# from R2 via the Worker Range proxy at /bkk-buildings.pmtiles —
+# not from [assets], which does not honor HTTP Range. The full
+# Bangkok metro (100.30–100.95 E, 13.45–14.10 N) is covered at
+# zoom 11–15.
 
 [observability]
 enabled = true

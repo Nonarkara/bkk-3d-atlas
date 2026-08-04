@@ -311,6 +311,8 @@ const state = {
   buildingPaint: "type", // "type" (default) or "monochrome"
   rainFramePath: null,
   rainLastFetch: 0,
+  inspectMarker: null,
+  trafficSource: null, // "live" | "sample" | null
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -791,8 +793,9 @@ function uninstallTerrain(map) {
 // ─────────────────────────────────────────────────────────────────
 
 async function fetchAqiGrid() {
-  // 8×8 grid over the Bangkok bbox. Open-Meteo returns a value per
-  // lat/lon pair, so 64 points = 64 individual readings.
+  // 8×8 grid over the Bangkok bbox. Open-Meteo multi-location returns
+  // an array of location objects (one per lat/lon pair), each with its
+  // own hourly.pm2_5 series — not a single flattened hourly block.
   const lats = [];
   const lons = [];
   for (let i = 0; i < 8; i++) lats.push((13.49 + (14.10 - 13.49) * (i / 7)).toFixed(3));
@@ -801,29 +804,31 @@ async function fetchAqiGrid() {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
   const data = await res.json();
-  if (!data?.hourly?.pm2_5 || !data?.hourly?.time) return null;
-  // Pick the most-recent hour that has a non-null reading.
-  const times = data.hourly.time;
-  const values = data.hourly.pm2_5;
-  let idx = times.length - 1;
-  while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
-  const pm25 = values[idx] ?? null;
-  if (pm25 == null) return null;
-  // The response is indexed as (lat × lon), flatten to a grid.
+  const locations = Array.isArray(data) ? data : data ? [data] : [];
+  if (locations.length === 0) return null;
+
   const features = [];
-  for (let i = 0; i < lats.length; i++) {
-    for (let j = 0; j < lons.length; j++) {
-      const flat = i * lons.length + j;
-      const v = data.hourly.pm2_5[flat];
-      if (v == null || Number.isNaN(v)) continue;
-      features.push({
-        type: "Feature",
-        properties: { pm25: v },
-        geometry: { type: "Point", coordinates: [Number(lons[j]), Number(lats[i])] },
-      });
-    }
+  let capturedAt = null;
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i];
+    const times = loc?.hourly?.time;
+    const values = loc?.hourly?.pm2_5;
+    if (!times?.length || !values?.length) continue;
+    let idx = times.length - 1;
+    while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
+    const v = values[idx];
+    if (v == null || Number.isNaN(v)) continue;
+    if (!capturedAt) capturedAt = times[idx];
+    const lat = Number(loc.latitude ?? lats[Math.floor(i / lons.length)] ?? lats[0]);
+    const lon = Number(loc.longitude ?? lons[i % lons.length] ?? lons[0]);
+    features.push({
+      type: "Feature",
+      properties: { pm25: v },
+      geometry: { type: "Point", coordinates: [lon, lat] },
+    });
   }
-  return { type: "FeatureCollection", features, _capturedAt: times[idx] };
+  if (features.length === 0) return null;
+  return { type: "FeatureCollection", features, _capturedAt: capturedAt };
 }
 
 async function installAqi(map) {
@@ -1071,10 +1076,27 @@ async function loadTrafficData(map, { preferLive = false } = {}) {
   }
   if (!geojson) return;
   addTrafficLayer(map, geojson);
+  setTrafficSourceBadge(source);
   if (preferLive && source === "sample") {
     fetchLiveTraffic().then((live) => {
-      if (live && map.getSource(TRAFFIC_SOURCE)) addTrafficLayer(map, live);
+      if (live && map.getSource(TRAFFIC_SOURCE)) {
+        addTrafficLayer(map, live);
+        setTrafficSourceBadge("live");
+      }
     });
+  }
+}
+
+function setTrafficSourceBadge(source) {
+  state.trafficSource = source;
+  const detail = document.getElementById("toggle-traffic-detail");
+  if (!detail) return;
+  if (source === "live") {
+    detail.textContent = "live · iTIC / Longdo";
+  } else if (source === "sample") {
+    detail.textContent = "sample · mock levels (not live)";
+  } else {
+    detail.textContent = "iTIC / Longdo · expressways";
   }
 }
 
@@ -1130,6 +1152,167 @@ async function loadKhlongData(map) {
       paint: { "line-color": "#2C7FB8", "line-width": KHLONG_CANAL_WIDTH, "line-opacity": 0.7 },
     });
   } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Inspect — click building + nearest Treasury land-price zone
+// ─────────────────────────────────────────────────────────────────
+
+const INSPECT_BUILDING_LAYERS = ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER];
+
+function formatBaht(n) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  return `${Number(n).toLocaleString("en-US")} ฿`;
+}
+
+function fillInspectDl(el, rows) {
+  if (!el) return;
+  el.innerHTML = "";
+  for (const [dt, dd] of rows) {
+    const term = document.createElement("dt");
+    term.textContent = dt;
+    const def = document.createElement("dd");
+    def.textContent = dd;
+    el.append(term, def);
+  }
+}
+
+function pickBuildingFeature(map, point) {
+  const layerIds = INSPECT_BUILDING_LAYERS.filter((id) => map.getLayer(id));
+  if (layerIds.length === 0) return null;
+  const hits = map.queryRenderedFeatures(point, { layers: layerIds });
+  return hits[0] ?? null;
+}
+
+function buildingRowsFromFeature(feature) {
+  if (!feature) {
+    return [
+      ["Type", "No building under click"],
+      ["Height", "—"],
+      ["Base", "—"],
+    ];
+  }
+  const p = feature.properties ?? {};
+  const type = p.building ?? p.building_type ?? p.class ?? "yes";
+  const height = p.render_height ?? p.height ?? null;
+  const minH = p.render_min_height ?? p.min_height ?? null;
+  const osmId = p.osm_id ?? p.id ?? p["@id"] ?? null;
+  const rows = [
+    ["Type", String(type)],
+    ["Height", height != null ? `${height} m` : "—"],
+    ["Base", minH != null && Number(minH) > 0 ? `${minH} m` : "0 m"],
+  ];
+  if (osmId != null) rows.push(["OSM id", String(osmId)]);
+  return rows;
+}
+
+async function fetchNearestLandPrice(lng, lat) {
+  try {
+    const res = await fetch(`/api/land-price?lng=${encodeURIComponent(lng)}&lat=${encodeURIComponent(lat)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function landRowsFromApi(payload) {
+  const z = payload?.nearestZone;
+  if (!z) {
+    return [
+      ["Zone", "Unavailable"],
+      ["฿/sq.wah", "—"],
+    ];
+  }
+  return [
+    ["Zone", String(z.zone_id)],
+    ["฿/sq.wah", formatBaht(z.price_per_wah)],
+    ["Range", `${formatBaht(z.min_price)} – ${formatBaht(z.max_price)}`],
+    ["Parcels", String(z.parcel_count ?? "—")],
+    ["Distance", z.distanceM != null ? `${z.distanceM} m to zone display point` : "—"],
+  ];
+}
+
+function setInspectMarker(map, lngLat) {
+  if (state.inspectMarker) {
+    state.inspectMarker.setLngLat(lngLat);
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = "atlas-inspect-pin";
+  el.setAttribute("aria-hidden", "true");
+  state.inspectMarker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+    .setLngLat(lngLat)
+    .addTo(map);
+}
+
+function clearInspect(map) {
+  const card = document.getElementById("atlas-inspect-card");
+  const hint = document.getElementById("atlas-inspect-hint");
+  if (card) card.hidden = true;
+  if (hint) hint.hidden = false;
+  if (state.inspectMarker) {
+    state.inspectMarker.remove();
+    state.inspectMarker = null;
+  }
+  if (map.getCanvas()) map.getCanvas().style.cursor = "";
+}
+
+async function runInspect(map, event) {
+  const { lng, lat } = event.lngLat;
+  const feature = pickBuildingFeature(map, event.point);
+  setInspectMarker(map, [lng, lat]);
+
+  const card = document.getElementById("atlas-inspect-card");
+  const hint = document.getElementById("atlas-inspect-hint");
+  const coordsEl = document.getElementById("atlas-inspect-coords");
+  const buildingEl = document.getElementById("atlas-inspect-building");
+  const landEl = document.getElementById("atlas-inspect-land");
+  const noteEl = document.getElementById("atlas-inspect-note");
+  const apiLink = document.getElementById("atlas-inspect-api");
+
+  if (hint) hint.hidden = true;
+  if (card) card.hidden = false;
+  if (coordsEl) {
+    coordsEl.textContent = `${lng.toFixed(5)}° E, ${lat.toFixed(5)}° N`;
+  }
+  fillInspectDl(buildingEl, buildingRowsFromFeature(feature));
+  fillInspectDl(landEl, [["Zone", "Loading…"], ["฿/sq.wah", "…"]]);
+  if (noteEl) noteEl.textContent = "";
+  if (apiLink) {
+    apiLink.href = `/api/land-price?lng=${lng.toFixed(5)}&lat=${lat.toFixed(5)}`;
+  }
+
+  const payload = await fetchNearestLandPrice(lng.toFixed(5), lat.toFixed(5));
+  fillInspectDl(landEl, landRowsFromApi(payload));
+  if (noteEl) {
+    noteEl.textContent = payload?.notes
+      ?? "Zone positions are grid approximations — not exact cadastral centroids.";
+  }
+
+  const section = document.getElementById("atlas-inspect");
+  if (section) section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function wireInspect(map) {
+  map.on("click", (event) => {
+    runInspect(map, event);
+  });
+
+  map.on("mousemove", (event) => {
+    const layerIds = INSPECT_BUILDING_LAYERS.filter((id) => map.getLayer(id));
+    if (layerIds.length === 0) {
+      map.getCanvas().style.cursor = "";
+      return;
+    }
+    const hits = map.queryRenderedFeatures(event.point, { layers: layerIds });
+    map.getCanvas().style.cursor = hits.length ? "pointer" : "";
+  });
+
+  const clearBtn = document.getElementById("atlas-inspect-clear");
+  if (clearBtn) clearBtn.addEventListener("click", () => clearInspect(map));
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1255,6 +1438,7 @@ async function init() {
 
   map.on("load", () => {
     wireLayerToggles(map);
+    wireInspect(map);
     if (initialArea) setActiveArea(initialArea.id);
   });
 
