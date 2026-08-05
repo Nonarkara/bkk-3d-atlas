@@ -598,19 +598,29 @@ async function listCivicPois(request: Request, env: Env): Promise<Response> {
     ? env.CIVIC_DB.prepare("SELECT * FROM civic_pois WHERE category = ?").bind(category)
     : env.CIVIC_DB.prepare("SELECT * FROM civic_pois");
   const { results } = await stmt.all<CivicPoiRow>();
-  const features = results.map((row) => ({
-    type: "Feature" as const,
-    geometry: { type: "Point" as const, coordinates: [row.lng, row.lat] },
-    properties: {
-      id: row.id,
-      category: row.category,
-      name: row.name,
-      districtId: row.district_id,
-      districtNameEn: row.district_name_en,
-      address: row.address,
-      ...JSON.parse(row.properties || "{}"),
-    },
-  }));
+  const features = results.map((row) => {
+    let extras: Record<string, unknown> = {};
+    try {
+      extras = JSON.parse(row.properties || "{}") as Record<string, unknown>;
+    } catch {
+      extras = {};
+    }
+    // Canonical fields last so a noisy source payload can't overwrite
+    // category / name used by the map filter + popup.
+    return {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [row.lng, row.lat] },
+      properties: {
+        ...extras,
+        id: row.id,
+        category: row.category,
+        name: row.name,
+        districtId: row.district_id,
+        districtNameEn: row.district_name_en,
+        address: row.address,
+      },
+    };
+  });
   return jsonResponse(
     {
       type: "FeatureCollection",

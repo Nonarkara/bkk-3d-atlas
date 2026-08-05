@@ -105,6 +105,17 @@ mustJson("public/bkk-cctv.geojson", (data) => {
   else ok(`${withHls} CCTV cameras have HLS urls`);
 });
 
+mustJson("public/bkk-civic-pois.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 500) fail(`civic POI sample too few: ${n}`);
+  else ok(`${n} civic amenity sample points`);
+  const cats = new Set((data.features || []).map((f) => f?.properties?.category).filter(Boolean));
+  for (const need of ["school", "sportsground", "museum", "waterway", "carpark"]) {
+    if (!cats.has(need)) fail(`civic sample missing category ${need}`);
+  }
+  if (cats.size >= 5) ok("civic sample has all 5 categories");
+});
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
@@ -123,10 +134,19 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp", "applyCivicPoiFilter", "civicPoiCategoryFilter", "setCivicPoiCategory", "loadCivicPoiGeoJson", "pointLayersOwningClick"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
+if (!app.includes("minzoom: 9") || !app.includes("CIVIC_POI_LAYER")) {
+  fail("civic POI layer should paint from zoom 9 (city overview)");
+} else if (!/id:\s*CIVIC_POI_LAYER[\s\S]{0,220}minzoom:\s*9/.test(app)) {
+  fail("CIVIC_POI_LAYER missing minzoom 9");
+} else {
+  ok("civic POI dots visible from city overview zoom");
+}
+if (!app.includes("legendInteractive: true")) fail("civic legend should be interactive");
+else ok("civic legend categories are toggleable");
 
 const worker = readFileSync(join(root, "src/index.ts"), "utf8");
 if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
