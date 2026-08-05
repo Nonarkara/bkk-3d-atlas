@@ -771,6 +771,46 @@ body.is-night .atlas-header {
   font-weight: 700;
 }
 
+.atlas-landprice-card {
+  width: min(360px, 82vw);
+  padding: 12px 12px 10px;
+  display: grid;
+  gap: 6px;
+}
+.atlas-landprice-table-wrap {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(241, 239, 232, 0.14);
+}
+.atlas-landprice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+.atlas-landprice-table th {
+  position: sticky;
+  top: 0;
+  background: var(--ink);
+  text-align: left;
+  padding: 5px 6px;
+  color: var(--signal);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 9px;
+  border-bottom: 1px solid rgba(201, 255, 56, 0.35);
+}
+.atlas-landprice-table td {
+  padding: 5px 6px;
+  color: var(--paper);
+  border-bottom: 1px solid rgba(241, 239, 232, 0.1);
+  white-space: nowrap;
+}
+.atlas-landprice-table td:first-child {
+  white-space: normal;
+  color: var(--muted);
+}
+
 .atlas-labs-shipped {
   display: inline;
   color: var(--signal);

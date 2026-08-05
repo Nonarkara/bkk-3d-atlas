@@ -269,6 +269,26 @@ const DISTRICT_SOURCE = "bkkx-districts";
 const DISTRICT_LAYER = "bkkx-district-lines";
 const DISTRICT_DATA_URL = "/bkk-districts.geojson";
 
+// Land price by district group — road-level Treasury draft prices from a
+// media summary (see bkk-land-price-districts.geojson for full sourcing),
+// joined onto the real district polygons above. Each district's fill is
+// its group's single highest priced road, not "the district's price" —
+// the source itself only gives per-road figures grouped by district
+// cluster, so a uniform per-district number doesn't exist to report.
+const LAND_PRICE_SOURCE = "bkkx-land-price-districts";
+const LAND_PRICE_FILL_LAYER = "bkkx-land-price-fill";
+const LAND_PRICE_LINE_LAYER = "bkkx-land-price-outline";
+const LAND_PRICE_DATA_URL = "/bkk-land-price-districts.geojson";
+const LAND_PRICE_FILL_COLOR = [
+  "step", ["get", "peakNewPrice"],
+  "#fef9c3",
+  50000, "#fde047",
+  100000, "#fbbf24",
+  200000, "#f97316",
+  350000, "#dc2626",
+  600000, "#7f1d1d",
+];
+
 const KHLONG_RIVER_WIDTH = [
   "interpolate", ["linear"], ["zoom"],
   9, 1.6, 12, 3.0, 14, 4.0, 16, 5.0,
@@ -356,6 +376,7 @@ const state = {
   cctvHls: null,
   floodSensorPopup: null,
   liveCamPopup: null,
+  landPricePopup: null,
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
   floodOpacity: 0.38,
@@ -372,6 +393,8 @@ const LAYER_STACK = [
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
+  LAND_PRICE_FILL_LAYER,
+  LAND_PRICE_LINE_LAYER,
   DISTRICT_LAYER,
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
@@ -517,6 +540,7 @@ function updateStackChips() {
     khlongs: "Khlongs",
     districts: "Districts",
     terrain: "Terrain",
+    "land-price": "Land ฿",
     flood: "Flood",
     "flood-sensors": "Gauges",
     heat: "Heat",
@@ -733,6 +757,27 @@ const LAYERS = [
     layers: [DISTRICT_LAYER],
     install: async (map) => { await installDistricts(map); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [DISTRICT_LAYER], false),
+  },
+  {
+    id: "land-price",
+    name: "Land price by district",
+    description: "Home Buyers analysis · road-level",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [LAND_PRICE_FILL_LAYER, LAND_PRICE_LINE_LAYER],
+    install: async (map) => { await installLandPriceDistricts(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeLandPricePopup();
+      setLayersVisible(map, [LAND_PRICE_FILL_LAYER, LAND_PRICE_LINE_LAYER], false);
+    },
+    legend: [
+      { color: "#fef9c3", label: "< 50,000 ฿" },
+      { color: "#fde047", label: "50k–100k ฿" },
+      { color: "#fbbf24", label: "100k–200k ฿" },
+      { color: "#f97316", label: "200k–350k ฿" },
+      { color: "#dc2626", label: "350k–600k ฿" },
+      { color: "#7f1d1d", label: "600k+ ฿" },
+    ],
   },
 ];
 
@@ -1556,6 +1601,138 @@ async function installDistricts(map) {
   } catch (error) {
     console.warn("District layer failed:", error);
     setLayerStatus("districts", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Land price by district (road-level Treasury draft data, media
+// summary — see bkk-land-price-districts.geojson for full sourcing)
+// ─────────────────────────────────────────────────────────────────
+
+function closeLandPricePopup() {
+  if (state.landPricePopup) {
+    try { state.landPricePopup.remove(); } catch {}
+    state.landPricePopup = null;
+  }
+}
+
+function formatBahtPerWah(n) {
+  return `${Number(n).toLocaleString("en-US")} ฿`;
+}
+
+/** MapLibre stringifies non-primitive GeoJSON properties (arrays/objects)
+ * when they pass through its tile pipeline — parse them back out. */
+function parseJsonProp(value, fallback) {
+  if (Array.isArray(value) || (value && typeof value === "object")) return value;
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return fallback; }
+  }
+  return fallback;
+}
+
+function openLandPricePopup(map, feature) {
+  const p = feature.properties || {};
+  closeLandPricePopup();
+  const roads = parseJsonProp(p.roads, []).slice().sort((a, b) => b.newMax - a.newMax);
+  const groupDistricts = parseJsonProp(p.groupDistricts, []);
+  const rows = roads.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${formatBahtPerWah(r.oldMin)}${r.oldMax !== r.oldMin ? "–" + formatBahtPerWah(r.oldMax) : ""}</td>
+      <td>${formatBahtPerWah(r.newMin)}${r.newMax !== r.newMin ? "–" + formatBahtPerWah(r.newMax) : ""}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <div class="atlas-landprice-card">
+      <p class="atlas-cctv-kicker">Land price · district group</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name_en)} (${escapeHtml(p.name_th)})</strong>
+      <p class="atlas-cctv-status">
+        Grouped with ${escapeHtml(groupDistricts.filter((d) => d !== p.name_en).join(", ") || "no other districts")}
+        · peak new price ${formatBahtPerWah(p.peakNewPrice)}/wah
+      </p>
+      <div class="atlas-landprice-table-wrap">
+        <table class="atlas-landprice-table">
+          <thead><tr><th>Road</th><th>Old (2559–62)</th><th>New (draft)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="atlas-cctv-actions">
+        <a href="https://www.home.co.th/hometips/new-land-appraisal-price-53898" target="_blank" rel="noreferrer">Source ↗</a>
+        <span>฿/sq.wah</span>
+      </div>
+    </div>
+  `;
+  // No setLngLat here — this is a polygon fill, not a point; the caller
+  // positions the popup at the actual click location.
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "360px",
+    className: "atlas-cctv-popup",
+  }).setHTML(html);
+  state.landPricePopup = popup;
+  return popup;
+}
+
+function wireLandPriceInteractions(map) {
+  if (map.__bkkxLandPriceWired) return;
+  map.__bkkxLandPriceWired = true;
+  map.on("click", LAND_PRICE_FILL_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    const popup = openLandPricePopup(map, feature);
+    popup.setLngLat(event.lngLat).addTo(map);
+  });
+  map.on("mouseenter", LAND_PRICE_FILL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", LAND_PRICE_FILL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installLandPriceDistricts(map) {
+  if (map.getLayer(LAND_PRICE_FILL_LAYER)) {
+    setLayersVisible(map, [LAND_PRICE_FILL_LAYER, LAND_PRICE_LINE_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(LAND_PRICE_DATA_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("land-price", "unavailable · geojson failed");
+    return;
+  }
+  if (!map.getSource(LAND_PRICE_SOURCE)) {
+    try {
+      map.addSource(LAND_PRICE_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Land price source failed:", error);
+      setLayerStatus("land-price", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: LAND_PRICE_FILL_LAYER,
+      type: "fill",
+      source: LAND_PRICE_SOURCE,
+      paint: {
+        "fill-color": LAND_PRICE_FILL_COLOR,
+        "fill-opacity": 0.5,
+      },
+    });
+    map.addLayer({
+      id: LAND_PRICE_LINE_LAYER,
+      type: "line",
+      source: LAND_PRICE_SOURCE,
+      paint: {
+        "line-color": "#11120f",
+        "line-width": 0.6,
+        "line-opacity": 0.5,
+      },
+    });
+    wireLandPriceInteractions(map);
+    setLayerStatus("land-price", `${geojson.features.length} districts · Home Buyers analysis`);
+  } catch (error) {
+    console.warn("Land price layer failed:", error);
+    setLayerStatus("land-price", "unavailable · layer failed");
   }
 }
 

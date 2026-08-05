@@ -65,6 +65,17 @@ mustJson("public/bkk-districts.geojson", (data) => {
   else ok(`${n} district boundaries`);
 });
 
+mustJson("public/bkk-land-price-districts.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n !== 50) fail(`expected 50 land-price district features, got ${n}`);
+  else ok(`${n} land-price districts`);
+  const withRoads = (data.features || []).filter((f) => f.properties?.roads?.length > 0).length;
+  if (withRoads !== n) fail(`${n - withRoads} districts missing road data`);
+  else ok(`all ${n} districts have road-level data`);
+  if (!data.disclaimer) fail("land-price-districts missing disclaimer");
+  else ok("land-price-districts has disclaimer");
+});
+
 mustJson("public/bkk-flood-envelope.geojson", (data) => {
   const n = data.features?.length ?? 0;
   if (n < 1) fail("flood envelope empty");
