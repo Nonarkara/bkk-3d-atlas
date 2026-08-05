@@ -9,7 +9,10 @@
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+  <link rel="preconnect" href="https://camera.longdo.com" crossorigin />
+  <link rel="preconnect" href="https://camerai1.iticfoundation.org" crossorigin />
   <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
 </head>
 <body>
   <main class="atlas-page">
@@ -22,8 +25,9 @@
         <strong>Walk the city in browser</strong>
         <small>432,077 OSM buildings · terrain · AQI · rain radar · land prices · BTS/MRT</small>
       </div>
-      <nav class="atlas-header-nav" aria-label="Atlas navigation">
+        <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
+        <a href="#atlas-inspect">Inspect</a>
         <a href="#atlas-labs">Labs</a>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
           Data on GitHub <span aria-hidden="true">↗</span>
@@ -36,13 +40,65 @@
     <aside class="atlas-panel" aria-live="polite">
       <section class="atlas-quick" id="atlas-areas">
         <p class="atlas-eyebrow">Quick jump</p>
-        <h2 class="atlas-quick-heading">15 key areas</h2>
+        <h2 class="atlas-quick-heading">16 key areas</h2>
         <div id="atlas-area-grid" class="atlas-area-grid" role="list" aria-label="Bangkok key areas"></div>
+      </section>
+
+      <section class="atlas-inspect" id="atlas-inspect" aria-live="polite">
+        <p class="atlas-eyebrow">Inspect</p>
+        <h2 class="atlas-data-heading">Click any building</h2>
+        <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
+          Tap the map. See the OSM building (height, type), nearest
+          Treasury land-price zone (approx. sheet-grid display), and
+          whether you are inside the schematic flood envelope. Risk
+          API included.
+        </p>
+        <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
+          <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
+          <div class="atlas-inspect-cols">
+            <div>
+              <p class="atlas-eyebrow atlas-eyebrow-sub">Building</p>
+              <dl class="atlas-inspect-stats" id="atlas-inspect-building"></dl>
+            </div>
+            <div>
+              <p class="atlas-eyebrow atlas-eyebrow-sub">Land price</p>
+              <dl class="atlas-inspect-stats" id="atlas-inspect-land"></dl>
+            </div>
+          </div>
+          <div class="atlas-inspect-flood" id="atlas-inspect-flood-wrap">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Flood &amp; risk</p>
+            <dl class="atlas-inspect-stats" id="atlas-inspect-flood"></dl>
+          </div>
+          <p class="atlas-inspect-note" id="atlas-inspect-note"></p>
+          <div class="atlas-inspect-actions">
+            <a class="atlas-inspect-api" id="atlas-inspect-api" href="/api/risk" target="_blank" rel="noreferrer">
+              Open /api/risk ↗
+            </a>
+            <button type="button" class="atlas-inspect-clear" id="atlas-inspect-clear">Clear</button>
+          </div>
+        </div>
       </section>
 
       <section class="atlas-layers" id="atlas-layers">
         <p class="atlas-eyebrow">Layers</p>
-        <h2 class="atlas-data-heading">Show / hide</h2>
+        <h2 class="atlas-data-heading">Stack the city</h2>
+        <p class="atlas-layers-blurb">
+          Combine layers. The city stays underneath; rain and AQI
+          sit on top at a soft opacity so you can still read the
+          silhouette.
+        </p>
+
+        <div class="atlas-stack-presets" id="atlas-stack-presets" role="group" aria-label="Layer stack presets">
+          <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
+          <button type="button" class="atlas-preset-btn" data-preset="rain">City + rain</button>
+          <button type="button" class="atlas-preset-btn" data-preset="aqi">City + AQI</button>
+          <button type="button" class="atlas-preset-btn" data-preset="heat">City + heat</button>
+          <button type="button" class="atlas-preset-btn" data-preset="flood">Flood watch</button>
+          <button type="button" class="atlas-preset-btn" data-preset="night">Night</button>
+          <button type="button" class="atlas-preset-btn" data-preset="pulse">Full pulse</button>
+        </div>
+        <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
+
         <ul class="atlas-layer-list">
           <li class="atlas-layer-group">
             <label class="atlas-layer-toggle">
@@ -74,9 +130,19 @@
               <input type="checkbox" id="toggle-traffic" checked />
               <span class="atlas-layer-name">
                 <strong>Live traffic</strong>
-                <small>iTIC / Longdo · expressways</small>
+                <small id="toggle-traffic-detail">iTIC / Longdo · expressways</small>
               </span>
               <span class="atlas-layer-state" id="toggle-traffic-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-cctv" />
+              <span class="atlas-layer-name">
+                <strong>Traffic CCTV</strong>
+                <small id="toggle-cctv-detail">iTIC / Longdo · public road cameras</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-cctv-state" aria-live="polite">off</span>
             </label>
           </li>
           <li>
@@ -108,47 +174,94 @@
               <input type="checkbox" id="toggle-land-price" />
               <span class="atlas-layer-name">
                 <strong>Land price (ราคาประเมิน)</strong>
-                <small>Treasury 2024–2028 · ฿/sq.wah</small>
+                <small id="toggle-land-price-detail">Treasury 2024–2028 · approx. sheet grid</small>
               </span>
               <span class="atlas-layer-state" id="toggle-land-price-state" aria-live="polite">off</span>
             </label>
             <div class="atlas-legend" id="legend-land-price" hidden></div>
           </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-flood" />
+              <span class="atlas-layer-name">
+                <strong>Flood envelope</strong>
+                <small id="toggle-flood-detail">Schematic 2011-style · civic demo</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-flood-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-flood" hidden></div>
+          </li>
         </ul>
 
-        <p class="atlas-eyebrow atlas-eyebrow-sub">Weather</p>
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Weather overlays</p>
         <ul class="atlas-layer-list atlas-layer-list-sub">
           <li>
             <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-rain" />
               <span class="atlas-layer-name">
                 <strong>Rain radar</strong>
-                <small>RainViewer · last 2 h</small>
+                <small id="toggle-rain-detail">RainViewer · last 2 h</small>
               </span>
               <span class="atlas-layer-state" id="toggle-rain-state" aria-live="polite">off</span>
             </label>
           </li>
           <li>
             <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-heat" />
+              <span class="atlas-layer-name">
+                <strong>Heat</strong>
+                <small id="toggle-heat-detail">Open-Meteo · temperature °C</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-heat-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-heat" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-aqi" />
               <span class="atlas-layer-name">
                 <strong>Air quality</strong>
-                <small>Open-Meteo CAMS · PM2.5</small>
+                <small id="toggle-aqi-detail">Open-Meteo CAMS · PM2.5</small>
               </span>
               <span class="atlas-layer-state" id="toggle-aqi-state" aria-live="polite">off</span>
             </label>
             <div class="atlas-legend" id="legend-aqi" hidden></div>
           </li>
         </ul>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Look</p>
+        <ul class="atlas-layer-list atlas-layer-list-sub">
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-night" />
+              <span class="atlas-layer-name">
+                <strong>Night lights</strong>
+                <small>Blackout satellite · emissive buildings</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-night-state" aria-live="polite">off</span>
+            </label>
+          </li>
+        </ul>
+
+        <label class="atlas-opacity">
+          <span>Weather overlay strength <strong id="overlay-opacity-value">45%</strong></span>
+          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain heat and AQI overlay opacity" />
+        </label>
+        <label class="atlas-opacity">
+          <span>Flood envelope strength <strong id="flood-opacity-value">38%</strong></span>
+          <input type="range" id="flood-opacity" min="15" max="70" value="38" step="1" aria-label="Flood envelope opacity" />
+        </label>
       </section>
 
       <section class="atlas-labs" id="atlas-labs">
         <p class="atlas-eyebrow">Labs</p>
-        <h2 class="atlas-data-heading">Wildest ideas we can ship</h2>
+        <h2 class="atlas-data-heading">What ships next from one laptop</h2>
         <p class="atlas-labs-blurb">
           Built by a Bangkokian born in 1981 — more than 30 years
-          inside this city. The data is here. The maps are here.
-          The ideas are below. <strong>My city, not theirs.</strong>
+          inside this city. Everything below is sized for a single
+          developer machine: static GeoJSON, free APIs, Cloudflare
+          Workers + R2. No cluster. No consulting fee.
+          <strong>My city, not theirs.</strong>
         </p>
 
         <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
@@ -156,79 +269,123 @@
           <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
         </a>
 
-        <ol class="atlas-labs-list">
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Shipped on this atlas</p>
+        <ol class="atlas-labs-list atlas-labs-list-shipped">
           <li>
-            <strong>1. BKKx Digital Twin — handover to BMA.</strong>
+            <strong>Multi-layer city stack.</strong>
+            Buildings under translucent rain, heat, AQI, and flood.
+            Presets: City · rain · AQI · heat · Flood watch · Night · Full pulse.
+          </li>
+          <li>
+            <strong>Night lights / blackout.</strong>
+            Desaturated satellite + emissive building wash. Pure
+            client paint — zero new data.
+          </li>
+          <li>
+            <strong>Heat + khlong cooling (lite).</strong>
+            Open-Meteo temperature grid over the city; stack with
+            khlongs via the City + heat preset.
+          </li>
+          <li>
+            <strong>Flood Resilience Sandbox (lite).</strong>
+            Schematic 2011-style corridors. Click to see if a point
+            sits inside an envelope. Civic demo — not official.
+          </li>
+          <li>
+            <strong>Inspect + land-price + risk APIs.</strong>
+            <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
+            ·
+            <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>
+            (land × flood × live PM2.5). Client fallback when the
+            Worker is unreachable.
+          </li>
+          <li>
+            <strong>Honest traffic.</strong>
+            Toggle shows live vs sample · mock levels.
+          </li>
+          <li>
+            <strong>Traffic CCTV.</strong>
+            Public iTIC / Longdo road cameras as map dots —
+            toggle on, click a pin, watch HLS live. Not the
+            closed BMA security network.
+            <a href="/api/cctv">/api/cctv</a>
+          </li>
+        </ol>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
+        <ol class="atlas-labs-list" start="8">
+          <li>
+            <strong>Official flood extents.</strong>
+            Swap the schematic envelope for DDPM/BMA published
+            GeoJSON when the files are open. Same layer, better
+            truth.
+          </li>
+          <li>
+            <strong>Property Tax Verifier (ภาษีที่ดิน) v2.</strong>
+            Deed-number or parcel-id lookup over Treasury zones.
+            Compare assessed ฿/sq.wah against a typed tax bill.
+          </li>
+          <li>
+            <strong>BTS/MRT isochrones.</strong>
+            5 / 10 / 15-minute walksheds from every rail station
+            using the rail GeoJSON we already ship.
+          </li>
+          <li>
+            <strong>Risk API v3.</strong>
+            Fold rain intensity + building height into the score
+            (today: land × flood × PM2.5).
+          </li>
+          <li>
+            <strong>Offline atlas pack.</strong>
+            <code>scripts/pack-offline.sh</code>: pin MapLibre +
+            pmtiles + samples onto a USB stick.
+          </li>
+        </ol>
+
+        <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon — still possible, heavier lift</p>
+        <ol class="atlas-labs-list" start="13">
+          <li>
+            <strong>BKKx Digital Twin — handover to BMA.</strong>
             Open-source, no lock-in, no ฿5.4M consulting fee. The
             system proves the technical path; the political
-            handover is the deliverable. BMA gets it for free if
-            they promise to maintain it.
+            handover is the deliverable.
           </li>
           <li>
-            <strong>2. Property-tech API.</strong> 432K buildings
-            + heights + 477 land-price zones, served as
-            JSON / GeoJSON / MVT to REITs, developers, banks,
-            insurance underwriters. ฿0.50 per lookup. The data
-            is already on the bucket — just wrap it.
+            <strong>Property-tech API (full).</strong>
+            432K buildings + heights + cadastral polygons as
+            JSON / GeoJSON / MVT. Needs Royal Thai Survey
+            boundary files — the hard part is institutional, not
+            code.
           </li>
           <li>
-            <strong>3. Bangkok Flood Resilience Sandbox.</strong>
-            Terrain DEM + rain radar + building heights. Drop a
-            1-in-100-year storm on the map, watch which blocks
-            flood. Citizens, planners, insurers — same model.
+            <strong>Tourist AR — point, learn.</strong>
+            Rattanakosin detail PMTiles + temple / museum tags as
+            a PWA. No app store.
           </li>
           <li>
-            <strong>4. Property Tax Verifier (ภาษีที่ดิน).</strong>
-            Every parcel + Treasury assessed value. Property
-            owners enter their deed number, see the official
-            price, compare against their tax bill. Surfaces the
-            gap between what's assessed and what's collected.
-            Civic anti-corruption tool that pays for itself in
-            week one.
-          </li>
-          <li>
-            <strong>5. Bangkok in the Metaverse.</strong> Faithful
-            1:1 twin of the city, with the same 432K buildings,
-            sell premium virtual plots in Sukhumvit / Silom /
-            Phrom Phuk. ฿50k per virtual address, real estate
-            brokers already asking.
-          </li>
-          <li>
-            <strong>6. Tourist AR — point, learn.</strong>
-            Rattanakosin detail PMTiles + 1,727 temple tags + 75
-            museums + 498 tombs = a PWA that turns every shrine
-            into a story. No app store. Bangkokians and tourists
-            use the same one.
-          </li>
-          <li>
-            <strong>7. Urban Planning Decision Support.</strong>
-            Drag a new BTS station onto the map, watch land prices
-            around it change. Drag a flood barrier, watch AQI
-            drop. The whole system becomes a sandbox for the
+            <strong>Urban Planning Decision Support.</strong>
+            Drag a BTS station, watch land-price heat move. Drag
+            a flood barrier, watch AQI cells shift. Sandbox for
             decisions BMA should be making.
           </li>
           <li>
-            <strong>8. Insurance Risk API.</strong>
-            Premium = parcel × assessed value × flood risk × AQI
-            × building height. One REST call returns the score.
-            ฿2 per lookup, sell to every insurer in Thailand.
+            <strong>BMA Command Center.</strong>
+            Live ops dashboard of every layer on one screen.
+            Same Worker, denser chrome, training for operators.
           </li>
           <li>
-            <strong>9. BMA Command Center.</strong> Live ops
-            dashboard combining every layer this atlas has. A
-            deputy governor walks in, sees the city as a single
-            screen. They don't know how to read it, but at least
-            the data is there. BKKx trains the operators.
+            <strong>Open Data Marketplace.</strong>
+            Anonymized patterns from PMTiles + tourism + land-
+            price changes. The anonymity promise is real because
+            the tiles never tracked people.
           </li>
           <li>
-            <strong>10. Open Data Marketplace.</strong> Anonymized
-            foot-traffic patterns derived from pmtiles +
-            tourism data + land-price changes. Sell to retail
-            chains, FMCG brands, urban economists. The "anonymous"
-            promise is real because the underlying PMTiles never
-            tracked people in the first place.
+            <strong>Bangkok in the Metaverse.</strong>
+            1:1 twin for virtual plots — only after the civic
+            layers above are boringly reliable.
           </li>
         </ol>
+
         <p class="atlas-labs-rant">
           BMA — the Bangkok Metropolitan Administration — has been
           "planning a smart city" since 2016. Ten years. Ten
@@ -236,8 +393,9 @@
           zero digital twin. Meanwhile the buildings are getting
           taller, the floods are getting deeper, and the only
           dashboard the public gets is a 1990s PDF map. We
-          built the whole thing on a one-laptop budget in an
-          afternoon. The system is not the hard part.
+          built the whole thing on a one-laptop budget. The
+          system is not the hard part — keeping every layer
+          honest and stackable is.
         </p>
       </section>
 
@@ -260,7 +418,7 @@
         <ul class="atlas-data-list">
           <li>
             <a href="/bkk-areas.json" download>16-area curated tour</a>
-            <small>JSON · 15 districts + 1 city-scale "Bangkok from above"</small>
+            <small>JSON · 16 districts + city-scale "Bangkok from above"</small>
           </li>
           <li>
             <a href="/bkk-rail.geojson" download>126 BTS/MRT/ARL/SRT segments</a>
@@ -277,6 +435,10 @@
           <li>
             <a href="/bkk-traffic-sample.geojson" download>1.9K expressway traffic segments</a>
             <small>GeoJSON · iTIC-compatible · level + color per segment</small>
+          </li>
+          <li>
+            <a href="/bkk-flood-envelope.geojson" download>5 schematic flood envelopes</a>
+            <small>GeoJSON · civic demo · NOT an official flood map</small>
           </li>
         </ul>
         <p class="atlas-data-extra">

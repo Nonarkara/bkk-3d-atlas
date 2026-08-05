@@ -2,9 +2,10 @@
 
 A 3D browser atlas of Bangkok, hosted on Cloudflare Workers. Real Esri
 satellite imagery, OpenStreetMap buildings extruded in BKKx signal
-yellow, tiered roads, and **quick-jump buttons to 15 curated key areas**
+yellow, tiered roads, and **quick-jump buttons to 16 curated key areas**
 (historic cores, transit hubs, market districts, the university campus,
-the airport). No Minecraft, no install.
+the airport). Click any building to inspect height/type plus the nearest
+Treasury land-price zone. No Minecraft, no install.
 
 **Live:** https://atlas.nonarkara.org
 
@@ -12,7 +13,7 @@ The atlas is one of three deliverables. The other two are **reusable
 data files** that Dr Non's other projects (Chula dashboards, UNL
 dashboards, anything else that needs Bangkok) can pull in:
 
-1. **`public/bkk-areas.json`** — 15 curated Bangkok areas with
+1. **`public/bkk-areas.json`** — 16 curated Bangkok areas with
    centre, zoom, pitch, bearing, key stats, and tags. Used by the
    viewer's quick-jump panel; load it from any other project to do
    the same curated tour.
@@ -45,11 +46,8 @@ dashboards, anything else that needs Bangkok) can pull in:
   **432,077 OSM buildings streamed from our own PMTiles** for 3D
   extrusions (see `bkk-buildings.pmtiles` at the R2 route below).
 - **Worker** — `src/index.ts` is a Cloudflare Worker that handles
-  three things: (1) proxies `/api/traffic` to the iTIC/Longdo feed
-  with a secret API key, (2) serves `/bkk-buildings.pmtiles` from
-  R2 with HTTP Range passthrough so the `pmtiles` JS lib can stream
-  tile-by-tile, and (3) falls back to the static asset binding for
-  everything else.
+  land-price + risk APIs, traffic proxy, PMTiles Range from R2, and
+  static assets. `/api/risk` scores land × schematic flood × live PM2.5.
 - **Hosting** — Cloudflare Workers + R2 on the custom domain
   `atlas.nonarkara.org`. R2 bucket `bkk-tiles` holds the 17 MB
   PMTiles.
@@ -58,8 +56,19 @@ dashboards, anything else that needs Bangkok) can pull in:
 
 ```sh
 npm install        # one time, installs wrangler
+npm run verify     # laptop smoke check (JSON, stack helpers, no network)
+npm run typecheck  # Worker TypeScript
 npm run dev        # http://localhost:8787
 ```
+
+The atlas is sized for a single laptop: static GeoJSON in `public/`,
+free tile APIs (Esri, RainViewer, Open-Meteo), and Cloudflare Workers
++ R2 for PMTiles Range. Heavy layers (khlongs, traffic) load after the
+city paints. Inspect falls back to client-side nearest land-price when
+`/api/land-price` is unreachable. Layer toggles soft-hide instead of
+tearing down WebGL sources, so re-toggling rain/AQI stays cheap.
+Presets stack city + rain / heat / AQI / flood / night without losing
+the silhouette.
 
 ## Deploy
 
@@ -84,6 +93,33 @@ map.flyTo({ center: ratchathewi.center, zoom: ratchathewi.zoom });
 ```
 
 Same data, same camera angles, no rebuild.
+
+### 1b. `/api/land-price` — nearest Treasury zone
+
+```js
+const res = await fetch(
+  "https://atlas.nonarkara.org/api/land-price?lng=100.5321&lat=13.7367"
+);
+const { nearestZone } = await res.json();
+// nearestZone.price_per_wah, zone_id, min_price, max_price, distanceM
+```
+
+Property-tech lite. Zone display points are grid approximations until
+cadastral polygons ship; see the `notes` field on the response.
+
+### 1c. `/api/risk` — land × flood × PM2.5
+
+```js
+const res = await fetch(
+  "https://atlas.nonarkara.org/api/risk?lng=100.5321&lat=13.7367"
+);
+const { score, band, factors } = await res.json();
+// factors.floodInside, factors.pm25, factors.landPricePerWah
+```
+
+Civic demo score (0–100). Optional `?pm25=` override. Flood envelopes in
+`public/bkk-flood-envelope.geojson` are **schematic** — not official
+DDPM/BMA maps. Do not underwrite insurance from this.
 
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
 
@@ -227,6 +263,32 @@ The next request to `/api/traffic` will hit
 client will swap the static sample for the live feed (90-second
 edge cache). The 503 fallback to the sample is automatic if the
 key is missing or the upstream fails.
+
+## Traffic CCTV layer (iTIC / Longdo)
+
+Public **road / intersection** cameras — not the closed BMA security
+network (~60k+ cameras). The same iTIC ecosystem that powers
+[live.iticfoundation.org](https://live.iticfoundation.org) publishes:
+
+- **Camera catalog (JSON)** — no API key —
+  <https://camera.longdo.com/feed/?command=json> (~280 cameras
+  nationwide; ~80–110 in the Bangkok metro with HLS).
+- **Live HLS** — `camerai1.iticfoundation.org` playlists (CORS open).
+- **JPEG / MJPEG** endpoints exist but often return empty bodies;
+  the atlas plays **HLS** in a click popup (`hls.js` on Chromium,
+  native HLS on Safari).
+
+The Worker exposes `/api/cctv`, which filters the catalog to the
+Bangkok metro bbox and returns GeoJSON points. The client falls
+back to `public/bkk-cctv.geojson` when the Worker is offline.
+
+Toggle **Traffic CCTV** in Layers (or use the Full pulse preset).
+Click a signal-yellow pin to watch the live stream. Attribution:
+iTIC Foundation / Longdo.
+
+What this is **not**: free access to BMA/police investigative CCTV
+at `cctv.bangkok.go.th`. Those remain request-only after a police
+report.
 
 ## Layer stack
 

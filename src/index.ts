@@ -5,7 +5,10 @@
 // has a place to land. Today it:
 //   (1) proxies /api/traffic to the iTIC/Longdo feed using a secret key
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
-//   (3) falls back to the static asset binding for everything else
+//   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
+//   (4) serves /api/risk land × flood × PM2.5 civic score
+//   (5) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
+//   (6) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -18,19 +21,98 @@ export interface Env {
   LONGDO_KEY?: string;
 }
 
-const SPA_FALLBACK_PATHS = new Set<string>(["/atlas", "/atlas/"]);
+const SPA_FALLBACK_PATHS = new Set<string>([
+  "/atlas",
+  "/atlas/",
+]);
 const PMTILES_PATH = "/bkk-buildings.pmtiles";
 const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
 const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
 const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
+const LAND_PRICE_ASSET = "/bkk-land-price.geojson";
+const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
+const LONGDO_CCTV_FEED = "https://camera.longdo.com/feed/?command=json";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
+const CCTV_CACHE_TTL_SECONDS = 300;
+const LAND_PRICE_CACHE_TTL_SECONDS = 3600;
+
+/** Bangkok + immediate metro ring used for CCTV filtering. */
+const CCTV_BBOX = {
+  minLat: 13.4,
+  maxLat: 14.2,
+  minLon: 100.2,
+  maxLon: 101.1,
+};
+
+type LongdoCamera = {
+  title?: string;
+  link?: string;
+  camid?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  organization?: string;
+  motion?: string;
+  vdourl?: string;
+  imgurl?: string;
+  hls_url?: string;
+};
+
+type LandPriceProps = {
+  zone_id: string;
+  price_per_wah: number;
+  min_price: number;
+  max_price: number;
+  parcel_count: number;
+};
+
+type LandPriceFeature = {
+  type: "Feature";
+  properties: LandPriceProps;
+  geometry: { type: "Point"; coordinates: [number, number] };
+};
+
+type LandPriceCollection = {
+  type: "FeatureCollection";
+  features: LandPriceFeature[];
+  notes?: string;
+  license?: string;
+  source?: string;
+  version?: string;
+};
+
+type FloodProps = {
+  id?: string;
+  name?: string;
+  severity?: string;
+  depthHintM?: number;
+};
+
+type FloodFeature = {
+  type: "Feature";
+  properties: FloodProps;
+  geometry: {
+    type: "Polygon" | "MultiPolygon";
+    coordinates: number[][][] | number[][][][];
+  };
+};
+
+type FloodCollection = {
+  type: "FeatureCollection";
+  features: FloodFeature[];
+  disclaimer?: string;
+};
+
+let landPriceCache: LandPriceCollection | null = null;
+let floodCache: FloodCollection | null = null;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", `public, max-age=${TRAFFIC_CACHE_TTL_SECONDS}`);
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", `public, max-age=${TRAFFIC_CACHE_TTL_SECONDS}`);
+  }
   return new Response(JSON.stringify(body), { ...init, headers });
 }
 
@@ -130,6 +212,389 @@ async function servePmtilesFromR2(request: Request, env: Env, key: string, _logi
   return new Response(obj.body, { status: 200, headers });
 }
 
+function haversineMeters(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function loadLandPriceCollection(env: Env, request: Request): Promise<LandPriceCollection | null> {
+  if (landPriceCache) return landPriceCache;
+  const assetUrl = new URL(LAND_PRICE_ASSET, request.url);
+  const res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  if (!res.ok) return null;
+  const body = (await res.json()) as LandPriceCollection;
+  if (!body?.features?.length) return null;
+  landPriceCache = body;
+  return body;
+}
+
+function nearestLandPrice(
+  collection: LandPriceCollection,
+  lng: number,
+  lat: number,
+): { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null {
+  let best: { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null = null;
+  for (const feature of collection.features) {
+    if (feature.geometry?.type !== "Point") continue;
+    const [zLng, zLat] = feature.geometry.coordinates;
+    if (!Number.isFinite(zLng) || !Number.isFinite(zLat)) continue;
+    const distanceM = haversineMeters(lng, lat, zLng, zLat);
+    if (!best || distanceM < best.distanceM) {
+      best = { zone: feature.properties, lng: zLng, lat: zLat, distanceM };
+    }
+  }
+  return best;
+}
+
+/** Property-tech lite: nearest Treasury land-price zone for a lng/lat. */
+async function lookupLandPrice(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const lng = Number.parseFloat(url.searchParams.get("lng") ?? "");
+  const lat = Number.parseFloat(url.searchParams.get("lat") ?? "");
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return jsonResponse(
+      {
+        error: "invalid_coordinates",
+        message: "Pass ?lng=&lat= as WGS84 decimals (Bangkok ≈ 100.5, 13.75).",
+      },
+      { status: 400 },
+    );
+  }
+  if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
+    return jsonResponse(
+      {
+        error: "out_of_bangkok_bbox",
+        message: "Coordinates fall outside the Bangkok metro bbox used by this atlas.",
+        lng,
+        lat,
+      },
+      { status: 400 },
+    );
+  }
+
+  const collection = await loadLandPriceCollection(env, request);
+  if (!collection) {
+    return jsonResponse(
+      { error: "land_price_unavailable", message: "Could not load bkk-land-price.geojson from assets." },
+      { status: 503 },
+    );
+  }
+
+  const nearest = nearestLandPrice(collection, lng, lat);
+  if (!nearest) {
+    return jsonResponse({ error: "no_zones", message: "Land-price collection has no point features." }, { status: 404 });
+  }
+
+  return jsonResponse(
+    {
+      tool: "land-price",
+      query: { lng, lat },
+      nearestZone: {
+        zone_id: nearest.zone.zone_id,
+        price_per_wah: nearest.zone.price_per_wah,
+        min_price: nearest.zone.min_price,
+        max_price: nearest.zone.max_price,
+        parcel_count: nearest.zone.parcel_count,
+        displayLng: nearest.lng,
+        displayLat: nearest.lat,
+        distanceM: Math.round(nearest.distanceM),
+      },
+      notes:
+        collection.notes ??
+        "Display positions are grid-layout approximations of UTMMAP3 zones, not exact cadastral centroids.",
+      license: collection.license ?? null,
+      source: collection.source ?? null,
+      version: collection.version ?? null,
+      assessment: "Treasury Department ราคาประเมินที่ดิน 2024–2028",
+    },
+    {
+      headers: {
+        "cache-control": `public, max-age=${LAND_PRICE_CACHE_TTL_SECONDS}`,
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
+async function loadFloodCollection(env: Env, request: Request): Promise<FloodCollection | null> {
+  if (floodCache) return floodCache;
+  const assetUrl = new URL(FLOOD_ASSET, request.url);
+  const res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  if (!res.ok) return null;
+  const body = (await res.json()) as FloodCollection;
+  if (!body?.features?.length) return null;
+  floodCache = body;
+  return body;
+}
+
+function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersect =
+      yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInFloodFeature(lng: number, lat: number, feature: FloodFeature): boolean {
+  const g = feature.geometry;
+  if (!g) return false;
+  if (g.type === "Polygon") {
+    const rings = g.coordinates as number[][][];
+    if (!pointInRing(lng, lat, rings[0])) return false;
+    for (let h = 1; h < rings.length; h++) {
+      if (pointInRing(lng, lat, rings[h])) return false;
+    }
+    return true;
+  }
+  if (g.type === "MultiPolygon") {
+    const polys = g.coordinates as number[][][][];
+    for (const poly of polys) {
+      if (!pointInRing(lng, lat, poly[0])) continue;
+      let inHole = false;
+      for (let h = 1; h < poly.length; h++) {
+        if (pointInRing(lng, lat, poly[h])) {
+          inHole = true;
+          break;
+        }
+      }
+      if (!inHole) return true;
+    }
+  }
+  return false;
+}
+
+function floodHit(collection: FloodCollection, lng: number, lat: number) {
+  const hits: FloodProps[] = [];
+  for (const feature of collection.features) {
+    if (pointInFloodFeature(lng, lat, feature)) hits.push(feature.properties ?? {});
+  }
+  if (hits.length === 0) return { inside: false as const, envelopes: [] as FloodProps[], top: null };
+  const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  hits.sort((a, b) => (rank[b.severity ?? ""] ?? 0) - (rank[a.severity ?? ""] ?? 0));
+  return { inside: true as const, envelopes: hits, top: hits[0] };
+}
+
+function parseBangkokLngLat(request: Request): { lng: number; lat: number } | Response {
+  const url = new URL(request.url);
+  const lng = Number.parseFloat(url.searchParams.get("lng") ?? "");
+  const lat = Number.parseFloat(url.searchParams.get("lat") ?? "");
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return jsonResponse(
+      {
+        error: "invalid_coordinates",
+        message: "Pass ?lng=&lat= as WGS84 decimals (Bangkok ≈ 100.5, 13.75).",
+      },
+      { status: 400 },
+    );
+  }
+  if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
+    return jsonResponse(
+      {
+        error: "out_of_bangkok_bbox",
+        message: "Coordinates fall outside the Bangkok metro bbox used by this atlas.",
+        lng,
+        lat,
+      },
+      { status: 400 },
+    );
+  }
+  return { lng, lat };
+}
+
+/** Risk: land price × schematic flood × live PM2.5 → 0–100 civic score. */
+async function lookupRisk(request: Request, env: Env): Promise<Response> {
+  const parsed = parseBangkokLngLat(request);
+  if (parsed instanceof Response) return parsed;
+  const { lng, lat } = parsed;
+  const url = new URL(request.url);
+  const pm25Override = Number.parseFloat(url.searchParams.get("pm25") ?? "");
+
+  const [landCollection, floodCollection, pm25Live] = await Promise.all([
+    loadLandPriceCollection(env, request),
+    loadFloodCollection(env, request),
+    Number.isFinite(pm25Override) ? Promise.resolve(pm25Override) : fetchPointPm25(lat, lng),
+  ]);
+
+  const nearest = landCollection ? nearestLandPrice(landCollection, lng, lat) : null;
+  const flood = floodCollection
+    ? floodHit(floodCollection, lng, lat)
+    : { inside: false as const, envelopes: [] as FloodProps[], top: null };
+
+  const severity = flood.inside ? (flood.top?.severity ?? "medium") : "none";
+  const severityWeight = ({ none: 0, low: 0.35, medium: 0.65, high: 1 } as Record<string, number>)[severity] ?? 0;
+  const price = nearest?.zone.price_per_wah ?? 0;
+  const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
+  const pm25 = pm25Live;
+  const aqiFactor =
+    pm25 == null || !Number.isFinite(pm25)
+      ? 0
+      : Math.min(1, Math.max(0, (pm25 - 12) / 138)); // 12 → 0, 150 → 1
+  const score = Math.round(
+    100 * (0.35 * landFactor + 0.4 * severityWeight + 0.25 * aqiFactor),
+  );
+
+  return jsonResponse(
+    {
+      tool: "risk",
+      version: 2,
+      query: { lng, lat },
+      score,
+      band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
+      factors: {
+        landPricePerWah: price || null,
+        zone_id: nearest?.zone.zone_id ?? null,
+        floodInside: flood.inside,
+        floodSeverity: severity,
+        floodEnvelope: flood.top?.name ?? null,
+        depthHintM: flood.top?.depthHintM ?? null,
+        pm25: pm25 ?? null,
+        aqiFactor: Math.round(aqiFactor * 100) / 100,
+      },
+      nearestZone: nearest
+        ? {
+            zone_id: nearest.zone.zone_id,
+            price_per_wah: nearest.zone.price_per_wah,
+            distanceM: Math.round(nearest.distanceM),
+          }
+        : null,
+      disclaimer:
+        floodCollection?.disclaimer ??
+        "Schematic civic score — not for insurance underwriting or official planning.",
+    },
+    {
+      headers: {
+        "cache-control": `public, max-age=${LAND_PRICE_CACHE_TTL_SECONDS}`,
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
+async function fetchPointPm25(lat: number, lng: number): Promise<number | null> {
+  try {
+    const aqUrl =
+      `https://air-quality-api.open-meteo.com/v1/air-quality` +
+      `?latitude=${lat}&longitude=${lng}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
+    const res = await fetch(aqUrl, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { hourly?: { pm2_5?: Array<number | null>; time?: string[] } };
+    const values = data?.hourly?.pm2_5;
+    if (!values?.length) return null;
+    let idx = values.length - 1;
+    while (idx > 0 && (values[idx] == null || Number.isNaN(Number(values[idx])))) idx--;
+    const v = values[idx];
+    return v == null ? null : Number(v);
+  } catch {
+    return null;
+  }
+}
+
+function inCctvBbox(lat: number, lon: number): boolean {
+  return (
+    lat >= CCTV_BBOX.minLat &&
+    lat <= CCTV_BBOX.maxLat &&
+    lon >= CCTV_BBOX.minLon &&
+    lon <= CCTV_BBOX.maxLon
+  );
+}
+
+function camerasToGeoJson(cameras: LongdoCamera[]) {
+  const features = [];
+  for (const cam of cameras) {
+    const lat = Number(cam.latitude);
+    const lon = Number(cam.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (!inCctvBbox(lat, lon)) continue;
+    const hls = typeof cam.hls_url === "string" ? cam.hls_url.trim() : "";
+    const imgurl = typeof cam.imgurl === "string" ? cam.imgurl.trim() : "";
+    // Prefer cameras with a playable HLS URL. JPEG endpoints often
+    // return empty bodies; HLS is what live.iticfoundation.org uses.
+    if (!hls) continue;
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: {
+        id: cam.camid ?? `${lon},${lat}`,
+        title: cam.title ?? "Traffic camera",
+        org: cam.organization ?? "iTIC",
+        hls,
+        imgurl: imgurl || null,
+        vdourl: cam.vdourl ?? null,
+        link: cam.link ?? null,
+        motion: cam.motion ?? null,
+      },
+    });
+  }
+  return {
+    type: "FeatureCollection",
+    name: "bkk-cctv-itic",
+    source: LONGDO_CCTV_FEED,
+    attribution: "iTIC Foundation / Longdo · public traffic cameras",
+    disclaimer:
+      "Public traffic CCTV only (roads / intersections). Not the full BMA security camera network. Feeds can drop without notice.",
+    bbox: CCTV_BBOX,
+    count: features.length,
+    features,
+  };
+}
+
+async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
+  try {
+    const upstream = await fetch(LONGDO_CCTV_FEED, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!upstream.ok) {
+      return jsonResponse(
+        {
+          error: "cctv_upstream_error",
+          status: upstream.status,
+          message: `iTIC camera feed returned ${upstream.status}. Client will fall back to /bkk-cctv.geojson.`,
+        },
+        { status: 502 },
+      );
+    }
+    const cameras = (await upstream.json()) as LongdoCamera[];
+    if (!Array.isArray(cameras)) {
+      return jsonResponse(
+        { error: "cctv_bad_payload", message: "Camera feed was not a JSON array." },
+        { status: 502 },
+      );
+    }
+    const geojson = camerasToGeoJson(cameras);
+    return new Response(JSON.stringify(geojson), {
+      status: 200,
+      headers: {
+        "content-type": "application/geo+json; charset=utf-8",
+        "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
+        "x-bkkx-source": "iTIC/Longdo camera feed",
+        "access-control-allow-origin": "*",
+      },
+    });
+  } catch (error) {
+    return jsonResponse(
+      {
+        error: "cctv_fetch_failed",
+        message: String(error),
+      },
+      { status: 502 },
+    );
+  }
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     return jsonResponse(
@@ -185,11 +650,24 @@ export default {
     if (url.pathname === "/api/traffic") {
       return proxyTraffic(request, env);
     }
+    if (url.pathname === "/api/cctv") {
+      return proxyCctv(request, env);
+    }
+    if (url.pathname === "/api/land-price") {
+      return lookupLandPrice(request, env);
+    }
+    if (url.pathname === "/api/risk") {
+      return lookupRisk(request, env);
+    }
     if (url.pathname === PMTILES_PATH) {
       return serveBuildingsPmtiles(request, env);
     }
     if (url.pathname === RATTANAKOSIN_PMTILES_PATH) {
       return serveRattanakosinPmtiles(request, env);
+    }
+    if (url.pathname === "/labs/paper") {
+      const paper = new URL("/labs/paper/", url);
+      return env.ASSETS.fetch(new Request(paper, request));
     }
     if (SPA_FALLBACK_PATHS.has(url.pathname)) {
       const fallback = new URL("/", url);

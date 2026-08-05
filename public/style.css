@@ -121,6 +121,107 @@ button { font: inherit; }
   padding-top: 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
+.atlas-layers-blurb {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.atlas-stack-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.atlas-stack-presets .atlas-preset-btn[data-preset="pulse"] {
+  grid-column: 1 / -1;
+}
+.atlas-inspect-flood {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.atlas-preset-btn {
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.atlas-preset-btn:hover, .atlas-preset-btn:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.atlas-preset-btn.is-active {
+  border-color: var(--signal);
+  background: rgba(201, 255, 56, 0.12);
+  color: var(--signal);
+}
+.atlas-stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.atlas-stack-chip {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.atlas-stack-chip.is-weather {
+  border-color: rgba(201, 255, 56, 0.45);
+  color: var(--signal);
+}
+.atlas-stack-chip.is-night {
+  border-color: #ffe08a;
+  color: #ffe08a;
+}
+body.is-night .atlas-page {
+  background: #070708;
+}
+body.is-night .atlas-panel {
+  background: #09090b;
+}
+body.is-night .atlas-header {
+  background: rgba(7, 7, 8, 0.92);
+}
+.atlas-opacity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-opacity strong { color: var(--signal); font-weight: 800; }
+.atlas-opacity input[type="range"] {
+  width: 100%;
+  accent-color: var(--signal);
+}
+.atlas-labs-list-shipped li { border-color: rgba(201, 255, 56, 0.28); }
+.atlas-labs-list code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
 .atlas-layer-list {
   list-style: none;
   margin: 0;
@@ -503,6 +604,180 @@ button { font: inherit; }
   font-size: 9px;
 }
 
+/* Inspect — click building + land price */
+.atlas-inspect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.atlas-inspect-blurb {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.atlas-inspect-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--signal);
+  background: rgba(201, 255, 56, 0.06);
+}
+.atlas-inspect-coords {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--signal);
+}
+.atlas-inspect-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.atlas-inspect-stats {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+.atlas-inspect-stats dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-inspect-stats dd {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-align: right;
+}
+.atlas-inspect-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.atlas-inspect-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.atlas-inspect-api {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--signal);
+  border-bottom: 1px solid rgba(201, 255, 56, 0.35);
+}
+.atlas-inspect-api:hover, .atlas-inspect-api:focus-visible {
+  border-bottom-color: var(--signal);
+}
+.atlas-inspect-clear {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.atlas-inspect-clear:hover, .atlas-inspect-clear:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.atlas-inspect-pin {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  background: var(--signal);
+  transform: translateY(2px);
+}
+
+.atlas-cctv-popup .maplibregl-popup-content {
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid rgba(201, 255, 56, 0.45);
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.atlas-cctv-popup .maplibregl-popup-tip {
+  border-top-color: rgba(201, 255, 56, 0.45);
+}
+.atlas-cctv-popup .maplibregl-popup-close-button {
+  color: var(--paper);
+  font-size: 22px;
+  padding: 4px 8px;
+}
+.atlas-cctv-popup .maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: var(--signal);
+}
+.atlas-cctv-card {
+  width: min(300px, 78vw);
+  padding: 12px 12px 10px;
+  display: grid;
+  gap: 6px;
+}
+.atlas-cctv-kicker {
+  margin: 0;
+  color: var(--signal);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.atlas-cctv-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.atlas-cctv-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid rgba(241, 239, 232, 0.16);
+  object-fit: cover;
+}
+.atlas-cctv-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.atlas-cctv-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 11px;
+  color: var(--muted);
+}
+.atlas-cctv-actions a {
+  color: var(--signal);
+  border-bottom: 1px solid rgba(201, 255, 56, 0.35);
+  font-weight: 700;
+}
+
+.atlas-labs-shipped {
+  display: inline;
+  color: var(--signal);
+  font-style: normal;
+  font-weight: 700;
+}
+.atlas-labs-shipped a { color: var(--signal); border-bottom: 1px solid rgba(201, 255, 56, 0.4); }
+
 @media (max-width: 1000px) {
   .atlas-page {
     grid-template-columns: 1fr;
@@ -512,4 +787,5 @@ button { font: inherit; }
   .atlas-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.16); max-height: 45vh; }
   .atlas-header-nav a:not([href^="https"]) { display: none; }
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atlas-inspect-cols { grid-template-columns: 1fr; }
 }
