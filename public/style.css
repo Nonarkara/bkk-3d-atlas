@@ -604,7 +604,7 @@ body.is-night .atlas-header {
   font-size: 9px;
 }
 
-/* Inspect — click building + land price */
+/* Inspect — click building + flood/risk */
 .atlas-inspect {
   display: flex;
   flex-direction: column;
@@ -632,11 +632,6 @@ body.is-night .atlas-header {
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--signal);
-}
-.atlas-inspect-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
 }
 .atlas-inspect-stats {
   margin: 6px 0 0;
@@ -793,5 +788,4 @@ body.is-night .atlas-header {
   .atlas-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.16); max-height: 45vh; }
   .atlas-header-nav a:not([href^="https"]) { display: none; }
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .atlas-inspect-cols { grid-template-columns: 1fr; }
 }

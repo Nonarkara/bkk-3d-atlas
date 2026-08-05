@@ -59,10 +59,10 @@ mustJson("public/bkk-areas.json", (data) => {
   }
 });
 
-mustJson("public/bkk-land-price.geojson", (data) => {
+mustJson("public/bkk-districts.geojson", (data) => {
   const n = data.features?.length ?? 0;
-  if (n < 100) fail(`land-price features too few: ${n}`);
-  else ok(`${n} land-price zones`);
+  if (n !== 50) fail(`expected 50 district boundaries, got ${n}`);
+  else ok(`${n} district boundaries`);
 });
 
 mustJson("public/bkk-flood-envelope.geojson", (data) => {
@@ -112,14 +112,12 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
 
 const worker = readFileSync(join(root, "src/index.ts"), "utf8");
-if (!worker.includes("/api/land-price")) fail("Worker missing /api/land-price");
-else ok("Worker exposes /api/land-price");
 if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
 else ok("Worker exposes /api/risk");
 if (!worker.includes("/api/cctv")) fail("Worker missing /api/cctv");

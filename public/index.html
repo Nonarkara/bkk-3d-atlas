@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, terrain, air quality, rain radar, Treasury land prices, BTS/MRT lines, canals. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, terrain, air quality, rain radar, district boundaries, BTS/MRT lines, canals. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
@@ -23,7 +23,7 @@
       <div class="atlas-header-meta">
         <span class="atlas-eyebrow">3D Atlas · Bangkok · 1981 →</span>
         <strong>Walk the city in browser</strong>
-        <small>432,077 OSM buildings · terrain · AQI · rain radar · land prices · BTS/MRT</small>
+        <small>432,077 OSM buildings · terrain · AQI · rain radar · district lines · BTS/MRT</small>
       </div>
         <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
@@ -48,22 +48,15 @@
         <p class="atlas-eyebrow">Inspect</p>
         <h2 class="atlas-data-heading">Click any building</h2>
         <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
-          Tap the map. See the OSM building (height, type), nearest
-          Treasury land-price zone (approx. sheet-grid display), and
+          Tap the map. See the OSM building (height, type) and
           whether you are inside the schematic flood envelope. Risk
           API included.
         </p>
         <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
           <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
-          <div class="atlas-inspect-cols">
-            <div>
-              <p class="atlas-eyebrow atlas-eyebrow-sub">Building</p>
-              <dl class="atlas-inspect-stats" id="atlas-inspect-building"></dl>
-            </div>
-            <div>
-              <p class="atlas-eyebrow atlas-eyebrow-sub">Land price</p>
-              <dl class="atlas-inspect-stats" id="atlas-inspect-land"></dl>
-            </div>
+          <div>
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Building</p>
+            <dl class="atlas-inspect-stats" id="atlas-inspect-building"></dl>
           </div>
           <div class="atlas-inspect-flood" id="atlas-inspect-flood-wrap">
             <p class="atlas-eyebrow atlas-eyebrow-sub">Flood &amp; risk</p>
@@ -150,7 +143,7 @@
               <input type="checkbox" id="toggle-live-cams" />
               <span class="atlas-layer-name">
                 <strong>Live views</strong>
-                <small id="toggle-live-cams-detail">YouTube · 3 public streamers</small>
+                <small id="toggle-live-cams-detail">YouTube streams + 1 bookmark</small>
               </span>
               <span class="atlas-layer-state" id="toggle-live-cams-state" aria-live="polite">off</span>
             </label>
@@ -163,6 +156,16 @@
                 <small>Chao Phraya + 3,026 khlongs</small>
               </span>
               <span class="atlas-layer-state" id="toggle-khlongs-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-districts" />
+              <span class="atlas-layer-name">
+                <strong>District lines</strong>
+                <small id="toggle-districts-detail">OSM · 50 khet boundaries</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-districts-state" aria-live="polite">off</span>
             </label>
           </li>
         </ul>
@@ -178,17 +181,6 @@
               </span>
               <span class="atlas-layer-state" id="toggle-terrain-state" aria-live="polite">off</span>
             </label>
-          </li>
-          <li>
-            <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-land-price" />
-              <span class="atlas-layer-name">
-                <strong>Land price (ราคาประเมิน)</strong>
-                <small id="toggle-land-price-detail">Treasury 2024–2028 · approx. sheet grid</small>
-              </span>
-              <span class="atlas-layer-state" id="toggle-land-price-state" aria-live="polite">off</span>
-            </label>
-            <div class="atlas-legend" id="legend-land-price" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -313,11 +305,9 @@
             sits inside an envelope. Civic demo — not official.
           </li>
           <li>
-            <strong>Inspect + land-price + risk APIs.</strong>
-            <a href="/api/land-price?lng=100.5321&amp;lat=13.7367">/api/land-price</a>
-            ·
+            <strong>Inspect + risk API.</strong>
             <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>
-            (land × flood × live PM2.5). Client fallback when the
+            (flood × live PM2.5). Client fallback when the
             Worker is unreachable.
           </li>
           <li>

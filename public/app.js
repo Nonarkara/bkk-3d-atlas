@@ -214,9 +214,11 @@ const CCTV_HALO_LAYER = "bkkx-cctv-halo";
 const CCTV_SAMPLE_URL = "/bkk-cctv.geojson";
 const CCTV_LIVE_URL = "/api/cctv";
 
-// Hand-curated public YouTube livestreams (see bkk-live-cams.geojson for
-// sourcing notes per point). Distinct from the CCTV layer above: these
-// are third-party streamers, not iTIC/BMA traffic infrastructure.
+// Hand-curated points (see bkk-live-cams.geojson for sourcing notes per
+// point): public YouTube livestreams embedded via <iframe>, plus the
+// occasional link-out bookmark (kind: "link") to a login-gated system
+// this atlas doesn't have open access to proxy. Distinct from the CCTV
+// layer above, which is BMA-adjacent public traffic infrastructure.
 const LIVE_CAM_SOURCE = "bkkx-live-cams";
 const LIVE_CAM_LAYER = "bkkx-live-cam-dots";
 const LIVE_CAM_HALO_LAYER = "bkkx-live-cam-halo";
@@ -262,6 +264,11 @@ const KHLONG_RIVER_LAYER = "bkkx-khlongs-river";
 const KHLONG_CANAL_LAYER = "bkkx-khlongs-canal";
 const KHLONG_DATA_URL = "/bkk-khlongs.geojson";
 
+// Bangkok's 50 khet, OSM relation 92277's admin_level=6 members.
+const DISTRICT_SOURCE = "bkkx-districts";
+const DISTRICT_LAYER = "bkkx-district-lines";
+const DISTRICT_DATA_URL = "/bkk-districts.geojson";
+
 const KHLONG_RIVER_WIDTH = [
   "interpolate", ["linear"], ["zoom"],
   9, 1.6, 12, 3.0, 14, 4.0, 16, 5.0,
@@ -295,16 +302,6 @@ const RAIN_MAX_ZOOM = 7;
 const RAIN_FRAME_COUNT = 7;
 const RAIN_FRAME_INTERVAL_MS = 900;
 
-// Treasury Department land appraisal price (ราคาประเมินที่ดิน).
-// 2024–2028 assessment, aggregated from 2.28M parcels to 477 UTMMAP3
-// zones across Bangkok. Display positions are approximate rectangular
-// grids inside map-sheet bboxes (see scripts/rebuild-land-price-positions.py)
-// — NOT cadastral centroids. Replace with RTSD polygons when available.
-const LAND_PRICE_SOURCE = "bkkx-land-price";
-const LAND_PRICE_FILL = "bkkx-land-price-fill";
-const LAND_PRICE_LINE = "bkkx-land-price-line";
-const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
-
 // Heat (Open-Meteo forecast temperature_2m). Same 8×8 grid pattern as AQI.
 const HEAT_SOURCE = "bkkx-heat";
 const HEAT_LAYER = "bkkx-heat-heat";
@@ -333,20 +330,6 @@ const FLOOD_SENSOR_LAYER = "bkkx-flood-sensor-dots";
 const FLOOD_SENSOR_HALO_LAYER = "bkkx-flood-sensor-halo";
 const FLOOD_SENSOR_LIVE_URL = "/api/flood-sensors";
 
-// Colour ramp steps (Thai Baht per square wah). Tuned to the 2024–2028
-// Bangkok distribution: median 24k, top decile starts at ~100k, top 1%
-// starts at ~250k, max ~435k. Vivid enough to read against the
-// monochrome satellite base.
-const LAND_PRICE_COLOR_RAMP = [
-  "step", ["coalesce", ["get", "price_per_wah"], 0],
-  "#fef9c3", 20000,
-  "#fde047", 50000,
-  "#fbbf24", 100000,
-  "#f97316", 200000,
-  "#dc2626", 350000,
-  "#7f1d1d",
-];
-
 const ROAD_FILTERS = {
   motorway: ["==", "class", "motorway"],
   major: ["in", "class", "trunk", "primary", "secondary"],
@@ -373,7 +356,6 @@ const state = {
   cctvHls: null,
   floodSensorPopup: null,
   liveCamPopup: null,
-  landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
   floodOpacity: 0.38,
@@ -390,11 +372,11 @@ const LAYER_STACK = [
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
+  DISTRICT_LAYER,
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
   RAIL_LAYER,
   TRAFFIC_LAYER,
-  LAND_PRICE_FILL,
   FLOOD_FILL,
   FLOOD_LINE,
   FLOOD_SENSOR_HALO_LAYER,
@@ -533,8 +515,8 @@ function updateStackChips() {
     cctv: "CCTV",
     "live-cams": "Live",
     khlongs: "Khlongs",
+    districts: "Districts",
     terrain: "Terrain",
-    "land-price": "Land ฿",
     flood: "Flood",
     "flood-sensors": "Gauges",
     heat: "Heat",
@@ -630,7 +612,7 @@ const LAYERS = [
   {
     id: "live-cams",
     name: "Live views",
-    description: "YouTube · 3 public streamers",
+    description: "YouTube streams + 1 bookmark",
     defaultOn: false,
     softUninstall: true,
     layers: [LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER],
@@ -743,22 +725,14 @@ const LAYERS = [
     ],
   },
   {
-    id: "land-price",
-    name: "Land price (ราคาประเมิน)",
-    description: "Treasury 2024–2028 · ฿/sq.wah",
+    id: "districts",
+    name: "District lines",
+    description: "OSM · 50 khet boundaries",
     defaultOn: false,
     softUninstall: true,
-    layers: [LAND_PRICE_FILL],
-    install: async (map) => { await installLandPrice(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [LAND_PRICE_FILL], false),
-    legend: [
-      { color: "#fef9c3", label: "< 20,000 ฿" },
-      { color: "#fde047", label: "20k–50k ฿" },
-      { color: "#fbbf24", label: "50k–100k ฿" },
-      { color: "#f97316", label: "100k–200k ฿" },
-      { color: "#dc2626", label: "200k–350k ฿" },
-      { color: "#7f1d1d", label: "350k+ ฿" },
-    ],
+    layers: [DISTRICT_LAYER],
+    install: async (map) => { await installDistricts(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [DISTRICT_LAYER], false),
   },
 ];
 
@@ -1542,64 +1516,46 @@ function addRainLayer(map) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Land price (Treasury Department 2024-2028)
+// District lines (OSM admin_level=6, relation 92277's 50 khet)
 // ─────────────────────────────────────────────────────────────────
 
-async function installLandPrice(map) {
-  if (map.getLayer(LAND_PRICE_FILL)) {
-    setLayersVisible(map, [LAND_PRICE_FILL], true);
+async function installDistricts(map) {
+  if (map.getLayer(DISTRICT_LAYER)) {
+    setLayersVisible(map, [DISTRICT_LAYER], true);
     return;
   }
-  let geojson;
-  try {
-    const res = await fetch(LAND_PRICE_DATA_URL, { cache: "force-cache" });
-    if (!res.ok) {
-      console.warn(`Land price GeoJSON returned ${res.status}`);
-      setLayerStatus("land-price", "unavailable · geojson failed");
-      return;
-    }
-    geojson = await res.json();
-    if (geojson?.features) state.landPriceFeatures = geojson.features;
-  } catch (error) {
-    console.warn("Land price fetch failed:", error);
-    setLayerStatus("land-price", "unavailable · fetch failed");
+  const geojson = await fetchJson(DISTRICT_DATA_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("districts", "unavailable · geojson failed");
     return;
   }
-  if (!map.getSource(LAND_PRICE_SOURCE)) {
+  if (!map.getSource(DISTRICT_SOURCE)) {
     try {
-      map.addSource(LAND_PRICE_SOURCE, { type: "geojson", data: geojson });
+      map.addSource(DISTRICT_SOURCE, { type: "geojson", data: geojson });
     } catch (error) {
-      console.warn("Land price source failed:", error);
+      console.warn("District source failed:", error);
+      setLayerStatus("districts", "unavailable · source failed");
       return;
     }
   }
   try {
     map.addLayer({
-      id: LAND_PRICE_FILL,
-      type: "circle",
-      source: LAND_PRICE_SOURCE,
-      minzoom: 10,
+      id: DISTRICT_LAYER,
+      type: "line",
+      source: DISTRICT_SOURCE,
+      minzoom: 9,
+      layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        // Keep dots small at city scale so the sheet-grid layout reads
-        // as a scatter, not as merged columns.
-        "circle-radius": [
-          "interpolate", ["linear"], ["zoom"],
-          10, 3,
-          12, 4.5,
-          14, 7,
-          16, 11,
-          18, 16,
-        ],
-        "circle-color": LAND_PRICE_COLOR_RAMP,
-        "circle-opacity": 0.72,
-        "circle-stroke-color": "#11120f",
-        "circle-stroke-width": 0.6,
-        "circle-stroke-opacity": 0.75,
+        "line-color": "#c9ff38",
+        "line-width": lineWidth(0.6, 1.6),
+        "line-opacity": 0.55,
+        "line-dasharray": [2, 1.5],
       },
     });
-    setLayerStatus("land-price", "Treasury 2024–2028 · approx. sheet grid");
+    setLayerStatus("districts", `OSM · ${geojson.features.length} khet boundaries`);
   } catch (error) {
-    console.warn("Land price layer failed:", error);
+    console.warn("District layer failed:", error);
+    setLayerStatus("districts", "unavailable · layer failed");
   }
 }
 
@@ -2165,23 +2121,43 @@ function openLiveCamPopup(map, feature) {
   const p = feature.properties || {};
   const [lng, lat] = feature.geometry.coordinates;
   closeLiveCamPopup();
-  const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(p.youtubeId)}?autoplay=1&mute=1&playsinline=1`;
-  const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(p.youtubeId)}`;
-  const html = `
-    <div class="atlas-cctv-card">
-      <p class="atlas-cctv-kicker">Live cam · ${escapeHtml(p.precision || "")}</p>
-      <strong class="atlas-cctv-title">${escapeHtml(p.title || "Bangkok live cam")}</strong>
-      <iframe class="atlas-live-cam-frame" src="${escapeHtml(embedUrl)}"
-        title="${escapeHtml(p.title || "Bangkok live cam")}" frameborder="0"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen></iframe>
-      <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
-      <div class="atlas-cctv-actions">
-        <a href="${escapeHtml(watchUrl)}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
-        <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+
+  let html;
+  if (p.kind === "link") {
+    // Bookmark to a login-gated system (e.g. BMA's own traffic CCTV
+    // dashboard). No stream to embed — this just opens the operator's
+    // own site in a new tab. Visitors without an account there will
+    // hit BMA's login wall; that's expected, not a bug.
+    html = `
+      <div class="atlas-cctv-card">
+        <p class="atlas-cctv-kicker">Bookmark · ${escapeHtml(p.precision || "")}</p>
+        <strong class="atlas-cctv-title">${escapeHtml(p.title || "External camera")}</strong>
+        <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
+        <div class="atlas-cctv-actions">
+          <a href="${escapeHtml(p.url || "")}" target="_blank" rel="noreferrer">Open ↗ (login required)</a>
+          <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  } else {
+    const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(p.youtubeId)}?autoplay=1&mute=1&playsinline=1`;
+    const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(p.youtubeId)}`;
+    html = `
+      <div class="atlas-cctv-card">
+        <p class="atlas-cctv-kicker">Live cam · ${escapeHtml(p.precision || "")}</p>
+        <strong class="atlas-cctv-title">${escapeHtml(p.title || "Bangkok live cam")}</strong>
+        <iframe class="atlas-live-cam-frame" src="${escapeHtml(embedUrl)}"
+          title="${escapeHtml(p.title || "Bangkok live cam")}" frameborder="0"
+          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+        <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
+        <div class="atlas-cctv-actions">
+          <a href="${escapeHtml(watchUrl)}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+          <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+        </div>
+      </div>
+    `;
+  }
   const popup = new maplibregl.Popup({
     closeButton: true,
     closeOnClick: true,
@@ -2256,7 +2232,7 @@ async function installLiveCams(map) {
       },
     });
     wireLiveCamInteractions(map);
-    setLayerStatus("live-cams", `YouTube · ${geojson.features.length} public streams`);
+    setLayerStatus("live-cams", `${geojson.features.length} curated views (streams + bookmarks)`);
   } catch (error) {
     console.warn("Live cam layer failed:", error);
     setLayerStatus("live-cams", "unavailable · layer failed");
@@ -2338,15 +2314,10 @@ async function loadKhlongData(map) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Inspect — click building + nearest Treasury land-price zone
+// Inspect — click building + flood/risk at that point
 // ─────────────────────────────────────────────────────────────────
 
 const INSPECT_BUILDING_LAYERS = ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER];
-
-function formatBaht(n) {
-  if (n == null || Number.isNaN(Number(n))) return "—";
-  return `${Number(n).toLocaleString("en-US")} ฿`;
-}
 
 function fillInspectDl(el, rows) {
   if (!el) return;
@@ -2389,92 +2360,6 @@ function buildingRowsFromFeature(feature) {
   return rows;
 }
 
-async function fetchNearestLandPrice(lng, lat) {
-  try {
-    const res = await fetch(`/api/land-price?lng=${encodeURIComponent(lng)}&lat=${encodeURIComponent(lat)}`, {
-      cache: "no-store",
-    });
-    if (res.ok) return await res.json();
-  } catch {
-    /* fall through to client nearest — laptop / offline path */
-  }
-  return nearestLandPriceClient(Number(lng), Number(lat));
-}
-
-function haversineMeters(lng1, lat1, lng2, lat2) {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-async function ensureLandPriceFeatures() {
-  if (state.landPriceFeatures?.length) return state.landPriceFeatures;
-  try {
-    const res = await fetch(LAND_PRICE_DATA_URL, { cache: "force-cache" });
-    if (!res.ok) return null;
-    const data = await res.json();
-    state.landPriceFeatures = data.features ?? [];
-    return state.landPriceFeatures;
-  } catch {
-    return null;
-  }
-}
-
-async function nearestLandPriceClient(lng, lat) {
-  const features = await ensureLandPriceFeatures();
-  if (!features?.length) return null;
-  let best = null;
-  for (const feature of features) {
-    if (feature.geometry?.type !== "Point") continue;
-    const [zLng, zLat] = feature.geometry.coordinates;
-    if (!Number.isFinite(zLng) || !Number.isFinite(zLat)) continue;
-    const distanceM = haversineMeters(lng, lat, zLng, zLat);
-    if (!best || distanceM < best.distanceM) {
-      best = { zone: feature.properties, lng: zLng, lat: zLat, distanceM };
-    }
-  }
-  if (!best) return null;
-  return {
-    tool: "land-price",
-    query: { lng, lat },
-    nearestZone: {
-      zone_id: best.zone.zone_id,
-      price_per_wah: best.zone.price_per_wah,
-      min_price: best.zone.min_price,
-      max_price: best.zone.max_price,
-      parcel_count: best.zone.parcel_count,
-      displayLng: best.lng,
-      displayLat: best.lat,
-      distanceM: Math.round(best.distanceM),
-    },
-    notes:
-      "Client-side nearest (API unavailable). Display positions are grid-layout approximations of UTMMAP3 zones.",
-    assessment: "Treasury Department ราคาประเมินที่ดิน 2024–2028",
-  };
-}
-
-function landRowsFromApi(payload) {
-  const z = payload?.nearestZone;
-  if (!z) {
-    return [
-      ["Zone", "Unavailable"],
-      ["฿/sq.wah", "—"],
-    ];
-  }
-  return [
-    ["Zone", String(z.zone_id)],
-    ["฿/sq.wah", formatBaht(z.price_per_wah)],
-    ["Range", `${formatBaht(z.min_price)} – ${formatBaht(z.max_price)}`],
-    ["Parcels", String(z.parcel_count ?? "—")],
-    ["Distance", z.distanceM != null ? `${z.distanceM} m to zone display point` : "—"],
-  ];
-}
-
 function setInspectMarker(map, lngLat) {
   if (state.inspectMarker) {
     state.inspectMarker.setLngLat(lngLat);
@@ -2509,7 +2394,6 @@ async function runInspect(map, event) {
   const hint = document.getElementById("atlas-inspect-hint");
   const coordsEl = document.getElementById("atlas-inspect-coords");
   const buildingEl = document.getElementById("atlas-inspect-building");
-  const landEl = document.getElementById("atlas-inspect-land");
   const floodEl = document.getElementById("atlas-inspect-flood");
   const noteEl = document.getElementById("atlas-inspect-note");
   const apiLink = document.getElementById("atlas-inspect-api");
@@ -2520,25 +2404,19 @@ async function runInspect(map, event) {
     coordsEl.textContent = `${lng.toFixed(5)}° E, ${lat.toFixed(5)}° N`;
   }
   fillInspectDl(buildingEl, buildingRowsFromFeature(feature));
-  fillInspectDl(landEl, [["Zone", "Loading…"], ["฿/sq.wah", "…"]]);
   fillInspectDl(floodEl, [["Envelope", "Loading…"], ["Risk", "…"]]);
   if (noteEl) noteEl.textContent = "";
   if (apiLink) {
     apiLink.href = `/api/risk?lng=${lng.toFixed(5)}&lat=${lat.toFixed(5)}`;
   }
 
-  const [payload, flood, risk] = await Promise.all([
-    fetchNearestLandPrice(lng.toFixed(5), lat.toFixed(5)),
+  const [flood, risk] = await Promise.all([
     floodHitAt(lng, lat),
     fetchRisk(lng.toFixed(5), lat.toFixed(5)),
   ]);
-  fillInspectDl(landEl, landRowsFromApi(payload));
   fillInspectDl(floodEl, floodRiskRows(flood, risk, feature));
   if (noteEl) {
-    const bits = [];
-    if (payload?.notes) bits.push(payload.notes);
-    bits.push("Flood envelopes are schematic civic demos — not official DDPM/BMA maps.");
-    noteEl.textContent = bits.join(" ");
+    noteEl.textContent = "Flood envelopes are schematic civic demos — not official DDPM/BMA maps.";
   }
 
   const section = document.getElementById("atlas-inspect");
@@ -2556,12 +2434,11 @@ async function fetchRisk(lng, lat) {
 }
 
 async function composeRiskClient(lng, lat) {
-  const [land, flood, pm25] = await Promise.all([
-    nearestLandPriceClient(lng, lat),
+  const [flood, pm25] = await Promise.all([
     floodHitAt(lng, lat),
     fetchPointPm25Client(lat, lng),
   ]);
-  return buildRiskPayload(lng, lat, land?.nearestZone ?? null, flood, pm25);
+  return buildRiskPayload(lng, lat, flood, pm25);
 }
 
 async function fetchPointPm25Client(lat, lng) {
@@ -2581,31 +2458,28 @@ async function fetchPointPm25Client(lat, lng) {
   }
 }
 
-function buildRiskPayload(lng, lat, zone, flood, pm25 = null) {
+function buildRiskPayload(lng, lat, flood, pm25 = null) {
   const severity = flood?.inside ? (flood.top?.severity ?? "medium") : "none";
   const severityWeight = { none: 0, low: 0.35, medium: 0.65, high: 1 }[severity] ?? 0;
-  const price = zone?.price_per_wah ?? 0;
-  const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
   const aqiFactor =
     pm25 == null || Number.isNaN(Number(pm25))
       ? 0
       : Math.min(1, Math.max(0, (Number(pm25) - 12) / 138));
-  const score = Math.round(100 * (0.35 * landFactor + 0.4 * severityWeight + 0.25 * aqiFactor));
+  const score = Math.round(100 * (0.6 * severityWeight + 0.4 * aqiFactor));
   return {
     tool: "risk",
-    version: 2,
+    version: 3,
     query: { lng, lat },
     score,
     band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
     factors: {
-      landPricePerWah: price || null,
       floodInside: !!flood?.inside,
       floodSeverity: severity,
       floodEnvelope: flood?.top?.name ?? null,
       pm25: pm25 ?? null,
       aqiFactor: Math.round(aqiFactor * 100) / 100,
     },
-    disclaimer: "Schematic civic score — not for insurance underwriting.",
+    disclaimer: "Schematic civic score (flood × PM2.5) — not for insurance underwriting.",
   };
 }
 
@@ -2822,13 +2696,13 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      aqi: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      heat: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, "land-price": false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, "land-price": false, terrain: true, night: false },
-      night: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: true },
-      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, "land-price": false, terrain: false, night: false },
+      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, terrain: false, night: false },
+      aqi: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, terrain: false, night: false },
+      heat: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, terrain: true, night: false },
+      night: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, terrain: false, night: true },
+      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;

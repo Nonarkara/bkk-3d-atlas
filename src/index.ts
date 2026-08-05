@@ -5,11 +5,10 @@
 // has a place to land. Today it:
 //   (1) proxies /api/traffic to the iTIC/Longdo feed using a secret key
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
-//   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
-//   (4) serves /api/risk land × flood × PM2.5 civic score
-//   (5) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
-//   (6) serves /api/flood-sensors — HII/ThaiWater water-level gauges (Bangkok metro)
-//   (7) falls back to the static asset binding for everything else
+//   (3) serves /api/risk flood × PM2.5 civic score
+//   (4) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
+//   (5) serves /api/flood-sensors — HII/ThaiWater water-level gauges (Bangkok metro)
+//   (6) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -30,7 +29,6 @@ const PMTILES_PATH = "/bkk-buildings.pmtiles";
 const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
 const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
 const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
-const LAND_PRICE_ASSET = "/bkk-land-price.geojson";
 const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
@@ -38,7 +36,7 @@ const LONGDO_CCTV_FEED = "https://camera.longdo.com/feed/?command=json";
 const THAIWATER_LEVEL_FEED = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
 const CCTV_CACHE_TTL_SECONDS = 300;
-const LAND_PRICE_CACHE_TTL_SECONDS = 3600;
+const RISK_CACHE_TTL_SECONDS = 3600;
 const FLOOD_SENSOR_CACHE_TTL_SECONDS = 300;
 
 /** HII situation_level → label/color. 1 critically-low ... 5 overflowing. */
@@ -88,29 +86,6 @@ type LongdoCamera = {
   hls_url?: string;
 };
 
-type LandPriceProps = {
-  zone_id: string;
-  price_per_wah: number;
-  min_price: number;
-  max_price: number;
-  parcel_count: number;
-};
-
-type LandPriceFeature = {
-  type: "Feature";
-  properties: LandPriceProps;
-  geometry: { type: "Point"; coordinates: [number, number] };
-};
-
-type LandPriceCollection = {
-  type: "FeatureCollection";
-  features: LandPriceFeature[];
-  notes?: string;
-  license?: string;
-  source?: string;
-  version?: string;
-};
-
 type FloodProps = {
   id?: string;
   name?: string;
@@ -133,7 +108,6 @@ type FloodCollection = {
   disclaimer?: string;
 };
 
-let landPriceCache: LandPriceCollection | null = null;
 let floodCache: FloodCollection | null = null;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -241,116 +215,6 @@ async function servePmtilesFromR2(request: Request, env: Env, key: string, _logi
   return new Response(obj.body, { status: 200, headers });
 }
 
-function haversineMeters(lng1: number, lat1: number, lng2: number, lat2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-async function loadLandPriceCollection(env: Env, request: Request): Promise<LandPriceCollection | null> {
-  if (landPriceCache) return landPriceCache;
-  const assetUrl = new URL(LAND_PRICE_ASSET, request.url);
-  const res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
-  if (!res.ok) return null;
-  const body = (await res.json()) as LandPriceCollection;
-  if (!body?.features?.length) return null;
-  landPriceCache = body;
-  return body;
-}
-
-function nearestLandPrice(
-  collection: LandPriceCollection,
-  lng: number,
-  lat: number,
-): { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null {
-  let best: { zone: LandPriceProps; lng: number; lat: number; distanceM: number } | null = null;
-  for (const feature of collection.features) {
-    if (feature.geometry?.type !== "Point") continue;
-    const [zLng, zLat] = feature.geometry.coordinates;
-    if (!Number.isFinite(zLng) || !Number.isFinite(zLat)) continue;
-    const distanceM = haversineMeters(lng, lat, zLng, zLat);
-    if (!best || distanceM < best.distanceM) {
-      best = { zone: feature.properties, lng: zLng, lat: zLat, distanceM };
-    }
-  }
-  return best;
-}
-
-/** Property-tech lite: nearest Treasury land-price zone for a lng/lat. */
-async function lookupLandPrice(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const lng = Number.parseFloat(url.searchParams.get("lng") ?? "");
-  const lat = Number.parseFloat(url.searchParams.get("lat") ?? "");
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-    return jsonResponse(
-      {
-        error: "invalid_coordinates",
-        message: "Pass ?lng=&lat= as WGS84 decimals (Bangkok ≈ 100.5, 13.75).",
-      },
-      { status: 400 },
-    );
-  }
-  if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
-    return jsonResponse(
-      {
-        error: "out_of_bangkok_bbox",
-        message: "Coordinates fall outside the Bangkok metro bbox used by this atlas.",
-        lng,
-        lat,
-      },
-      { status: 400 },
-    );
-  }
-
-  const collection = await loadLandPriceCollection(env, request);
-  if (!collection) {
-    return jsonResponse(
-      { error: "land_price_unavailable", message: "Could not load bkk-land-price.geojson from assets." },
-      { status: 503 },
-    );
-  }
-
-  const nearest = nearestLandPrice(collection, lng, lat);
-  if (!nearest) {
-    return jsonResponse({ error: "no_zones", message: "Land-price collection has no point features." }, { status: 404 });
-  }
-
-  return jsonResponse(
-    {
-      tool: "land-price",
-      query: { lng, lat },
-      nearestZone: {
-        zone_id: nearest.zone.zone_id,
-        price_per_wah: nearest.zone.price_per_wah,
-        min_price: nearest.zone.min_price,
-        max_price: nearest.zone.max_price,
-        parcel_count: nearest.zone.parcel_count,
-        displayLng: nearest.lng,
-        displayLat: nearest.lat,
-        distanceM: Math.round(nearest.distanceM),
-      },
-      notes:
-        collection.notes ??
-        "Display positions are grid-layout approximations of UTMMAP3 zones, not exact cadastral centroids.",
-      license: collection.license ?? null,
-      source: collection.source ?? null,
-      version: collection.version ?? null,
-      assessment: "Treasury Department ราคาประเมินที่ดิน 2024–2028",
-    },
-    {
-      headers: {
-        "cache-control": `public, max-age=${LAND_PRICE_CACHE_TTL_SECONDS}`,
-        "access-control-allow-origin": "*",
-      },
-    },
-  );
-}
-
 async function loadFloodCollection(env: Env, request: Request): Promise<FloodCollection | null> {
   if (floodCache) return floodCache;
   const assetUrl = new URL(FLOOD_ASSET, request.url);
@@ -450,40 +314,32 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const pm25Override = Number.parseFloat(url.searchParams.get("pm25") ?? "");
 
-  const [landCollection, floodCollection, pm25Live] = await Promise.all([
-    loadLandPriceCollection(env, request),
+  const [floodCollection, pm25Live] = await Promise.all([
     loadFloodCollection(env, request),
     Number.isFinite(pm25Override) ? Promise.resolve(pm25Override) : fetchPointPm25(lat, lng),
   ]);
 
-  const nearest = landCollection ? nearestLandPrice(landCollection, lng, lat) : null;
   const flood = floodCollection
     ? floodHit(floodCollection, lng, lat)
     : { inside: false as const, envelopes: [] as FloodProps[], top: null };
 
   const severity = flood.inside ? (flood.top?.severity ?? "medium") : "none";
   const severityWeight = ({ none: 0, low: 0.35, medium: 0.65, high: 1 } as Record<string, number>)[severity] ?? 0;
-  const price = nearest?.zone.price_per_wah ?? 0;
-  const landFactor = price > 0 ? Math.min(1, Math.log10(price + 10) / 6) : 0;
   const pm25 = pm25Live;
   const aqiFactor =
     pm25 == null || !Number.isFinite(pm25)
       ? 0
       : Math.min(1, Math.max(0, (pm25 - 12) / 138)); // 12 → 0, 150 → 1
-  const score = Math.round(
-    100 * (0.35 * landFactor + 0.4 * severityWeight + 0.25 * aqiFactor),
-  );
+  const score = Math.round(100 * (0.6 * severityWeight + 0.4 * aqiFactor));
 
   return jsonResponse(
     {
       tool: "risk",
-      version: 2,
+      version: 3,
       query: { lng, lat },
       score,
       band: score >= 70 ? "high" : score >= 40 ? "elevated" : "moderate",
       factors: {
-        landPricePerWah: price || null,
-        zone_id: nearest?.zone.zone_id ?? null,
         floodInside: flood.inside,
         floodSeverity: severity,
         floodEnvelope: flood.top?.name ?? null,
@@ -491,20 +347,13 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
         pm25: pm25 ?? null,
         aqiFactor: Math.round(aqiFactor * 100) / 100,
       },
-      nearestZone: nearest
-        ? {
-            zone_id: nearest.zone.zone_id,
-            price_per_wah: nearest.zone.price_per_wah,
-            distanceM: Math.round(nearest.distanceM),
-          }
-        : null,
       disclaimer:
         floodCollection?.disclaimer ??
-        "Schematic civic score — not for insurance underwriting or official planning.",
+        "Schematic civic score (flood × PM2.5) — not for insurance underwriting or official planning.",
     },
     {
       headers: {
-        "cache-control": `public, max-age=${LAND_PRICE_CACHE_TTL_SECONDS}`,
+        "cache-control": `public, max-age=${RISK_CACHE_TTL_SECONDS}`,
         "access-control-allow-origin": "*",
       },
     },
@@ -770,9 +619,6 @@ export default {
     }
     if (url.pathname === "/api/flood-sensors") {
       return proxyFloodSensors(request, env);
-    }
-    if (url.pathname === "/api/land-price") {
-      return lookupLandPrice(request, env);
     }
     if (url.pathname === "/api/risk") {
       return lookupRisk(request, env);

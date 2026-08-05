@@ -36,6 +36,18 @@
         "precision": "city-level",
         "note": "Channel (@Livecam-Bangkok) does not disclose the camera's exact vantage point — pin marks central Bangkok, not a real address."
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [100.5479661, 13.7638943] },
+      "properties": {
+        "id": "bma-traffic-din-daeng",
+        "title": "BMA Traffic CCTV — Din Daeng junction",
+        "kind": "link",
+        "url": "https://cpudapp.bangkok.go.th/bmatraffic/",
+        "precision": "exact junction (OSM-verified)",
+        "note": "BMA's own internal traffic-CCTV dashboard — requires a personal BMA account to view. Bookmarked here, not embedded: the atlas doesn't proxy this data (it's not open, unlike iTIC/Longdo in the CCTV layer)."
+      }
     }
   ]
 }
