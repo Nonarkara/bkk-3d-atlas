@@ -20,6 +20,16 @@ binding = "ASSETS"
 binding = "BKK_TILES"
 bucket_name = "bkk-tiles"
 
+# Civic open-data store — Thailand's national/BMA open data portal
+# (data.go.th, data.bangkok.go.th) ingested and normalized here so
+# the atlas can query and aggregate it consistently, rather than
+# re-fetching and re-computing from static files on every request.
+# Populated by scripts/ingest-bma-open-data.py. Schema: db/schema.sql.
+[[d1_databases]]
+binding = "CIVIC_DB"
+database_name = "bkkx-civic-data"
+database_id = "2fed2bc0-b8bf-4497-aa22-c6ac5b39a330"
+
 # Custom domain. atlas.nonarkara.org is already on Cloudflare DNS
 # (the nonarkara.org zone is in this account; bkk.nonarkara.org
 # was already bound to a Worker in the BKKx edge-proxy).

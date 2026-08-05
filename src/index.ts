@@ -8,7 +8,10 @@
 //   (3) serves /api/risk flood × PM2.5 civic score
 //   (4) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
 //   (5) serves /api/flood-sensors — HII/ThaiWater water-level gauges (Bangkok metro)
-//   (6) falls back to the static asset binding for everything else
+//   (6) serves /api/civic-pois(/analysis) from CIVIC_DB (D1) — schools,
+//       sports grounds, car parks, museums, waterway landmarks ingested
+//       from data.go.th / data.bangkok.go.th by scripts/ingest-bma-open-data.py
+//   (7) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -18,6 +21,7 @@
 export interface Env {
   ASSETS: Fetcher;
   BKK_TILES: R2Bucket;
+  CIVIC_DB: D1Database;
   LONGDO_KEY?: string;
 }
 
@@ -559,6 +563,107 @@ async function proxyFloodSensors(_request: Request, _env: Env): Promise<Response
   }
 }
 
+const CIVIC_POI_CATEGORIES = new Set(["school", "sportsground", "carpark", "museum", "waterway"]);
+const CIVIC_POI_CACHE_TTL_SECONDS = 3600;
+
+type CivicPoiRow = {
+  id: string;
+  category: string;
+  name: string;
+  lat: number;
+  lng: number;
+  district_id: number | null;
+  district_name_en: string | null;
+  address: string | null;
+  properties: string;
+};
+
+/** Real, D1-backed civic POIs (schools, sports grounds, car parks, local
+ * museums, waterway landmarks) — ingested from data.go.th / data.bangkok.go.th
+ * by scripts/ingest-bma-open-data.py, not fetched live per request. See
+ * db/schema.sql for the store this reads from. */
+async function listCivicPois(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const category = url.searchParams.get("category");
+  if (category && !CIVIC_POI_CATEGORIES.has(category)) {
+    return jsonResponse(
+      {
+        error: "invalid_category",
+        message: `category must be one of: ${[...CIVIC_POI_CATEGORIES].join(", ")}`,
+      },
+      { status: 400 },
+    );
+  }
+  const stmt = category
+    ? env.CIVIC_DB.prepare("SELECT * FROM civic_pois WHERE category = ?").bind(category)
+    : env.CIVIC_DB.prepare("SELECT * FROM civic_pois");
+  const { results } = await stmt.all<CivicPoiRow>();
+  const features = results.map((row) => ({
+    type: "Feature" as const,
+    geometry: { type: "Point" as const, coordinates: [row.lng, row.lat] },
+    properties: {
+      id: row.id,
+      category: row.category,
+      name: row.name,
+      districtId: row.district_id,
+      districtNameEn: row.district_name_en,
+      address: row.address,
+      ...JSON.parse(row.properties || "{}"),
+    },
+  }));
+  return jsonResponse(
+    {
+      type: "FeatureCollection",
+      count: features.length,
+      attribution: "data.go.th / data.bangkok.go.th (Bangkok Metropolitan Administration, CC-licensed)",
+      features,
+    },
+    { headers: { "cache-control": `public, max-age=${CIVIC_POI_CACHE_TTL_SECONDS}` } },
+  );
+}
+
+/** Per-district civic-amenity counts — the "consistently analyzed" half of
+ * the store: aggregated server-side from the same D1 rows listCivicPois
+ * serves individually, so the client doesn't recompute this from a full
+ * point dump on every load. Districts are matched at ingest time via
+ * point-in-polygon against bkk-districts.geojson (see the ETL script), not
+ * trusted from the source's own numeric dcode. */
+async function civicPoiAnalysis(_request: Request, env: Env): Promise<Response> {
+  const { results } = await env.CIVIC_DB.prepare(
+    `SELECT district_id, district_name_en, category, COUNT(*) as n
+     FROM civic_pois
+     WHERE district_id IS NOT NULL
+     GROUP BY district_id, category
+     ORDER BY district_id`,
+  ).all<{ district_id: number; district_name_en: string; category: string; n: number }>();
+
+  const byDistrict = new Map<number, { districtId: number; districtNameEn: string; counts: Record<string, number>; total: number }>();
+  for (const row of results) {
+    if (!byDistrict.has(row.district_id)) {
+      byDistrict.set(row.district_id, {
+        districtId: row.district_id,
+        districtNameEn: row.district_name_en,
+        counts: {},
+        total: 0,
+      });
+    }
+    const entry = byDistrict.get(row.district_id)!;
+    entry.counts[row.category] = row.n;
+    entry.total += row.n;
+  }
+
+  return jsonResponse(
+    {
+      tool: "civic-poi-analysis",
+      unit: "count of civic amenities per district (schools, sports grounds, car parks, museums, waterway landmarks)",
+      districts: [...byDistrict.values()].sort((a, b) => b.total - a.total),
+      disclaimer:
+        "Counts reflect what's in the source open-data extracts, not a complete inventory — e.g. car parks (4 citywide) is BMA's own operated lots only, not every parking facility.",
+    },
+    { headers: { "cache-control": `public, max-age=${CIVIC_POI_CACHE_TTL_SECONDS}` } },
+  );
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     return jsonResponse(
@@ -619,6 +724,12 @@ export default {
     }
     if (url.pathname === "/api/flood-sensors") {
       return proxyFloodSensors(request, env);
+    }
+    if (url.pathname === "/api/civic-pois") {
+      return listCivicPois(request, env);
+    }
+    if (url.pathname === "/api/civic-pois/analysis") {
+      return civicPoiAnalysis(request, env);
     }
     if (url.pathname === "/api/risk") {
       return lookupRisk(request, env);

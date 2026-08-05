@@ -289,6 +289,56 @@ const LAND_PRICE_FILL_COLOR = [
   600000, "#7f1d1d",
 ];
 
+// Civic POIs — real, D1-backed (CIVIC_DB), not fetched live per request.
+// See db/schema.sql + scripts/ingest-bma-open-data.py: schools, sports
+// grounds, car parks, museums and waterway landmarks ingested from
+// data.go.th / data.bangkok.go.th, one D1 table, one API. Colors reuse
+// the same category convention as BUILDING_COLOR_BY_TYPE above (school
+// blue, museum purple, parking gray) rather than inventing a new palette.
+const CIVIC_POI_SOURCE = "bkkx-civic-pois";
+const CIVIC_POI_LAYER = "bkkx-civic-poi-dots";
+const CIVIC_POI_HALO_LAYER = "bkkx-civic-poi-halo";
+const CIVIC_POI_DATA_URL = "/api/civic-pois";
+const CIVIC_POI_CATEGORY_COLOR = [
+  "match", ["get", "category"],
+  "school", "#3b82f6",
+  "sportsground", "#10b981",
+  "carpark", "#6b7280",
+  "museum", "#a855f7",
+  "waterway", "#38bdf8",
+  "#c9ff38",
+];
+const CIVIC_POI_CATEGORY_LABEL = {
+  school: "School",
+  sportsground: "Sports ground",
+  carpark: "Car park",
+  museum: "Local museum",
+  waterway: "Waterway landmark",
+};
+
+// Civic density choropleth — same district polygons as the land-price
+// layer, joined client-side against the live /api/civic-pois/analysis
+// aggregate (computed server-side from the same D1 rows the point layer
+// serves) rather than a pre-baked static file, since the whole point of
+// storing this in D1 is that the analysis stays live as the store grows.
+const CIVIC_DENSITY_SOURCE = "bkkx-civic-density";
+const CIVIC_DENSITY_FILL_LAYER = "bkkx-civic-density-fill";
+const CIVIC_DENSITY_LINE_LAYER = "bkkx-civic-density-outline";
+const CIVIC_DENSITY_ANALYSIS_URL = "/api/civic-pois/analysis";
+// Steps match the real distribution's quintiles (checked against the live
+// analysis endpoint: 50 districts, range 11-115, median 31) — not round
+// numbers picked in advance, which put nearly every district in the same
+// bright mid-tier and made the choropleth unreadable.
+const CIVIC_DENSITY_FILL_COLOR = [
+  "step", ["get", "civicTotal"],
+  "#1a1c14",
+  20, "#2c3a1f",
+  30, "#3f5c22",
+  38, "#5f8a26",
+  46, "#8fc22c",
+  60, "#c9ff38",
+];
+
 const KHLONG_RIVER_WIDTH = [
   "interpolate", ["linear"], ["zoom"],
   9, 1.6, 12, 3.0, 14, 4.0, 16, 5.0,
@@ -377,6 +427,8 @@ const state = {
   floodSensorPopup: null,
   liveCamPopup: null,
   landPricePopup: null,
+  civicPoiPopup: null,
+  civicDensityPopup: null,
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
   floodOpacity: 0.38,
@@ -395,6 +447,8 @@ const LAYER_STACK = [
   "bkkx-roads-motorway",
   LAND_PRICE_FILL_LAYER,
   LAND_PRICE_LINE_LAYER,
+  CIVIC_DENSITY_FILL_LAYER,
+  CIVIC_DENSITY_LINE_LAYER,
   DISTRICT_LAYER,
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
@@ -413,6 +467,8 @@ const LAYER_STACK = [
   CCTV_LAYER,
   LIVE_CAM_HALO_LAYER,
   LIVE_CAM_LAYER,
+  CIVIC_POI_HALO_LAYER,
+  CIVIC_POI_LAYER,
 ];
 
 function ensureStackOrder(map) {
@@ -541,6 +597,8 @@ function updateStackChips() {
     districts: "Districts",
     terrain: "Terrain",
     "land-price": "Land ฿",
+    "civic-pois": "Civic",
+    "civic-density": "Density",
     flood: "Flood",
     "flood-sensors": "Gauges",
     heat: "Heat",
@@ -777,6 +835,47 @@ const LAYERS = [
       { color: "#f97316", label: "200k–350k ฿" },
       { color: "#dc2626", label: "350k–600k ฿" },
       { color: "#7f1d1d", label: "600k+ ฿" },
+    ],
+  },
+  {
+    id: "civic-pois",
+    name: "Civic amenities",
+    description: "BMA open data · D1",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER],
+    install: async (map) => { await installCivicPois(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeCivicPoiPopup();
+      setLayersVisible(map, [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER], false);
+    },
+    legend: [
+      { color: "#3b82f6", label: "School" },
+      { color: "#10b981", label: "Sports ground" },
+      { color: "#6b7280", label: "Car park" },
+      { color: "#a855f7", label: "Local museum" },
+      { color: "#38bdf8", label: "Waterway landmark" },
+    ],
+  },
+  {
+    id: "civic-density",
+    name: "Civic density by district",
+    description: "Live from D1 · amenity counts",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CIVIC_DENSITY_FILL_LAYER, CIVIC_DENSITY_LINE_LAYER],
+    install: async (map) => { await installCivicDensity(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeCivicDensityPopup();
+      setLayersVisible(map, [CIVIC_DENSITY_FILL_LAYER, CIVIC_DENSITY_LINE_LAYER], false);
+    },
+    legend: [
+      { color: "#1a1c14", label: "< 20" },
+      { color: "#2c3a1f", label: "20–30" },
+      { color: "#3f5c22", label: "30–38" },
+      { color: "#5f8a26", label: "38–46" },
+      { color: "#8fc22c", label: "46–60" },
+      { color: "#c9ff38", label: "60+" },
     ],
   },
 ];
@@ -1733,6 +1832,237 @@ async function installLandPriceDistricts(map) {
   } catch (error) {
     console.warn("Land price layer failed:", error);
     setLayerStatus("land-price", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Civic POIs — D1-backed (/api/civic-pois), see CIVIC_POI_* consts
+// ─────────────────────────────────────────────────────────────────
+
+function closeCivicPoiPopup() {
+  if (state.civicPoiPopup) {
+    try { state.civicPoiPopup.remove(); } catch {}
+    state.civicPoiPopup = null;
+  }
+}
+
+const CIVIC_POI_EXTRA_FIELDS = {
+  school: [["tel", "Tel"], ["class_open", "Grades"]],
+  sportsground: [["area", "Area"], ["type", "Type"]],
+  carpark: [["num_car", "Car spaces"], ["num_motorc", "Motorbike spaces"]],
+  museum: [["tel", "Tel"]],
+  waterway: [["added", "Added"]],
+};
+
+function openCivicPoiPopup(map, feature) {
+  const p = feature.properties || {};
+  closeCivicPoiPopup();
+  const extraRows = (CIVIC_POI_EXTRA_FIELDS[p.category] || [])
+    .filter(([key]) => p[key] != null && p[key] !== "")
+    .map(([key, label]) => `<p class="atlas-cctv-status">${escapeHtml(label)}: ${escapeHtml(String(p[key]))}</p>`)
+    .join("");
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">${escapeHtml(CIVIC_POI_CATEGORY_LABEL[p.category] || p.category)} · ${escapeHtml(p.districtNameEn || "Bangkok")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name)}</strong>
+      ${p.address ? `<p class="atlas-cctv-status">${escapeHtml(p.address)}</p>` : ""}
+      ${extraRows}
+      <div class="atlas-cctv-actions">
+        <span>BMA open data</span>
+        <span>${feature.geometry.coordinates[1].toFixed(4)}, ${feature.geometry.coordinates[0].toFixed(4)}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "300px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat(feature.geometry.coordinates)
+    .setHTML(html)
+    .addTo(map);
+  state.civicPoiPopup = popup;
+}
+
+function wireCivicPoiInteractions(map) {
+  if (map.__bkkxCivicPoiWired) return;
+  map.__bkkxCivicPoiWired = true;
+  map.on("click", CIVIC_POI_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openCivicPoiPopup(map, feature);
+  });
+  map.on("mouseenter", CIVIC_POI_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", CIVIC_POI_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installCivicPois(map) {
+  if (map.getLayer(CIVIC_POI_LAYER)) {
+    setLayersVisible(map, [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(CIVIC_POI_DATA_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("civic-pois", "unavailable · D1 fetch failed");
+    return;
+  }
+  if (!map.getSource(CIVIC_POI_SOURCE)) {
+    try {
+      map.addSource(CIVIC_POI_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Civic POI source failed:", error);
+      setLayerStatus("civic-pois", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: CIVIC_POI_HALO_LAYER,
+      type: "circle",
+      source: CIVIC_POI_SOURCE,
+      minzoom: 11,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 7, 14, 12, 17, 16],
+        "circle-color": CIVIC_POI_CATEGORY_COLOR,
+        "circle-opacity": 0.18,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: CIVIC_POI_LAYER,
+      type: "circle",
+      source: CIVIC_POI_SOURCE,
+      minzoom: 11,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 14, 4.5, 17, 6.5],
+        "circle-color": CIVIC_POI_CATEGORY_COLOR,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1,
+        "circle-opacity": 0.92,
+      },
+    });
+    wireCivicPoiInteractions(map);
+    setLayerStatus("civic-pois", `${geojson.count ?? geojson.features.length} POIs · D1`);
+  } catch (error) {
+    console.warn("Civic POI layer failed:", error);
+    setLayerStatus("civic-pois", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Civic density choropleth — joins the live /api/civic-pois/analysis
+// aggregate onto the same district polygons as the land-price layer,
+// client-side. Not a static file: the join happens against whatever
+// the D1 store currently holds, so it stays live as ingestion grows.
+// ─────────────────────────────────────────────────────────────────
+
+function closeCivicDensityPopup() {
+  if (state.civicDensityPopup) {
+    try { state.civicDensityPopup.remove(); } catch {}
+    state.civicDensityPopup = null;
+  }
+}
+
+function openCivicDensityPopup(map, feature, event) {
+  const p = feature.properties || {};
+  closeCivicDensityPopup();
+  const counts = parseJsonProp(p.counts, {});
+  const rows = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, n]) => `<p class="atlas-cctv-status">${escapeHtml(CIVIC_POI_CATEGORY_LABEL[cat] || cat)}: ${n}</p>`)
+    .join("");
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">Civic density</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name_en)} (${escapeHtml(p.name_th)})</strong>
+      <p class="atlas-cctv-status">${p.civicTotal} civic amenities on record</p>
+      ${rows}
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "280px",
+    className: "atlas-cctv-popup",
+  }).setHTML(html);
+  state.civicDensityPopup = popup;
+  popup.setLngLat(event.lngLat).addTo(map);
+}
+
+function wireCivicDensityInteractions(map) {
+  if (map.__bkkxCivicDensityWired) return;
+  map.__bkkxCivicDensityWired = true;
+  map.on("click", CIVIC_DENSITY_FILL_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openCivicDensityPopup(map, feature, event);
+  });
+  map.on("mouseenter", CIVIC_DENSITY_FILL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", CIVIC_DENSITY_FILL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installCivicDensity(map) {
+  if (map.getLayer(CIVIC_DENSITY_FILL_LAYER)) {
+    setLayersVisible(map, [CIVIC_DENSITY_FILL_LAYER, CIVIC_DENSITY_LINE_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const [districts, analysis] = await Promise.all([
+    fetchJson(DISTRICT_DATA_URL),
+    fetchJson(CIVIC_DENSITY_ANALYSIS_URL),
+  ]);
+  if (!districts?.features?.length || !analysis?.districts?.length) {
+    setLayerStatus("civic-density", "unavailable · fetch failed");
+    return;
+  }
+  const byId = new Map(analysis.districts.map((d) => [d.districtId, d]));
+  const features = districts.features.map((feat) => {
+    const stats = byId.get(feat.properties.id);
+    return {
+      type: "Feature",
+      geometry: feat.geometry,
+      properties: {
+        name_en: feat.properties.name_en.replace(" District", ""),
+        name_th: feat.properties.name_th,
+        civicTotal: stats?.total ?? 0,
+        counts: JSON.stringify(stats?.counts ?? {}),
+      },
+    };
+  });
+  const geojson = { type: "FeatureCollection", features };
+  if (!map.getSource(CIVIC_DENSITY_SOURCE)) {
+    try {
+      map.addSource(CIVIC_DENSITY_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Civic density source failed:", error);
+      setLayerStatus("civic-density", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: CIVIC_DENSITY_FILL_LAYER,
+      type: "fill",
+      source: CIVIC_DENSITY_SOURCE,
+      paint: { "fill-color": CIVIC_DENSITY_FILL_COLOR, "fill-opacity": 0.55 },
+    });
+    map.addLayer({
+      id: CIVIC_DENSITY_LINE_LAYER,
+      type: "line",
+      source: CIVIC_DENSITY_SOURCE,
+      paint: { "line-color": "#11120f", "line-width": 0.6, "line-opacity": 0.5 },
+    });
+    wireCivicDensityInteractions(map);
+    setLayerStatus("civic-density", `${analysis.districts.length} districts · live from D1`);
+  } catch (error) {
+    console.warn("Civic density layer failed:", error);
+    setLayerStatus("civic-density", "unavailable · layer failed");
   }
 }
 

@@ -23,7 +23,7 @@
       <div class="atlas-header-meta">
         <span class="atlas-eyebrow">3D Atlas · Bangkok · 1981 →</span>
         <strong>Walk the city in browser</strong>
-        <small>432,077 OSM buildings · terrain · AQI · rain radar · district lines · BTS/MRT</small>
+        <small>432,077 OSM buildings · terrain · AQI · rain radar · civic data · BTS/MRT</small>
       </div>
         <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
@@ -178,6 +178,28 @@
               <span class="atlas-layer-state" id="toggle-land-price-state" aria-live="polite">off</span>
             </label>
             <div class="atlas-legend" id="legend-land-price" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-civic-pois" />
+              <span class="atlas-layer-name">
+                <strong>Civic amenities</strong>
+                <small id="toggle-civic-pois-detail">BMA open data · D1</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-civic-pois-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-civic-pois" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-civic-density" />
+              <span class="atlas-layer-name">
+                <strong>Civic density by district</strong>
+                <small id="toggle-civic-density-detail">Live from D1 · amenity counts</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-civic-density-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-civic-density" hidden></div>
           </li>
         </ul>
 

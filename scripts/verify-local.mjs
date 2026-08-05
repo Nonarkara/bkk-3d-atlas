@@ -123,7 +123,7 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -137,6 +137,19 @@ if (!worker.includes("fetchPointPm25")) fail("Worker risk missing PM2.5 fetch");
 else ok("Worker risk folds live PM2.5");
 if (!worker.includes("camerasToGeoJson")) fail("Worker missing CCTV GeoJSON builder");
 else ok("Worker builds CCTV GeoJSON");
+if (!worker.includes("/api/civic-pois")) fail("Worker missing /api/civic-pois");
+else ok("Worker exposes /api/civic-pois");
+if (!worker.includes("CIVIC_DB")) fail("Worker missing CIVIC_DB D1 binding usage");
+else ok("Worker uses CIVIC_DB");
+
+const wranglerToml = readFileSync(join(root, "wrangler.toml"), "utf8");
+if (!wranglerToml.includes("CIVIC_DB")) fail("wrangler.toml missing CIVIC_DB d1_databases binding");
+else ok("wrangler.toml binds CIVIC_DB");
+
+if (!existsSync(join(root, "db/schema.sql"))) fail("missing db/schema.sql");
+else ok("db/schema.sql present");
+if (!existsSync(join(root, "scripts/ingest-bma-open-data.py"))) fail("missing scripts/ingest-bma-open-data.py");
+else ok("scripts/ingest-bma-open-data.py present");
 
 console.log(notes.join("\n"));
 if (errors.length) {
