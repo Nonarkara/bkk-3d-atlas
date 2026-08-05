@@ -256,9 +256,10 @@ const KHLONG_CANAL_WIDTH = [
 
 // Air quality (Open-Meteo Air Quality API, free, no key). Grid
 // resolution is ~5km; we sample 8×8 = 64 points across the Bangkok
-// bbox and render as a heatmap with a US-EPA-style colour ramp.
+// bbox and render circles + heatmap with a US-EPA-style colour ramp.
 const AQI_SOURCE = "bkkx-aqi";
 const AQI_LAYER = "bkkx-aqi-heat";
+const AQI_CIRCLE_LAYER = "bkkx-aqi-circles";
 const AQI_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
 // Rain radar (RainViewer, free, no key). The /public/weather-maps.json
@@ -286,6 +287,7 @@ const LAND_PRICE_DATA_URL = "/bkk-land-price.geojson";
 // Heat (Open-Meteo forecast temperature_2m). Same 8×8 grid pattern as AQI.
 const HEAT_SOURCE = "bkkx-heat";
 const HEAT_LAYER = "bkkx-heat-heat";
+const HEAT_CIRCLE_LAYER = "bkkx-heat-circles";
 const HEAT_API = "https://api.open-meteo.com/v1/forecast";
 
 // Schematic flood envelopes (Labs sandbox). NOT official DDPM/BMA
@@ -360,7 +362,9 @@ const LAYER_STACK = [
   FLOOD_FILL,
   FLOOD_LINE,
   HEAT_LAYER,
+  HEAT_CIRCLE_LAYER,
   AQI_LAYER,
+  AQI_CIRCLE_LAYER,
   RAIN_LAYER,
 ];
 
@@ -591,9 +595,9 @@ const LAYERS = [
     description: "Open-Meteo · temperature °C",
     defaultOn: false,
     softUninstall: true,
-    layers: [HEAT_LAYER],
+    layers: [HEAT_LAYER, HEAT_CIRCLE_LAYER],
     install: async (map) => { await installHeat(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [HEAT_LAYER], false),
+    uninstall: (map) => setLayersVisible(map, [HEAT_LAYER, HEAT_CIRCLE_LAYER], false),
     legend: [
       { color: "#38bdf8", label: "< 28°C" },
       { color: "#facc15", label: "28–32°C" },
@@ -608,9 +612,9 @@ const LAYERS = [
     description: "Open-Meteo CAMS · PM2.5 heatmap",
     defaultOn: false,
     softUninstall: true,
-    layers: [AQI_LAYER],
+    layers: [AQI_LAYER, AQI_CIRCLE_LAYER],
     install: async (map) => { await installAqi(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [AQI_LAYER], false),
+    uninstall: (map) => setLayersVisible(map, [AQI_LAYER, AQI_CIRCLE_LAYER], false),
     legend: [
       { color: "#10b981", label: "good (0–12)" },
       { color: "#84cc16", label: "moderate (12–35)" },
@@ -1032,10 +1036,22 @@ function uninstallTerrain(map) {
 // ─────────────────────────────────────────────────────────────────
 
 async function fetchOpenMeteoGrid({ apiBase, hourlyKey, propKey, extraParams = "" }) {
+  // Open-Meteo multi-location pairs latitude[i] with longitude[i].
+  // To get a full 8×8 grid we must expand the cartesian product into
+  // 64 lat/lon pairs — NOT pass 8 lats + 8 lons (that only yields the
+  // diagonal).
+  const latAxis = [];
+  const lonAxis = [];
+  for (let i = 0; i < 8; i++) latAxis.push((13.49 + (14.10 - 13.49) * (i / 7)).toFixed(3));
+  for (let j = 0; j < 8; j++) lonAxis.push((100.30 + (100.95 - 100.30) * (j / 7)).toFixed(3));
   const lats = [];
   const lons = [];
-  for (let i = 0; i < 8; i++) lats.push((13.49 + (14.10 - 13.49) * (i / 7)).toFixed(3));
-  for (let j = 0; j < 8; j++) lons.push((100.30 + (100.95 - 100.30) * (j / 7)).toFixed(3));
+  for (let i = 0; i < latAxis.length; i++) {
+    for (let j = 0; j < lonAxis.length; j++) {
+      lats.push(latAxis[i]);
+      lons.push(lonAxis[j]);
+    }
+  }
   const url = `${apiBase}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&hourly=${hourlyKey}&forecast_days=1${extraParams}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
@@ -1050,13 +1066,16 @@ async function fetchOpenMeteoGrid({ apiBase, hourlyKey, propKey, extraParams = "
     const times = loc?.hourly?.time;
     const values = loc?.hourly?.[hourlyKey];
     if (!times?.length || !values?.length) continue;
-    let idx = times.length - 1;
+    // Prefer "now" (closest to current UTC hour); fall back to latest non-null.
+    const nowIso = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    let idx = times.findIndex((t) => String(t).startsWith(nowIso));
+    if (idx < 0) idx = times.length - 1;
     while (idx > 0 && (values[idx] == null || Number.isNaN(values[idx]))) idx--;
     const v = values[idx];
     if (v == null || Number.isNaN(v)) continue;
     if (!capturedAt) capturedAt = times[idx];
-    const lat = Number(loc.latitude ?? lats[Math.floor(i / lons.length)] ?? lats[0]);
-    const lon = Number(loc.longitude ?? lons[i % lons.length] ?? lons[0]);
+    const lat = Number(loc.latitude ?? lats[i]);
+    const lon = Number(loc.longitude ?? lons[i]);
     features.push({
       type: "Feature",
       properties: { [propKey]: v },
@@ -1076,10 +1095,15 @@ async function fetchHeatGrid() {
 }
 
 async function installHeat(map) {
-  if (map.getLayer(HEAT_LAYER)) {
-    setLayersVisible(map, [HEAT_LAYER], true);
+  if (map.getLayer(HEAT_CIRCLE_LAYER) && map.getLayer(HEAT_LAYER)) {
+    setLayersVisible(map, [HEAT_LAYER, HEAT_CIRCLE_LAYER], true);
     applyOverlayCompositing(map);
     return;
+  }
+  // Rebuild if an older heatmap-only install is present.
+  if (map.getLayer(HEAT_LAYER) && !map.getLayer(HEAT_CIRCLE_LAYER)) {
+    try { map.removeLayer(HEAT_LAYER); } catch {}
+    if (map.getSource(HEAT_SOURCE)) try { map.removeSource(HEAT_SOURCE); } catch {}
   }
   const geojson = await fetchHeatGrid();
   if (!geojson || geojson.features.length === 0) {
@@ -1095,6 +1119,8 @@ async function installHeat(map) {
       setLayerStatus("heat", "unavailable · source failed");
       return;
     }
+  } else {
+    try { map.getSource(HEAT_SOURCE).setData(geojson); } catch {}
   }
   try {
     map.addLayer({
@@ -1105,19 +1131,19 @@ async function installHeat(map) {
       paint: {
         "heatmap-weight": [
           "interpolate", ["linear"], ["get", "tempC"],
-          26, 0.05,
-          30, 0.35,
-          33, 0.6,
+          26, 0.15,
+          30, 0.4,
+          33, 0.65,
           36, 0.85,
           40, 1.0,
         ],
         "heatmap-intensity": [
           "interpolate", ["linear"], ["zoom"],
-          10, 1, 14, 2.2,
+          10, 1.4, 14, 2.6,
         ],
         "heatmap-radius": [
           "interpolate", ["linear"], ["zoom"],
-          10, 24, 14, 52,
+          10, 28, 14, 56,
         ],
         "heatmap-opacity": Math.min(0.68, state.overlayOpacity + 0.08),
         "heatmap-color": [
@@ -1131,8 +1157,30 @@ async function installHeat(map) {
         ],
       },
     });
+    map.addLayer({
+      id: HEAT_CIRCLE_LAYER,
+      type: "circle",
+      source: HEAT_SOURCE,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 10, 13, 14, 16, 20,
+        ],
+        "circle-color": [
+          "interpolate", ["linear"], ["get", "tempC"],
+          26, "#38bdf8",
+          30, "#facc15",
+          33, "#fb923c",
+          36, "#ef4444",
+          40, "#9f1239",
+        ],
+        "circle-opacity": 0.78,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 0.7,
+      },
+    });
     const when = geojson._capturedAt ? ` · ${geojson._capturedAt.replace("T", " ").slice(0, 16)} UTC` : "";
-    setLayerStatus("heat", `Open-Meteo · °C${when}`);
+    setLayerStatus("heat", `Open-Meteo · ${geojson.features.length} cells · °C${when}`);
   } catch (error) {
     console.warn("Heat layer failed:", error);
     setLayerStatus("heat", "unavailable · layer failed");
@@ -1153,10 +1201,15 @@ async function fetchAqiGrid() {
 }
 
 async function installAqi(map) {
-  if (map.getLayer(AQI_LAYER)) {
-    setLayersVisible(map, [AQI_LAYER], true);
+  if (map.getLayer(AQI_CIRCLE_LAYER) && map.getLayer(AQI_LAYER)) {
+    setLayersVisible(map, [AQI_LAYER, AQI_CIRCLE_LAYER], true);
     applyOverlayCompositing(map);
     return;
+  }
+  // Rebuild if an older heatmap-only / diagonal-grid install is present.
+  if (map.getLayer(AQI_LAYER) && !map.getLayer(AQI_CIRCLE_LAYER)) {
+    try { map.removeLayer(AQI_LAYER); } catch {}
+    if (map.getSource(AQI_SOURCE)) try { map.removeSource(AQI_SOURCE); } catch {}
   }
   const geojson = await fetchAqiGrid();
   if (!geojson || geojson.features.length === 0) {
@@ -1172,8 +1225,13 @@ async function installAqi(map) {
       setLayerStatus("aqi", "unavailable · source failed");
       return;
     }
+  } else {
+    try { map.getSource(AQI_SOURCE).setData(geojson); } catch {}
   }
   try {
+    // Heatmap alone is nearly invisible when PM2.5 is "good" (today
+    // ~3–14 µg/m³) because density stays near the transparent stop.
+    // Circles always show the grid; heatmap adds bloom when dirty.
     map.addLayer({
       id: AQI_LAYER,
       type: "heatmap",
@@ -1182,35 +1240,59 @@ async function installAqi(map) {
       paint: {
         "heatmap-weight": [
           "interpolate", ["linear"], ["get", "pm25"],
-          0, 0.05,
-          12, 0.2,
-          35, 0.45,
-          55, 0.7,
+          0, 0.2,
+          12, 0.45,
+          35, 0.7,
+          55, 0.85,
           150, 1.0,
         ],
         "heatmap-intensity": [
           "interpolate", ["linear"], ["zoom"],
-          10, 1, 14, 2.5,
+          10, 1.6, 14, 3.0,
         ],
         "heatmap-radius": [
           "interpolate", ["linear"], ["zoom"],
-          10, 22, 14, 50,
+          10, 28, 14, 58,
         ],
         "heatmap-opacity": Math.min(0.72, state.overlayOpacity + 0.12),
         "heatmap-color": [
           "interpolate", ["linear"], ["heatmap-density"],
           0,    "rgba(16, 185, 129, 0)",
-          0.15, "rgba(132, 204, 22, 0.55)",
-          0.3,  "rgba(234, 179, 8, 0.62)",
-          0.5,  "rgba(249, 115, 22, 0.7)",
-          0.7,  "rgba(239, 68, 68, 0.78)",
-          0.85, "rgba(185, 28, 28, 0.85)",
-          1,    "rgba(127, 29, 29, 0.9)",
+          0.12, "rgba(16, 185, 129, 0.45)",
+          0.25, "rgba(132, 204, 22, 0.55)",
+          0.4,  "rgba(234, 179, 8, 0.65)",
+          0.6,  "rgba(249, 115, 22, 0.75)",
+          0.8,  "rgba(239, 68, 68, 0.85)",
+          1,    "rgba(127, 29, 29, 0.92)",
         ],
       },
     });
+    map.addLayer({
+      id: AQI_CIRCLE_LAYER,
+      type: "circle",
+      source: AQI_SOURCE,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          10, 11, 13, 15, 16, 22,
+        ],
+        "circle-color": [
+          "interpolate", ["linear"], ["get", "pm25"],
+          0, "#10b981",
+          12, "#84cc16",
+          35, "#eab308",
+          55, "#f97316",
+          150, "#dc2626",
+        ],
+        "circle-opacity": 0.82,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 0.7,
+      },
+    });
+    const vals = geojson.features.map((f) => f.properties.pm25).filter((v) => v != null);
+    const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "?";
     const when = geojson._capturedAt ? ` · ${geojson._capturedAt.replace("T", " ").slice(0, 16)} UTC` : "";
-    setLayerStatus("aqi", `Open-Meteo CAMS · PM2.5${when}`);
+    setLayerStatus("aqi", `Open-Meteo · ${geojson.features.length} cells · avg ${avg} µg/m³${when}`);
   } catch (error) {
     console.warn("AQI layer failed:", error);
     setLayerStatus("aqi", "unavailable · layer failed");
