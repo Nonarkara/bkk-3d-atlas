@@ -8,7 +8,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "verify": "node scripts/verify-local.mjs"
+    "verify": "node scripts/verify-local.mjs",
+    "smoke": "node scripts/smoke-atlas-api.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",

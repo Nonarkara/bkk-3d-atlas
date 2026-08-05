@@ -713,6 +713,572 @@ async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AI-readable mirror (/api/atlas/*) — six thin GETs that return what an LLM
+// agent, a research script, or your future MCP server would actually ask the
+// city. Every endpoint is additive: nothing above changes, the existing
+// /api/risk /api/traffic /api/cctv /api/flood-sensors /api/civic-pois routes
+// are untouched. Cache headers are honest about how often the source data
+// actually changes (districts: weekly; live feeds: see TTLs above).
+//
+// Six endpoints:
+//   GET /api/atlas/areas?bbox=&category=        — 16 curated areas, filterable
+//   GET /api/atlas/districts                    — 50 khet + merged land-price
+//   GET /api/atlas/at-this-point?lng=&lat=      — district+land+flood+nearest
+//   GET /api/atlas/transit?lng=&lat=&radius=    — N nearest rail segments
+//   GET /api/atlas/buildings?bbox=&limit=       — PMTiles pointer (honest)
+//   GET /api/atlas/scoreboard                   — single object: live health
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ATLAS_API_VERSION = 1;
+const ATLAS_AREAS_ASSET = "/bkk-areas.json";
+const ATLAS_DISTRICTS_ASSET = "/bkk-districts.geojson";
+const ATLAS_LAND_PRICE_ASSET = "/bkk-land-price-districts.geojson";
+const ATLAS_RAIL_ASSET = "/bkk-rail.geojson";
+const ATLAS_BUILDINGS_COUNT = 432077;
+const ATLAS_BUILDINGS_RATTANAKOSIN_COUNT = 9275;
+const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-08-04";
+
+/** Local GeoJSON-lite types — kept inline because @types/geojson isn't in
+ *  the dep tree. The shapes are exactly what the upstream files use. */
+type AtlasGeometry =
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] }
+  | { type: "LineString"; coordinates: number[][] }
+  | { type: "Point"; coordinates: number[] };
+
+type AtlasFeature = {
+  type: "Feature";
+  properties: Record<string, unknown> | null;
+  geometry: AtlasGeometry;
+};
+
+type AtlasFeatureCollection = {
+  type: "FeatureCollection";
+  name?: string;
+  features: AtlasFeature[];
+};
+
+/** Haversine distance in metres between two WGS84 [lng,lat] points. */
+function haversineMeters(aLng: number, aLat: number, bLng: number, bLat: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Closest point on a LineString to (lng, lat) — planar in degrees is fine
+ *  for "which segment am I near" at city scale. Returns [lng, lat] of the
+ *  closest vertex (not the perpendicular projection) for simplicity. */
+function closestVertexOnLine(
+  lng: number,
+  lat: number,
+  coords: number[][],
+): { point: [number, number]; distanceM: number } {
+  let best: { point: [number, number]; distanceM: number } | null = null;
+  for (const c of coords) {
+    const d = haversineMeters(lng, lat, c[0], c[1]);
+    if (best === null || d < best.distanceM) {
+      best = { point: [c[0], c[1]], distanceM: d };
+    }
+  }
+  return best ?? { point: [lng, lat], distanceM: 0 };
+}
+
+/** Polygon centroid (average of outer ring vertices) — good enough for
+ *  district-level "where roughly is it" without a real polygon-centroid
+ *  library. */
+function polygonCentroid(geometry: { type: string; coordinates: unknown }): [number, number] | null {
+  const ring = (() => {
+    if (geometry.type === "Polygon") {
+      return (geometry.coordinates as number[][][])[0];
+    }
+    if (geometry.type === "MultiPolygon") {
+      return (geometry.coordinates as number[][][][])[0]?.[0];
+    }
+    return null;
+  })();
+  if (!ring || ring.length === 0) return null;
+  let lng = 0;
+  let lat = 0;
+  for (const [x, y] of ring) {
+    lng += x;
+    lat += y;
+  }
+  return [lng / ring.length, lat / ring.length];
+}
+
+async function loadJsonAsset<T>(env: Env, request: Request, asset: string): Promise<T | null> {
+  const url = new URL(asset, request.url);
+  const res = await env.ASSETS.fetch(new Request(url.toString(), request));
+  if (!res.ok) return null;
+  return (await res.json()) as T;
+}
+
+// Cache the heavy GeoJSON files in module-scope. The Worker is long-lived
+// (warm isolates keep the cache), so repeat requests hit memory instead of
+// re-fetching the asset binding. Each file is < 400 KB so this is fine.
+let areasCache: { name: string; version: string; license?: string; areas: AtlasArea[] } | null = null;
+let districtsCache: AtlasFeatureCollection | null = null;
+let landPriceCache: AtlasFeatureCollection | null = null;
+let railCache: AtlasFeatureCollection | null = null;
+
+type AtlasArea = {
+  id: string;
+  name: string;
+  thai?: string;
+  category: string;
+  chapter?: string;
+  description?: string;
+  center: [number, number];
+  zoom?: number;
+  pitch?: number;
+  bearing?: number;
+  keyStats?: Record<string, string | number>;
+  tags?: string[];
+};
+
+async function getAreas(env: Env, request: Request) {
+  if (!areasCache) {
+    const data = await loadJsonAsset<{ name: string; version: string; license?: string; areas: AtlasArea[] }>(
+      env,
+      request,
+      ATLAS_AREAS_ASSET,
+    );
+    if (!data?.areas) return null;
+    areasCache = data;
+  }
+  return areasCache;
+}
+
+async function getDistrictsGeoJson(env: Env, request: Request) {
+  if (!districtsCache) {
+    districtsCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_DISTRICTS_ASSET);
+  }
+  return districtsCache;
+}
+
+async function getLandPriceGeoJson(env: Env, request: Request) {
+  if (!landPriceCache) {
+    landPriceCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_LAND_PRICE_ASSET);
+  }
+  return landPriceCache;
+}
+
+async function getRailGeoJson(env: Env, request: Request) {
+  if (!railCache) {
+    railCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_RAIL_ASSET);
+  }
+  return railCache;
+}
+
+/** Filter areas by category and/or viewport bbox. The bbox test is a quick
+ *  point-in-rect against the area's center — good enough for "show me the
+ *  Sukhumvit areas, not the riverside ones" without a real polygon check. */
+function filterAreas(areas: AtlasArea[], category: string | null, bbox: string | null) {
+  let out = areas;
+  if (category) {
+    const wanted = category.toLowerCase();
+    out = out.filter((a) => (a.category ?? "").toLowerCase() === wanted);
+  }
+  if (bbox) {
+    const m = bbox.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (m) {
+      const [, minLng, minLat, maxLng, maxLat] = m.map(Number);
+      out = out.filter((a) => {
+        const [lng, lat] = a.center;
+        return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+      });
+    }
+  }
+  return out;
+}
+
+async function atlasAreas(request: Request, env: Env): Promise<Response> {
+  const data = await getAreas(env, request);
+  if (!data) {
+    return jsonResponse({ error: "areas_unavailable", message: `Could not load ${ATLAS_AREAS_ASSET}.` }, { status: 502 });
+  }
+  const url = new URL(request.url);
+  const category = url.searchParams.get("category");
+  const bbox = url.searchParams.get("bbox");
+  const filtered = filterAreas(data.areas, category, bbox);
+  return jsonResponse(
+    {
+      tool: "atlas-areas",
+      version: ATLAS_API_VERSION,
+      source: ATLAS_AREAS_ASSET,
+      license: data.license ?? "ODbL-1.0 (derived from OpenStreetMap)",
+      total: data.areas.length,
+      count: filtered.length,
+      filter: { category, bbox },
+      areas: filtered,
+    },
+    { headers: { "cache-control": "public, max-age=3600" } },
+  );
+}
+
+async function atlasDistricts(request: Request, env: Env): Promise<Response> {
+  const [districts, landPrice] = await Promise.all([
+    getDistrictsGeoJson(env, request),
+    getLandPriceGeoJson(env, request),
+  ]);
+  if (!districts) {
+    return jsonResponse({ error: "districts_unavailable", message: `Could not load ${ATLAS_DISTRICTS_ASSET}.` }, { status: 502 });
+  }
+  const lpById = new Map<number, AtlasFeature>();
+  if (landPrice) {
+    for (const f of landPrice.features) {
+      const id = f.properties?.id;
+      if (typeof id === "number") lpById.set(id, f);
+    }
+  }
+  const rows = districts.features.map((f) => {
+    const id = f.properties?.id as number | undefined;
+    const lp = id != null ? lpById.get(id) : undefined;
+    const centroid = polygonCentroid(f.geometry as { type: string; coordinates: unknown });
+    return {
+      id,
+      nameEn: f.properties?.name_en ?? null,
+      nameTh: f.properties?.name_th ?? null,
+      centroid,
+      landPrice: lp
+        ? {
+            peakNewPrice: lp.properties?.peakNewPrice ?? null,
+            groupMinNewPrice: lp.properties?.groupMinNewPrice ?? null,
+            groupDistricts: lp.properties?.groupDistricts ?? null,
+          }
+        : null,
+    };
+  });
+  return jsonResponse(
+    {
+      tool: "atlas-districts",
+      version: ATLAS_API_VERSION,
+      source: ATLAS_DISTRICTS_ASSET,
+      landPriceSource: ATLAS_LAND_PRICE_ASSET,
+      count: rows.length,
+      districts: rows,
+      disclaimer:
+        "Land price is Treasury 2024-2028 road-level assessment, joined on OSM district id. Each district's `peakNewPrice` is its group's single highest priced road — see the full source file for per-road numbers.",
+    },
+    { headers: { "cache-control": "public, max-age=86400" } },
+  );
+}
+
+async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
+  const parsed = parseBangkokLngLat(request);
+  if (parsed instanceof Response) return parsed;
+  const { lng, lat } = parsed;
+
+  const [districts, landPrice, rail, floodCollection] = await Promise.all([
+    getDistrictsGeoJson(env, request),
+    getLandPriceGeoJson(env, request),
+    getRailGeoJson(env, request),
+    loadFloodCollection(env, request),
+  ]);
+
+  // District (point-in-polygon against the outer ring of every district polygon).
+  let districtRow: { id: number | null; nameEn: string | null; nameTh: string | null } | null = null;
+  if (districts) {
+    for (const f of districts.features) {
+      const g = f.geometry as { type: string; coordinates: unknown } | null;
+      if (!g) continue;
+      if (g.type === "Polygon" && pointInFloodFeature(lng, lat, f as unknown as FloodFeature)) {
+        districtRow = {
+          id: (f.properties?.id as number | undefined) ?? null,
+          nameEn: (f.properties?.name_en as string | undefined) ?? null,
+          nameTh: (f.properties?.name_th as string | undefined) ?? null,
+        };
+        break;
+      }
+      if (g.type === "MultiPolygon" && pointInFloodFeature(lng, lat, f as unknown as FloodFeature)) {
+        districtRow = {
+          id: (f.properties?.id as number | undefined) ?? null,
+          nameEn: (f.properties?.name_en as string | undefined) ?? null,
+          nameTh: (f.properties?.name_th as string | undefined) ?? null,
+        };
+        break;
+      }
+    }
+  }
+
+  // Land price (join on district id).
+  let landPriceRow: { peakNewPrice: number | null; groupMinNewPrice: number | null; groupDistricts: string[] | null } | null = null;
+  if (districtRow?.id != null && landPrice) {
+    const f = landPrice.features.find((x) => x.properties?.id === districtRow!.id);
+    if (f) {
+      landPriceRow = {
+        peakNewPrice: (f.properties?.peakNewPrice as number | undefined) ?? null,
+        groupMinNewPrice: (f.properties?.groupMinNewPrice as number | undefined) ?? null,
+        groupDistricts: (f.properties?.groupDistricts as string[] | undefined) ?? null,
+      };
+    }
+  }
+
+  // Flood.
+  const flood = floodCollection
+    ? floodHit(floodCollection, lng, lat)
+    : { inside: false as const, envelopes: [] as FloodProps[], top: null };
+
+  // Nearest transit (haversine on every rail LineString vertex).
+  let nearestTransit: {
+    line: string | null;
+    ref: string | null;
+    color: string | null;
+    distanceM: number;
+    closestPoint: [number, number];
+  } | null = null;
+  if (rail) {
+    let best: { line: string | null; ref: string | null; color: string | null; distanceM: number; closestPoint: [number, number] } | null = null;
+    for (const f of rail.features) {
+      const g = f.geometry as { type: string; coordinates: number[][] } | null;
+      if (!g || g.type !== "LineString") continue;
+      const r = closestVertexOnLine(lng, lat, g.coordinates);
+      if (best === null || r.distanceM < best.distanceM) {
+        best = {
+          line: (f.properties?.line as string | undefined) ?? null,
+          ref: (f.properties?.ref as string | undefined) ?? null,
+          color: (f.properties?.color as string | undefined) ?? null,
+          distanceM: Math.round(r.distanceM),
+          closestPoint: r.point,
+        };
+      }
+    }
+    nearestTransit = best;
+  }
+
+  // Summary band — a one-line read the agent can use directly.
+  const landPriceBand =
+    landPriceRow?.peakNewPrice == null
+      ? "unknown"
+      : landPriceRow.peakNewPrice >= 350000
+        ? "premium"
+        : landPriceRow.peakNewPrice >= 100000
+          ? "mid"
+          : "value";
+  const transitBand =
+    nearestTransit == null
+      ? "unknown"
+      : nearestTransit.distanceM <= 600
+        ? "walkable"
+        : nearestTransit.distanceM <= 1500
+          ? "near"
+          : "far";
+  const floodBand = flood.inside ? (flood.top?.severity ?? "inside") : "clear";
+
+  return jsonResponse(
+    {
+      tool: "atlas-at-this-point",
+      version: ATLAS_API_VERSION,
+      query: { lng, lat },
+      district: districtRow,
+      landPrice: landPriceRow,
+      flood: {
+        inside: flood.inside,
+        severity: flood.inside ? (flood.top?.severity ?? null) : null,
+        envelope: flood.top?.name ?? null,
+        depthHintM: flood.top?.depthHintM ?? null,
+      },
+      nearestTransit,
+      summary: { landPriceBand, transitBand, floodBand },
+      disclaimer:
+        "Civic-readout endpoint, not a real-estate or insurance-grade service. Flood is the schematic 2011-style envelope, not an official forecast. Land price is the district group's peak road figure.",
+    },
+    {
+      headers: {
+        "cache-control": "public, max-age=300",
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
+async function atlasTransit(request: Request, env: Env): Promise<Response> {
+  const parsed = parseBangkokLngLat(request);
+  if (parsed instanceof Response) return parsed;
+  const { lng, lat } = parsed;
+  const url = new URL(request.url);
+  const radiusParam = Number.parseFloat(url.searchParams.get("radius") ?? "1500");
+  const radius = Number.isFinite(radiusParam) && radiusParam > 0 ? Math.min(radiusParam, 10000) : 1500;
+  const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "5", 10);
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 20) : 5;
+
+  const rail = await getRailGeoJson(env, request);
+  if (!rail) {
+    return jsonResponse({ error: "rail_unavailable", message: `Could not load ${ATLAS_RAIL_ASSET}.` }, { status: 502 });
+  }
+
+  type Hit = {
+    line: string | null;
+    ref: string | null;
+    color: string | null;
+    name: string | null;
+    distanceM: number;
+    closestPoint: [number, number];
+  };
+  const hits: Hit[] = [];
+  for (const f of rail.features) {
+    const g = f.geometry as { type: string; coordinates: number[][] } | null;
+    if (!g || g.type !== "LineString") continue;
+    const r = closestVertexOnLine(lng, lat, g.coordinates);
+    if (r.distanceM > radius) continue;
+    hits.push({
+      line: (f.properties?.line as string | undefined) ?? null,
+      ref: (f.properties?.ref as string | undefined) ?? null,
+      color: (f.properties?.color as string | undefined) ?? null,
+      name: (f.properties?.name as string | undefined) ?? null,
+      distanceM: Math.round(r.distanceM),
+      closestPoint: r.point,
+    });
+  }
+  hits.sort((a, b) => a.distanceM - b.distanceM);
+  const trimmed = hits.slice(0, limit);
+
+  return jsonResponse(
+    {
+      tool: "atlas-transit",
+      version: ATLAS_API_VERSION,
+      source: ATLAS_RAIL_ASSET,
+      query: { lng, lat, radiusM: radius, limit },
+      count: trimmed.length,
+      totalInRadius: hits.length,
+      segments: trimmed,
+    },
+    {
+      headers: {
+        "cache-control": "public, max-age=3600",
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
+/** Buildings endpoint is intentionally honest: we do NOT have a server-side
+ *  query path into the 432K PMTiles without a per-feature index we haven't
+ *  built. The 432K building PMTiles is streamed tile-by-tile via the
+ *  `pmtiles://` protocol against the URL we return. The Rattanakosin
+ *  detail layer (9,275 features, zoom 14-18) IS small enough to slice
+ *  client-side from the same PMTiles, so we also point at that for
+ *  high-zoom use cases. */
+async function atlasBuildings(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const bbox = url.searchParams.get("bbox");
+  const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "100", 10);
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 1000) : 100;
+
+  // Validate bbox if provided.
+  let bboxParsed: [number, number, number, number] | null = null;
+  if (bbox) {
+    const m = bbox.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (!m) {
+      return jsonResponse(
+        { error: "invalid_bbox", message: "bbox must be minLng,minLat,maxLng,maxLat." },
+        { status: 400 },
+      );
+    }
+    const [, a, b, c, d] = m.map(Number);
+    bboxParsed = [a, b, c, d];
+  }
+
+  // Probe the PMTiles URL so callers can see it's live.
+  let pmtilesOk = false;
+  let pmtilesSize: number | null = null;
+  try {
+    const head = await env.BKK_TILES.head(PMTILES_R2_KEY);
+    if (head) {
+      pmtilesOk = true;
+      pmtilesSize = head.size;
+    }
+  } catch {
+    // ignore — the protocol layer will surface the error
+  }
+
+  return jsonResponse(
+    {
+      tool: "atlas-buildings",
+      version: ATLAS_API_VERSION,
+      status: "streamed_via_pmtiles",
+      bbox: bboxParsed,
+      limit,
+      buildings: {
+        totalMetro: ATLAS_BUILDINGS_COUNT,
+        metroPmtiles: {
+          url: PMTILES_PATH,
+          sizeBytes: pmtilesSize,
+          reachable: pmtilesOk,
+          regeneratedAt: ATLAS_BUILDINGS_PMTILES_REGEN,
+          zoom: "11-15",
+        },
+        rattanakosinDetail: {
+          url: RATTANAKOSIN_PMTILES_PATH,
+          total: ATLAS_BUILDINGS_RATTANAKOSIN_COUNT,
+          zoom: "14-18",
+        },
+      },
+      hint:
+        "The 432K Bangkok metro buildings are streamed as PMTiles. Use the pmtiles JS lib against the metroPmtiles.url for full-city queries, or the rattanakosinDetail.url for the Old Town (Grand Palace, Wat Pho, Wat Phra Kaew, the royal field).",
+      license: "ODbL-1.0 (OpenStreetMap contributors)",
+    },
+    {
+      headers: {
+        "cache-control": "public, max-age=3600",
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
+async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
+  // Counts that need a D1 round-trip. The ingest script writes to ingestion_runs
+  // so we can also surface when the store was last refreshed.
+  let civicPoiCount: number | null = null;
+  let lastIngestedAt: string | null = null;
+  try {
+    const { results } = await env.CIVIC_DB.prepare(
+      "SELECT (SELECT COUNT(*) FROM civic_pois) AS n, (SELECT MAX(ingested_at) FROM ingestion_runs) AS last",
+    ).all<{ n: number; last: string | null }>();
+    const row = results?.[0];
+    civicPoiCount = row?.n ?? null;
+    lastIngestedAt = row?.last ?? null;
+  } catch {
+    // D1 may not be wired in every environment; surface nulls rather than 500.
+  }
+
+  return jsonResponse(
+    {
+      tool: "atlas-scoreboard",
+      version: ATLAS_API_VERSION,
+      buildings: { totalMetro: ATLAS_BUILDINGS_COUNT, totalRattanakosin: ATLAS_BUILDINGS_RATTANAKOSIN_COUNT, regeneratedAt: ATLAS_BUILDINGS_PMTILES_REGEN },
+      districts: 50,
+      rail: { lines: 9, segments: 126 },
+      khlongs: { total: 4063, river: "Chao Phraya", canals: 3026 },
+      landPrice: { districts: 50, parcels: 2281482, source: "Treasury 2024-2028" },
+      civicPois: { count: civicPoiCount, lastIngestedAt },
+      feeds: {
+        traffic: {
+          source: "iTIC / Longdo",
+          configured: Boolean(env.LONGDO_KEY),
+          fallback: "/bkk-traffic-sample.geojson",
+        },
+        cctv: { source: "iTIC / Longdo", fallback: "/bkk-cctv.geojson" },
+        floodSensors: { source: "HII / ThaiWater", live: true },
+        rain: { source: "RainViewer", live: true },
+        aqi: { source: "Open-Meteo CAMS", live: true },
+        heat: { source: "Open-Meteo", live: true },
+      },
+      copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
+    },
+    { headers: { "cache-control": "public, max-age=60" } },
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -733,6 +1299,24 @@ export default {
     }
     if (url.pathname === "/api/risk") {
       return lookupRisk(request, env);
+    }
+    if (url.pathname === "/api/atlas/areas") {
+      return atlasAreas(request, env);
+    }
+    if (url.pathname === "/api/atlas/districts") {
+      return atlasDistricts(request, env);
+    }
+    if (url.pathname === "/api/atlas/at-this-point") {
+      return atlasAtThisPoint(request, env);
+    }
+    if (url.pathname === "/api/atlas/transit") {
+      return atlasTransit(request, env);
+    }
+    if (url.pathname === "/api/atlas/buildings") {
+      return atlasBuildings(request, env);
+    }
+    if (url.pathname === "/api/atlas/scoreboard") {
+      return atlasScoreboard(request, env);
     }
     if (url.pathname === PMTILES_PATH) {
       return serveBuildingsPmtiles(request, env);
