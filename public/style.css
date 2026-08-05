@@ -73,12 +73,14 @@ button { font: inherit; }
   text-transform: uppercase;
 }
 
-.atlas-header-meta strong {
+.atlas-header-meta strong,
+.atlas-header-meta .atlas-title {
   font-family: var(--font-display);
   font-size: clamp(20px, 2vw, 28px);
   font-weight: 800;
   letter-spacing: -0.05em;
 }
+.atlas-title-phone { display: none; }
 .atlas-header-meta small { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
 
 .atlas-header-nav {
@@ -781,11 +783,110 @@ body.is-night .atlas-header {
 @media (max-width: 1000px) {
   .atlas-page {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(55vh, 1fr) auto;
+    grid-template-rows: auto minmax(58vh, 1fr) auto;
     grid-template-areas: "header" "map" "panel";
+    height: 100dvh;
+    max-height: 100dvh;
   }
-  .atlas-panel { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.16); max-height: 45vh; }
+  .atlas-panel {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    max-height: 38vh;
+    gap: 18px;
+    padding: 18px 16px 22px;
+  }
   .atlas-header-nav a:not([href^="https"]) { display: none; }
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .atlas-inspect-cols { grid-template-columns: 1fr; }
+}
+
+/* Phone: the map is the product. Header is a thin brand strip only. */
+@media (max-width: 720px) {
+  .atlas-page {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .atlas-header {
+    gap: 8px;
+    padding: 7px 12px;
+    padding-top: max(7px, env(safe-area-inset-top));
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .wordmark {
+    font-size: 15px;
+    letter-spacing: -0.06em;
+  }
+  .wordmark b { font-size: 18px; }
+
+  .atlas-header-meta {
+    gap: 0;
+    min-width: 0;
+  }
+
+  /* Drop the marketing stack — keep one quiet line of wayfinding. */
+  .atlas-header-meta .atlas-eyebrow,
+  .atlas-header-meta small {
+    display: none;
+  }
+
+  .atlas-header-meta .atlas-title {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+  }
+
+  .atlas-title-desk { display: none; }
+  .atlas-title-phone { display: inline; }
+
+  .atlas-header-nav {
+    gap: 0;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .atlas-header-nav a {
+    color: var(--muted);
+  }
+
+  .atlas-map {
+    min-height: 0;
+  }
+
+  /* Panel is the secondary surface — scrollable tray under the map. */
+  .atlas-panel {
+    max-height: min(34vh, 320px);
+    gap: 14px;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .atlas-quick-heading,
+  .atlas-data-heading {
+    font-size: 17px;
+    margin: 4px 0 10px;
+  }
+
+  .atlas-layers-blurb,
+  .atlas-inspect-blurb {
+    font-size: 11px;
+  }
+
+  .atlas-stack-presets {
+    gap: 6px;
+  }
+
+  .atlas-preset-btn {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .atlas-cctv-card {
+    width: min(280px, 86vw);
+  }
 }
