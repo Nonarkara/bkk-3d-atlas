@@ -270,11 +270,9 @@ const RAIN_MANIFEST = "https://api.rainviewer.com/public/weather-maps.json";
 
 // Treasury Department land appraisal price (ราคาประเมินที่ดิน).
 // 2024–2028 assessment, aggregated from 2.28M parcels to 477 UTMMAP3
-// zones across Bangkok. The static GeoJSON is a point-per-zone
-// representation; the actual zone boundaries are a follow-up (the
-// Royal Thai Survey Department cadastral shapefile is non-trivial
-// to fetch). The price range is 500–435,000 ฿/sq.wah — central
-// Silom/Sathorn tops out, outer districts bottom out.
+// zones across Bangkok. Display positions are approximate rectangular
+// grids inside map-sheet bboxes (see scripts/rebuild-land-price-positions.py)
+// — NOT cadastral centroids. Replace with RTSD polygons when available.
 const LAND_PRICE_SOURCE = "bkkx-land-price";
 const LAND_PRICE_FILL = "bkkx-land-price-fill";
 const LAND_PRICE_LINE = "bkkx-land-price-line";
@@ -1350,21 +1348,24 @@ async function installLandPrice(map) {
       source: LAND_PRICE_SOURCE,
       minzoom: 10,
       paint: {
+        // Keep dots small at city scale so the sheet-grid layout reads
+        // as a scatter, not as merged columns.
         "circle-radius": [
           "interpolate", ["linear"], ["zoom"],
-          10, 5,
-          13, 12,
-          15, 18,
-          17, 26,
+          10, 3,
+          12, 4.5,
+          14, 7,
+          16, 11,
+          18, 16,
         ],
         "circle-color": LAND_PRICE_COLOR_RAMP,
-        "circle-opacity": 0.62,
+        "circle-opacity": 0.72,
         "circle-stroke-color": "#11120f",
-        "circle-stroke-width": 0.8,
-        "circle-stroke-opacity": 0.85,
+        "circle-stroke-width": 0.6,
+        "circle-stroke-opacity": 0.75,
       },
     });
-    setLayerStatus("land-price", "Treasury 2024–2028 · ฿/sq.wah");
+    setLayerStatus("land-price", "Treasury 2024–2028 · approx. sheet grid");
   } catch (error) {
     console.warn("Land price layer failed:", error);
   }
@@ -1948,6 +1949,9 @@ function floodRiskRows(flood, risk, buildingFeature) {
   }
   if (risk?.score != null) {
     rows.push(["Risk score", `${risk.score} · ${risk.band ?? "—"}`]);
+  }
+  if (risk?.factors?.pm25 != null) {
+    rows.push(["PM2.5", `${risk.factors.pm25} µg/m³`]);
   }
   if (height != null) rows.push(["Building height", `${height} m`]);
   return rows;
