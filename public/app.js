@@ -267,6 +267,11 @@ const AQI_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const RAIN_SOURCE = "bkkx-rain";
 const RAIN_LAYER = "bkkx-rain-tiles";
 const RAIN_MANIFEST = "https://api.rainviewer.com/public/weather-maps.json";
+// RainViewer radar tiles only exist through z7. Above that the CDN
+// returns a "Zoom Level Not Supported" placeholder PNG. Our map
+// minZoom is 10, so the source MUST declare maxzoom 7 and let
+// MapLibre overzoom from there.
+const RAIN_MAX_ZOOM = 7;
 
 // Treasury Department land appraisal price (ราคาประเมินที่ดิน).
 // 2024–2028 assessment, aggregated from 2.28M parcels to 477 UTMMAP3
@@ -1263,49 +1268,71 @@ async function installRain(map) {
   state.rainFramePath = path;
   state.rainLastFetch = Date.now();
   setRainTiles(map, path);
-  setLayerStatus("rain", "RainViewer · latest frame");
+  setLayerStatus("rain", "RainViewer · latest · overzoom from z7");
 }
 
 function setRainTiles(map, path) {
   const tiles = [
     `https://tilecache.rainviewer.com${path}/256/{z}/{x}/{y}/2/1_1.png`,
   ];
-  if (!map.getSource(RAIN_SOURCE)) {
-    try {
-      map.addSource(RAIN_SOURCE, {
-        type: "raster",
-        tiles,
-        tileSize: 256,
-        maxzoom: 12,
-        attribution: "Radar © RainViewer",
-      });
-    } catch (error) {
-      console.warn("Rain source failed:", error);
-      setLayerStatus("rain", "unavailable · source failed");
+  const existing = map.getSource(RAIN_SOURCE);
+  if (existing) {
+    // Older sessions may have created this source with maxzoom 12,
+    // which requests unsupported zooms and paints "Zoom Level Not
+    // Supported" tiles across the city. Tear down and rebuild.
+    const maxzoom = existing.maxzoom ?? existing._options?.maxzoom;
+    if (maxzoom != null && maxzoom > RAIN_MAX_ZOOM) {
+      if (map.getLayer(RAIN_LAYER)) {
+        try { map.removeLayer(RAIN_LAYER); } catch {}
+      }
+      try { map.removeSource(RAIN_SOURCE); } catch {}
+    } else {
+      try { existing.setTiles(tiles); } catch {}
+      if (!map.getLayer(RAIN_LAYER)) {
+        addRainLayer(map);
+      } else {
+        setLayersVisible(map, [RAIN_LAYER], true);
+        applyOverlayCompositing(map);
+      }
       return;
     }
-  } else {
-    try { map.getSource(RAIN_SOURCE).setTiles(tiles); } catch {}
   }
-  if (!map.getLayer(RAIN_LAYER)) {
-    try {
-      map.addLayer({
-        id: RAIN_LAYER,
-        type: "raster",
-        source: RAIN_SOURCE,
-        paint: {
-          "raster-opacity": state.overlayOpacity,
-          "raster-saturation": -0.15,
-          "raster-fade-duration": 250,
-        },
-      });
-    } catch (error) {
-      console.warn("Rain layer failed:", error);
-      setLayerStatus("rain", "unavailable · layer failed");
-    }
-  } else {
+  try {
+    map.addSource(RAIN_SOURCE, {
+      type: "raster",
+      tiles,
+      tileSize: 256,
+      maxzoom: RAIN_MAX_ZOOM,
+      attribution: "Radar © RainViewer",
+    });
+  } catch (error) {
+    console.warn("Rain source failed:", error);
+    setLayerStatus("rain", "unavailable · source failed");
+    return;
+  }
+  addRainLayer(map);
+}
+
+function addRainLayer(map) {
+  if (map.getLayer(RAIN_LAYER)) {
     setLayersVisible(map, [RAIN_LAYER], true);
     applyOverlayCompositing(map);
+    return;
+  }
+  try {
+    map.addLayer({
+      id: RAIN_LAYER,
+      type: "raster",
+      source: RAIN_SOURCE,
+      paint: {
+        "raster-opacity": state.overlayOpacity,
+        "raster-saturation": -0.15,
+        "raster-fade-duration": 250,
+      },
+    });
+  } catch (error) {
+    console.warn("Rain layer failed:", error);
+    setLayerStatus("rain", "unavailable · layer failed");
   }
 }
 
