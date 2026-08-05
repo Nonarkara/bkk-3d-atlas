@@ -59,6 +59,7 @@ npm install        # one time, installs wrangler
 npm run verify     # laptop smoke check (JSON, stack helpers, no network)
 npm run typecheck  # Worker TypeScript
 npm run dev        # http://localhost:8787
+npm run smoke      # 11-check live smoke test of the /api/atlas/* mirror
 ```
 
 The atlas is sized for a single laptop: static GeoJSON in `public/`,
@@ -120,6 +121,44 @@ const { score, band, factors } = await res.json();
 Civic demo score (0–100). Optional `?pm25=` override. Flood envelopes in
 `public/bkk-flood-envelope.geojson` are **schematic** — not official
 DDPM/BMA maps. Do not underwrite insurance from this.
+
+### 1d. `/api/atlas/*` — the AI-readable mirror
+
+Six thin GETs that return what an LLM agent, a research script, or a
+future MCP server would actually ask the city. All additive — none of
+the endpoints above change.
+
+| Endpoint | What it returns |
+| --- | --- |
+| `GET /api/atlas/areas?bbox=&category=` | The 16 curated areas, filterable by viewport or category. |
+| `GET /api/atlas/districts` | All 50 khet, joined to Treasury land-price data, with centroids. |
+| `GET /api/atlas/at-this-point?lng=&lat=` | The generalised "click the city" — district, land price, flood status, nearest transit, summary band. One call. |
+| `GET /api/atlas/transit?lng=&lat=&radius=&limit=` | Up to N nearest rail segments with line, ref, color, distance. |
+| `GET /api/atlas/buildings?bbox=&limit=` | Honest pointer to the 432K PMTiles + the 9,275-feature Rattanakosin detail (no fake server-side bbox query yet). |
+| `GET /api/atlas/scoreboard` | Single object: live feed health, counts, district/rail/building totals, traffic-feed configured status, last civic-data ingest. |
+
+```js
+// "What's at this point, in one call?"
+const r = await fetch(
+  "https://atlas.nonarkara.org/api/atlas/at-this-point?lng=100.4914&lat=13.7500"
+).then((r) => r.json());
+// r.district.nameEn  → "Phra Nakhon District"
+// r.landPrice.peakNewPrice → 1000000
+// r.nearestTransit.line → "MRT-Blue", distanceM → 476
+// r.flood.inside → true, severity → "high"
+// r.summary → { landPriceBand: "premium", transitBand: "walkable", floodBand: "high" }
+```
+
+```sh
+# Smoke test — operator-runnable, end-to-end, hits all 6 + edge cases.
+npm run smoke                                    # default: live URL
+ATLAS_URL=http://localhost:8787 npm run smoke    # local wrangler dev
+```
+
+The script exits non-zero on any failure and prints a one-line
+PASS/FAIL summary. Run it after every deploy to know the city is
+still answering. **11 checks total**: 6 endpoints + filter + bad-bbox
++ malformed-bbox + the scoreboard shape.
 
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
 
