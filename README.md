@@ -264,6 +264,32 @@ client will swap the static sample for the live feed (90-second
 edge cache). The 503 fallback to the sample is automatic if the
 key is missing or the upstream fails.
 
+## Traffic CCTV layer (iTIC / Longdo)
+
+Public **road / intersection** cameras — not the closed BMA security
+network (~60k+ cameras). The same iTIC ecosystem that powers
+[live.iticfoundation.org](https://live.iticfoundation.org) publishes:
+
+- **Camera catalog (JSON)** — no API key —
+  <https://camera.longdo.com/feed/?command=json> (~280 cameras
+  nationwide; ~80–110 in the Bangkok metro with HLS).
+- **Live HLS** — `camerai1.iticfoundation.org` playlists (CORS open).
+- **JPEG / MJPEG** endpoints exist but often return empty bodies;
+  the atlas plays **HLS** in a click popup (`hls.js` on Chromium,
+  native HLS on Safari).
+
+The Worker exposes `/api/cctv`, which filters the catalog to the
+Bangkok metro bbox and returns GeoJSON points. The client falls
+back to `public/bkk-cctv.geojson` when the Worker is offline.
+
+Toggle **Traffic CCTV** in Layers (or use the Full pulse preset).
+Click a signal-yellow pin to watch the live stream. Attribution:
+iTIC Foundation / Longdo.
+
+What this is **not**: free access to BMA/police investigative CCTV
+at `cctv.bangkok.go.th`. Those remain request-only after a police
+report.
+
 ## Layer stack
 
 1. Esri World Imagery (raster, desaturated −0.45, opacity 0.78) — real

@@ -7,7 +7,8 @@
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
 //   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
 //   (4) serves /api/risk land × flood × PM2.5 civic score
-//   (5) falls back to the static asset binding for everything else
+//   (5) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
+//   (6) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -32,8 +33,31 @@ const LAND_PRICE_ASSET = "/bkk-land-price.geojson";
 const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
+const LONGDO_CCTV_FEED = "https://camera.longdo.com/feed/?command=json";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
+const CCTV_CACHE_TTL_SECONDS = 300;
 const LAND_PRICE_CACHE_TTL_SECONDS = 3600;
+
+/** Bangkok + immediate metro ring used for CCTV filtering. */
+const CCTV_BBOX = {
+  minLat: 13.4,
+  maxLat: 14.2,
+  minLon: 100.2,
+  maxLon: 101.1,
+};
+
+type LongdoCamera = {
+  title?: string;
+  link?: string;
+  camid?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  organization?: string;
+  motion?: string;
+  vdourl?: string;
+  imgurl?: string;
+  hls_url?: string;
+};
 
 type LandPriceProps = {
   zone_id: string;
@@ -479,6 +503,98 @@ async function fetchPointPm25(lat: number, lng: number): Promise<number | null> 
   }
 }
 
+function inCctvBbox(lat: number, lon: number): boolean {
+  return (
+    lat >= CCTV_BBOX.minLat &&
+    lat <= CCTV_BBOX.maxLat &&
+    lon >= CCTV_BBOX.minLon &&
+    lon <= CCTV_BBOX.maxLon
+  );
+}
+
+function camerasToGeoJson(cameras: LongdoCamera[]) {
+  const features = [];
+  for (const cam of cameras) {
+    const lat = Number(cam.latitude);
+    const lon = Number(cam.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (!inCctvBbox(lat, lon)) continue;
+    const hls = typeof cam.hls_url === "string" ? cam.hls_url.trim() : "";
+    const imgurl = typeof cam.imgurl === "string" ? cam.imgurl.trim() : "";
+    // Prefer cameras with a playable HLS URL. JPEG endpoints often
+    // return empty bodies; HLS is what live.iticfoundation.org uses.
+    if (!hls) continue;
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: {
+        id: cam.camid ?? `${lon},${lat}`,
+        title: cam.title ?? "Traffic camera",
+        org: cam.organization ?? "iTIC",
+        hls,
+        imgurl: imgurl || null,
+        vdourl: cam.vdourl ?? null,
+        link: cam.link ?? null,
+        motion: cam.motion ?? null,
+      },
+    });
+  }
+  return {
+    type: "FeatureCollection",
+    name: "bkk-cctv-itic",
+    source: LONGDO_CCTV_FEED,
+    attribution: "iTIC Foundation / Longdo · public traffic cameras",
+    disclaimer:
+      "Public traffic CCTV only (roads / intersections). Not the full BMA security camera network. Feeds can drop without notice.",
+    bbox: CCTV_BBOX,
+    count: features.length,
+    features,
+  };
+}
+
+async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
+  try {
+    const upstream = await fetch(LONGDO_CCTV_FEED, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!upstream.ok) {
+      return jsonResponse(
+        {
+          error: "cctv_upstream_error",
+          status: upstream.status,
+          message: `iTIC camera feed returned ${upstream.status}. Client will fall back to /bkk-cctv.geojson.`,
+        },
+        { status: 502 },
+      );
+    }
+    const cameras = (await upstream.json()) as LongdoCamera[];
+    if (!Array.isArray(cameras)) {
+      return jsonResponse(
+        { error: "cctv_bad_payload", message: "Camera feed was not a JSON array." },
+        { status: 502 },
+      );
+    }
+    const geojson = camerasToGeoJson(cameras);
+    return new Response(JSON.stringify(geojson), {
+      status: 200,
+      headers: {
+        "content-type": "application/geo+json; charset=utf-8",
+        "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
+        "x-bkkx-source": "iTIC/Longdo camera feed",
+        "access-control-allow-origin": "*",
+      },
+    });
+  } catch (error) {
+    return jsonResponse(
+      {
+        error: "cctv_fetch_failed",
+        message: String(error),
+      },
+      { status: 502 },
+    );
+  }
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     return jsonResponse(
@@ -533,6 +649,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/api/traffic") {
       return proxyTraffic(request, env);
+    }
+    if (url.pathname === "/api/cctv") {
+      return proxyCctv(request, env);
     }
     if (url.pathname === "/api/land-price") {
       return lookupLandPrice(request, env);

@@ -205,6 +205,15 @@ const TRAFFIC_LAYER = "bkkx-traffic-line";
 const TRAFFIC_SAMPLE_URL = "/bkk-traffic-sample.geojson";
 const TRAFFIC_LIVE_URL = "/api/traffic";
 
+// Public traffic CCTV from iTIC / Longdo (same family as the traffic feed).
+// Catalog: https://camera.longdo.com/feed/?command=json
+// Playback: HLS on camerai1.iticfoundation.org (JPEG snapshots often empty).
+const CCTV_SOURCE = "bkkx-cctv";
+const CCTV_LAYER = "bkkx-cctv-dots";
+const CCTV_HALO_LAYER = "bkkx-cctv-halo";
+const CCTV_SAMPLE_URL = "/bkk-cctv.geojson";
+const CCTV_LIVE_URL = "/api/cctv";
+
 const TRAFFIC_COLOR_EXPRESSION = [
   "match", ["get", "level"],
   "heavy", "#E3252C",
@@ -337,6 +346,9 @@ const state = {
   rainLastFetch: 0,
   inspectMarker: null,
   trafficSource: null, // "live" | "sample" | null
+  cctvSource: null, // "live" | "sample" | null
+  cctvPopup: null,
+  cctvHls: null,
   landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
@@ -366,6 +378,8 @@ const LAYER_STACK = [
   AQI_LAYER,
   AQI_CIRCLE_LAYER,
   RAIN_LAYER,
+  CCTV_HALO_LAYER,
+  CCTV_LAYER,
 ];
 
 function ensureStackOrder(map) {
@@ -488,6 +502,7 @@ function updateStackChips() {
     buildings: "City",
     rail: "Rail",
     traffic: "Traffic",
+    cctv: "CCTV",
     khlongs: "Khlongs",
     terrain: "Terrain",
     "land-price": "Land ฿",
@@ -568,6 +583,19 @@ const LAYERS = [
     layers: [TRAFFIC_LAYER],
     install: async (map) => { await loadTrafficData(map, { preferLive: true }); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [TRAFFIC_LAYER], false),
+  },
+  {
+    id: "cctv",
+    name: "Traffic CCTV",
+    description: "iTIC / Longdo · public road cameras",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CCTV_HALO_LAYER, CCTV_LAYER],
+    install: async (map) => { await loadCctvData(map, { preferLive: true }); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeCctvPopup();
+      setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER], false);
+    },
   },
   {
     id: "khlongs",
@@ -1698,6 +1726,214 @@ function setTrafficSourceBadge(source) {
   }
 }
 
+function destroyCctvHls() {
+  if (state.cctvHls) {
+    try { state.cctvHls.destroy(); } catch {}
+    state.cctvHls = null;
+  }
+}
+
+function closeCctvPopup() {
+  destroyCctvHls();
+  if (state.cctvPopup) {
+    try { state.cctvPopup.remove(); } catch {}
+    state.cctvPopup = null;
+  }
+}
+
+function setCctvSourceBadge(source, count) {
+  state.cctvSource = source;
+  const detail = document.getElementById("toggle-cctv-detail");
+  if (!detail) return;
+  const n = Number.isFinite(count) ? ` · ${count} cams` : "";
+  if (source === "live") detail.textContent = `live · iTIC / Longdo${n}`;
+  else if (source === "sample") detail.textContent = `cached catalog${n}`;
+  else detail.textContent = "iTIC / Longdo · public road cameras";
+}
+
+function addCctvLayer(map, geojson) {
+  if (map.getSource(CCTV_SOURCE)) {
+    map.getSource(CCTV_SOURCE).setData(geojson);
+    setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER], true);
+    return;
+  }
+  map.addSource(CCTV_SOURCE, { type: "geojson", data: geojson });
+  map.addLayer({
+    id: CCTV_HALO_LAYER,
+    type: "circle",
+    source: CCTV_SOURCE,
+    minzoom: 10,
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 14, 16, 18],
+      "circle-color": "#c9ff38",
+      "circle-opacity": 0.18,
+      "circle-stroke-width": 0,
+    },
+  });
+  map.addLayer({
+    id: CCTV_LAYER,
+    type: "circle",
+    source: CCTV_SOURCE,
+    minzoom: 10,
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3.5, 14, 5.5, 16, 7],
+      "circle-color": "#11120f",
+      "circle-stroke-color": "#c9ff38",
+      "circle-stroke-width": 1.6,
+      "circle-opacity": 0.95,
+    },
+  });
+}
+
+async function fetchLiveCctv() {
+  try {
+    const response = await fetch(CCTV_LIVE_URL, { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data?.features?.length) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function loadCctvData(map, { preferLive = false } = {}) {
+  let geojson = null;
+  let source = "sample";
+  if (preferLive) {
+    geojson = await fetchLiveCctv();
+    if (geojson) source = "live";
+  }
+  if (!geojson) {
+    geojson = await fetchJson(CCTV_SAMPLE_URL);
+    source = "sample";
+  }
+  if (!geojson) return;
+  addCctvLayer(map, geojson);
+  setCctvSourceBadge(source, geojson.features?.length ?? geojson.count);
+  wireCctvInteractions(map);
+  if (preferLive && source === "sample") {
+    fetchLiveCctv().then((live) => {
+      if (live && map.getSource(CCTV_SOURCE)) {
+        addCctvLayer(map, live);
+        setCctvSourceBadge("live", live.features?.length ?? live.count);
+      }
+    });
+  }
+}
+
+function playCctvStream(video, hlsUrl) {
+  destroyCctvHls();
+  if (!video || !hlsUrl) return;
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsUrl;
+    video.play().catch(() => {});
+    return;
+  }
+  const Hls = window.Hls;
+  if (Hls && Hls.isSupported()) {
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      maxBufferLength: 12,
+    });
+    state.cctvHls = hls;
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+    });
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (data?.fatal) {
+        const status = video.parentElement?.querySelector(".atlas-cctv-status");
+        if (status) status.textContent = "Stream dropped — try another camera or open on iTIC.";
+      }
+    });
+    return;
+  }
+  const status = video.parentElement?.querySelector(".atlas-cctv-status");
+  if (status) status.textContent = "This browser cannot play HLS. Open the camera on iTIC.";
+}
+
+function openCctvPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const props = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  const title = props.title || "Traffic camera";
+  const org = props.org || "iTIC";
+  const hls = props.hls || "";
+  const iticUrl = `https://live.iticfoundation.org/?lat=${lat}&lon=${lng}&zoom=16`;
+
+  closeCctvPopup();
+
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">Traffic CCTV · ${escapeHtml(org)}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(title)}</strong>
+      <video class="atlas-cctv-video" playsinline muted autoplay controls></video>
+      <p class="atlas-cctv-status">Connecting live stream…</p>
+      <div class="atlas-cctv-actions">
+        <a href="${escapeHtml(iticUrl)}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
+        <span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
+      </div>
+    </div>
+  `;
+
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+
+  state.cctvPopup = popup;
+  popup.on("close", () => {
+    destroyCctvHls();
+    if (state.cctvPopup === popup) state.cctvPopup = null;
+  });
+
+  const video = popup.getElement()?.querySelector(".atlas-cctv-video");
+  const status = popup.getElement()?.querySelector(".atlas-cctv-status");
+  if (!hls) {
+    if (status) status.textContent = "No HLS URL for this camera.";
+    return;
+  }
+  if (status) status.textContent = "Live · iTIC / Longdo";
+  playCctvStream(video, hls);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function wireCctvInteractions(map) {
+  if (map.__bkkxCctvWired) return;
+  map.__bkkxCctvWired = true;
+
+  map.on("click", CCTV_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openCctvPopup(map, feature);
+  });
+
+  map.on("mouseenter", CCTV_LAYER, () => {
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", CCTV_LAYER, () => {
+    map.getCanvas().style.cursor = "";
+  });
+}
+
 async function fetchJson(url) {
   try {
     const response = await fetch(url, { cache: "force-cache" });
@@ -2068,10 +2304,22 @@ function floodRiskRows(flood, risk, buildingFeature) {
 
 function wireInspect(map) {
   map.on("click", (event) => {
+    // CCTV dots own the click when that layer is on.
+    if (map.getLayer(CCTV_LAYER)) {
+      const cams = map.queryRenderedFeatures(event.point, { layers: [CCTV_LAYER] });
+      if (cams.length) return;
+    }
     runInspect(map, event);
   });
 
   map.on("mousemove", (event) => {
+    if (map.getLayer(CCTV_LAYER)) {
+      const cams = map.queryRenderedFeatures(event.point, { layers: [CCTV_LAYER] });
+      if (cams.length) {
+        map.getCanvas().style.cursor = "pointer";
+        return;
+      }
+    }
     const layerIds = INSPECT_BUILDING_LAYERS.filter((id) => map.getLayer(id));
     if (layerIds.length === 0) {
       map.getCanvas().style.cursor = "";
@@ -2245,13 +2493,13 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, khlongs: true, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, traffic: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      aqi: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, "land-price": false, terrain: false, night: false },
-      heat: { buildings: true, rail: true, traffic: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, "land-price": false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, traffic: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, "land-price": false, terrain: true, night: false },
-      night: { buildings: true, rail: true, traffic: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: true },
-      pulse: { buildings: true, rail: true, traffic: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, "land-price": false, terrain: false, night: false },
+      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      aqi: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, "land-price": false, terrain: false, night: false },
+      heat: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, "land-price": false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, "land-price": false, terrain: true, night: false },
+      night: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, "land-price": false, terrain: false, night: true },
+      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, "land-price": false, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;

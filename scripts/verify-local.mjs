@@ -85,6 +85,15 @@ mustJson("public/bkk-traffic-sample.geojson", (data) => {
   ok(`${data.features?.length ?? 0} traffic sample segments`);
 });
 
+mustJson("public/bkk-cctv.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 20) fail(`cctv features too few: ${n}`);
+  else ok(`${n} traffic CCTV sample cameras`);
+  const withHls = (data.features || []).filter((f) => f?.properties?.hls).length;
+  if (withHls < 20) fail(`cctv HLS urls too few: ${withHls}`);
+  else ok(`${withHls} CCTV cameras have HLS urls`);
+});
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
@@ -103,7 +112,7 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "nearestLandPriceClient", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -113,8 +122,12 @@ if (!worker.includes("/api/land-price")) fail("Worker missing /api/land-price");
 else ok("Worker exposes /api/land-price");
 if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
 else ok("Worker exposes /api/risk");
+if (!worker.includes("/api/cctv")) fail("Worker missing /api/cctv");
+else ok("Worker exposes /api/cctv");
 if (!worker.includes("fetchPointPm25")) fail("Worker risk missing PM2.5 fetch");
 else ok("Worker risk folds live PM2.5");
+if (!worker.includes("camerasToGeoJson")) fail("Worker missing CCTV GeoJSON builder");
+else ok("Worker builds CCTV GeoJSON");
 
 console.log(notes.join("\n"));
 if (errors.length) {

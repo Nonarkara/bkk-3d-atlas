@@ -9,7 +9,10 @@
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+  <link rel="preconnect" href="https://camera.longdo.com" crossorigin />
+  <link rel="preconnect" href="https://camerai1.iticfoundation.org" crossorigin />
   <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js" defer></script>
 </head>
 <body>
   <main class="atlas-page">
@@ -130,6 +133,16 @@
                 <small id="toggle-traffic-detail">iTIC / Longdo · expressways</small>
               </span>
               <span class="atlas-layer-state" id="toggle-traffic-state" aria-live="polite">on</span>
+            </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-cctv" />
+              <span class="atlas-layer-name">
+                <strong>Traffic CCTV</strong>
+                <small id="toggle-cctv-detail">iTIC / Longdo · public road cameras</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-cctv-state" aria-live="polite">off</span>
             </label>
           </li>
           <li>
@@ -290,10 +303,17 @@
             <strong>Honest traffic.</strong>
             Toggle shows live vs sample · mock levels.
           </li>
+          <li>
+            <strong>Traffic CCTV.</strong>
+            Public iTIC / Longdo road cameras as map dots —
+            toggle on, click a pin, watch HLS live. Not the
+            closed BMA security network.
+            <a href="/api/cctv">/api/cctv</a>
+          </li>
         </ol>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
-        <ol class="atlas-labs-list" start="7">
+        <ol class="atlas-labs-list" start="8">
           <li>
             <strong>Official flood extents.</strong>
             Swap the schematic envelope for DDPM/BMA published
@@ -323,7 +343,7 @@
         </ol>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon — still possible, heavier lift</p>
-        <ol class="atlas-labs-list" start="12">
+        <ol class="atlas-labs-list" start="13">
           <li>
             <strong>BKKx Digital Twin — handover to BMA.</strong>
             Open-source, no lock-in, no ฿5.4M consulting fee. The
