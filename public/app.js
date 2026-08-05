@@ -214,6 +214,14 @@ const CCTV_HALO_LAYER = "bkkx-cctv-halo";
 const CCTV_SAMPLE_URL = "/bkk-cctv.geojson";
 const CCTV_LIVE_URL = "/api/cctv";
 
+// Hand-curated public YouTube livestreams (see bkk-live-cams.geojson for
+// sourcing notes per point). Distinct from the CCTV layer above: these
+// are third-party streamers, not iTIC/BMA traffic infrastructure.
+const LIVE_CAM_SOURCE = "bkkx-live-cams";
+const LIVE_CAM_LAYER = "bkkx-live-cam-dots";
+const LIVE_CAM_HALO_LAYER = "bkkx-live-cam-halo";
+const LIVE_CAM_DATA_URL = "/bkk-live-cams.geojson";
+
 const TRAFFIC_COLOR_EXPRESSION = [
   "match", ["get", "level"],
   "heavy", "#E3252C",
@@ -364,6 +372,7 @@ const state = {
   cctvPopup: null,
   cctvHls: null,
   floodSensorPopup: null,
+  liveCamPopup: null,
   landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
@@ -397,6 +406,8 @@ const LAYER_STACK = [
   RAIN_LAYER,
   CCTV_HALO_LAYER,
   CCTV_LAYER,
+  LIVE_CAM_HALO_LAYER,
+  LIVE_CAM_LAYER,
 ];
 
 function ensureStackOrder(map) {
@@ -520,10 +531,12 @@ function updateStackChips() {
     rail: "Rail",
     traffic: "Traffic",
     cctv: "CCTV",
+    "live-cams": "Live",
     khlongs: "Khlongs",
     terrain: "Terrain",
     "land-price": "Land ฿",
     flood: "Flood",
+    "flood-sensors": "Gauges",
     heat: "Heat",
     aqi: "AQI",
     rain: "Rain",
@@ -612,6 +625,19 @@ const LAYERS = [
     uninstall: (map) => {
       closeCctvPopup();
       setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER], false);
+    },
+  },
+  {
+    id: "live-cams",
+    name: "Live views",
+    description: "YouTube · 3 public streamers",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER],
+    install: async (map) => { await installLiveCams(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeLiveCamPopup();
+      setLayersVisible(map, [LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER], false);
     },
   },
   {
@@ -2118,6 +2144,123 @@ function wireCctvInteractions(map) {
   map.on("mouseleave", CCTV_LAYER, () => {
     map.getCanvas().style.cursor = "";
   });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Live cams — third-party public YouTube livestreams (hand-curated,
+// bkk-live-cams.geojson). Embedded via YouTube's own <iframe> player,
+// the only ToS-compliant way to show someone else's livestream — no
+// stream URLs are scraped or hotlinked.
+// ─────────────────────────────────────────────────────────────────
+
+function closeLiveCamPopup() {
+  if (state.liveCamPopup) {
+    try { state.liveCamPopup.remove(); } catch {}
+    state.liveCamPopup = null;
+  }
+}
+
+function openLiveCamPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeLiveCamPopup();
+  const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(p.youtubeId)}?autoplay=1&mute=1&playsinline=1`;
+  const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(p.youtubeId)}`;
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">Live cam · ${escapeHtml(p.precision || "")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.title || "Bangkok live cam")}</strong>
+      <iframe class="atlas-live-cam-frame" src="${escapeHtml(embedUrl)}"
+        title="${escapeHtml(p.title || "Bangkok live cam")}" frameborder="0"
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen></iframe>
+      <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
+      <div class="atlas-cctv-actions">
+        <a href="${escapeHtml(watchUrl)}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+        <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.liveCamPopup = popup;
+}
+
+function wireLiveCamInteractions(map) {
+  if (map.__bkkxLiveCamWired) return;
+  map.__bkkxLiveCamWired = true;
+  map.on("click", LIVE_CAM_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openLiveCamPopup(map, feature);
+  });
+  map.on("mouseenter", LIVE_CAM_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", LIVE_CAM_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installLiveCams(map) {
+  if (map.getLayer(LIVE_CAM_LAYER)) {
+    setLayersVisible(map, [LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(LIVE_CAM_DATA_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("live-cams", "unavailable · geojson failed");
+    return;
+  }
+  if (!map.getSource(LIVE_CAM_SOURCE)) {
+    try {
+      map.addSource(LIVE_CAM_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Live cam source failed:", error);
+      setLayerStatus("live-cams", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: LIVE_CAM_HALO_LAYER,
+      type: "circle",
+      source: LIVE_CAM_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 9, 13, 15, 16, 20],
+        "circle-color": "#c9ff38",
+        "circle-opacity": 0.18,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: LIVE_CAM_LAYER,
+      type: "circle",
+      source: LIVE_CAM_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6, 16, 8],
+        "circle-color": "#11120f",
+        "circle-stroke-color": "#c9ff38",
+        "circle-stroke-width": 1.6,
+        "circle-opacity": 0.95,
+      },
+    });
+    wireLiveCamInteractions(map);
+    setLayerStatus("live-cams", `YouTube · ${geojson.features.length} public streams`);
+  } catch (error) {
+    console.warn("Live cam layer failed:", error);
+    setLayerStatus("live-cams", "unavailable · layer failed");
+  }
 }
 
 async function fetchJson(url) {

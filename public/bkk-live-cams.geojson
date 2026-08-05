@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "name": "bkk-live-cams",
+  "attribution": "Public YouTube livestreams, embedded via YouTube's official player. Not BKKx-operated cameras.",
+  "disclaimer": "Curated by hand, not from an open camera-location API. Coordinates are exact only where the streamer names a specific address; otherwise placed at the named street or district and labelled accordingly — never a guessed building.",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [100.5562, 13.7449] },
+      "properties": {
+        "id": "el-gaucho-soi11",
+        "title": "El Gaucho, Sukhumvit Soi 11",
+        "youtubeId": "UemFRPrl1hk",
+        "precision": "exact address",
+        "note": "Mercure Hotel, 18 Sukhumvit Soi 11, Khlong Toei — confirmed via the restaurant's listed address."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [100.5296, 13.7217] },
+      "properties": {
+        "id": "sathorn-silom",
+        "title": "Sathorn Road, Silom",
+        "youtubeId": "uDV_qKiXRVU",
+        "precision": "street-level",
+        "note": "Placed at the Sathorn/Narathiwat area named in the stream title — the channel does not disclose which building the camera is mounted on."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [100.5340, 13.7455] },
+      "properties": {
+        "id": "bangkok-skyline",
+        "title": "Bangkok skyline",
+        "youtubeId": "wuFMH-eI5eU",
+        "precision": "city-level",
+        "note": "Channel (@Livecam-Bangkok) does not disclose the camera's exact vantage point — pin marks central Bangkok, not a real address."
+      }
+    }
+  ]
+}
