@@ -282,6 +282,10 @@ const RAIN_MANIFEST = "https://api.rainviewer.com/public/weather-maps.json";
 // minZoom is 10, so the source MUST declare maxzoom 7 and let
 // MapLibre overzoom from there.
 const RAIN_MAX_ZOOM = 7;
+// FloodDash cycles its last 7 past frames every 900ms to read as a live
+// storm-motion loop rather than one static (often-transparent) tile.
+const RAIN_FRAME_COUNT = 7;
+const RAIN_FRAME_INTERVAL_MS = 900;
 
 // Treasury Department land appraisal price (ราคาประเมินที่ดิน).
 // 2024–2028 assessment, aggregated from 2.28M parcels to 477 UTMMAP3
@@ -313,6 +317,14 @@ const FLOOD_FILL_COLOR = [
   "#3b82f6",
 ];
 
+// Live HII/ThaiWater water-level gauges — see /api/flood-sensors
+// (src/index.ts). Circle color comes straight from the feature's
+// `levelColor` property, set server-side from HII's situation_level.
+const FLOOD_SENSOR_SOURCE = "bkkx-flood-sensors";
+const FLOOD_SENSOR_LAYER = "bkkx-flood-sensor-dots";
+const FLOOD_SENSOR_HALO_LAYER = "bkkx-flood-sensor-halo";
+const FLOOD_SENSOR_LIVE_URL = "/api/flood-sensors";
+
 // Colour ramp steps (Thai Baht per square wah). Tuned to the 2024–2028
 // Bangkok distribution: median 24k, top decile starts at ~100k, top 1%
 // starts at ~250k, max ~435k. Vivid enough to read against the
@@ -342,13 +354,16 @@ const state = {
   activeId: null,
   map: null,
   buildingPaint: "type", // "type" (default) or "monochrome"
-  rainFramePath: null,
+  rainFrames: [],
+  rainIdx: 0,
   rainLastFetch: 0,
+  rainTimer: null,
   inspectMarker: null,
   trafficSource: null, // "live" | "sample" | null
   cctvSource: null, // "live" | "sample" | null
   cctvPopup: null,
   cctvHls: null,
+  floodSensorPopup: null,
   landPriceFeatures: null, // cached for client-side nearest (laptop / API fallback)
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
@@ -373,6 +388,8 @@ const LAYER_STACK = [
   LAND_PRICE_FILL,
   FLOOD_FILL,
   FLOOD_LINE,
+  FLOOD_SENSOR_HALO_LAYER,
+  FLOOD_SENSOR_LAYER,
   HEAT_LAYER,
   HEAT_CIRCLE_LAYER,
   AQI_LAYER,
@@ -654,12 +671,15 @@ const LAYERS = [
   {
     id: "rain",
     name: "Rain radar",
-    description: "RainViewer · last 2 hours",
+    description: "RainViewer · animated loop",
     defaultOn: false,
     softUninstall: true,
     layers: [RAIN_LAYER],
     install: async (map) => { await installRain(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [RAIN_LAYER], false),
+    uninstall: (map) => {
+      stopRainLoop();
+      setLayersVisible(map, [RAIN_LAYER], false);
+    },
   },
   {
     id: "flood",
@@ -674,6 +694,26 @@ const LAYERS = [
       { color: "#1d4ed8", label: "high severity corridor" },
       { color: "#3b82f6", label: "medium" },
       { color: "#93c5fd", label: "low / drain pocket" },
+    ],
+  },
+  {
+    id: "flood-sensors",
+    name: "Flood sensors",
+    description: "HII/ThaiWater · water level gauges",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER],
+    install: async (map) => { await installFloodSensors(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeFloodSensorPopup();
+      setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], false);
+    },
+    legend: [
+      { color: "#B7AFA3", label: "critically low" },
+      { color: "#948C7F", label: "low" },
+      { color: "#00933C", label: "normal" },
+      { color: "#E86A10", label: "high" },
+      { color: "#A51931", label: "overflowing" },
     ],
   },
   {
@@ -1345,40 +1385,69 @@ async function fetchRainManifest() {
   return res.json();
 }
 
-async function installRain(map) {
-  if (map.getLayer(RAIN_LAYER) && state.rainFramePath) {
-    setLayersVisible(map, [RAIN_LAYER], true);
-    if (Date.now() - state.rainLastFetch >= 5 * 60_000) {
-      // Refresh tiles in background; keep current frame visible.
-      fetchRainManifest().then((manifest) => {
-        const latest = manifest?.radar?.past?.[manifest.radar.past.length - 1];
-        if (latest?.path) {
-          state.rainFramePath = latest.path;
-          state.rainLastFetch = Date.now();
-          setRainTiles(map, latest.path);
-        }
-      }).catch(() => {});
-    }
-    applyOverlayCompositing(map);
-    return;
-  }
-  if (Date.now() - state.rainLastFetch < 5 * 60_000 && state.rainFramePath) {
-    setRainTiles(map, state.rainFramePath);
-    ensureStackOrder(map);
-    return;
-  }
+function bangkokClock(unixSeconds) {
+  return new Date(unixSeconds * 1000).toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Bangkok",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Keep the last RAIN_FRAME_COUNT past frames (+ any nowcast) so the loop
+ * reads as a short storm-motion replay, same as a normal radar app —
+ * not a single static tile that looks dead when Bangkok is dry. */
+async function refreshRainFrames() {
   const manifest = await fetchRainManifest();
-  if (!manifest?.radar?.past?.length) {
-    setLayerStatus("rain", "unavailable · RainViewer failed");
-    console.warn("RainViewer manifest returned no past frames");
-    return;
-  }
-  const latest = manifest.radar.past[manifest.radar.past.length - 1];
-  const path = latest.path;
-  state.rainFramePath = path;
+  const past = manifest?.radar?.past ?? [];
+  const nowcast = manifest?.radar?.nowcast ?? [];
+  const frames = [...past.slice(-RAIN_FRAME_COUNT), ...nowcast];
+  if (!frames.length) return false;
+  state.rainFrames = frames;
   state.rainLastFetch = Date.now();
-  setRainTiles(map, path);
-  setLayerStatus("rain", "RainViewer · latest · overzoom from z7");
+  if (state.rainIdx >= frames.length) state.rainIdx = 0;
+  return true;
+}
+
+async function installRain(map) {
+  setLayersVisible(map, [RAIN_LAYER], true);
+  const stale = Date.now() - state.rainLastFetch >= 5 * 60_000;
+  if (!state.rainFrames.length || stale) {
+    const ok = await refreshRainFrames();
+    if (!ok && !state.rainFrames.length) {
+      setLayerStatus("rain", "unavailable · RainViewer failed");
+      console.warn("RainViewer manifest returned no frames");
+      return;
+    }
+  }
+  const frame = state.rainFrames[state.rainIdx];
+  setRainTiles(map, frame.path);
+  setLayerStatus("rain", `RainViewer · ${bangkokClock(frame.time)} · ${state.rainFrames.length} frames`);
+  startRainLoop(map);
+}
+
+/** The "blink" is frame-cycling, not a CSS effect — same trick every
+ * live radar app uses: swap the raster source's tile URL every tick and
+ * let the browser's normal image load read as motion. Ported from
+ * FloodDash's Leaflet radar.layer.setUrl loop (public/js/map.js). */
+function startRainLoop(map) {
+  if (state.rainTimer) return;
+  state.rainTimer = setInterval(() => {
+    if (!state.layerOn.rain || document.hidden || !state.rainFrames.length) return;
+    state.rainIdx = (state.rainIdx + 1) % state.rainFrames.length;
+    const frame = state.rainFrames[state.rainIdx];
+    setRainTiles(map, frame.path);
+    setLayerStatus("rain", `RainViewer · ${bangkokClock(frame.time)} · ${state.rainFrames.length} frames`);
+    if (Date.now() - state.rainLastFetch >= 5 * 60_000) {
+      refreshRainFrames().catch(() => {});
+    }
+  }, RAIN_FRAME_INTERVAL_MS);
+}
+
+function stopRainLoop() {
+  if (state.rainTimer) {
+    clearInterval(state.rainTimer);
+    state.rainTimer = null;
+  }
 }
 
 function setRainTiles(map, path) {
@@ -1628,6 +1697,123 @@ async function floodHitAt(lng, lat) {
   const rank = { high: 3, medium: 2, low: 1 };
   hits.sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0));
   return { inside: true, envelopes: hits, top: hits[0] };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Flood sensors — real-time HII/ThaiWater water-level gauges
+// (public/api/flood-sensors, see src/index.ts). Distinct from the
+// schematic "Flood envelope" polygons above: this is live telemetry,
+// not a modeled extent.
+// ─────────────────────────────────────────────────────────────────
+
+function closeFloodSensorPopup() {
+  if (state.floodSensorPopup) {
+    try { state.floodSensorPopup.remove(); } catch {}
+    state.floodSensorPopup = null;
+  }
+}
+
+function openFloodSensorPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeFloodSensorPopup();
+  const wl = p.waterlevelMsl != null ? `${Number(p.waterlevelMsl).toFixed(2)} m MSL` : "—";
+  const bank = p.minBank != null ? `${Number(p.minBank).toFixed(2)} m bank level` : null;
+  const storage = p.storagePercent != null ? `${Number(p.storagePercent).toFixed(0)}% of bank capacity` : null;
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">Flood sensor · ${escapeHtml(p.levelLabel || "unknown")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name || "Water level station")}</strong>
+      <p class="atlas-cctv-status">${escapeHtml(wl)}${bank ? " · " + escapeHtml(bank) : ""}</p>
+      ${storage ? `<p class="atlas-cctv-status">${escapeHtml(storage)}</p>` : ""}
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.basin || p.district || "")}</span>
+        <span>${escapeHtml(p.observedAt || "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "300px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.floodSensorPopup = popup;
+}
+
+function wireFloodSensorInteractions(map) {
+  if (map.__bkkxFloodSensorWired) return;
+  map.__bkkxFloodSensorWired = true;
+  map.on("click", FLOOD_SENSOR_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openFloodSensorPopup(map, feature);
+  });
+  map.on("mouseenter", FLOOD_SENSOR_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", FLOOD_SENSOR_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installFloodSensors(map) {
+  if (map.getLayer(FLOOD_SENSOR_LAYER)) {
+    setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(FLOOD_SENSOR_LIVE_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("flood-sensors", "unavailable · ThaiWater feed failed");
+    return;
+  }
+  if (!map.getSource(FLOOD_SENSOR_SOURCE)) {
+    try {
+      map.addSource(FLOOD_SENSOR_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Flood sensor source failed:", error);
+      setLayerStatus("flood-sensors", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(FLOOD_SENSOR_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    map.addLayer({
+      id: FLOOD_SENSOR_HALO_LAYER,
+      type: "circle",
+      source: FLOOD_SENSOR_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 9, 13, 15, 16, 20],
+        "circle-color": ["get", "levelColor"],
+        "circle-opacity": 0.2,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: FLOOD_SENSOR_LAYER,
+      type: "circle",
+      source: FLOOD_SENSOR_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6, 16, 8],
+        "circle-color": ["get", "levelColor"],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.2,
+        "circle-opacity": 0.95,
+      },
+    });
+    wireFloodSensorInteractions(map);
+    setLayerStatus("flood-sensors", `HII/ThaiWater · ${geojson.count ?? geojson.features.length} live gauges`);
+  } catch (error) {
+    console.warn("Flood sensor layer failed:", error);
+    setLayerStatus("flood-sensors", "unavailable · layer failed");
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────

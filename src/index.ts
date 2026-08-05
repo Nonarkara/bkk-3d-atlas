@@ -8,7 +8,8 @@
 //   (3) serves /api/land-price nearest-zone lookup (property-tech lite)
 //   (4) serves /api/risk land × flood × PM2.5 civic score
 //   (5) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
-//   (6) falls back to the static asset binding for everything else
+//   (6) serves /api/flood-sensors — HII/ThaiWater water-level gauges (Bangkok metro)
+//   (7) falls back to the static asset binding for everything else
 //
 // Why R2 for PMTiles: the Workers [assets] binding does NOT honor HTTP
 // Range requests — every GET returns the full 17 MB. The pmtiles
@@ -34,9 +35,20 @@ const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
 const LONGDO_CCTV_FEED = "https://camera.longdo.com/feed/?command=json";
+const THAIWATER_LEVEL_FEED = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
 const CCTV_CACHE_TTL_SECONDS = 300;
 const LAND_PRICE_CACHE_TTL_SECONDS = 3600;
+const FLOOD_SENSOR_CACHE_TTL_SECONDS = 300;
+
+/** HII situation_level → label/color. 1 critically-low ... 5 overflowing. */
+const FLOOD_LEVEL_INFO: Record<number, { label: string; color: string }> = {
+  1: { label: "critically low", color: "#B7AFA3" },
+  2: { label: "low", color: "#948C7F" },
+  3: { label: "normal", color: "#00933C" },
+  4: { label: "high", color: "#E86A10" },
+  5: { label: "overflowing", color: "#A51931" },
+};
 
 /** Bangkok + immediate metro ring used for CCTV filtering. */
 const CCTV_BBOX = {
@@ -44,6 +56,23 @@ const CCTV_BBOX = {
   maxLat: 14.2,
   minLon: 100.2,
   maxLon: 101.1,
+};
+
+type ThaiWaterStation = {
+  waterlevel_datetime?: string;
+  waterlevel_msl?: string | number;
+  storage_percent?: string | number;
+  situation_level?: number | null;
+  basin?: { basin_name?: { th?: string; en?: string } };
+  station?: {
+    id?: number;
+    tele_station_name?: { th?: string; en?: string };
+    tele_station_lat?: number;
+    tele_station_long?: number;
+    min_bank?: number;
+    ground_level?: number;
+  };
+  geocode?: { area_name?: { th?: string; en?: string }; amphoe_name?: { th?: string; en?: string } };
 };
 
 type LongdoCamera = {
@@ -595,6 +624,92 @@ async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
   }
 }
 
+function waterStationsToGeoJson(rows: ThaiWaterStation[]) {
+  const features = [];
+  for (const row of rows) {
+    const station = row.station;
+    const lat = station?.tele_station_lat;
+    const lon = station?.tele_station_long;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (!inCctvBbox(lat as number, lon as number)) continue;
+    const level = typeof row.situation_level === "number" ? row.situation_level : null;
+    const info = level != null ? FLOOD_LEVEL_INFO[level] : null;
+    const name = station?.tele_station_name;
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: {
+        id: station?.id ?? `${lat},${lon}`,
+        name: name?.en || name?.th || "Water level station",
+        level,
+        levelLabel: info?.label ?? "unknown",
+        levelColor: info?.color ?? "#6b7280",
+        waterlevelMsl: row.waterlevel_msl != null ? Number(row.waterlevel_msl) : null,
+        storagePercent: row.storage_percent != null ? Number(row.storage_percent) : null,
+        minBank: station?.min_bank ?? null,
+        basin: row.basin?.basin_name?.en || row.basin?.basin_name?.th || null,
+        district: row.geocode?.amphoe_name?.en || row.geocode?.amphoe_name?.th || null,
+        observedAt: row.waterlevel_datetime ?? null,
+      },
+    });
+  }
+  return {
+    type: "FeatureCollection",
+    name: "bkk-flood-sensors",
+    source: THAIWATER_LEVEL_FEED,
+    attribution: "Hydro-Informatics Institute (HII) / ThaiWater · public telemetry",
+    disclaimer:
+      "Real-time water-level gauges, not a flood forecast. situation_level is HII's own bank-relative scale (1 critically low – 5 overflowing).",
+    bbox: CCTV_BBOX,
+    count: features.length,
+    features,
+  };
+}
+
+async function proxyFloodSensors(_request: Request, _env: Env): Promise<Response> {
+  try {
+    const upstream = await fetch(THAIWATER_LEVEL_FEED, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!upstream.ok) {
+      return jsonResponse(
+        {
+          error: "flood_sensor_upstream_error",
+          status: upstream.status,
+          message: `ThaiWater feed returned ${upstream.status}.`,
+        },
+        { status: 502 },
+      );
+    }
+    const payload = (await upstream.json()) as { waterlevel_data?: { data?: ThaiWaterStation[] } };
+    const rows = payload?.waterlevel_data?.data;
+    if (!Array.isArray(rows)) {
+      return jsonResponse(
+        { error: "flood_sensor_bad_payload", message: "ThaiWater feed did not return waterlevel_data.data." },
+        { status: 502 },
+      );
+    }
+    const geojson = waterStationsToGeoJson(rows);
+    return new Response(JSON.stringify(geojson), {
+      status: 200,
+      headers: {
+        "content-type": "application/geo+json; charset=utf-8",
+        "cache-control": `public, max-age=${FLOOD_SENSOR_CACHE_TTL_SECONDS}`,
+        "x-bkkx-source": "HII/ThaiWater water-level feed",
+        "access-control-allow-origin": "*",
+      },
+    });
+  } catch (error) {
+    return jsonResponse(
+      {
+        error: "flood_sensor_fetch_failed",
+        message: String(error),
+      },
+      { status: 502 },
+    );
+  }
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     return jsonResponse(
@@ -652,6 +767,9 @@ export default {
     }
     if (url.pathname === "/api/cctv") {
       return proxyCctv(request, env);
+    }
+    if (url.pathname === "/api/flood-sensors") {
+      return proxyFloodSensors(request, env);
     }
     if (url.pathname === "/api/land-price") {
       return lookupLandPrice(request, env);
