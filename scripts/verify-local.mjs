@@ -105,6 +105,12 @@ mustJson("public/bkk-cctv.geojson", (data) => {
   else ok(`${withHls} CCTV cameras have HLS urls`);
 });
 
+mustJson("public/bkk-civic-pois.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 500) fail(`civic POI sample too few: ${n}`);
+  else ok(`${n} civic amenity sample points`);
+});
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
