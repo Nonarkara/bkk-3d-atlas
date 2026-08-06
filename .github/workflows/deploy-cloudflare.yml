@@ -1,0 +1,32 @@
+# Deploys atlas.nonarkara.org on every push to main.
+# One-time setup (Cloudflare dashboard → My Profile → API Tokens):
+#   1. Create token with "Edit Cloudflare Workers" template
+#      (include account + zone for nonarkara.org if prompted)
+#   2. GitHub repo → Settings → Secrets → Actions:
+#        CLOUDFLARE_API_TOKEN   = <token>
+#        CLOUDFLARE_ACCOUNT_ID  = 74ad6bf8dfaaccf82de6f0847f7d2d54
+#   3. Actions → "Deploy Cloudflare Worker" → Run workflow (or push to main)
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Deploy Worker (atlas.nonarkara.org)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
