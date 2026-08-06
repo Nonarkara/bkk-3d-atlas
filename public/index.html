@@ -22,15 +22,20 @@
       </a>
       <div class="atlas-header-meta">
         <span class="atlas-eyebrow">3D Atlas · Bangkok · 1981 →</span>
-        <strong>Walk the city in browser</strong>
+        <strong class="atlas-title">
+          <span class="atlas-title-desk">Walk the city in browser</span>
+          <span class="atlas-title-phone">Bangkok · 3D atlas</span>
+        </strong>
         <small>432,077 OSM buildings · terrain · AQI · rain radar · civic data · BTS/MRT</small>
       </div>
-        <nav class="atlas-header-nav" aria-label="Atlas navigation">
+      <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
         <a href="#atlas-inspect">Inspect</a>
-        <a href="#atlas-labs">Labs</a>
+        <button type="button" class="atlas-nav-about" data-about-open>
+          About
+        </button>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
-          Data on GitHub <span aria-hidden="true">↗</span>
+          GitHub <span aria-hidden="true">↗</span>
         </a>
       </nav>
     </header>
@@ -38,6 +43,14 @@
     <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok"></div>
 
     <aside class="atlas-panel" aria-live="polite">
+      <div class="atlas-operate-bar">
+        <p class="atlas-eyebrow">Operate</p>
+        <button type="button" class="atlas-about-chip" data-about-open aria-haspopup="dialog">
+          <span class="atlas-about-chip-kicker">About</span>
+          <span class="atlas-about-chip-title">Who built this · data · contact →</span>
+        </button>
+      </div>
+
       <section class="atlas-quick" id="atlas-areas">
         <p class="atlas-eyebrow">Quick jump</p>
         <h2 class="atlas-quick-heading">16 key areas</h2>
@@ -48,9 +61,7 @@
         <p class="atlas-eyebrow">Inspect</p>
         <h2 class="atlas-data-heading">Click any building</h2>
         <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
-          Tap the map. See the OSM building (height, type) and
-          whether you are inside the schematic flood envelope. Risk
-          API included.
+          Tap the map for OSM height/type and flood-envelope risk.
         </p>
         <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
           <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
@@ -75,11 +86,6 @@
       <section class="atlas-layers" id="atlas-layers">
         <p class="atlas-eyebrow">Layers</p>
         <h2 class="atlas-data-heading">Stack the city</h2>
-        <p class="atlas-layers-blurb">
-          Combine layers. The city stays underneath; rain and AQI
-          sit on top at a soft opacity so you can still read the
-          silhouette.
-        </p>
 
         <div class="atlas-stack-presets" id="atlas-stack-presets" role="group" aria-label="Layer stack presets">
           <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
@@ -92,6 +98,8 @@
         </div>
         <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
 
+        <details class="atlas-layer-fine" id="atlas-layer-fine">
+          <summary>Fine-tune toggles</summary>
         <ul class="atlas-layer-list">
           <li class="atlas-layer-group">
             <label class="atlas-layer-toggle">
@@ -297,150 +305,7 @@
           <span>Flood envelope strength <strong id="flood-opacity-value">38%</strong></span>
           <input type="range" id="flood-opacity" min="15" max="70" value="38" step="1" aria-label="Flood envelope opacity" />
         </label>
-      </section>
-
-      <section class="atlas-labs" id="atlas-labs">
-        <p class="atlas-eyebrow">Labs</p>
-        <h2 class="atlas-data-heading">What ships next from one laptop</h2>
-        <p class="atlas-labs-blurb">
-          Built by a Bangkokian born in 1981 — more than 30 years
-          inside this city. Everything below is sized for a single
-          developer machine: static GeoJSON, free APIs, Cloudflare
-          Workers + R2. No cluster. No consulting fee.
-          <strong>My city, not theirs.</strong>
-        </p>
-
-        <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
-          <span class="atlas-paper-btn-eyebrow">Research paper</span>
-          <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
-        </a>
-
-        <p class="atlas-eyebrow atlas-eyebrow-sub">Shipped on this atlas</p>
-        <ol class="atlas-labs-list atlas-labs-list-shipped">
-          <li>
-            <strong>Multi-layer city stack.</strong>
-            Buildings under translucent rain, heat, AQI, and flood.
-            Presets: City · rain · AQI · heat · Flood watch · Night · Full pulse.
-          </li>
-          <li>
-            <strong>Night lights / blackout.</strong>
-            Desaturated satellite + emissive building wash. Pure
-            client paint — zero new data.
-          </li>
-          <li>
-            <strong>Heat + khlong cooling (lite).</strong>
-            Open-Meteo temperature grid over the city; stack with
-            khlongs via the City + heat preset.
-          </li>
-          <li>
-            <strong>Flood Resilience Sandbox (lite).</strong>
-            Schematic 2011-style corridors. Click to see if a point
-            sits inside an envelope. Civic demo — not official.
-          </li>
-          <li>
-            <strong>Inspect + risk API.</strong>
-            <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>
-            (flood × live PM2.5). Client fallback when the
-            Worker is unreachable.
-          </li>
-          <li>
-            <strong>Honest traffic.</strong>
-            Toggle shows live vs sample · mock levels.
-          </li>
-          <li>
-            <strong>Traffic CCTV.</strong>
-            Public iTIC / Longdo road cameras as map dots —
-            toggle on, click a pin, watch HLS live. Not the
-            closed BMA security network.
-            <a href="/api/cctv">/api/cctv</a>
-          </li>
-        </ol>
-
-        <p class="atlas-eyebrow atlas-eyebrow-sub">Next — still one laptop</p>
-        <ol class="atlas-labs-list" start="8">
-          <li>
-            <strong>Official flood extents.</strong>
-            Swap the schematic envelope for DDPM/BMA published
-            GeoJSON when the files are open. Same layer, better
-            truth.
-          </li>
-          <li>
-            <strong>Property Tax Verifier (ภาษีที่ดิน) v2.</strong>
-            Deed-number or parcel-id lookup over Treasury zones.
-            Compare assessed ฿/sq.wah against a typed tax bill.
-          </li>
-          <li>
-            <strong>BTS/MRT isochrones.</strong>
-            5 / 10 / 15-minute walksheds from every rail station
-            using the rail GeoJSON we already ship.
-          </li>
-          <li>
-            <strong>Risk API v3.</strong>
-            Fold rain intensity + building height into the score
-            (today: land × flood × PM2.5).
-          </li>
-          <li>
-            <strong>Offline atlas pack.</strong>
-            <code>scripts/pack-offline.sh</code>: pin MapLibre +
-            pmtiles + samples onto a USB stick.
-          </li>
-        </ol>
-
-        <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon — still possible, heavier lift</p>
-        <ol class="atlas-labs-list" start="13">
-          <li>
-            <strong>BKKx Digital Twin — handover to BMA.</strong>
-            Open-source, no lock-in, no ฿5.4M consulting fee. The
-            system proves the technical path; the political
-            handover is the deliverable.
-          </li>
-          <li>
-            <strong>Property-tech API (full).</strong>
-            432K buildings + heights + cadastral polygons as
-            JSON / GeoJSON / MVT. Needs Royal Thai Survey
-            boundary files — the hard part is institutional, not
-            code.
-          </li>
-          <li>
-            <strong>Tourist AR — point, learn.</strong>
-            Rattanakosin detail PMTiles + temple / museum tags as
-            a PWA. No app store.
-          </li>
-          <li>
-            <strong>Urban Planning Decision Support.</strong>
-            Drag a BTS station, watch land-price heat move. Drag
-            a flood barrier, watch AQI cells shift. Sandbox for
-            decisions BMA should be making.
-          </li>
-          <li>
-            <strong>BMA Command Center.</strong>
-            Live ops dashboard of every layer on one screen.
-            Same Worker, denser chrome, training for operators.
-          </li>
-          <li>
-            <strong>Open Data Marketplace.</strong>
-            Anonymized patterns from PMTiles + tourism + land-
-            price changes. The anonymity promise is real because
-            the tiles never tracked people.
-          </li>
-          <li>
-            <strong>Bangkok in the Metaverse.</strong>
-            1:1 twin for virtual plots — only after the civic
-            layers above are boringly reliable.
-          </li>
-        </ol>
-
-        <p class="atlas-labs-rant">
-          BMA — the Bangkok Metropolitan Administration — has been
-          "planning a smart city" since 2016. Ten years. Ten
-          digital strategies. Zero public APIs, zero open data,
-          zero digital twin. Meanwhile the buildings are getting
-          taller, the floods are getting deeper, and the only
-          dashboard the public gets is a 1990s PDF map. We
-          built the whole thing on a one-laptop budget. The
-          system is not the hard part — keeping every layer
-          honest and stackable is.
-        </p>
+        </details>
       </section>
 
       <section class="atlas-active" id="atlas-active" hidden>
@@ -456,44 +321,322 @@
         </button>
       </section>
 
-      <section class="atlas-data" id="atlas-data">
-        <p class="atlas-eyebrow">Reusable data</p>
-        <h2 class="atlas-data-heading">For Chula, UNL, anything else</h2>
-        <ul class="atlas-data-list">
-          <li>
-            <a href="/bkk-areas.json" download>16-area curated tour</a>
-            <small>JSON · 16 districts + city-scale "Bangkok from above"</small>
-          </li>
-          <li>
-            <a href="/bkk-rail.geojson" download>126 BTS/MRT/ARL/SRT segments</a>
-            <small>GeoJSON · 9 lines, official line colors, OSM-derived</small>
-          </li>
-          <li>
-            <a href="/bkk-khlongs.geojson" download>4,063 canals &amp; rivers</a>
-            <small>GeoJSON · Chao Phraya + 3,026 khlongs, OSM-derived</small>
-          </li>
-          <li>
-            <a href="/bkk-buildings-rattanakosin.geojson" download>9.3K Rattanakosin buildings</a>
-            <small>GeoJSON · real OSM data, height + base_height per feature</small>
-          </li>
-          <li>
-            <a href="/bkk-traffic-sample.geojson" download>1.9K expressway traffic segments</a>
-            <small>GeoJSON · iTIC-compatible · level + color per segment</small>
-          </li>
-          <li>
-            <a href="/bkk-flood-envelope.geojson" download>5 schematic flood envelopes</a>
-            <small>GeoJSON · civic demo · NOT an official flood map</small>
-          </li>
-        </ul>
-        <p class="atlas-data-extra">
-          Need the full city? Run <code>python3 scripts/osm-buildings-to-geojson.py</code> with a Bangkok bbox or a local PBF. Same pattern works for rail, canals, and traffic — the scripts are the canonical extractors.
-        </p>
-      </section>
-
       <footer class="atlas-panel-foot">
-        <p>Data is © OpenStreetMap contributors under ODbL 1.0. Buildings and roads stream from the public <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a> tile service. Imagery is © Esri, Maxar, Earthstar Geographics.</p>
+        <p>
+          OSM · ODbL · <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>
+          · Esri imagery.
+          <button type="button" class="atlas-foot-about" data-about-open>Credits &amp; data →</button>
+        </p>
       </footer>
     </aside>
+
+    <div class="atlas-about" id="atlas-about" hidden>
+      <button type="button" class="atlas-about-backdrop" data-about-close tabindex="-1" aria-label="Close about"></button>
+      <div
+        class="atlas-about-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="atlas-about-title"
+        tabindex="-1"
+      >
+        <header class="atlas-about-head">
+          <p class="atlas-eyebrow">About</p>
+          <h2 id="atlas-about-title">My city, not theirs</h2>
+          <button type="button" class="atlas-about-close" data-about-close aria-label="Close about">
+            Close
+          </button>
+        </header>
+
+        <nav class="atlas-about-toc" aria-label="About sections">
+          <a href="#about-who">Who</a>
+          <a href="#about-thesis">Thesis</a>
+          <a href="#about-stack">How it’s built</a>
+          <a href="#about-map">On the map</a>
+          <a href="#about-data">Data &amp; APIs</a>
+          <a href="#about-roadmap">Roadmap</a>
+          <a href="#about-paper">Paper</a>
+          <a href="#about-contact">Contact</a>
+          <a href="#about-credits">Credits</a>
+        </nav>
+
+        <div class="atlas-about-body">
+          <section class="atlas-about-section" id="about-who">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Who</p>
+            <h3>Dr Non — Bangkok, 1981 →</h3>
+
+            <figure class="atlas-about-film">
+              <img
+                src="/about/dr-non-1998.jpg"
+                alt=""
+                width="112"
+                height="148"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>Bangkok · 1998 · film</figcaption>
+            </figure>
+
+            <p>
+              I was born in Bangkok in 1981. For thirty-something years this
+              city has been home — first a place I hated, then a place I
+              came to love, and now the only place I want to be. Every time
+              I leave, it feels like a holiday. Coming back is the point.
+            </p>
+            <p>
+              1998 was the year it locked in. I already knew I would study
+              abroad here and there, but I also knew I would return and make
+              Bangkok mine forever. That film frame is just a quiet marker
+              of the moment — not a brand hero, just proof that the
+              stubbornness started early.
+            </p>
+            <p>
+              Everything about this atlas is personal. Skytrain openings.
+              Lines that took decades. Floods in 2011, 2017, 2024. AQI
+              days at 160, 200, 220. Tax schedules frozen while the market
+              doubled. I am not going to let politicians or bad governors
+              take the spotlight without doing the work — and I am not going
+              to let them ruin a city I love this much.
+            </p>
+          </section>
+
+          <section class="atlas-about-section" id="about-thesis">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Thesis</p>
+            <h3>One laptop. Zero politicians who care.</h3>
+            <p>
+              The BKKx Atlas is not a project. It is a thesis statement.
+              A working digital twin of a real city can be built in an
+              afternoon, on a laptop, by one person, for the cost of a
+              domain name. The data is here. The APIs are here. The maps
+              are here. The only thing missing is a city government with
+              the will to use them.
+            </p>
+            <p class="atlas-labs-rant">
+              BMA has been “planning a smart city” since 2016. Ten years.
+              Ten digital strategies. Zero public APIs worth using, zero
+              digital twin for residents. Buildings get taller. Floods get
+              deeper. The public still gets a 1990s PDF. We shipped the
+              whole stack on a one-laptop budget. The system is not the
+              hard part — keeping every layer honest and stackable is.
+            </p>
+            <p><strong class="atlas-about-signal">My city, not theirs.</strong></p>
+          </section>
+
+          <section class="atlas-about-section" id="about-stack">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">How it’s built</p>
+            <h3>Basic infrastructure — still one machine</h3>
+            <ul class="atlas-about-stack">
+              <li>
+                <strong>Front.</strong>
+                Static MapLibre GL atlas in <code>public/</code> — no SPA
+                framework. Layers, presets, inspect, and this About drawer
+                are plain HTML / CSS / JS.
+              </li>
+              <li>
+                <strong>Edge.</strong>
+                Cloudflare Worker (<code>src/index.ts</code>) on
+                <code>atlas.nonarkara.org</code>: proxies live feeds, serves
+                risk / civic APIs, Range-passthrough for PMTiles from R2.
+              </li>
+              <li>
+                <strong>Tiles &amp; store.</strong>
+                432,077 OSM buildings as PMTiles on R2; civic amenities in
+                D1 (<code>CIVIC_DB</code>) ingested from BMA / data.go.th.
+              </li>
+              <li>
+                <strong>Live inputs.</strong>
+                iTIC/Longdo traffic + CCTV, RainViewer radar, Open-Meteo
+                heat/AQI, HII/ThaiWater flood gauges — honest about what is
+                live vs schematic.
+              </li>
+              <li>
+                <strong>Reuse.</strong>
+                GeoJSON downloads and <a href="/api">/api</a> for Chula,
+                UNL, or anyone building on Bangkok without a consulting fee.
+              </li>
+            </ul>
+          </section>
+
+          <section class="atlas-about-section" id="about-map">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">What’s on the map</p>
+            <h3>Shipped — stackable, honest</h3>
+            <ol class="atlas-labs-list atlas-labs-list-shipped">
+              <li>
+                <strong>Multi-layer city stack.</strong>
+                Buildings under translucent rain, heat, AQI, and flood.
+                Presets: City · rain · AQI · heat · Flood watch · Night · Full pulse.
+              </li>
+              <li>
+                <strong>Inspect + risk API.</strong>
+                Click a building → OSM height/type + schematic flood × live PM2.5 via
+                <a href="/api/risk?lng=100.5321&amp;lat=13.7367">/api/risk</a>.
+              </li>
+              <li>
+                <strong>Live traffic + CCTV.</strong>
+                iTIC/Longdo expressways and public road cameras (HLS). Not the closed BMA security net.
+                <a href="/api/cctv">/api/cctv</a>
+              </li>
+              <li>
+                <strong>Civic open data.</strong>
+                Amenities + density by district from BMA / data.go.th via D1 —
+                <a href="/api/civic-pois">/api/civic-pois</a>.
+              </li>
+              <li>
+                <strong>Land price by district.</strong>
+                Real Treasury road-level analysis as a choropleth — not a fake heat paint.
+              </li>
+              <li>
+                <strong>Flood sensors + rain radar.</strong>
+                HII/ThaiWater gauges and animated RainViewer frames over the silhouette.
+              </li>
+              <li>
+                <strong>Night lights / blackout.</strong>
+                Desaturated satellite + emissive buildings — pure client paint.
+              </li>
+            </ol>
+          </section>
+
+          <section class="atlas-about-section" id="about-roadmap">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Roadmap</p>
+            <h3>Still one laptop</h3>
+            <ol class="atlas-labs-list" start="1">
+              <li>
+                <strong>Official flood extents.</strong>
+                Swap the schematic envelope for DDPM/BMA GeoJSON when it’s open.
+              </li>
+              <li>
+                <strong>Property Tax Verifier (ภาษีที่ดิน) v2.</strong>
+                Deed / parcel lookup over Treasury zones vs a typed tax bill.
+              </li>
+              <li>
+                <strong>BTS/MRT isochrones.</strong>
+                5 / 10 / 15-minute walksheds from every rail station.
+              </li>
+              <li>
+                <strong>Risk API v3.</strong>
+                Fold rain intensity + building height into the score.
+              </li>
+              <li>
+                <strong>Offline atlas pack.</strong>
+                Pin MapLibre + pmtiles + samples onto a USB stick.
+              </li>
+            </ol>
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Horizon</p>
+            <ol class="atlas-labs-list" start="6">
+              <li>
+                <strong>BKKx Digital Twin — handover to BMA.</strong>
+                Open-source, no lock-in, no ฿5.4M consulting fee.
+              </li>
+              <li>
+                <strong>Property-tech API (full).</strong>
+                432K buildings + cadastral polygons — institutional, not code, is the blocker.
+              </li>
+              <li>
+                <strong>Tourist AR · planning sandbox · command center.</strong>
+                Same Worker, denser chrome — after the civic layers are boringly reliable.
+              </li>
+            </ol>
+          </section>
+
+          <section class="atlas-about-section" id="about-data">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Data &amp; APIs</p>
+            <h3>For Chula, UNL, anyone building on Bangkok</h3>
+            <ul class="atlas-data-list">
+              <li>
+                <a href="/api" target="_blank" rel="noreferrer">Live API catalog</a>
+                <small>JSON · traffic, cctv, risk, flood-sensors, civic-pois</small>
+              </li>
+              <li>
+                <a href="/bkk-areas.json" download>16-area curated tour</a>
+                <small>JSON · districts + city-scale “Bangkok from above”</small>
+              </li>
+              <li>
+                <a href="/bkk-rail.geojson" download>126 BTS/MRT/ARL/SRT segments</a>
+                <small>GeoJSON · 9 lines, official colors</small>
+              </li>
+              <li>
+                <a href="/bkk-khlongs.geojson" download>4,063 canals &amp; rivers</a>
+                <small>GeoJSON · Chao Phraya + khlongs</small>
+              </li>
+              <li>
+                <a href="/bkk-buildings-rattanakosin.geojson" download>9.3K Rattanakosin buildings</a>
+                <small>GeoJSON · height + base_height</small>
+              </li>
+              <li>
+                <a href="/bkk-traffic-sample.geojson" download>1.9K expressway traffic segments</a>
+                <small>GeoJSON · iTIC-compatible sample</small>
+              </li>
+              <li>
+                <a href="/bkk-flood-envelope.geojson" download>5 schematic flood envelopes</a>
+                <small>GeoJSON · civic demo · NOT official</small>
+              </li>
+            </ul>
+            <p class="atlas-data-extra">
+              Full city extract: <code>python3 scripts/osm-buildings-to-geojson.py</code>
+              with a Bangkok bbox or local PBF. Scripts are the canonical extractors.
+            </p>
+          </section>
+
+          <section class="atlas-about-section" id="about-paper">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Paper</p>
+            <h3>Read the long form</h3>
+            <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
+              <span class="atlas-paper-btn-eyebrow">Research paper</span>
+              <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
+            </a>
+          </section>
+
+          <section class="atlas-about-section" id="about-contact">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Contact</p>
+            <h3>Use the data. Write him.</h3>
+            <p>
+              Building something on this atlas — research, civic tooling,
+              a classroom demo — email Dr Non. Same for press, partnership,
+              or calling bullshit on a layer that should be more honest.
+            </p>
+            <ul class="atlas-about-contact">
+              <li>
+                <a href="mailto:nonsmartcity@gmail.com">nonsmartcity@gmail.com</a>
+                <small>Direct</small>
+              </li>
+              <li>
+                <a href="https://nonarkara.org" target="_blank" rel="noreferrer">nonarkara.org</a>
+                <small>Home</small>
+              </li>
+              <li>
+                <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">GitHub · bkk-3d-atlas</a>
+                <small>Source</small>
+              </li>
+            </ul>
+          </section>
+
+          <section class="atlas-about-section" id="about-credits">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Credits</p>
+            <h3>Sources that stay cited</h3>
+            <p>
+              <strong>Base map &amp; buildings.</strong>
+              © OpenStreetMap contributors (ODbL 1.0) via
+              <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>;
+              BKKx PMTiles extract of Bangkok metro footprints.
+              Imagery © Esri, Maxar, Earthstar Geographics.
+            </p>
+            <p>
+              <strong>Live &amp; open civic.</strong>
+              iTIC/Longdo (traffic, public CCTV), RainViewer, Open-Meteo
+              (heat / PM2.5), HII/ThaiWater (water levels), BMA /
+              data.go.th / data.bangkok.go.th (schools, sports grounds,
+              car parks, museums, waterway landmarks). Land-price
+              choropleth from Treasury road-level analysis (Home Buyers).
+            </p>
+            <p>
+              <strong>Host.</strong>
+              Cloudflare Workers + R2 + D1. Built by Dr Non · BKKx ·
+              live at
+              <a href="https://atlas.nonarkara.org" target="_blank" rel="noreferrer">atlas.nonarkara.org</a>.
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
