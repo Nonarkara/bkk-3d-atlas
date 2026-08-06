@@ -3539,8 +3539,16 @@ function wireAboutDrawer() {
   });
 
   root.querySelectorAll(".atlas-about-toc a").forEach((anchor) => {
-    anchor.addEventListener("click", () => {
-      // Keep drawer open; only jump inside the sheet.
+    anchor.addEventListener("click", (event) => {
+      // preventDefault so the browser never sets location.hash to the
+      // section id (e.g. "#about-thesis") — the global hashchange
+      // listener below treats any hash other than "#about" as "close
+      // the drawer", so without this every TOC click closed the sheet
+      // it was supposed to scroll. Jump inside the sheet manually instead.
+      event.preventDefault();
+      const targetId = anchor.getAttribute("href")?.slice(1);
+      const target = targetId ? document.getElementById(targetId) : null;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
