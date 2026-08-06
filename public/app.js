@@ -298,7 +298,8 @@ const LAND_PRICE_FILL_COLOR = [
 const CIVIC_POI_SOURCE = "bkkx-civic-pois";
 const CIVIC_POI_LAYER = "bkkx-civic-poi-dots";
 const CIVIC_POI_HALO_LAYER = "bkkx-civic-poi-halo";
-const CIVIC_POI_DATA_URL = "/api/civic-pois";
+const CIVIC_POI_LIVE_URL = "/api/civic-pois";
+const CIVIC_POI_SAMPLE_URL = "/bkk-civic-pois.geojson";
 const CIVIC_POI_CATEGORY_COLOR = [
   "match", ["get", "category"],
   "school", "#3b82f6",
@@ -429,6 +430,14 @@ const state = {
   landPricePopup: null,
   civicPoiPopup: null,
   civicDensityPopup: null,
+  // Per-category visibility for Civic amenities (legend toggles).
+  civicPoiCategories: {
+    school: true,
+    sportsground: true,
+    carpark: true,
+    museum: true,
+    waterway: true,
+  },
   floodFeatures: null, // cached flood envelopes for point-in-polygon
   overlayOpacity: 0.45, // rain + AQI share this so the city still reads
   floodOpacity: 0.38,
@@ -850,12 +859,13 @@ const LAYERS = [
       setLayersVisible(map, [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER], false);
     },
     legend: [
-      { color: "#3b82f6", label: "School" },
-      { color: "#10b981", label: "Sports ground" },
-      { color: "#6b7280", label: "Car park" },
-      { color: "#a855f7", label: "Local museum" },
-      { color: "#38bdf8", label: "Waterway landmark" },
+      { color: "#3b82f6", label: "School", category: "school" },
+      { color: "#10b981", label: "Sports ground", category: "sportsground" },
+      { color: "#6b7280", label: "Car park", category: "carpark" },
+      { color: "#a855f7", label: "Local museum", category: "museum" },
+      { color: "#38bdf8", label: "Waterway landmark", category: "waterway" },
     ],
+    legendInteractive: true,
   },
   {
     id: "civic-density",
@@ -1516,7 +1526,11 @@ function setLayerStatus(layerId, text) {
   // Prefer explicit detail ids when present
   const byId = document.getElementById(`toggle-${layerId}-detail`);
   const el = byId || detail;
-  if (el) el.textContent = text;
+  if (el) {
+    el.textContent = text;
+    // Civic legend filters append "· N/5 types" onto this base string.
+    if (layerId === "civic-pois") el.dataset.baseStatus = text;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1900,17 +1914,85 @@ function wireCivicPoiInteractions(map) {
   map.on("mouseleave", CIVIC_POI_LAYER, () => { map.getCanvas().style.cursor = ""; });
 }
 
+/** MapLibre filter for currently-enabled civic categories. */
+function civicPoiCategoryFilter() {
+  const on = Object.entries(state.civicPoiCategories)
+    .filter(([, enabled]) => enabled)
+    .map(([category]) => category);
+  if (on.length === 0) {
+    // Match nothing — keeps layers mounted so toggles stay instant.
+    return ["==", ["get", "category"], "__none__"];
+  }
+  return ["in", ["get", "category"], ["literal", on]];
+}
+
+function applyCivicPoiFilter(map) {
+  if (!map?.getLayer(CIVIC_POI_LAYER)) return;
+  const filter = civicPoiCategoryFilter();
+  try {
+    map.setFilter(CIVIC_POI_LAYER, filter);
+    if (map.getLayer(CIVIC_POI_HALO_LAYER)) map.setFilter(CIVIC_POI_HALO_LAYER, filter);
+  } catch (error) {
+    console.warn("Civic POI filter failed:", error);
+  }
+  const visible = Object.values(state.civicPoiCategories).filter(Boolean).length;
+  const total = Object.keys(state.civicPoiCategories).length;
+  const detail = document.getElementById("toggle-civic-pois-detail");
+  if (detail && state.layerOn["civic-pois"]) {
+    const base = detail.dataset.baseStatus || detail.textContent;
+    if (!detail.dataset.baseStatus) detail.dataset.baseStatus = base;
+    detail.textContent = visible === total
+      ? detail.dataset.baseStatus
+      : `${detail.dataset.baseStatus} · ${visible}/${total} types`;
+  }
+}
+
+function setCivicPoiCategory(map, category, enabled) {
+  if (!(category in state.civicPoiCategories)) return;
+  state.civicPoiCategories[category] = !!enabled;
+  applyCivicPoiFilter(map);
+  const legendEl = document.getElementById("legend-civic-pois");
+  legendEl?.querySelectorAll("[data-civic-category]").forEach((btn) => {
+    const cat = btn.getAttribute("data-civic-category");
+    const on = !!state.civicPoiCategories[cat];
+    btn.classList.toggle("is-off", !on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+async function fetchLiveCivicPois() {
+  try {
+    const response = await fetch(CIVIC_POI_LIVE_URL, { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data?.features?.length) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function loadCivicPoiGeoJson() {
+  const live = await fetchLiveCivicPois();
+  if (live) return { geojson: live, origin: "D1" };
+  const sample = await fetchJson(CIVIC_POI_SAMPLE_URL);
+  if (sample?.features?.length) return { geojson: sample, origin: "sample" };
+  return null;
+}
+
 async function installCivicPois(map) {
   if (map.getLayer(CIVIC_POI_LAYER)) {
     setLayersVisible(map, [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER], true);
+    applyCivicPoiFilter(map);
     applyOverlayCompositing(map);
     return;
   }
-  const geojson = await fetchJson(CIVIC_POI_DATA_URL);
-  if (!geojson?.features?.length) {
+  const loaded = await loadCivicPoiGeoJson();
+  if (!loaded) {
     setLayerStatus("civic-pois", "unavailable · D1 fetch failed");
     return;
   }
+  const { geojson, origin } = loaded;
   if (!map.getSource(CIVIC_POI_SOURCE)) {
     try {
       map.addSource(CIVIC_POI_SOURCE, { type: "geojson", data: geojson });
@@ -1921,15 +2003,19 @@ async function installCivicPois(map) {
     }
   }
   try {
+    // minzoom 9 — city overview ("Bangkok from above" ≈ 10.6) must show
+    // dots. Old minzoom 11 hid the entire layer at the default bookmark.
+    const filter = civicPoiCategoryFilter();
     map.addLayer({
       id: CIVIC_POI_HALO_LAYER,
       type: "circle",
       source: CIVIC_POI_SOURCE,
-      minzoom: 11,
+      minzoom: 9,
+      filter,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 7, 14, 12, 17, 16],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 5, 11, 8, 14, 13, 17, 18],
         "circle-color": CIVIC_POI_CATEGORY_COLOR,
-        "circle-opacity": 0.18,
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0.12, 12, 0.2, 16, 0.28],
         "circle-stroke-width": 0,
       },
     });
@@ -1937,17 +2023,33 @@ async function installCivicPois(map) {
       id: CIVIC_POI_LAYER,
       type: "circle",
       source: CIVIC_POI_SOURCE,
-      minzoom: 11,
+      minzoom: 9,
+      filter,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 14, 4.5, 17, 6.5],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3, 11, 4, 14, 5.5, 17, 7.5],
         "circle-color": CIVIC_POI_CATEGORY_COLOR,
-        "circle-stroke-color": "#11120f",
-        "circle-stroke-width": 1,
-        "circle-opacity": 0.92,
+        "circle-stroke-color": "#f1efe8",
+        "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 9, 0.8, 14, 1.2],
+        "circle-opacity": 0.95,
       },
     });
     wireCivicPoiInteractions(map);
-    setLayerStatus("civic-pois", `${geojson.count ?? geojson.features.length} POIs · D1`);
+    applyCivicPoiFilter(map);
+    setLayerStatus(
+      "civic-pois",
+      `${geojson.count ?? geojson.features.length} POIs · ${origin}`,
+    );
+    // If we booted from the static snapshot, quietly upgrade to live D1.
+    if (origin === "sample") {
+      fetchLiveCivicPois().then((live) => {
+        if (!live || !map.getSource(CIVIC_POI_SOURCE)) return;
+        try {
+          map.getSource(CIVIC_POI_SOURCE).setData(live);
+          setLayerStatus("civic-pois", `${live.count ?? live.features.length} POIs · D1`);
+          applyCivicPoiFilter(map);
+        } catch {}
+      });
+    }
   } catch (error) {
     console.warn("Civic POI layer failed:", error);
     setLayerStatus("civic-pois", "unavailable · layer failed");
@@ -3012,23 +3114,28 @@ function floodRiskRows(flood, risk, buildingFeature) {
   return rows;
 }
 
+function pointLayersOwningClick(map, point) {
+  const owners = [
+    CCTV_LAYER,
+    LIVE_CAM_LAYER,
+    CIVIC_POI_LAYER,
+    FLOOD_SENSOR_LAYER,
+  ].filter((id) => map.getLayer(id));
+  if (owners.length === 0) return [];
+  return map.queryRenderedFeatures(point, { layers: owners });
+}
+
 function wireInspect(map) {
   map.on("click", (event) => {
-    // CCTV dots own the click when that layer is on.
-    if (map.getLayer(CCTV_LAYER)) {
-      const cams = map.queryRenderedFeatures(event.point, { layers: [CCTV_LAYER] });
-      if (cams.length) return;
-    }
+    // Point layers (CCTV, civic POIs, live cams, flood sensors) own the click.
+    if (pointLayersOwningClick(map, event.point).length) return;
     runInspect(map, event);
   });
 
   map.on("mousemove", (event) => {
-    if (map.getLayer(CCTV_LAYER)) {
-      const cams = map.queryRenderedFeatures(event.point, { layers: [CCTV_LAYER] });
-      if (cams.length) {
-        map.getCanvas().style.cursor = "pointer";
-        return;
-      }
+    if (pointLayersOwningClick(map, event.point).length) {
+      map.getCanvas().style.cursor = "pointer";
+      return;
     }
     const layerIds = INSPECT_BUILDING_LAYERS.filter((id) => map.getLayer(id));
     if (layerIds.length === 0) {
@@ -3047,25 +3154,54 @@ function wireInspect(map) {
 // Toggle wiring (data-driven from LAYERS registry)
 // ─────────────────────────────────────────────────────────────────
 
-function renderLegend(legendEl, items) {
+function renderLegend(legendEl, items, { interactive = false, map = null } = {}) {
   if (!legendEl || !items) return;
   legendEl.innerHTML = "";
+  legendEl.classList.toggle("atlas-legend-interactive", interactive);
   for (const item of items) {
-    const row = document.createElement("div");
+    const category = item.category;
+    const isToggle = interactive && category;
+    const row = document.createElement(isToggle ? "button" : "div");
     row.className = "atlas-legend-row";
+    row.type = isToggle ? "button" : undefined;
     const swatch = document.createElement("span");
     swatch.className = "atlas-legend-swatch";
     swatch.style.background = item.color;
     const label = document.createElement("span");
     label.textContent = item.label;
     row.append(swatch, label);
+    if (isToggle) {
+      const on = state.civicPoiCategories[category] !== false;
+      row.dataset.civicCategory = category;
+      row.setAttribute("aria-pressed", on ? "true" : "false");
+      row.classList.toggle("is-off", !on);
+      row.title = on ? `Hide ${item.label}` : `Show ${item.label}`;
+      row.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const next = !(state.civicPoiCategories[category] !== false);
+        setCivicPoiCategory(map || state.map, category, next);
+        row.title = next ? `Hide ${item.label}` : `Show ${item.label}`;
+      });
+    }
     legendEl.appendChild(row);
   }
   legendEl.hidden = false;
 }
 
 function hideLegend(legendEl) {
-  if (legendEl) legendEl.hidden = true;
+  if (legendEl) {
+    legendEl.hidden = true;
+    legendEl.classList.remove("atlas-legend-interactive");
+  }
+}
+
+function showLayerLegend(map, layer, legendEl) {
+  if (!legendEl || !layer?.legend) return;
+  renderLegend(legendEl, layer.legend, {
+    interactive: !!layer.legendInteractive,
+    map,
+  });
 }
 
 function wireLayerToggles(map) {
@@ -3082,7 +3218,7 @@ function wireLayerToggles(map) {
       if (on) {
         try { await layer.install(map); } catch (error) { console.warn(`${layer.id} install failed:`, error); }
         if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
-        if (legendEl && layer.legend) renderLegend(legendEl, layer.legend);
+        showLayerLegend(map, layer, legendEl);
       } else {
         try { layer.uninstall(map); } catch {}
         if (layer.layers.length > 0) setLayersVisible(map, layer.layers, false);
@@ -3181,7 +3317,7 @@ async function setLayerToggle(map, layerId, on) {
   if (on) {
     try { await layer.install(map); } catch (error) { console.warn(`${layerId} install failed:`, error); }
     if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
-    if (legendEl && layer.legend) renderLegend(legendEl, layer.legend);
+    showLayerLegend(map, layer, legendEl);
   } else {
     try { layer.uninstall(map); } catch {}
     if (layer.layers.length > 0) setLayersVisible(map, layer.layers, false);
