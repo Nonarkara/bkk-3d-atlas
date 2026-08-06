@@ -22,6 +22,12 @@ const BUILDING_SOURCE_CANDIDATES = ["openfreemap", "openmaptiles", "bkkx-pmtiles
 // the file from R2 with HTTP Range support.
 const BKKX_BUILDINGS_PMTILES_URL = "/bkk-buildings.pmtiles";
 const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
+// Metro tippecanoe tiles stop at z15 (--simplification=20). Past that,
+// MapLibre overscales the simplified footprints into sawtooth roofs.
+// Hand off to OpenFreeMap planet building tiles at street zoom.
+const BKKX_BUILDINGS_LAYER = "bkkx-3d-buildings";
+const BKKX_BUILDINGS_HI_LAYER = "bkkx-3d-buildings-hi";
+const BKKX_BUILDINGS_HANDOFF_ZOOM = 15;
 
 // Rattanakosin (Old Town) high-zoom PMTiles. 9,275 features covering
 // 100.49–100.52 E, 13.74–13.76 N (Grand Palace, Wat Pho, Wat Phra
@@ -49,28 +55,55 @@ const HEIGHT_GET = [
   ["coalesce", ["get", "render_height"], ["get", "height"], 9],
   9,
 ];
-const MIN_HEIGHT_GET = [
+// Base must stay strictly below height — base >= height makes MapLibre
+// emit degenerate roof triangles that read as sawteeth.
+const MIN_HEIGHT_RAW = [
   "coalesce",
   ["get", "render_min_height"],
   ["get", "min_height"],
+  ["get", "base_height"],
   0,
+];
+const MIN_HEIGHT_GET = [
+  "case",
+  [">=", MIN_HEIGHT_RAW, HEIGHT_GET],
+  0,
+  ["max", 0, MIN_HEIGHT_RAW],
 ];
 
 const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
 const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
+
+// Skip non-3D / collapsed footprints that otherwise fang the skyline.
+const BUILDING_EXTRUSION_FILTER = [
+  "all",
+  ["!=", ["get", "hide_3d"], true],
+  [">", HEIGHT_GET, 0],
+];
+
+// Opacity hits 1.0 by street zoom — translucent fill-extrusion on
+// Chrome/macOS z-fights into glittery roof shards.
+const BUILDING_OPACITY_BY_ZOOM = [
+  "interpolate", ["linear"], ["zoom"],
+  11, 0.5,
+  13, 0.82,
+  14.5, 1,
+  17, 1,
+];
+const BUILDING_OPACITY_WEATHER = [
+  "interpolate", ["linear"], ["zoom"],
+  11, 0.4,
+  13, 0.7,
+  15, 0.9,
+  17, 0.95,
+];
 
 // 3D buildings — monochrome (signal yellow) for the default atlas mode.
 const BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#c9ff38",
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
   "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-opacity": [
-    "interpolate", ["linear"], ["zoom"],
-    11, 0.32,
-    13, 0.55,
-    15, 0.7,
-    17, 0.82,
-  ],
+  "fill-extrusion-opacity": BUILDING_OPACITY_BY_ZOOM,
   "fill-extrusion-vertical-gradient": true,
 };
 
@@ -163,13 +196,7 @@ const BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
   "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-opacity": [
-    "interpolate", ["linear"], ["zoom"],
-    11, 0.42,
-    13, 0.65,
-    15, 0.78,
-    17, 0.9,
-  ],
+  "fill-extrusion-opacity": BUILDING_OPACITY_BY_ZOOM,
   "fill-extrusion-vertical-gradient": true,
 };
 
@@ -180,14 +207,14 @@ const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
   "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-opacity": 0.92,
+  "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
 const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#c9ff38",
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
   "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-opacity": 0.82,
+  "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
 
@@ -449,7 +476,8 @@ const state = {
 // can read rain / pollution without losing the 3D silhouette.
 const LAYER_STACK = [
   "bkkx-satellite",
-  "bkkx-3d-buildings",
+  BKKX_BUILDINGS_LAYER,
+  BKKX_BUILDINGS_HI_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
@@ -525,19 +553,21 @@ function applyOverlayCompositing(map) {
 
   if (!state.nightMode) {
     const buildingOpacity = weatherOn
-      ? ["interpolate", ["linear"], ["zoom"], 11, 0.28, 13, 0.48, 15, 0.62, 17, 0.72]
+      ? BUILDING_OPACITY_WEATHER
       : (state.buildingPaint === "type"
         ? BUILDING_PAINT_BY_TYPE["fill-extrusion-opacity"]
         : BUILDING_PAINT_MONOCHROME["fill-extrusion-opacity"]);
-    if (map.getLayer("bkkx-3d-buildings")) {
-      try { map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", buildingOpacity); } catch {}
+    for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+      if (map.getLayer(id)) {
+        try { map.setPaintProperty(id, "fill-extrusion-opacity", buildingOpacity); } catch {}
+      }
     }
     if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
       try {
         map.setPaintProperty(
           RATTANAKOSIN_BUILDINGS_LAYER,
           "fill-extrusion-opacity",
-          weatherOn ? 0.72 : (state.buildingPaint === "type" ? 0.92 : 0.82),
+          weatherOn ? 0.92 : 1,
         );
       } catch {}
     }
@@ -561,27 +591,30 @@ function applyNightMode(map) {
   }
 
   // Emissive night buildings — warm amber wash over type colours.
-  if (state.nightMode && map.getLayer("bkkx-3d-buildings")) {
-    try {
-      map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-color", [
-        "interpolate", ["linear"], ["zoom"],
-        11, "#c9ff38",
-        14, "#ffb84d",
-        17, "#ffe08a",
-      ]);
-      map.setPaintProperty("bkkx-3d-buildings", "fill-extrusion-opacity", [
-        "interpolate", ["linear"], ["zoom"],
-        11, 0.45, 13, 0.7, 15, 0.88, 17, 0.95,
-      ]);
-    } catch {}
-  } else if (map.getLayer("bkkx-3d-buildings")) {
+  if (state.nightMode) {
+    for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+      if (!map.getLayer(id)) continue;
+      try {
+        map.setPaintProperty(id, "fill-extrusion-color", [
+          "interpolate", ["linear"], ["zoom"],
+          11, "#c9ff38",
+          14, "#ffb84d",
+          17, "#ffe08a",
+        ]);
+        map.setPaintProperty(id, "fill-extrusion-opacity", [
+          "interpolate", ["linear"], ["zoom"],
+          11, 0.55, 13, 0.82, 15, 1, 17, 1,
+        ]);
+      } catch {}
+    }
+  } else {
     applyBuildingPaint(map);
   }
 
   if (state.nightMode && map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     try {
       map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, "fill-extrusion-color", "#ffe08a");
-      map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, "fill-extrusion-opacity", 0.95);
+      map.setPaintProperty(RATTANAKOSIN_BUILDINGS_LAYER, "fill-extrusion-opacity", 1);
     } catch {}
   } else if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     applyRattanakosinPaint(map);
@@ -648,9 +681,9 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => { installBuildings(map); installRattanakosin(map); ensureStackOrder(map); },
-    uninstall: (map) => { setLayersVisible(map, ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"], false); },
+    uninstall: (map) => { setLayersVisible(map, [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"], false); },
     legend: [
       { color: "#f5b800", label: "temple / pagoda" },
       { color: "#a8c84a", label: "mosque" },
@@ -1060,8 +1093,37 @@ function registerPmtilesProtocol() {
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
 
+/** Flat OFM building fills under translucent extrusions look like roof shards. */
+function hideBaseBuildingFills(map) {
+  const layers = map.getStyle()?.layers || [];
+  for (const layer of layers) {
+    if (layer.id === BKKX_BUILDINGS_LAYER || layer.id === BKKX_BUILDINGS_HI_LAYER) continue;
+    if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER) continue;
+    const sourceLayer = layer["source-layer"];
+    const isBuildingFill =
+      layer.type === "fill" &&
+      (sourceLayer === "building" || sourceLayer === "buildings" || /building/i.test(layer.id));
+    const isForeignExtrusion = layer.type === "fill-extrusion";
+    if (isBuildingFill || isForeignExtrusion) {
+      try { map.setLayoutProperty(layer.id, "visibility", "none"); } catch {}
+    }
+  }
+}
+
+function findOpenMapTilesSource(map) {
+  const sources = map.getStyle()?.sources || {};
+  for (const name of ["openmaptiles", "openfreemap"]) {
+    if (sources[name]) return name;
+  }
+  for (const [name, src] of Object.entries(sources)) {
+    if (src?.type === "vector" && !String(name).startsWith("bkkx-")) return name;
+  }
+  return null;
+}
+
 function installBuildings(map) {
   registerPmtilesProtocol();
+  hideBaseBuildingFills(map);
 
   if (!map.getSource(BKKX_BUILDINGS_PMTILES_LAYER)) {
     try {
@@ -1069,6 +1131,7 @@ function installBuildings(map) {
         type: "vector",
         url: "pmtiles://" + BKKX_BUILDINGS_PMTILES_URL,
         attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx 3D buildings",
+        maxzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
       });
     } catch (error) {
       console.warn("BKKx PMTiles source failed to register:", error);
@@ -1109,13 +1172,14 @@ function installBuildings(map) {
   // Tiered roads on top of the OpenFreeMap fallback (the PMTiles
   // source is buildings-only, so road layers stay on the OFM
   // source when present).
-  if (!source.isPmtiles && !map.getLayer("bkkx-roads-minor")) {
+  const roadSource = findOpenMapTilesSource(map) || (!source.isPmtiles ? sourceName : null);
+  if (roadSource && !map.getLayer("bkkx-roads-minor")) {
     const addLine = (id, filter, color, width, opacity) => {
       try {
         map.addLayer({
           id,
           type: "line",
-          source: sourceName,
+          source: roadSource,
           "source-layer": "transportation",
           filter,
           layout: { "line-join": "round", "line-cap": "round" },
@@ -1128,30 +1192,56 @@ function installBuildings(map) {
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
   }
 
-  if (!map.getLayer("bkkx-3d-buildings")) {
+  const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
+
+  if (!map.getLayer(BKKX_BUILDINGS_LAYER)) {
     try {
       map.addLayer({
-        id: "bkkx-3d-buildings",
+        id: BKKX_BUILDINGS_LAYER,
         type: "fill-extrusion",
         source: sourceName,
         "source-layer": sourceLayer,
         minzoom: 11,
-        paint: state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME,
+        // Stop painting overscaled tippecanoe footprints past native z15.
+        maxzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
+        filter: BUILDING_EXTRUSION_FILTER,
+        paint,
       });
     } catch {
       // ignore — style schema may omit extrusion; the layer just won't render
     }
-  } else {
-    applyBuildingPaint(map);
   }
+
+  // Street-zoom handoff: OpenFreeMap planet tiles keep sharp footprints
+  // where metro PMTiles would overscale into sawteeth.
+  const ofmSource = findOpenMapTilesSource(map);
+  if (ofmSource && !map.getLayer(BKKX_BUILDINGS_HI_LAYER)) {
+    try {
+      map.addLayer({
+        id: BKKX_BUILDINGS_HI_LAYER,
+        type: "fill-extrusion",
+        source: ofmSource,
+        "source-layer": "building",
+        minzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
+        filter: BUILDING_EXTRUSION_FILTER,
+        paint,
+      });
+    } catch (error) {
+      console.warn("High-zoom OFM buildings layer failed:", error);
+    }
+  }
+
+  applyBuildingPaint(map);
 }
 
 function applyBuildingPaint(map) {
-  if (map.getLayer("bkkx-3d-buildings")) {
-    const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
+  const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
+  for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+    if (!map.getLayer(id)) continue;
     for (const [key, value] of Object.entries(paint)) {
-      try { map.setPaintProperty("bkkx-3d-buildings", key, value); } catch {}
+      try { map.setPaintProperty(id, key, value); } catch {}
     }
+    try { map.setFilter(id, BUILDING_EXTRUSION_FILTER); } catch {}
   }
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     applyRattanakosinPaint(map);
@@ -1159,7 +1249,7 @@ function applyBuildingPaint(map) {
 }
 
 function uninstallBuildings(map) {
-  for (const id of ["bkkx-3d-buildings", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
+  for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
     if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
   }
   for (const id of ["bkkx-esri-imagery", BKKX_BUILDINGS_PMTILES_LAYER]) {
@@ -1191,6 +1281,7 @@ function installRattanakosin(map) {
         source: BKKX_RATTANAKOSIN_PMTILES_LAYER,
         "source-layer": "buildings",
         minzoom: 14,
+        filter: BUILDING_EXTRUSION_FILTER,
         paint: state.buildingPaint === "type"
           ? RATTANAKOSIN_BUILDING_PAINT_BY_TYPE
           : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME,
@@ -2928,7 +3019,7 @@ async function loadKhlongData(map) {
 // Inspect — click building + flood/risk at that point
 // ─────────────────────────────────────────────────────────────────
 
-const INSPECT_BUILDING_LAYERS = ["bkkx-3d-buildings", RATTANAKOSIN_BUILDINGS_LAYER];
+const INSPECT_BUILDING_LAYERS = [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER];
 
 function fillInspectDl(el, rows) {
   if (!el) return;
@@ -3481,6 +3572,7 @@ async function init() {
     minZoom: 10,
     maxZoom: 19,
     maxPitch: 75,
+    antialias: true,
     hash: false,
     attributionControl: { compact: true },
   });

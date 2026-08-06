@@ -154,10 +154,12 @@ if (!html.includes("dr-non-1998.jpg") || !html.includes("1998 was the year")) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
+if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
+else ok("street-zoom buildings hand off past tippecanoe maxzoom");
 if (!/id:\s*CIVIC_POI_LAYER[\s\S]{0,220}minzoom:\s*9/.test(app)) {
   fail("CIVIC_POI_LAYER missing minzoom 9");
 } else {
