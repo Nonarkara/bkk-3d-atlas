@@ -1279,9 +1279,58 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
   );
 }
 
+function apiCatalog(request: Request): Response {
+  const origin = new URL(request.url).origin;
+  return jsonResponse(
+    {
+      name: "BKKx 3D Atlas API",
+      version: 1,
+      home: origin,
+      about: `${origin}/#about`,
+      paper: `${origin}/labs/paper`,
+      endpoints: [
+        { path: "/api", method: "GET", description: "This catalog." },
+        { path: "/api/traffic", method: "GET", description: "Live iTIC/Longdo expressway traffic GeoJSON (proxied).", cacheSeconds: TRAFFIC_CACHE_TTL_SECONDS },
+        { path: "/api/cctv", method: "GET", description: "Public iTIC/Longdo road cameras for Bangkok metro (HLS/JPEG).", cacheSeconds: CCTV_CACHE_TTL_SECONDS },
+        { path: "/api/flood-sensors", method: "GET", description: "HII/ThaiWater water-level gauges in Bangkok metro.", cacheSeconds: FLOOD_SENSOR_CACHE_TTL_SECONDS },
+        { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
+        { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
+        { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
+        { path: "/api/atlas/areas", method: "GET", description: "16 curated atlas areas (AI-readable mirror)." },
+        { path: "/api/atlas/districts", method: "GET", description: "50 khet + merged land-price summary." },
+        { path: "/api/atlas/at-this-point", method: "GET", description: "District + land + flood + nearest transit at a point.", query: ["lng", "lat"] },
+        { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments.", query: ["lng", "lat", "radius?", "limit?"] },
+        { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 432K buildings." },
+        { path: "/api/atlas/scoreboard", method: "GET", description: "Single-object live health / inventory." },
+        { path: "/bkk-buildings.pmtiles", method: "GET", description: "432,077 OSM buildings — HTTP Range from R2." },
+        { path: "/bkk-buildings-rattanakosin.pmtiles", method: "GET", description: "Rattanakosin detail buildings PMTiles (zoom 14–18)." },
+      ],
+      staticGeojson: [
+        "/bkk-areas.json",
+        "/bkk-rail.geojson",
+        "/bkk-khlongs.geojson",
+        "/bkk-buildings-rattanakosin.geojson",
+        "/bkk-traffic-sample.geojson",
+        "/bkk-flood-envelope.geojson",
+        "/bkk-civic-pois.geojson",
+      ],
+      note: "Civic demo layers are honest about provenance. Flood envelopes are schematic, not official DDPM/BMA extents. UI About drawer: /#about.",
+    },
+    {
+      headers: {
+        "cache-control": "public, max-age=300",
+        "access-control-allow-origin": "*",
+      },
+    },
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/api" || url.pathname === "/api/") {
+      return apiCatalog(request);
+    }
     if (url.pathname === "/api/traffic") {
       return proxyTraffic(request, env);
     }

@@ -122,13 +122,47 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
   ok("no unused bkk-canals.geojson");
 }
 
+const html = readFileSync(join(root, "public/index.html"), "utf8");
+if (!html.includes('id="atlas-about"')) fail("index.html missing About drawer #atlas-about");
+else ok("index.html has About drawer");
+if (!html.includes("data-about-open")) fail("index.html missing About open triggers");
+else ok("index.html has About open triggers");
+if (html.includes('id="atlas-labs"')) fail("Labs manifesto still in operate panel (should live in About)");
+else ok("Labs manifesto moved out of operate panel");
+if (!html.includes("My city, not theirs")) fail("About missing thesis line");
+else ok("About carries thesis voice");
+if (!html.includes("about-contact") || !html.includes("nonsmartcity@gmail.com")) {
+  fail("About missing contact section");
+} else {
+  ok("About has contact");
+}
+if (!html.includes("about-stack") || !html.includes("How it’s built")) {
+  fail("About missing infrastructure section");
+} else {
+  ok("About has infrastructure section");
+}
+if (!html.includes("dr-non-1998.jpg") || !html.includes("1998 was the year")) {
+  fail("About missing 1998 personal film marker");
+} else {
+  ok("About carries 1998 film still + personal story");
+}
+
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
+if (!/id:\s*CIVIC_POI_LAYER[\s\S]{0,220}minzoom:\s*9/.test(app)) {
+  fail("CIVIC_POI_LAYER missing minzoom 9");
+} else {
+  ok("civic POI dots visible from city overview zoom");
+}
+if (!app.includes("legendInteractive: true")) fail("civic legend should be interactive");
+else ok("civic legend categories are toggleable");
 
 const worker = readFileSync(join(root, "src/index.ts"), "utf8");
+if (!worker.includes("apiCatalog")) fail("Worker missing /api catalog helper");
+else ok("Worker exposes /api catalog");
 if (!worker.includes("/api/risk")) fail("Worker missing /api/risk");
 else ok("Worker exposes /api/risk");
 if (!worker.includes("/api/cctv")) fail("Worker missing /api/cctv");
