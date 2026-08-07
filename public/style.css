@@ -1049,23 +1049,23 @@ body.is-night .atlas-header {
 .atlas-about .atlas-data-list { margin-top: 4px; }
 .atlas-about .atlas-paper-btn { margin-top: 4px; }
 
-/* Quiet film collage — Siam Square newborn stills, not a hero portrait */
+/* Quiet film collage — Siam Square newborn stills (2048×1447), not a hero */
 .atlas-about-film {
   float: right;
-  width: 168px;
+  width: 200px;
   margin: 2px 0 14px 16px;
   padding: 0;
   border: 0;
 }
 .atlas-about-film img {
   display: block;
-  width: 168px;
-  height: 168px;
+  width: 200px;
+  height: 141px;
   object-fit: cover;
   object-position: center center;
   border: 1px solid rgba(241, 239, 232, 0.22);
-  filter: sepia(0.14) contrast(0.97) saturate(0.9);
-  opacity: 0.92;
+  filter: sepia(0.12) contrast(0.97) saturate(0.92);
+  opacity: 0.94;
 }
 .atlas-about-film figcaption {
   margin-top: 6px;
@@ -1283,11 +1283,11 @@ body.atlas-about-open { overflow: hidden; }
 
   .atlas-about-film {
     float: none;
-    width: 140px;
+    width: 160px;
     margin: 0 0 14px;
   }
   .atlas-about-film img {
-    width: 140px;
-    height: 140px;
+    width: 160px;
+    height: 113px;
   }
 }
