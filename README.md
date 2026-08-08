@@ -321,8 +321,12 @@ npx wrangler deploy
 The next request to `/api/traffic` will hit
 `https://traffic.longdo.com/api/feed/itsth?key=<your-key>`, and the
 client will swap the static sample for the live feed (90-second
-edge cache). The 503 fallback to the sample is automatic if the
-key is missing or the upstream fails.
+edge cache). The endpoint is a **200 with `configured: false`** when
+no key is set — the no-key state is the known steady state (no
+Longdo/iTIC key is registered anywhere in the workspace), not a
+service failure. The client treats a body without `features` as
+"fall back to the static sample", and the layer keeps its honest
+"mock levels (not live)" label in the panel.
 
 ## Traffic CCTV layer (iTIC / Longdo)
 

@@ -189,6 +189,45 @@ else ok("Worker exposes /api/civic-pois");
 if (!worker.includes("CIVIC_DB")) fail("Worker missing CIVIC_DB D1 binding usage");
 else ok("Worker uses CIVIC_DB");
 
+// AI-readable mirror — six endpoints, added 2026-08-05. If any of these
+// are missing, the atlas is back to being a website you look at instead
+// of a city you ask questions of.
+const ATLAS_PATHS = [
+  "/api/atlas/areas",
+  "/api/atlas/districts",
+  "/api/atlas/at-this-point",
+  "/api/atlas/transit",
+  "/api/atlas/buildings",
+  "/api/atlas/scoreboard",
+];
+for (const path of ATLAS_PATHS) {
+  if (!worker.includes(`"${path}"`)) fail(`Worker missing AI-readable mirror route ${path}`);
+  else ok(`Worker exposes ${path}`);
+}
+
+// /api/traffic 200-with-configured-false contract: the no-key state is
+// a known steady state, not a service failure. Lock it in so a future
+// refactor can't silently revert to the 503 that threw two console
+// errors on every visitor's page load (commit c84e3c6). The check looks
+// at the proxyTraffic function body, not the route table — the route
+// table's "/api/traffic" string is far from the actual response shape.
+{
+  const fnMatch = /async function proxyTraffic[\s\S]*?^}/m.exec(worker);
+  if (!fnMatch) {
+    fail("Worker missing proxyTraffic function body");
+  } else {
+    const body = fnMatch[0];
+    const hasConfigured = /configured:\s*false/.test(body);
+    const hasStatus200 = /status:\s*200/.test(body);
+    const hasLackingKey = /LONGDO_KEY/.test(body);
+    if (hasConfigured && hasStatus200 && hasLackingKey) {
+      ok("Worker /api/traffic no-key contract: 200 + configured:false");
+    } else {
+      fail(`Worker /api/traffic no-key branch regressed (configured:${hasConfigured} status:200:${hasStatus200} LONGDO_KEY:${hasLackingKey}, see c84e3c6)`);
+    }
+  }
+}
+
 const wranglerToml = readFileSync(join(root, "wrangler.toml"), "utf8");
 if (!wranglerToml.includes("CIVIC_DB")) fail("wrangler.toml missing CIVIC_DB d1_databases binding");
 else ok("wrangler.toml binds CIVIC_DB");

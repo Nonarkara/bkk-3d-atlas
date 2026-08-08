@@ -131,8 +131,18 @@
           <li>
             <strong>Worker</strong> — a single
             <code>src/index.ts</code>, deployed to Cloudflare
-            Workers. Three routes: <code>/api/traffic</code>
-            proxies the iTIC/Longdo live traffic feed,
+            Workers. Eleven public API routes:
+            <code>/api/traffic</code> proxies the iTIC/Longdo
+            live traffic feed (200 + <code>configured: false</code>
+            when no key is set — the no-key state is the known
+            steady state, not a service failure),
+            <code>/api/cctv</code>, <code>/api/risk</code>,
+            <code>/api/flood-sensors</code>,
+            <code>/api/civic-pois[/analysis]</code>, and the
+            six <code>/api/atlas/*</code> AI-readable mirror
+            endpoints (<code>areas</code>, <code>districts</code>,
+            <code>at-this-point</code>, <code>transit</code>,
+            <code>buildings</code>, <code>scoreboard</code>).
             <code>/bkk-buildings.pmtiles</code> serves the
             20 MB metro PMTiles from Cloudflare R2 with full
             HTTP Range passthrough, and

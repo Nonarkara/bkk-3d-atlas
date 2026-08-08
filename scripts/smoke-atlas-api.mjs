@@ -2,17 +2,24 @@
 /**
  * smoke-atlas-api.mjs
  * --------------------
- * End-to-end smoke test for the /api/atlas/* AI-readable mirror.
- * Operator-runnable, no setup beyond network. Exits non-zero on any
- * failed assertion.
+ * End-to-end smoke test for the atlas public API surface — the six
+ * /api/atlas/* AI-readable mirror endpoints PLUS the five raw feed
+ * proxies (/api/traffic, /api/risk, /api/cctv, /api/flood-sensors,
+ * /api/civic-pois). Operator-runnable, no setup beyond network.
+ * Exits non-zero on any failed assertion.
  *
  *   node scripts/smoke-atlas-api.mjs                       # default: live URL
  *   ATLAS_URL=http://localhost:8787 node scripts/...       # local wrangler dev
  *   ATLAS_URL=https://atlas.nonarkara.org node scripts/... # explicit
  *
- * Hits all six endpoints, asserts the basic shape of each, and prints
- * a one-line PASS/FAIL summary at the end. Designed to be the script
- * you run after `wrangler deploy` to know the city is still answering.
+ * Designed to be the script you run after `wrangler deploy` to know
+ * the city is still answering. Also locks in two contracts that are
+ * easy to silently break:
+ *   - /api/atlas/* shape (areas, districts, at-this-point, transit,
+ *     buildings, scoreboard)
+ *   - /api/traffic 200-with-configured-false contract (the previous
+ *     503 contract threw two console errors on every visitor's page
+ *     load — see commit c84e3c6 / version 95f4c4d8)
  */
 
 const DEFAULT_URL = "https://atlas.nonarkara.org";
@@ -167,6 +174,69 @@ async function checkScoreboard() {
   logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · traffic.configured=${body.feeds.traffic.configured}`);
 }
 
+// Legacy raw-feed endpoints — the same surface, different shape. We lock
+// in the contract so a future refactor can't silently break the client's
+// fallback path. /api/traffic specifically: 200 with `configured: false`
+// and no `features` array is the steady state (no Longdo key on the
+// workspace register); the client treats that body as "fall back to
+// /bkk-traffic-sample.geojson" and the layer keeps its honest label.
+
+async function checkTraffic() {
+  const { ok, status, body, ms } = await fetchJson("/api/traffic");
+  if (!ok) return logFail("GET /api/traffic", `status=${status}`);
+  // 200 (not 503) is the new contract — the no-key state is a known steady
+  // state, not a service failure. The previous contract made the console
+  // throw two errors on every visitor's page load.
+  assert(status === 200, `expected 200, got ${status}`);
+  assert(typeof body === "object" && body !== null, "body not an object");
+  assert("configured" in body, "missing `configured` field");
+  // The body intentionally omits `features` when no key is set, so the
+  // client falls back to the static sample. If a future change adds
+  // `features: []` or `features: [...]` here, this assertion is the
+  // canary that says "the steady-state contract changed — update the README
+  // and the paper too."
+  assert(!("features" in body), `body leaked features field (length=${(body.features || []).length}); contract says "no features" until LONGDO_KEY is set`);
+  logOk("GET /api/traffic", ms, `status=200 configured=${body.configured} (no features, client falls back to sample)`);
+}
+
+async function checkRisk() {
+  const { ok, status, body, ms } = await fetchJson("/api/risk?lng=100.5321&lat=13.7367");
+  if (!ok || status !== 200) return logFail("GET /api/risk", `status=${status}`);
+  assert(body.tool === "risk", `tool=${body.tool}`);
+  assert(typeof body.score === "number", "score not a number");
+  assert(["moderate", "elevated", "high"].includes(body.band), `band=${body.band}`);
+  assert(body.factors, "missing factors");
+  logOk("GET /api/risk", ms, `score=${body.score} band=${body.band} pm25=${body.factors.pm25}`);
+}
+
+async function checkCctv() {
+  const { ok, status, body, ms } = await fetchJson("/api/cctv");
+  if (!ok || status !== 200) return logFail("GET /api/cctv", `status=${status}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  logOk("GET /api/cctv", ms, `count=${body.count ?? body.features.length}`);
+}
+
+async function checkFloodSensors() {
+  const { ok, status, body, ms } = await fetchJson("/api/flood-sensors");
+  if (!ok || status !== 200) return logFail("GET /api/flood-sensors", `status=${status}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  // Each ThaiWater row should have a levelColor — that's the thing the
+  // map paints on the gauge dots.
+  const colored = body.features.filter((f) => f.properties?.levelColor).length;
+  assert(colored > 0, "no features have levelColor");
+  logOk("GET /api/flood-sensors", ms, `count=${body.count ?? body.features.length} with-levelColor=${colored}`);
+}
+
+async function checkCivicPois() {
+  const { ok, status, body, ms } = await fetchJson("/api/civic-pois");
+  if (!ok || status !== 200) return logFail("GET /api/civic-pois", `status=${status}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  logOk("GET /api/civic-pois", ms, `count=${body.count ?? body.features.length} (D1-backed)`);
+}
+
 async function main() {
   logInfo(`\n  BKKx 3D Atlas — AI-readable mirror smoke test`);
   logInfo(`  target: ${baseUrl}\n`);
@@ -187,6 +257,11 @@ async function main() {
   await checkTransit();
   await checkBuildings();
   await checkScoreboard();
+  await checkTraffic();
+  await checkRisk();
+  await checkCctv();
+  await checkFloodSensors();
+  await checkCivicPois();
 
   summarize();
 }
