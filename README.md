@@ -73,13 +73,34 @@ the silhouette.
 
 ## Deploy
 
+Live custom domain: **https://atlas.nonarkara.org** (Worker `bkk-3d-atlas`,
+account `74ad6bf8dfaaccf82de6f0847f7d2d54`).
+
+Preferred local deploy (pull → marker check → whoami → deploy → wait for
+edge cache → verify). Do **not** trust the first `curl` right after
+upload — Workers assets often return a stale `cf-cache-status: HIT`
+for ~10s:
+
 ```sh
-npm run deploy
+npm run deploy:live
 ```
 
-Wrangler will print the `*.workers.dev` URL. If the URL needs to be
-fixed to a custom domain, edit the `routes` block in `wrangler.toml`
-and add the corresponding CNAME at the registrar.
+Or by hand:
+
+```sh
+git checkout main && git pull origin main
+grep -n 'id="atlas-about"' public/index.html   # must match before deploy
+npx wrangler whoami                            # account must be 74ad6bf8…
+npx wrangler deploy                            # must list atlas.nonarkara.org
+sleep 12
+curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-about"'   # expect 1
+curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-labs"'    # expect 0
+```
+
+There is also a GitHub Action (`.github/workflows/deploy-cloudflare.yml`)
+that deploys on push to `main` once `CLOUDFLARE_API_TOKEN` +
+`CLOUDFLARE_ACCOUNT_ID` secrets are set. Until then, use local
+`deploy:live`.
 
 ## Reuse for Chula / UNL / other dashboards
 

@@ -1,4 +1,7 @@
 name = "bkk-3d-atlas"
+# Pin account so a local `wrangler deploy` cannot silently land on the
+# wrong Cloudflare account (custom domain stays on this one).
+account_id = "74ad6bf8dfaaccf82de6f0847f7d2d54"
 main = "src/index.ts"
 compatibility_date = "2026-05-15"
 compatibility_flags = ["nodejs_compat"]

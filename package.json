@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:live": "bash scripts/deploy-live.sh",
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify-local.mjs",
     "smoke": "node scripts/smoke-atlas-api.mjs"
