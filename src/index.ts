@@ -666,15 +666,21 @@ async function civicPoiAnalysis(_request: Request, env: Env): Promise<Response> 
 
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
+    // 200, not 503: no-key is the known steady state until a Longdo key
+    // exists, not a service failure — a 503 here printed two console
+    // errors on every visitor's page load for years of pageviews. The
+    // client treats any body without `features` as "fall back to the
+    // static sample", and API consumers still get told exactly why.
     return jsonResponse(
       {
+        configured: false,
         error: "longdo_key_not_configured",
         message:
           "LONGDO_KEY is not set on the worker. Run: npx wrangler secret put LONGDO_KEY. " +
           "For now, the static sample at /bkk-traffic-sample.geojson is used.",
         dataOrigin: "https://itic.longdo.com/opendata/",
       },
-      { status: 503 },
+      { status: 200 },
     );
   }
   const url = new URL(LONGDO_TRAFFIC_FEED);

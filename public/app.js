@@ -3587,8 +3587,38 @@ async function init() {
 
   state.map = map;
 
+  // The OpenFreeMap dark style references a "wood-pattern" sprite image
+  // it doesn't ship — MapLibre warned about it on every single page load.
+  // Supply a 1×1 transparent stand-in for any missing style image so the
+  // console stays clean without touching the upstream style.
+  map.on("styleimagemissing", (event) => {
+    if (map.hasImage(event.id)) return;
+    map.addImage(event.id, { width: 1, height: 1, data: new Uint8Array(4) });
+  });
+
   map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
   map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }), "bottom-left");
+
+  // MapLibre's compact attribution starts EXPANDED — a two-line white bar
+  // covering the bottom fifth of the map on a phone. It expands async
+  // (once attribution data arrives), so a load-time removal misses it;
+  // watch for the class, strip it exactly once, then disconnect so the
+  // user's own ⓘ toggle works normally. Every credit stays one tap away
+  // (ODbL/Esri compliance intact), the map stops wearing a banner.
+  const attribEl = map.getContainer().querySelector(".maplibregl-ctrl-attrib");
+  if (attribEl) {
+    const collapseOnce = new MutationObserver(() => {
+      if (attribEl.classList.contains("maplibregl-compact-show")) {
+        attribEl.classList.remove("maplibregl-compact-show");
+        collapseOnce.disconnect();
+      }
+    });
+    if (attribEl.classList.contains("maplibregl-compact-show")) {
+      attribEl.classList.remove("maplibregl-compact-show");
+    } else {
+      collapseOnce.observe(attribEl, { attributes: true, attributeFilter: ["class"] });
+    }
+  }
 
   map.on("load", () => {
     wireLayerToggles(map);

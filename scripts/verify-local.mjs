@@ -147,10 +147,15 @@ if (!html.includes("about-stack") || !html.includes("How it’s built")) {
 } else {
   ok("About has infrastructure section");
 }
-if (!html.includes("dr-non-1998.jpg") || !html.includes("1998 was the year")) {
-  fail("About missing 1998 personal film marker");
+if (!html.includes("dr-non-siam-square.jpg") || !html.includes("Siam Square")) {
+  fail("About missing Siam Square 1981 film still");
 } else {
-  ok("About carries 1998 film still + personal story");
+  ok("About carries Siam Square 1981 film still + newborn story");
+}
+if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
+  fail("photo file public/about/dr-non-siam-square.jpg missing (About <img> would 404)");
+} else {
+  ok("Siam Square photo file present in public/about/");
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
