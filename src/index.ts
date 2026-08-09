@@ -664,6 +664,259 @@ async function civicPoiAnalysis(_request: Request, env: Env): Promise<Response> 
   );
 }
 
+// ─────────────────────────────────────────────────────────────────
+// City events ("God Mode" breaking-incident layer)
+//
+// Source: Longdo/iTIC public event feed — live Thai road/city incidents
+// with REAL reporter-supplied lat/lng. Nothing here is geocoded by us:
+// an event either arrives with coordinates or it is not stored.
+//
+// Two editorial rules, both grounded in what the feed actually contains:
+//
+//  1. Only genuinely breaking incident types get a pin. The feed is
+//     dominated by `diversion` roadworks that run for MONTHS (observed:
+//     a July diversion with a stop date the following January). Those
+//     are standing conditions, not breaking events — pinning them would
+//     bury the real incidents under permanent clutter.
+//  2. A pin lives EVENT_TTL_MINUTES from when we first saw it, or until
+//     the source's own stop time, whichever comes first. Accidents in
+//     this feed already carry ~1h windows, so this mostly honours the
+//     source; the cap just guarantees the map self-clears.
+// ─────────────────────────────────────────────────────────────────
+
+const LONGDO_EVENT_FEED = "https://event.longdo.com/feed/json";
+const EVENT_TTL_MINUTES = 60;
+const CITY_EVENT_CACHE_TTL_SECONDS = 60;
+
+/** An incident whose source-declared window is longer than this is a
+ * standing condition, not breaking news — observed in the live feed: a
+ * "roadclosed" at Ratchathewi Overpass with a stop date two years out,
+ * and diversions running six months. Duration is a better signal than
+ * the icon alone, since both long closures and real ones share icons. */
+const MAX_BREAKING_DURATION_HOURS = 24;
+
+/** Incident types that count as "breaking". Long-running roadworks
+ * (`diversion`) are deliberately excluded — see rule 1 above. */
+const BREAKING_EVENT_ICONS = new Set([
+  "accident",
+  "flood",
+  "fire",
+  "trafficjam",
+  "roadclosed",
+  "rain",
+  "earthquake",
+  "protest",
+]);
+
+type LongdoEvent = {
+  eid?: string | number;
+  title?: string;
+  title_en?: string;
+  description?: string;
+  description_en?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  type?: string | number;
+  start?: string;
+  stop?: string;
+  contributor?: string;
+  icon?: string;
+  severity?: string | number;
+};
+
+type CityEventRow = {
+  id: string;
+  title_th: string | null;
+  title_en: string | null;
+  description_th: string | null;
+  description_en: string | null;
+  lat: number;
+  lng: number;
+  icon: string | null;
+  event_type: string | null;
+  severity: string | null;
+  contributor: string | null;
+  starts_at: string | null;
+  stops_at: string | null;
+  district_id: number | null;
+  district_name_en: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+/** The feed reports Asia/Bangkok wall-clock with no offset ("2026-08-09
+ * 22:36:00"). Parse it as UTC+7 explicitly rather than letting the
+ * runtime guess — a Worker runs in UTC, so a naive parse would put every
+ * event 7 hours in the future and nothing would ever look expired. */
+function parseBangkokTime(value: string | undefined | null): number | null {
+  if (!value) return null;
+  const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return Date.UTC(+y, +mo - 1, +d, +h, +mi, +(s ?? 0)) - 7 * 3600 * 1000;
+}
+
+function findDistrictForPoint(
+  districts: AtlasFeatureCollection | null,
+  lng: number,
+  lat: number,
+): { id: number | null; name: string | null } {
+  for (const feature of districts?.features ?? []) {
+    const g = feature.geometry as { type?: string; coordinates?: unknown } | undefined;
+    if (!g) continue;
+    let hit = false;
+    if (g.type === "Polygon") {
+      const rings = g.coordinates as number[][][];
+      hit = pointInRing(lng, lat, rings[0]) && !rings.slice(1).some((h) => pointInRing(lng, lat, h));
+    } else if (g.type === "MultiPolygon") {
+      const polys = g.coordinates as number[][][][];
+      hit = polys.some(
+        (poly) => pointInRing(lng, lat, poly[0]) && !poly.slice(1).some((h) => pointInRing(lng, lat, h)),
+      );
+    }
+    if (hit) {
+      const p = (feature.properties ?? {}) as { id?: number; name_en?: string };
+      return { id: p.id ?? null, name: (p.name_en ?? "").replace(" District", "") || null };
+    }
+  }
+  return { id: null, name: null };
+}
+
+/** Poll the upstream feed and upsert Bangkok breaking incidents into D1.
+ * Safe to call often — it's an upsert keyed on the source event id, so
+ * repeated polls refresh last_seen_at without duplicating pins. */
+async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: number; stored: number; skipped: number }> {
+  const upstream = await fetch(LONGDO_EVENT_FEED, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!upstream.ok) throw new Error(`Longdo feed returned ${upstream.status}`);
+  const events = (await upstream.json()) as LongdoEvent[];
+  if (!Array.isArray(events)) throw new Error("Longdo feed was not a JSON array");
+
+  const districts = await getDistrictsGeoJson(env, request);
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  let stored = 0;
+  let skipped = 0;
+
+  for (const e of events) {
+    const lat = Number(e.latitude);
+    const lng = Number(e.longitude);
+    const id = e.eid == null ? null : String(e.eid);
+    if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) { skipped++; continue; }
+    if (!inCctvBbox(lat, lng)) { skipped++; continue; }        // Bangkok metro only
+    const icon = (e.icon ?? "").toLowerCase();
+    if (!BREAKING_EVENT_ICONS.has(icon)) { skipped++; continue; }  // rule 1
+
+    // Rule 1b: drop standing conditions dressed as incidents — a closure
+    // scheduled to end in 2028 is roadworks, not something breaking now.
+    const startMs = parseBangkokTime(e.start);
+    const stopMs = parseBangkokTime(e.stop);
+    if (startMs != null && stopMs != null &&
+        stopMs - startMs > MAX_BREAKING_DURATION_HOURS * 3600 * 1000) {
+      skipped++;
+      continue;
+    }
+
+    const { id: districtId, name: districtName } = findDistrictForPoint(districts, lng, lat);
+    statements.push(
+      env.CIVIC_DB.prepare(
+        `INSERT INTO city_events
+           (id, title_th, title_en, description_th, description_en, lat, lng, icon,
+            event_type, severity, contributor, starts_at, stops_at,
+            district_id, district_name_en, first_seen_at, last_seen_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)
+         ON CONFLICT(id) DO UPDATE SET last_seen_at = ?16`,
+      ).bind(
+        id,
+        e.title ?? null,
+        e.title_en || null,
+        e.description ?? null,
+        e.description_en || null,
+        lat,
+        lng,
+        icon || null,
+        e.type == null ? null : String(e.type),
+        e.severity == null || e.severity === "" ? null : String(e.severity),
+        e.contributor ?? null,
+        e.start ?? null,
+        e.stop ?? null,
+        districtId,
+        districtName,
+        now,
+      ),
+    );
+    stored++;
+  }
+
+  if (statements.length) await env.CIVIC_DB.batch(statements);
+  return { scanned: events.length, stored, skipped };
+}
+
+/** Live breaking events as GeoJSON. Ingests first so a visitor always
+ * sees current data even if the cron hasn't fired recently. */
+async function listCityEvents(request: Request, env: Env): Promise<Response> {
+  let ingestError: string | null = null;
+  try {
+    await ingestCityEvents(env, request);
+  } catch (error) {
+    // Upstream hiccup shouldn't blank the map — serve what D1 already has.
+    ingestError = String(error);
+  }
+
+  const { results } = await env.CIVIC_DB.prepare("SELECT * FROM city_events").all<CityEventRow>();
+  const nowMs = Date.now();
+  const ttlMs = EVENT_TTL_MINUTES * 60 * 1000;
+
+  const live = results.filter((row) => {
+    const firstSeen = Date.parse(row.first_seen_at);
+    if (Number.isFinite(firstSeen) && nowMs - firstSeen > ttlMs) return false;   // rule 2: our cap
+    const stopMs = parseBangkokTime(row.stops_at);
+    if (stopMs != null && nowMs > stopMs) return false;                          // rule 2: source expiry
+    return true;
+  });
+
+  const features = live
+    .sort((a, b) => Date.parse(b.first_seen_at) - Date.parse(a.first_seen_at))
+    .map((row) => {
+      const firstSeen = Date.parse(row.first_seen_at);
+      return {
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [row.lng, row.lat] },
+        properties: {
+          id: row.id,
+          icon: row.icon,
+          severity: row.severity,
+          titleTh: row.title_th,
+          titleEn: row.title_en,
+          descriptionTh: row.description_th,
+          descriptionEn: row.description_en,
+          contributor: row.contributor,
+          startsAt: row.starts_at,
+          stopsAt: row.stops_at,
+          districtId: row.district_id,
+          districtNameEn: row.district_name_en,
+          firstSeenAt: row.first_seen_at,
+          ageMinutes: Number.isFinite(firstSeen) ? Math.round((nowMs - firstSeen) / 60000) : null,
+        },
+      };
+    });
+
+  return jsonResponse(
+    {
+      type: "FeatureCollection",
+      count: features.length,
+      ttlMinutes: EVENT_TTL_MINUTES,
+      attribution: "Longdo / iTIC public event feed — live Thai road & city incidents",
+      disclaimer:
+        "Live incident reports (accidents, floods, jams, closures) with reporter-supplied coordinates — not a complete record of everything happening in Bangkok, and not verified by BKKx. Long-running roadworks are excluded so genuinely breaking events stay visible.",
+      ...(ingestError ? { ingestWarning: ingestError } : {}),
+      features,
+    },
+    { headers: { "cache-control": `public, max-age=${CITY_EVENT_CACHE_TTL_SECONDS}` } },
+  );
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     // 200, not 503: no-key is the known steady state until a Longdo key
@@ -1352,6 +1605,9 @@ export default {
     if (url.pathname === "/api/civic-pois/analysis") {
       return civicPoiAnalysis(request, env);
     }
+    if (url.pathname === "/api/city-events") {
+      return listCityEvents(request, env);
+    }
     if (url.pathname === "/api/risk") {
       return lookupRisk(request, env);
     }
@@ -1388,5 +1644,25 @@ export default {
       return env.ASSETS.fetch(new Request(fallback, request));
     }
     return env.ASSETS.fetch(request);
+  },
+
+  /** Cron-driven ingest. Without this, an incident that appears and drops
+   * out of the upstream 20-item window between two visitors would never be
+   * captured at all. Polling on a schedule means the map has real history
+   * the moment someone opens it. */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      (async () => {
+        try {
+          // Any absolute origin works — it only resolves the ASSETS binding
+          // for the districts GeoJSON used to tag each event's district.
+          const req = new Request("https://atlas.nonarkara.org/");
+          const result = await ingestCityEvents(env, req);
+          console.log("city-events cron ingest", JSON.stringify(result));
+        } catch (error) {
+          console.warn("city-events cron ingest failed:", String(error));
+        }
+      })(),
+    );
   },
 };

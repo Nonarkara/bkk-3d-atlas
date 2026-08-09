@@ -327,6 +327,28 @@ const CIVIC_POI_LAYER = "bkkx-civic-poi-dots";
 const CIVIC_POI_HALO_LAYER = "bkkx-civic-poi-halo";
 const CIVIC_POI_LIVE_URL = "/api/civic-pois";
 const CIVIC_POI_SAMPLE_URL = "/bkk-civic-pois.geojson";
+
+// God Mode — live breaking incidents as red "!" pins. Source is the
+// Longdo/iTIC event feed via /api/city-events (see src/index.ts): real
+// reporter-supplied coordinates, D1-backed so a pin survives the
+// upstream feed's rolling 20-item window, and self-expiring after an
+// hour. Red is used ONLY here — it is the one alarm colour on the map,
+// deliberately outside the civic/land-price palettes.
+const CITY_EVENT_SOURCE = "bkkx-city-events";
+const CITY_EVENT_LAYER = "bkkx-city-event-marks";
+const CITY_EVENT_PULSE_LAYER = "bkkx-city-event-pulse";
+const CITY_EVENT_DATA_URL = "/api/city-events";
+const CITY_EVENT_REFRESH_MS = 120000;
+const CITY_EVENT_LABEL = {
+  accident: "Accident",
+  flood: "Flooding",
+  fire: "Fire",
+  trafficjam: "Heavy traffic",
+  roadclosed: "Road closed",
+  rain: "Heavy rain",
+  earthquake: "Earthquake",
+  protest: "Protest",
+};
 const CIVIC_POI_CATEGORY_COLOR = [
   "match", ["get", "category"],
   "school", "#3b82f6",
@@ -457,6 +479,8 @@ const state = {
   landPricePopup: null,
   civicPoiPopup: null,
   civicDensityPopup: null,
+  cityEventPopup: null,
+  cityEventTimer: null,
   // Per-category visibility for Civic amenities (legend toggles).
   civicPoiCategories: {
     school: true,
@@ -506,6 +530,8 @@ const LAYER_STACK = [
   LIVE_CAM_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
+  CITY_EVENT_PULSE_LAYER,
+  CITY_EVENT_LAYER,
 ];
 
 function ensureStackOrder(map) {
@@ -641,6 +667,7 @@ function updateStackChips() {
     "land-price": "Land ฿",
     "civic-pois": "Civic",
     "civic-density": "Density",
+    "city-events": "Live !",
     flood: "Flood",
     "flood-sensors": "Gauges",
     heat: "Heat",
@@ -920,6 +947,20 @@ const LAYERS = [
       { color: "#8fc22c", label: "46–60" },
       { color: "#c9ff38", label: "60+" },
     ],
+  },
+  {
+    id: "city-events",
+    name: "Live incidents",
+    description: "iTIC · breaking, self-clears in 1h",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CITY_EVENT_PULSE_LAYER, CITY_EVENT_LAYER],
+    install: async (map) => { await installCityEvents(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      stopCityEventPolling();
+      closeCityEventPopup();
+      setLayersVisible(map, [CITY_EVENT_PULSE_LAYER, CITY_EVENT_LAYER], false);
+    },
   },
 ];
 
@@ -2200,6 +2241,170 @@ function wireCivicDensityInteractions(map) {
   });
   map.on("mouseenter", CIVIC_DENSITY_FILL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
   map.on("mouseleave", CIVIC_DENSITY_FILL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// God Mode — live breaking incidents ("!" pins)
+// ─────────────────────────────────────────────────────────────────
+
+function closeCityEventPopup() {
+  if (state.cityEventPopup) {
+    try { state.cityEventPopup.remove(); } catch {}
+    state.cityEventPopup = null;
+  }
+}
+
+function formatEventAge(minutes) {
+  if (minutes == null) return "just now";
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 min ago";
+  return `${minutes} min ago`;
+}
+
+function openCityEventPopup(map, feature) {
+  const p = feature.properties || {};
+  closeCityEventPopup();
+  // Thai title is the source's primary field; English is often empty.
+  const title = p.titleEn || p.titleTh || "Incident";
+  const detail = p.descriptionEn || p.descriptionTh || "";
+  const kind = CITY_EVENT_LABEL[p.icon] || p.icon || "Incident";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-event-kicker">${escapeHtml(kind)} · ${escapeHtml(p.districtNameEn || "Bangkok")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(title)}</strong>
+      ${detail ? `<p class="atlas-cctv-status">${escapeHtml(detail)}</p>` : ""}
+      <div class="atlas-cctv-actions">
+        <span>Reported ${escapeHtml(formatEventAge(p.ageMinutes))}</span>
+        <span>${escapeHtml(p.contributor || "iTIC")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 16,
+  })
+    .setLngLat(feature.geometry.coordinates)
+    .setHTML(html)
+    .addTo(map);
+  state.cityEventPopup = popup;
+}
+
+function wireCityEventInteractions(map) {
+  if (map.__bkkxCityEventWired) return;
+  map.__bkkxCityEventWired = true;
+  map.on("click", CITY_EVENT_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openCityEventPopup(map, feature);
+  });
+  map.on("mouseenter", CITY_EVENT_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", CITY_EVENT_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+function setCityEventStatus(geojson) {
+  const n = geojson?.count ?? geojson?.features?.length ?? 0;
+  setLayerStatus(
+    "city-events",
+    n === 0
+      ? "clear · no live incidents right now"
+      : `${n} live · iTIC · self-clears after ${geojson?.ttlMinutes ?? 60} min`,
+  );
+}
+
+async function refreshCityEvents(map) {
+  const geojson = await fetchJson(CITY_EVENT_DATA_URL);
+  if (!geojson?.features) return null;
+  const source = map.getSource(CITY_EVENT_SOURCE);
+  if (source) source.setData(geojson);
+  setCityEventStatus(geojson);
+  return geojson;
+}
+
+function stopCityEventPolling() {
+  if (state.cityEventTimer) {
+    clearInterval(state.cityEventTimer);
+    state.cityEventTimer = null;
+  }
+}
+
+/** Poll while the layer is on. "Breaking" is only true if it keeps up —
+ * a static snapshot from page load would quietly go stale. */
+function startCityEventPolling(map) {
+  if (state.cityEventTimer) return;
+  state.cityEventTimer = setInterval(() => {
+    if (!state.layerOn["city-events"] || document.hidden) return;
+    refreshCityEvents(map).catch(() => {});
+  }, CITY_EVENT_REFRESH_MS);
+}
+
+async function installCityEvents(map) {
+  if (map.getLayer(CITY_EVENT_LAYER)) {
+    setLayersVisible(map, [CITY_EVENT_PULSE_LAYER, CITY_EVENT_LAYER], true);
+    await refreshCityEvents(map);
+    startCityEventPolling(map);
+    return;
+  }
+  const geojson = await fetchJson(CITY_EVENT_DATA_URL);
+  if (!geojson?.features) {
+    setLayerStatus("city-events", "unavailable · feed failed");
+    return;
+  }
+  if (!map.getSource(CITY_EVENT_SOURCE)) {
+    try {
+      map.addSource(CITY_EVENT_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("City event source failed:", error);
+      setLayerStatus("city-events", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    // Soft alarm halo underneath, so a pin reads as urgent at city zoom
+    // without the glyph itself having to get big enough to cover blocks.
+    map.addLayer({
+      id: CITY_EVENT_PULSE_LAYER,
+      type: "circle",
+      source: CITY_EVENT_SOURCE,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 13, 14, 22, 17, 30],
+        "circle-color": "#ff2d2d",
+        "circle-opacity": 0.16,
+        "circle-stroke-color": "#ff2d2d",
+        "circle-stroke-width": 1,
+        "circle-stroke-opacity": 0.45,
+      },
+    });
+    // The "!" itself. text-field with a literal glyph keeps it sharp at
+    // every zoom and needs no sprite image.
+    map.addLayer({
+      id: CITY_EVENT_LAYER,
+      type: "symbol",
+      source: CITY_EVENT_SOURCE,
+      layout: {
+        "text-field": "!",
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 10, 18, 14, 26, 17, 32],
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": "#ff2d2d",
+        "text-halo-color": "#11120f",
+        "text-halo-width": 2,
+      },
+    });
+    wireCityEventInteractions(map);
+    setCityEventStatus(geojson);
+    startCityEventPolling(map);
+  } catch (error) {
+    console.warn("City event layer failed:", error);
+    setLayerStatus("city-events", "unavailable · layer failed");
+  }
 }
 
 async function installCivicDensity(map) {

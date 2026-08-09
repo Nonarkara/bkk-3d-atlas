@@ -839,6 +839,22 @@ body.is-night .atlas-header {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+/* Alarm red — used ONLY for live incidents, so a red glyph anywhere on
+   this map means exactly one thing. Deliberately outside the signal /
+   civic / land-price palettes. */
+.atlas-event-kicker {
+  margin: 0;
+  color: #ff5a5a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.atlas-event-bang {
+  color: #ff5a5a;
+  font-weight: 900;
+  margin-left: 2px;
+}
 .atlas-cctv-title {
   font-size: 14px;
   font-weight: 700;

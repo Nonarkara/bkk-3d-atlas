@@ -159,7 +159,7 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -188,6 +188,17 @@ if (!worker.includes("/api/civic-pois")) fail("Worker missing /api/civic-pois");
 else ok("Worker exposes /api/civic-pois");
 if (!worker.includes("CIVIC_DB")) fail("Worker missing CIVIC_DB D1 binding usage");
 else ok("Worker uses CIVIC_DB");
+if (!worker.includes("/api/city-events")) fail("Worker missing /api/city-events");
+else ok("Worker exposes /api/city-events");
+if (!worker.includes("parseBangkokTime")) fail("Worker missing Asia/Bangkok time parser (events would never expire)");
+else ok("Worker parses feed times as UTC+7");
+if (!worker.includes("MAX_BREAKING_DURATION_HOURS")) fail("Worker missing standing-condition filter");
+else ok("Worker filters multi-month roadworks out of breaking events");
+if (!existsSync(join(root, "db/schema-city-events.sql"))) fail("missing db/schema-city-events.sql");
+else ok("db/schema-city-events.sql present");
+const wt = readFileSync(join(root, "wrangler.toml"), "utf8");
+if (!wt.includes("[triggers]") || !wt.includes("crons")) fail("wrangler.toml missing cron trigger for event ingest");
+else ok("wrangler.toml schedules city-event ingest");
 
 // AI-readable mirror — six endpoints, added 2026-08-05. If any of these
 // are missing, the atlas is back to being a website you look at instead
