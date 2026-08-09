@@ -1536,6 +1536,17 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
         rain: { source: "RainViewer", live: true },
         aqi: { source: "Open-Meteo CAMS", live: true },
         heat: { source: "Open-Meteo", live: true },
+        cityEvents: {
+          source: "Longdo / iTIC event feed",
+          live: true,
+          endpoint: "/api/city-events",
+          ttlMinutes: 60,
+          // Cron-driven ingest, not a straight proxy — the upstream feed
+          // is a rolling 20-item window for all of Thailand, so a busy
+          // hour would push a Bangkok accident out in minutes while still
+          // active. Storing in D1 (city_events) lets an incident hold its
+          // full hour and the layer self-clear.
+        },
       },
       copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
     },

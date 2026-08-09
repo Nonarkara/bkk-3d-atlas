@@ -194,8 +194,21 @@ if (!worker.includes("parseBangkokTime")) fail("Worker missing Asia/Bangkok time
 else ok("Worker parses feed times as UTC+7");
 if (!worker.includes("MAX_BREAKING_DURATION_HOURS")) fail("Worker missing standing-condition filter");
 else ok("Worker filters multi-month roadworks out of breaking events");
-if (!existsSync(join(root, "db/schema-city-events.sql"))) fail("missing db/schema-city-events.sql");
-else ok("db/schema-city-events.sql present");
+if (!worker.includes("cityEvents")) fail("Worker scoreboard missing cityEvents feed (added 2026-08-09)");
+else ok("Worker scoreboard surfaces cityEvents feed");
+if (!existsSync(join(root, "db/schema.sql"))) fail("missing db/schema.sql");
+else ok("db/schema.sql present");
+{
+  // Merged schema check: the city_events table must live in db/schema.sql
+  // so a fresh deploy applying the documented schema gets EVERY table in
+  // one shot. A separate schema-city-events.sql file was a footgun (the
+  // README never mentioned it).
+  const schema = readFileSync(join(root, "db/schema.sql"), "utf8");
+  if (!schema.includes("CREATE TABLE IF NOT EXISTS civic_pois")) fail("db/schema.sql missing civic_pois");
+  else ok("db/schema.sql declares civic_pois");
+  if (!schema.includes("CREATE TABLE IF NOT EXISTS city_events")) fail("db/schema.sql missing city_events — fresh deploy would have no events table");
+  else ok("db/schema.sql declares city_events (merged in 2026-08-09 audit)");
+}
 const wt = readFileSync(join(root, "wrangler.toml"), "utf8");
 if (!wt.includes("[triggers]") || !wt.includes("crons")) fail("wrangler.toml missing cron trigger for event ingest");
 else ok("wrangler.toml schedules city-event ingest");

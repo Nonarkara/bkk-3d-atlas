@@ -131,14 +131,17 @@
           <li>
             <strong>Worker</strong> — a single
             <code>src/index.ts</code>, deployed to Cloudflare
-            Workers. Eleven public API routes:
+            Workers. Twelve public API routes:
             <code>/api/traffic</code> proxies the iTIC/Longdo
             live traffic feed (200 + <code>configured: false</code>
             when no key is set — the no-key state is the known
             steady state, not a service failure),
             <code>/api/cctv</code>, <code>/api/risk</code>,
             <code>/api/flood-sensors</code>,
-            <code>/api/civic-pois[/analysis]</code>, and the
+            <code>/api/civic-pois[/analysis]</code>,
+            <code>/api/city-events</code> (live breaking
+            incidents, D1-backed, polled every 5 minutes by a
+            cron trigger), and the
             six <code>/api/atlas/*</code> AI-readable mirror
             endpoints (<code>areas</code>, <code>districts</code>,
             <code>at-this-point</code>, <code>transit</code>,
@@ -161,12 +164,14 @@
           </li>
         </ul>
         <p>
-          The Worker has no database. It has no sessions. It
-          has no auth. It is a stateless proxy in front of
-          R2, with one upstream API call for traffic. The
-          PMTiles library on the client issues 8-12 Range
-          requests per second as the user pans; the Worker
-          returns 206 with the requested bytes; the client
+          The Worker has no auth. It has no sessions. It is a
+          stateless proxy in front of R2 plus a single D1
+          database (<code>bkkx-civic-data</code>) for civic
+          POIs and the live-events store, with a 5-minute cron
+          that polls the Longdo event feed so a busy-hour
+          accident doesn't roll out of the upstream's
+          20-item window before a visitor opens the map.
+          The PMTiles library on the client
           reassembles the directory and tile data; MapLibre
           renders. Total round trip is under 200 milliseconds
           from anywhere in the world.

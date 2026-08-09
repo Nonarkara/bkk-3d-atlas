@@ -178,8 +178,36 @@ ATLAS_URL=http://localhost:8787 npm run smoke    # local wrangler dev
 
 The script exits non-zero on any failure and prints a one-line
 PASS/FAIL summary. Run it after every deploy to know the city is
-still answering. **11 checks total**: 6 endpoints + filter + bad-bbox
-+ malformed-bbox + the scoreboard shape.
+still answering. **17 checks total**: 6 `/api/atlas/*` endpoints +
+the scoreboard's `cityEvents` contract + the `/api/traffic`
+`configured:false` body shape + the `/api/city-events` "no
+fabricated coordinates" bbox promise + filter + bad-bbox +
+malformed-bbox + the legacy feed shapes.
+
+### 1e. `/api/city-events` — live breaking incidents
+
+The "God Mode" layer. Real-time Thai road/city incidents with
+reporter-supplied lat/lng from the Longdo / iTIC public event feed.
+Nothing here is geocoded by us — an event arrives with coordinates
+or it isn't stored.
+
+```js
+const r = await fetch("https://atlas.nonarkara.org/api/city-events").then((r) => r.json());
+// r.count         → number of live pins (0 = no breaking events right now)
+// r.ttlMinutes    → 60 (a pin self-clears after this OR the source's stop time)
+// r.features      → GeoJSON points, all inside the Bangkok bbox
+// r.ingestWarning → optional upstream hiccup; the response still serves D1 data
+```
+
+Two editorial rules in the data, not in the code: only `accident |
+flood | fire | trafficjam | roadclosed | rain | earthquake |
+protest | warning` icons get a pin (the feed is dominated by
+multi-month `diversion` roadworks), and any event whose
+source-declared window exceeds 24h is dropped on duration as
+infrastructure. Persisted to D1 because the upstream is a rolling
+20-item window for all of Thailand; a 5-minute cron
+(`[triggers] crons = ["*/5 * * * *"]` in `wrangler.toml`) keeps the
+store fresh between visitors.
 
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
 
@@ -393,9 +421,26 @@ report.
     Each zone is a point on the map coloured by average appraisal
     price (500–435,000 ฿/sq.wah). Six-step ramp from cream to dark
     amber.
+15. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
+    "!" pins for breaking city events with reporter-supplied
+    coordinates. Source: `https://event.longdo.com/feed/json` — real
+    lat/lng from the reporter, no geocoding guesswork. Pinned
+    incidents are filtered two ways: only `accident | flood | fire |
+    trafficjam | roadclosed | rain | earthquake | protest | warning`
+    icons get a pin (diversion roadworks are dropped — the feed is
+    dominated by multi-month diversions, not breaking news), and any
+    event whose source-declared window exceeds 24h is dropped on
+    duration as standing infrastructure. A pin lives 60 minutes
+    from first sight or until the source's own stop time, whichever
+    comes first. Persisted to D1 (not proxied) because the upstream
+    is a rolling 20-item window for all of Thailand; a 5-minute cron
+    in `wrangler.toml` keeps the store fresh between visitors.
+    Endpoint: `/api/city-events`.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
-frame. Sharp edges. No rounded corners. No shadows.
+frame — **except alarm red** on the incidents layer, which is the
+one color reserved exclusively for breaking city events. Sharp
+edges. No rounded corners. No shadows.
 
 ## Why this is separate from the public BKKx site
 

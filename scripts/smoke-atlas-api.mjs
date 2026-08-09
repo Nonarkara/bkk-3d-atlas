@@ -3,23 +3,27 @@
  * smoke-atlas-api.mjs
  * --------------------
  * End-to-end smoke test for the atlas public API surface — the six
- * /api/atlas/* AI-readable mirror endpoints PLUS the five raw feed
+ * /api/atlas/* AI-readable mirror endpoints PLUS the six raw feed
  * proxies (/api/traffic, /api/risk, /api/cctv, /api/flood-sensors,
- * /api/civic-pois). Operator-runnable, no setup beyond network.
- * Exits non-zero on any failed assertion.
+ * /api/civic-pois, /api/city-events). Operator-runnable, no setup
+ * beyond network. Exits non-zero on any failed assertion.
  *
  *   node scripts/smoke-atlas-api.mjs                       # default: live URL
  *   ATLAS_URL=http://localhost:8787 node scripts/...       # local wrangler dev
  *   ATLAS_URL=https://atlas.nonarkara.org node scripts/... # explicit
  *
  * Designed to be the script you run after `wrangler deploy` to know
- * the city is still answering. Also locks in two contracts that are
+ * the city is still answering. Also locks in three contracts that are
  * easy to silently break:
  *   - /api/atlas/* shape (areas, districts, at-this-point, transit,
  *     buildings, scoreboard)
  *   - /api/traffic 200-with-configured-false contract (the previous
  *     503 contract threw two console errors on every visitor's page
  *     load — see commit c84e3c6 / version 95f4c4d8)
+ *   - /api/city-events "no fabricated coordinates" promise (every
+ *     feature must have finite coords inside the Bangkok bbox; if a
+ *     future change drops the bbox filter, this is the canary — see
+ *     commit 4845de0)
  */
 
 const DEFAULT_URL = "https://atlas.nonarkara.org";
@@ -171,7 +175,13 @@ async function checkScoreboard() {
   assert(body.khlongs.total === 4063, `khlongs.total=${body.khlongs.total}`);
   assert(body.feeds.traffic, "missing traffic feed");
   assert(body.feeds.rain, "missing rain feed");
-  logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · traffic.configured=${body.feeds.traffic.configured}`);
+  // The scoreboard should list EVERY live feed the atlas actually pulls
+  // from, not just the ones that pre-date the city-events layer. If a new
+  // feed is added, this list is the place that tells the world.
+  assert(body.feeds.cityEvents, "scoreboard missing cityEvents feed");
+  assert(body.feeds.cityEvents.endpoint === "/api/city-events", `cityEvents.endpoint=${body.feeds.cityEvents.endpoint}`);
+  assert(body.feeds.cityEvents.ttlMinutes === 60, `cityEvents.ttlMinutes=${body.feeds.cityEvents.ttlMinutes}`);
+  logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · traffic.configured=${body.feeds.traffic.configured} · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m`);
 }
 
 // Legacy raw-feed endpoints — the same surface, different shape. We lock
@@ -237,6 +247,37 @@ async function checkCivicPois() {
   logOk("GET /api/civic-pois", ms, `count=${body.count ?? body.features.length} (D1-backed)`);
 }
 
+// Live city incidents — the "God Mode" layer. The contract is:
+//   - 200, FeatureCollection
+//   - features (when present) have coordinates inside the Bangkok bbox
+//   - attribution + ttlMinutes are surfaced for the client
+//   - every feature has a non-empty geometry (we never store a row without
+//     coordinates — the design promise is "an event arrives with coordinates
+//     or it isn't stored")
+async function checkCityEvents() {
+  const { ok, status, body, ms } = await fetchJson("/api/city-events");
+  if (!ok || status !== 200) return logFail("GET /api/city-events", `status=${status}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  assert(typeof body.ttlMinutes === "number" && body.ttlMinutes > 0, `ttlMinutes=${body.ttlMinutes}`);
+  assert(typeof body.attribution === "string" && body.attribution.length > 0, "missing attribution");
+  // Bangkok bbox — the same one the Worker uses to filter the upstream feed.
+  // If a future change drops the bbox check, this is the canary.
+  const BKK = { minLng: 100.2, maxLng: 101.0, minLat: 13.4, maxLat: 14.2 };
+  for (const f of body.features) {
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /city-events feature with non-finite coords", JSON.stringify(f.properties));
+      return;
+    }
+    if (lng < BKK.minLng || lng > BKK.maxLng || lat < BKK.minLat || lat > BKK.maxLat) {
+      logFail("  /city-events feature outside Bangkok bbox", `(${lng},${lat}) ${JSON.stringify(f.properties)}`);
+      return;
+    }
+  }
+  logOk("GET /api/city-events", ms, `count=${body.count ?? body.features.length} ttlMinutes=${body.ttlMinutes} (all coords inside Bangkok bbox)`);
+}
+
 async function main() {
   logInfo(`\n  BKKx 3D Atlas — AI-readable mirror smoke test`);
   logInfo(`  target: ${baseUrl}\n`);
@@ -262,6 +303,7 @@ async function main() {
   await checkCctv();
   await checkFloodSensors();
   await checkCivicPois();
+  await checkCityEvents();
 
   summarize();
 }
