@@ -706,6 +706,11 @@ const BREAKING_EVENT_ICONS = new Set([
   "rain",
   "earthquake",
   "protest",
+  // `warning` looked like generic noise until the live feed showed what
+  // it actually carries: active MRT lane closures posted minutes earlier
+  // with 1-hour windows — textbook breaking. The duration rule below is
+  // what keeps the long-running ones out, so the icon can stay inclusive.
+  "warning",
 ]);
 
 type LongdoEvent = {
