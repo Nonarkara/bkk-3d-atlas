@@ -128,8 +128,20 @@ mustJson("public/bkk-landmarks.geojson", (data) => {
   else if (Number(victory.properties?.height) < 40) {
     fail(`Victory Monument height too short: ${victory.properties?.height}`);
   } else {
-    ok(`Victory Monument ${victory.properties.height} m + ${feats.length - 1} heritage overrides`);
+    ok(`Victory Monument ${victory.properties.height} m + ${feats.length - 1} landmark parts`);
   }
+  for (const id of ["landmark-democracy-monument", "landmark-golden-mount-chedi"]) {
+    if (!feats.some((f) => f.properties?.id === id)) fail(`missing ${id}`);
+  }
+  ok("Democracy Monument + Golden Mount landmarks present");
+});
+
+mustJson("public/bkk-heritage-detail.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 8000) fail(`heritage detail too few: ${n}`);
+  const tall = data.features.filter((f) => Number(f.properties?.render_height ?? f.properties?.height) >= 28).length;
+  if (tall < 20) fail(`heritage detail too few tall footprints: ${tall}`);
+  else ok(`${n} Old Town footprints (${tall} ≥28 m)`);
 });
 
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
@@ -181,10 +193,14 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
 <<<<<<< HEAD
+<<<<<<< HEAD
 for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "installNewsEvents", "openNewsEventPopup", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
 =======
 for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION"]) {
 >>>>>>> b86828f (Verify landmarks wiring in local laptop checks.)
+=======
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION", "HERITAGE_DETAIL_URL", "bkk-heritage-detail.geojson"]) {
+>>>>>>> c2b313b (Old Town detail layer: full footprints + monument silhouettes.)
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }

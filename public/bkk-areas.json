@@ -37,7 +37,7 @@
       "thai": "รัตนโกสินทร์",
       "category": "historic-core",
       "chapter": "The royal island",
-      "description": "The 18th-century walled city on the east bank of the Chao Phraya. Grand Palace, Wat Pho, Wat Phra Kaew, the National Museum, the old defensive canals.",
+      "description": "The 18th-century walled city on the east bank of the Chao Phraya. Grand Palace, Wat Phra Kaew, Wat Pho, Sanam Luang — heritage detail layer with full footprints and raised chedi / prasat / shophouse heights (fill-extrusion silhouette, not roof meshes).",
       "center": [
         100.4928,
         13.751
@@ -48,7 +48,9 @@
       "keyStats": {
         "landmarks": 24,
         "temples": 12,
-        "museums": 6
+        "museums": 6,
+        "detailFootprints": 9275,
+        "tallHeritage": 72
       },
       "tags": [
         "unesco-tentative",
@@ -221,7 +223,7 @@
         100.5383,
         13.7649
       ],
-      "zoom": 16.2,
+      "zoom": 15.8,
       "pitch": 64,
       "bearing": 12,
       "keyStats": {
