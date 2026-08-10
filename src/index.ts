@@ -1873,13 +1873,17 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
           // that put it there, so the layer is auditable row by row.
         },
         landmarks: {
-          source: "Fine Arts Department heritage register",
+          // Honest inventory: these are OSM footprints + schematic
+          // height overrides (Victory shaft, Democracy, Golden Mount,
+          // palace/temple masses). The Fine Arts Department register
+          // (571 monuments) lives on bkk.nonarkara.org/heritage — it is
+          // not this GeoJSON. Don't re-lie here.
+          source: "OSM footprints + schematic heritage heights",
           endpoint: "/bkk-landmarks.geojson",
           count: 73,
-          // Rendered as 3D fill-extrusions on the buildings layer, with
-          // real heights (Victory Monument 50m, Phu Khao Thong 45m,
-          // Phra Sumen Fort 60m). Not a separate toggle — always on
-          // with buildings.
+          // Rendered as 3D fill-extrusions with the buildings stack
+          // (Victory Monument 50 m shaft, Golden Mount chedi ~60 m).
+          // Not a separate toggle — always on with buildings.
         },
       },
       copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
