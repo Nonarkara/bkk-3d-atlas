@@ -1180,6 +1180,23 @@ function parseHashId() {
   return raw;
 }
 
+/** External fly-to: ?at=lng,lat,zoom. Used by bkk.nonarkara.org's quarter
+ *  quick-jump chips, which target coordinates that don't match any of
+ *  the 16 atlas areas. Lower priority than #hash (so a hash still wins
+ *  when both are set — the hash is the in-app share link). */
+function parseAtQuery() {
+  if (typeof location === "undefined") return null;
+  const at = new URL(location.href).searchParams.get("at");
+  if (!at) return null;
+  const m = at.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lng = Number(m[1]);
+  const lat = Number(m[2]);
+  const zoom = Number(m[3]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat) || !Number.isFinite(zoom)) return null;
+  return { center: [lng, lat], zoom };
+}
+
 function copyDeepLink() {
   const url = new URL(location.href);
   if (state.activeId) url.hash = state.activeId;
@@ -4148,6 +4165,7 @@ async function init() {
 
   const initialId = parseHashId();
   const initialArea = initialId ? state.areas.find((a) => a.id === initialId) : state.areas[0];
+  const externalAt = parseAtQuery();
 
   const map = new maplibregl.Map({
     container: "atlas-map",
@@ -4163,6 +4181,15 @@ async function init() {
     hash: false,
     attributionControl: { compact: true },
   });
+
+  // External fly-to (e.g. bkk's quarter chip loaded the atlas with
+  // ?at=lng,lat,zoom). Fires after the map is built so the camera
+  // override is the last word.
+  if (externalAt && !initialId) {
+    map.once("load", () => {
+      map.flyTo({ center: externalAt.center, zoom: externalAt.zoom, pitch: 60, bearing: 0, speed: 1.1, essential: true });
+    });
+  }
 
   state.map = map;
 

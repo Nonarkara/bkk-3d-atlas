@@ -282,6 +282,8 @@ if (!worker.includes("newsEvents")) fail("Worker scoreboard missing newsEvents f
 else ok("Worker scoreboard surfaces newsEvents feed");
 if (!worker.includes("/api/news-events")) fail("Worker missing /api/news-events");
 else ok("Worker exposes /api/news-events");
+if (!app.includes("parseAtQuery")) fail("app.js missing parseAtQuery (?at=lng,lat,zoom external fly-to)");
+else ok("app.js has parseAtQuery (bkk quarter quick-jump)");
 if (!worker.includes("bkk-venues.geojson")) fail("Worker missing gazetteer reference (no fabricated coords promise)");
 else ok("Worker references bkk-venues.geojson gazetteer");
 if (!worker.includes("landmarks")) fail("Worker scoreboard missing landmarks feed (heritage landmarks added 2026-08-10)");
