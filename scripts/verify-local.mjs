@@ -120,6 +120,18 @@ mustJson("public/bkk-civic-pois.geojson", (data) => {
   else ok(`${n} civic amenity sample points`);
 });
 
+mustJson("public/bkk-landmarks.geojson", (data) => {
+  const feats = data.features ?? [];
+  if (feats.length < 20) fail(`landmarks too few: ${feats.length}`);
+  const victory = feats.find((f) => f.properties?.id === "landmark-victory-monument");
+  if (!victory) fail("Victory Monument landmark missing");
+  else if (Number(victory.properties?.height) < 40) {
+    fail(`Victory Monument height too short: ${victory.properties?.height}`);
+  } else {
+    ok(`Victory Monument ${victory.properties.height} m + ${feats.length - 1} heritage overrides`);
+  }
+});
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
