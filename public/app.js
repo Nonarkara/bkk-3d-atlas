@@ -29,14 +29,24 @@ const BKKX_BUILDINGS_LAYER = "bkkx-3d-buildings";
 const BKKX_BUILDINGS_HI_LAYER = "bkkx-3d-buildings-hi";
 const BKKX_BUILDINGS_HANDOFF_ZOOM = 15;
 
-// Rattanakosin (Old Town) high-zoom PMTiles. 9,275 features covering
-// 100.49–100.52 E, 13.74–13.76 N (Grand Palace, Wat Pho, Wat Phra
-// Kaew, Wat Suthat, the royal field). Zoom 14–18 — way past the
-// metro-level PMTiles' maxzoom 15, so individual temple buildings
-// stay sharp and you can see the ordination halls' geometry.
+// Rattanakosin / Grand Palace detail — full unsimplified OSM footprints
+// (GeoJSON) with heritage heights baked in. Replaces the tippecanoe
+// PMTiles path for Old Town so chedis, throne halls, and shophouse
+// rows keep sharp footprints past metro maxzoom 15.
+// Fallback PMTiles kept if the GeoJSON fails to load.
+const HERITAGE_DETAIL_URL = "/bkk-heritage-detail.geojson";
+const HERITAGE_DETAIL_SOURCE = "bkkx-heritage-detail";
 const BKKX_RATTANAKOSIN_PMTILES_URL = "/bkk-buildings-rattanakosin.pmtiles";
 const BKKX_RATTANAKOSIN_PMTILES_LAYER = "bkkx-pmtiles-rattanakosin";
 const RATTANAKOSIN_BUILDINGS_LAYER = "bkkx-rattanakosin-buildings";
+
+// Curated landmark extrusions — Victory Monument 50 m shaft, Democracy
+// Monument, Golden Mount (~60 m), plus named heritage overrides.
+// OSM tags Victory/Democracy as historic=monument (not building), so
+// the building pipeline never extruded them.
+const LANDMARKS_URL = "/bkk-landmarks.geojson";
+const LANDMARKS_SOURCE = "bkkx-landmarks";
+const LANDMARKS_LAYER = "bkkx-landmarks-extrusion";
 
 // Building height — clamp to a sane range. OSM data occasionally
 // has corrupt building:levels tags (e.g. "12345678910111212") that
@@ -73,6 +83,34 @@ const MIN_HEIGHT_GET = [
 
 const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
 const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
+
+// Old Town: when OSM has no real height (stuck on the 9 m default),
+// lift temples / shophouse fabric so Rattanakosin reads as a city
+// of wats and 2–3 storey rows, not a flat plate. Real tagged heights
+// still win. Landmark overlays add the tall chedis / Victory Monument.
+const RATTANAKOSIN_HEIGHT_EXPRESSION = [
+  "case",
+  ["!=", HEIGHT_GET, 9], HEIGHT_GET,
+  ["match", ["coalesce", ["get", "building"], ["get", "building_type"], ""],
+    "temple", 18,
+    "pagoda", 36,
+    "shrine", 14,
+    "chapel", 14,
+    "monastery", 16,
+    "commercial", 12,
+    "retail", 12,
+    "terrace", 12,
+    "house", 10,
+    "residential", 10,
+    9,
+  ],
+];
+const RATTANAKOSIN_MIN_HEIGHT_EXPRESSION = [
+  "case",
+  [">=", MIN_HEIGHT_RAW, RATTANAKOSIN_HEIGHT_EXPRESSION],
+  0,
+  ["max", 0, MIN_HEIGHT_RAW],
+];
 
 // Skip non-3D / collapsed footprints that otherwise fang the skyline.
 const BUILDING_EXTRUSION_FILTER = [
@@ -200,20 +238,41 @@ const BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-vertical-gradient": true,
 };
 
-// Rattanakosin Old Town — same type-color logic, plus higher opacity
-// at every zoom (the layer is only visible at zoom 14+ so we don't
-// need to ramp it up gradually).
+// Rattanakosin Old Town — type colors + heritage-aware height defaults.
+// Opacity stays 1 (layer only paints at z14+).
 const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
-  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
 const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#c9ff38",
-  "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-opacity": 1,
+  "fill-extrusion-vertical-gradient": true,
+};
+
+// Landmark paint — gold for wats / monument, warmer for Golden Mount.
+const LANDMARK_COLOR = [
+  "match", ["get", "kind"],
+  "monument", "#e8d5a3",
+  "chedi", "#f5b800",
+  "golden_mount", "#f0c24a",
+  "prasat", "#f0c24a",
+  "mondop", "#f0c24a",
+  "throne", "#e9a91a",
+  "ubosot", "#f5b800",
+  "viharn", "#d4a017",
+  "heritage", "#f5b800",
+  "#f5b800",
+];
+const LANDMARK_PAINT = {
+  "fill-extrusion-color": LANDMARK_COLOR,
+  "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
+  "fill-extrusion-base": ["coalesce", ["get", "base_height"], 0],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
@@ -518,6 +577,7 @@ const LAYER_STACK = [
   BKKX_BUILDINGS_LAYER,
   BKKX_BUILDINGS_HI_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
+  LANDMARKS_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -663,6 +723,16 @@ function applyNightMode(map) {
   } else if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     applyRattanakosinPaint(map);
   }
+  if (state.nightMode && map.getLayer(LANDMARKS_LAYER)) {
+    try {
+      map.setPaintProperty(LANDMARKS_LAYER, "fill-extrusion-color", "#ffe8a0");
+      map.setPaintProperty(LANDMARKS_LAYER, "fill-extrusion-opacity", 1);
+    } catch {}
+  } else if (map.getLayer(LANDMARKS_LAYER)) {
+    for (const [key, value] of Object.entries(LANDMARK_PAINT)) {
+      try { map.setPaintProperty(LANDMARKS_LAYER, key, value); } catch {}
+    }
+  }
 
   const nightToggle = document.getElementById("toggle-night");
   if (nightToggle) nightToggle.checked = state.nightMode;
@@ -727,11 +797,22 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
-    install: async (map) => { installBuildings(map); installRattanakosin(map); ensureStackOrder(map); },
-    uninstall: (map) => { setLayersVisible(map, [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"], false); },
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    install: async (map) => {
+      installBuildings(map);
+      await installRattanakosin(map);
+      await installLandmarks(map);
+      ensureStackOrder(map);
+    },
+    uninstall: (map) => {
+      setLayersVisible(map, [
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER,
+        "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
+      ], false);
+    },
     legend: [
-      { color: "#f5b800", label: "temple / pagoda" },
+      { color: "#f5b800", label: "temple / pagoda / chedi" },
+      { color: "#e8d5a3", label: "Victory Monument" },
       { color: "#a8c84a", label: "mosque" },
       { color: "#c89b3c", label: "church / cathedral" },
       { color: "#3b82f6", label: "school" },
@@ -739,7 +820,7 @@ const LAYERS = [
       { color: "#10b981", label: "hospital" },
       { color: "#ec4899", label: "hotel" },
       { color: "#a855f7", label: "museum" },
-      { color: "#fef3c7", label: "commercial / retail" },
+      { color: "#fef3c7", label: "commercial / shophouse" },
       { color: "#d4ff5b", label: "house" },
       { color: "#fb923c", label: "apartments" },
       { color: "#6b7280", label: "industrial" },
@@ -1172,7 +1253,7 @@ function hideBaseBuildingFills(map) {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
     if (layer.id === BKKX_BUILDINGS_LAYER || layer.id === BKKX_BUILDINGS_HI_LAYER) continue;
-    if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER) continue;
+    if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER || layer.id === LANDMARKS_LAYER) continue;
     const sourceLayer = layer["source-layer"];
     const isBuildingFill =
       layer.type === "fill" &&
@@ -1331,12 +1412,34 @@ function uninstallBuildings(map) {
   }
 }
 
-// Rattanakosin high-zoom detail layer. Activated when zoom >= 14
-// and the buildings layer is on. Sits on top of the metro PMTiles
-// (which only goes to zoom 15) and continues the rendering up to
-// zoom 18 with full building geometry.
-function installRattanakosin(map) {
-  if (!map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) {
+// Rattanakosin / Grand Palace detail. Prefer the enriched GeoJSON
+// (full footprints + baked heritage heights). Fall back to the older
+// PMTiles if the GeoJSON is missing.
+async function installRattanakosin(map) {
+  const paint = state.buildingPaint === "type"
+    ? RATTANAKOSIN_BUILDING_PAINT_BY_TYPE
+    : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME;
+
+  let usedGeoJson = false;
+  if (!map.getSource(HERITAGE_DETAIL_SOURCE)) {
+    try {
+      const res = await fetch(HERITAGE_DETAIL_URL);
+      if (!res.ok) throw new Error(`heritage detail HTTP ${res.status}`);
+      const data = await res.json();
+      map.addSource(HERITAGE_DETAIL_SOURCE, {
+        type: "geojson",
+        data,
+        attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx heritage detail",
+      });
+      usedGeoJson = true;
+    } catch (error) {
+      console.warn("Heritage detail GeoJSON failed, falling back to PMTiles:", error);
+    }
+  } else {
+    usedGeoJson = true;
+  }
+
+  if (!usedGeoJson && !map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) {
     try {
       map.addSource(BKKX_RATTANAKOSIN_PMTILES_LAYER, {
         type: "vector",
@@ -1347,19 +1450,29 @@ function installRattanakosin(map) {
       console.warn("Rattanakosin PMTiles source failed:", error);
     }
   }
+
   if (!map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     try {
-      map.addLayer({
-        id: RATTANAKOSIN_BUILDINGS_LAYER,
-        type: "fill-extrusion",
-        source: BKKX_RATTANAKOSIN_PMTILES_LAYER,
-        "source-layer": "buildings",
-        minzoom: 14,
-        filter: BUILDING_EXTRUSION_FILTER,
-        paint: state.buildingPaint === "type"
-          ? RATTANAKOSIN_BUILDING_PAINT_BY_TYPE
-          : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME,
-      });
+      if (usedGeoJson) {
+        map.addLayer({
+          id: RATTANAKOSIN_BUILDINGS_LAYER,
+          type: "fill-extrusion",
+          source: HERITAGE_DETAIL_SOURCE,
+          minzoom: 13.5,
+          filter: BUILDING_EXTRUSION_FILTER,
+          paint,
+        });
+      } else {
+        map.addLayer({
+          id: RATTANAKOSIN_BUILDINGS_LAYER,
+          type: "fill-extrusion",
+          source: BKKX_RATTANAKOSIN_PMTILES_LAYER,
+          "source-layer": "buildings",
+          minzoom: 14,
+          filter: BUILDING_EXTRUSION_FILTER,
+          paint,
+        });
+      }
     } catch (error) {
       console.warn("Rattanakosin buildings layer failed:", error);
     }
@@ -1380,7 +1493,45 @@ function applyRattanakosinPaint(map) {
 
 function uninstallRattanakosin(map) {
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) try { map.removeLayer(RATTANAKOSIN_BUILDINGS_LAYER); } catch {}
+  if (map.getSource(HERITAGE_DETAIL_SOURCE)) try { map.removeSource(HERITAGE_DETAIL_SOURCE); } catch {}
   if (map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) try { map.removeSource(BKKX_RATTANAKOSIN_PMTILES_LAYER); } catch {}
+}
+
+// Landmark extrusions — Victory Monument + Rattanakosin heritage
+// height overrides. Loaded as GeoJSON so we don't need a PMTiles
+// re-bake / R2 upload to correct OSM's flat 9 m defaults.
+async function installLandmarks(map) {
+  if (!map.getSource(LANDMARKS_SOURCE)) {
+    try {
+      const res = await fetch(LANDMARKS_URL);
+      if (!res.ok) throw new Error(`landmarks HTTP ${res.status}`);
+      const data = await res.json();
+      map.addSource(LANDMARKS_SOURCE, { type: "geojson", data });
+    } catch (error) {
+      console.warn("Landmarks source failed:", error);
+      return;
+    }
+  }
+  if (!map.getLayer(LANDMARKS_LAYER)) {
+    try {
+      map.addLayer({
+        id: LANDMARKS_LAYER,
+        type: "fill-extrusion",
+        source: LANDMARKS_SOURCE,
+        minzoom: 13,
+        paint: LANDMARK_PAINT,
+      });
+    } catch (error) {
+      console.warn("Landmarks layer failed:", error);
+    }
+  } else {
+    try { map.setLayoutProperty(LANDMARKS_LAYER, "visibility", "visible"); } catch {}
+  }
+}
+
+function uninstallLandmarks(map) {
+  if (map.getLayer(LANDMARKS_LAYER)) try { map.removeLayer(LANDMARKS_LAYER); } catch {}
+  if (map.getSource(LANDMARKS_SOURCE)) try { map.removeSource(LANDMARKS_SOURCE); } catch {}
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -3439,7 +3590,12 @@ async function loadKhlongData(map) {
 // Inspect — click building + flood/risk at that point
 // ─────────────────────────────────────────────────────────────────
 
-const INSPECT_BUILDING_LAYERS = [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER];
+const INSPECT_BUILDING_LAYERS = [
+  LANDMARKS_LAYER,
+  RATTANAKOSIN_BUILDINGS_LAYER,
+  BKKX_BUILDINGS_LAYER,
+  BKKX_BUILDINGS_HI_LAYER,
+];
 
 function fillInspectDl(el, rows) {
   if (!el) return;
@@ -3469,15 +3625,18 @@ function buildingRowsFromFeature(feature) {
     ];
   }
   const p = feature.properties ?? {};
-  const type = p.building ?? p.building_type ?? p.class ?? "yes";
+  const type = p.kind ?? p.building ?? p.building_type ?? p.class ?? "yes";
   const height = p.render_height ?? p.height ?? null;
-  const minH = p.render_min_height ?? p.min_height ?? null;
+  const minH = p.render_min_height ?? p.min_height ?? p.base_height ?? null;
+  const name = p.name_en || p.name || p["name:en"] || null;
   const osmId = p.osm_id ?? p.id ?? p["@id"] ?? null;
-  const rows = [
+  const rows = [];
+  if (name) rows.push(["Name", String(name)]);
+  rows.push(
     ["Type", String(type)],
     ["Height", height != null ? `${height} m` : "—"],
     ["Base", minH != null && Number(minH) > 0 ? `${minH} m` : "0 m"],
-  ];
+  );
   if (osmId != null) rows.push(["OSM id", String(osmId)]);
   return rows;
 }

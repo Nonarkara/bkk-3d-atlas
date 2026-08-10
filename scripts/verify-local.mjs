@@ -120,6 +120,30 @@ mustJson("public/bkk-civic-pois.geojson", (data) => {
   else ok(`${n} civic amenity sample points`);
 });
 
+mustJson("public/bkk-landmarks.geojson", (data) => {
+  const feats = data.features ?? [];
+  if (feats.length < 20) fail(`landmarks too few: ${feats.length}`);
+  const victory = feats.find((f) => f.properties?.id === "landmark-victory-monument");
+  if (!victory) fail("Victory Monument landmark missing");
+  else if (Number(victory.properties?.height) < 40) {
+    fail(`Victory Monument height too short: ${victory.properties?.height}`);
+  } else {
+    ok(`Victory Monument ${victory.properties.height} m + ${feats.length - 1} landmark parts`);
+  }
+  for (const id of ["landmark-democracy-monument", "landmark-golden-mount-chedi"]) {
+    if (!feats.some((f) => f.properties?.id === id)) fail(`missing ${id}`);
+  }
+  ok("Democracy Monument + Golden Mount landmarks present");
+});
+
+mustJson("public/bkk-heritage-detail.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 8000) fail(`heritage detail too few: ${n}`);
+  const tall = data.features.filter((f) => Number(f.properties?.render_height ?? f.properties?.height) >= 28).length;
+  if (tall < 20) fail(`heritage detail too few tall footprints: ${tall}`);
+  else ok(`${n} Old Town footprints (${tall} ≥28 m)`);
+});
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
@@ -168,12 +192,25 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
+<<<<<<< HEAD
+<<<<<<< HEAD
 for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "installNewsEvents", "openNewsEventPopup", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
+=======
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION"]) {
+>>>>>>> b86828f (Verify landmarks wiring in local laptop checks.)
+=======
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION", "HERITAGE_DETAIL_URL", "bkk-heritage-detail.geojson"]) {
+>>>>>>> c2b313b (Old Town detail layer: full footprints + monument silhouettes.)
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
 if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
 else ok("street-zoom buildings hand off past tippecanoe maxzoom");
+if (!app.includes("landmark-victory-monument") && !app.includes("bkk-landmarks.geojson")) {
+  fail("landmarks layer not wired to bkk-landmarks.geojson");
+} else {
+  ok("Victory Monument + heritage landmarks wired");
+}
 if (!/id:\s*CIVIC_POI_LAYER[\s\S]{0,220}minzoom:\s*9/.test(app)) {
   fail("CIVIC_POI_LAYER missing minzoom 9");
 } else {
