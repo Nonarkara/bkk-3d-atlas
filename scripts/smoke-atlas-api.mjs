@@ -299,9 +299,14 @@ async function checkNewsEvents() {
   for (const f of body.features) {
     const p = f.properties || {};
     assert(p.precision === "venue" || p.precision === "area", `unknown precision '${p.precision}' on ${p.venueName}`);
-    // matchPhrase is the audit trail — without it, we couldn't tell
-    // why a pin landed on a place.
-    assert(typeof p.matchPhrase === "string" && p.matchPhrase.length > 0, `missing matchPhrase on ${p.venueName}`);
+    // The audit trail lives inside the articles[] array — a venue
+    // cluster can have multiple articles, each matched by its own
+    // phrase. At least one article per cluster must carry a non-empty
+    // matchPhrase, otherwise we couldn't tell why a pin landed there.
+    const articles = Array.isArray(p.articles) ? p.articles : [];
+    assert(articles.length > 0, `no articles on ${p.venueName} — every pin must carry the matched text`);
+    const anyMatch = articles.some((a) => typeof a.matchPhrase === "string" && a.matchPhrase.length > 0);
+    assert(anyMatch, `no article on ${p.venueName} has a matchPhrase (audit trail missing)`);
     // Same Bangkok bbox promise as city-events.
     const [lng, lat] = f.geometry?.coordinates ?? [];
     if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
