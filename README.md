@@ -436,11 +436,33 @@ report.
     is a rolling 20-item window for all of Thailand; a 5-minute cron
     in `wrangler.toml` keeps the store fresh between visitors.
     Endpoint: `/api/city-events`.
+16. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
+    "●" pins for "what the city is talking about": motor shows,
+    concerts, gatherings, the things that draw crowds and wreck
+    traffic. **No fabricated coordinates.** A pin only exists when a
+    real place name from `public/bkk-venues.geojson` (599 OSM venues
+    + 13 curated areas) is found in the article's headline or
+    summary; the matching phrase is stored on every row so any pin
+    can be audited back to the words that put it there. Articles
+    that match nothing get no pin — they are simply not stored.
+    `precision` is either `venue` (a specific named place — IMPACT
+    Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
+    the client labels both, so nobody reads an area pin as a street
+    address. 14-day rolling window. Endpoint: `/api/news-events`.
+17. **Heritage landmarks** (Fine Arts Department register, baked
+    into `public/bkk-landmarks.geojson`) — 73 ancient monuments
+    rendered as 3D fill-extrusions on the buildings layer, with
+    real heights (Victory Monument 50 m shaft, Phu Khao Thong 45 m,
+    Phra Sumen Fort 60 m). Always on with buildings; not a separate
+    toggle. The Rattanakosin Old Town detail PMTiles
+    (`bkk-heritage-detail.geojson`, 3.8 MB) takes over at z14+ to
+    show the temple geometry of the Grand Palace, Wat Pho, Wat
+    Phra Kaew and the royal field.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
-frame — **except alarm red** on the incidents layer, which is the
-one color reserved exclusively for breaking city events. Sharp
-edges. No rounded corners. No shadows.
+frame — **except alarm red** on the incidents layer (the one
+breaking-news color) and **amber** on the Buzz layer (the one
+discourse color). Sharp edges. No rounded corners. No shadows.
 
 ## Why this is separate from the public BKKx site
 

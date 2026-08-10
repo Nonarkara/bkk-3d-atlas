@@ -131,7 +131,7 @@
           <li>
             <strong>Worker</strong> — a single
             <code>src/index.ts</code>, deployed to Cloudflare
-            Workers. Twelve public API routes:
+            Workers. Thirteen public API routes:
             <code>/api/traffic</code> proxies the iTIC/Longdo
             live traffic feed (200 + <code>configured: false</code>
             when no key is set — the no-key state is the known
@@ -141,7 +141,9 @@
             <code>/api/civic-pois[/analysis]</code>,
             <code>/api/city-events</code> (live breaking
             incidents, D1-backed, polled every 5 minutes by a
-            cron trigger), and the
+            cron trigger), <code>/api/news-events</code>
+            (geolocated news, 14-day window, OSM-gazetteer-matched
+            — no fabricated coordinates), and the
             six <code>/api/atlas/*</code> AI-readable mirror
             endpoints (<code>areas</code>, <code>districts</code>,
             <code>at-this-point</code>, <code>transit</code>,

@@ -181,7 +181,11 @@ async function checkScoreboard() {
   assert(body.feeds.cityEvents, "scoreboard missing cityEvents feed");
   assert(body.feeds.cityEvents.endpoint === "/api/city-events", `cityEvents.endpoint=${body.feeds.cityEvents.endpoint}`);
   assert(body.feeds.cityEvents.ttlMinutes === 60, `cityEvents.ttlMinutes=${body.feeds.cityEvents.ttlMinutes}`);
-  logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · traffic.configured=${body.feeds.traffic.configured} · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m`);
+  assert(body.feeds.newsEvents, "scoreboard missing newsEvents feed (Buzz layer added 2026-08-10)");
+  assert(body.feeds.newsEvents.endpoint === "/api/news-events", `newsEvents.endpoint=${body.feeds.newsEvents.endpoint}`);
+  assert(body.feeds.landmarks, "scoreboard missing landmarks feed (heritage landmarks added 2026-08-10)");
+  assert(body.feeds.landmarks.endpoint === "/bkk-landmarks.geojson", `landmarks.endpoint=${body.feeds.landmarks.endpoint}`);
+  logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m · newsEvents=${body.feeds.newsEvents.windowDays}d · landmarks=${body.feeds.landmarks.count}`);
 }
 
 // Legacy raw-feed endpoints — the same surface, different shape. We lock
@@ -278,6 +282,36 @@ async function checkCityEvents() {
   logOk("GET /api/city-events", ms, `count=${body.count ?? body.features.length} ttlMinutes=${body.ttlMinutes} (all coords inside Bangkok bbox)`);
 }
 
+// Geolocated news ("Buzz" layer) — same "no fabricated coordinates"
+// promise as city events, but for articles. A pin only exists where a
+// gazetteer name (built from OpenStreetMap + curated areas) was found
+// in the headline. The match phrase is stored on every row so any pin
+// can be audited back to the words that put it there.
+async function checkNewsEvents() {
+  const { ok, status, body, ms } = await fetchJson("/api/news-events");
+  if (!ok || status !== 200) return logFail("GET /api/news-events", `status=${status}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  assert(typeof body.attribution === "string" && body.attribution.length > 0, "missing attribution");
+  assert(typeof body.windowDays === "number" && body.windowDays > 0, `windowDays=${body.windowDays}`);
+  // Every venue must carry precision = 'venue' | 'area' (the client
+  // labels both, so nobody reads an area pin as a street address).
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(p.precision === "venue" || p.precision === "area", `unknown precision '${p.precision}' on ${p.venueName}`);
+    // matchPhrase is the audit trail — without it, we couldn't tell
+    // why a pin landed on a place.
+    assert(typeof p.matchPhrase === "string" && p.matchPhrase.length > 0, `missing matchPhrase on ${p.venueName}`);
+    // Same Bangkok bbox promise as city-events.
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (lng < 100.2 || lng > 101.0 || lat < 13.4 || lat > 14.2) {
+      logFail("  /news-events feature outside Bangkok bbox", `(${lng},${lat}) ${p.venueName}`);
+      return;
+    }
+  }
+  logOk("GET /api/news-events", ms, `count=${body.count ?? body.features.length} articleCount=${body.articleCount ?? "?"} windowDays=${body.windowDays} (every pin has matchPhrase + valid precision)`);
+}
+
 async function main() {
   logInfo(`\n  BKKx 3D Atlas — AI-readable mirror smoke test`);
   logInfo(`  target: ${baseUrl}\n`);
@@ -304,6 +338,7 @@ async function main() {
   await checkFloodSensors();
   await checkCivicPois();
   await checkCityEvents();
+  await checkNewsEvents();
 
   summarize();
 }

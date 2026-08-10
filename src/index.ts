@@ -1863,6 +1863,24 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
           // active. Storing in D1 (city_events) lets an incident hold its
           // full hour and the layer self-clear.
         },
+        newsEvents: {
+          source: "Bangkok Post + Khaosod English RSS",
+          live: true,
+          endpoint: "/api/news-events",
+          windowDays: 14,
+          // Geolocated only via a 599-entry OSM-built gazetteer — no
+          // fabricated coordinates. Every pin carries the match phrase
+          // that put it there, so the layer is auditable row by row.
+        },
+        landmarks: {
+          source: "Fine Arts Department heritage register",
+          endpoint: "/bkk-landmarks.geojson",
+          count: 73,
+          // Rendered as 3D fill-extrusions on the buildings layer, with
+          // real heights (Victory Monument 50m, Phu Khao Thong 45m,
+          // Phra Sumen Fort 60m). Not a separate toggle — always on
+          // with buildings.
+        },
       },
       copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
     },
