@@ -180,12 +180,21 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
+<<<<<<< HEAD
 for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "installNewsEvents", "openNewsEventPopup", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
+=======
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION"]) {
+>>>>>>> b86828f (Verify landmarks wiring in local laptop checks.)
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
 if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
 else ok("street-zoom buildings hand off past tippecanoe maxzoom");
+if (!app.includes("landmark-victory-monument") && !app.includes("bkk-landmarks.geojson")) {
+  fail("landmarks layer not wired to bkk-landmarks.geojson");
+} else {
+  ok("Victory Monument + heritage landmarks wired");
+}
 if (!/id:\s*CIVIC_POI_LAYER[\s\S]{0,220}minzoom:\s*9/.test(app)) {
   fail("CIVIC_POI_LAYER missing minzoom 9");
 } else {
