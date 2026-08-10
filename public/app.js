@@ -349,6 +349,19 @@ const CITY_EVENT_LABEL = {
   earthquake: "Earthquake",
   protest: "Protest",
 };
+
+// Buzz — geolocated news via /api/news-events. Deliberately amber, never
+// red: red means "happening now, get out of the way", amber means "the
+// city is talking about this place". Marker size carries mention count,
+// so a venue with six stories reads louder than one with a single
+// mention — that IS the trending signal, not a separate widget.
+const NEWS_EVENT_SOURCE = "bkkx-news-events";
+const NEWS_EVENT_LAYER = "bkkx-news-event-dots";
+const NEWS_EVENT_GLOW_LAYER = "bkkx-news-event-glow";
+const NEWS_EVENT_COUNT_LAYER = "bkkx-news-event-count";
+const NEWS_EVENT_DATA_URL = "/api/news-events";
+const NEWS_EVENT_REFRESH_MS = 300000;
+
 const CIVIC_POI_CATEGORY_COLOR = [
   "match", ["get", "category"],
   "school", "#3b82f6",
@@ -481,6 +494,8 @@ const state = {
   civicDensityPopup: null,
   cityEventPopup: null,
   cityEventTimer: null,
+  newsEventPopup: null,
+  newsEventTimer: null,
   // Per-category visibility for Civic amenities (legend toggles).
   civicPoiCategories: {
     school: true,
@@ -530,6 +545,9 @@ const LAYER_STACK = [
   LIVE_CAM_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
+  NEWS_EVENT_GLOW_LAYER,
+  NEWS_EVENT_LAYER,
+  NEWS_EVENT_COUNT_LAYER,
   CITY_EVENT_PULSE_LAYER,
   CITY_EVENT_LAYER,
 ];
@@ -668,6 +686,7 @@ function updateStackChips() {
     "civic-pois": "Civic",
     "civic-density": "Density",
     "city-events": "Live !",
+    "news-events": "Buzz",
     flood: "Flood",
     "flood-sensors": "Gauges",
     heat: "Heat",
@@ -947,6 +966,20 @@ const LAYERS = [
       { color: "#8fc22c", label: "46–60" },
       { color: "#c9ff38", label: "60+" },
     ],
+  },
+  {
+    id: "news-events",
+    name: "Buzz — what the city is talking about",
+    description: "News matched to real places · 14d",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [NEWS_EVENT_GLOW_LAYER, NEWS_EVENT_LAYER, NEWS_EVENT_COUNT_LAYER],
+    install: async (map) => { await installNewsEvents(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      stopNewsEventPolling();
+      closeNewsEventPopup();
+      setLayersVisible(map, [NEWS_EVENT_GLOW_LAYER, NEWS_EVENT_LAYER, NEWS_EVENT_COUNT_LAYER], false);
+    },
   },
   {
     id: "city-events",
@@ -2404,6 +2437,188 @@ async function installCityEvents(map) {
   } catch (error) {
     console.warn("City event layer failed:", error);
     setLayerStatus("city-events", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Buzz — geolocated news (/api/news-events)
+// ─────────────────────────────────────────────────────────────────
+
+function closeNewsEventPopup() {
+  if (state.newsEventPopup) {
+    try { state.newsEventPopup.remove(); } catch {}
+    state.newsEventPopup = null;
+  }
+}
+
+function openNewsEventPopup(map, feature) {
+  const p = feature.properties || {};
+  closeNewsEventPopup();
+  const articles = parseJsonProp(p.articles, []);
+  const items = articles.map((a) => `
+    <li>
+      <a href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">${escapeHtml(a.title)}</a>
+      <span class="atlas-news-src">${escapeHtml(a.source || "")} · matched “${escapeHtml(a.matchPhrase || "")}”</span>
+    </li>
+  `).join("");
+  // Say plainly when a pin is a neighbourhood anchor rather than an
+  // address — the same rule the land-price layer learned the hard way.
+  const precisionNote = p.precision === "area"
+    ? "Area anchor — the story names this neighbourhood, not a specific address."
+    : "Venue named directly in the coverage.";
+  const html = `
+    <div class="atlas-news-card">
+      <p class="atlas-news-kicker">Buzz · ${escapeHtml(p.districtNameEn || "Bangkok")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.venueName)}</strong>
+      <p class="atlas-cctv-status">${p.mentions} ${p.mentions === 1 ? "story" : "stories"} · ${escapeHtml(precisionNote)}</p>
+      <ul class="atlas-news-list">${items}</ul>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "340px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat(feature.geometry.coordinates)
+    .setHTML(html)
+    .addTo(map);
+  state.newsEventPopup = popup;
+}
+
+function wireNewsEventInteractions(map) {
+  if (map.__bkkxNewsEventWired) return;
+  map.__bkkxNewsEventWired = true;
+  map.on("click", NEWS_EVENT_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openNewsEventPopup(map, feature);
+  });
+  map.on("mouseenter", NEWS_EVENT_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", NEWS_EVENT_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+function setNewsEventStatus(geojson) {
+  const venues = geojson?.count ?? 0;
+  const arts = geojson?.articleCount ?? 0;
+  setLayerStatus(
+    "news-events",
+    venues === 0
+      // Honest empty state: nothing matched is a real answer, not an error.
+      ? "no located stories in the last 14 days"
+      : `${venues} ${venues === 1 ? "place" : "places"} · ${arts} ${arts === 1 ? "story" : "stories"} · 14d`,
+  );
+}
+
+async function refreshNewsEvents(map) {
+  const geojson = await fetchJson(NEWS_EVENT_DATA_URL);
+  if (!geojson?.features) return null;
+  const src = map.getSource(NEWS_EVENT_SOURCE);
+  if (src) src.setData(geojson);
+  setNewsEventStatus(geojson);
+  return geojson;
+}
+
+function stopNewsEventPolling() {
+  if (state.newsEventTimer) {
+    clearInterval(state.newsEventTimer);
+    state.newsEventTimer = null;
+  }
+}
+
+function startNewsEventPolling(map) {
+  if (state.newsEventTimer) return;
+  state.newsEventTimer = setInterval(() => {
+    if (!state.layerOn["news-events"] || document.hidden) return;
+    refreshNewsEvents(map).catch(() => {});
+  }, NEWS_EVENT_REFRESH_MS);
+}
+
+// Radius scales with mention count — the trending signal IS the size,
+// rather than a separate chart the operator has to go find.
+const NEWS_SIZE_BY_MENTIONS = [
+  "interpolate", ["linear"], ["get", "mentions"],
+  1, 7,
+  3, 12,
+  6, 18,
+  12, 26,
+];
+
+async function installNewsEvents(map) {
+  if (map.getLayer(NEWS_EVENT_LAYER)) {
+    setLayersVisible(map, [NEWS_EVENT_GLOW_LAYER, NEWS_EVENT_LAYER, NEWS_EVENT_COUNT_LAYER], true);
+    await refreshNewsEvents(map);
+    startNewsEventPolling(map);
+    return;
+  }
+  const geojson = await fetchJson(NEWS_EVENT_DATA_URL);
+  if (!geojson?.features) {
+    setLayerStatus("news-events", "unavailable · feed failed");
+    return;
+  }
+  if (!map.getSource(NEWS_EVENT_SOURCE)) {
+    try {
+      map.addSource(NEWS_EVENT_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("News event source failed:", error);
+      setLayerStatus("news-events", "unavailable · source failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: NEWS_EVENT_GLOW_LAYER,
+      type: "circle",
+      source: NEWS_EVENT_SOURCE,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["get", "mentions"],
+          1, 14, 3, 23, 6, 34, 12, 48,
+        ],
+        "circle-color": "#f5a524",
+        "circle-opacity": 0.14,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: NEWS_EVENT_LAYER,
+      type: "circle",
+      source: NEWS_EVENT_SOURCE,
+      paint: {
+        "circle-radius": NEWS_SIZE_BY_MENTIONS,
+        "circle-color": "#f5a524",
+        "circle-opacity": 0.82,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.2,
+      },
+    });
+    map.addLayer({
+      id: NEWS_EVENT_COUNT_LAYER,
+      type: "symbol",
+      source: NEWS_EVENT_SOURCE,
+      // Only print the number once a place is actually trending.
+      filter: [">=", ["get", "mentions"], 2],
+      layout: {
+        "text-field": ["to-string", ["get", "mentions"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 11,
+        "text-allow-overlap": true,
+      },
+      paint: {
+        "text-color": "#11120f",
+        "text-halo-color": "#f5a524",
+        "text-halo-width": 1,
+      },
+    });
+    wireNewsEventInteractions(map);
+    setNewsEventStatus(geojson);
+    startNewsEventPolling(map);
+  } catch (error) {
+    console.warn("News event layer failed:", error);
+    setLayerStatus("news-events", "unavailable · layer failed");
   }
 }
 

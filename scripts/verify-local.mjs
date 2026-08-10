@@ -105,6 +105,15 @@ mustJson("public/bkk-cctv.geojson", (data) => {
   else ok(`${withHls} CCTV cameras have HLS urls`);
 });
 
+mustJson("public/bkk-venues.geojson", (data) => {
+  const n = data.features?.length ?? 0;
+  if (n < 200) fail(`venue gazetteer too small: ${n}`);
+  else ok(`${n} gazetteer venues for news matching`);
+  const bad = (data.features || []).filter((f) => (f.properties?.name || "").length < 4).length;
+  if (bad) fail(`${bad} gazetteer names under 4 chars — would false-match prose`);
+  else ok("no gazetteer name short enough to false-match prose");
+});
+
 mustJson("public/bkk-civic-pois.geojson", (data) => {
   const n = data.features?.length ?? 0;
   if (n < 500) fail(`civic POI sample too few: ${n}`);
@@ -159,7 +168,7 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
+for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "installNewsEvents", "openNewsEventPopup", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
@@ -194,6 +203,16 @@ if (!worker.includes("parseBangkokTime")) fail("Worker missing Asia/Bangkok time
 else ok("Worker parses feed times as UTC+7");
 if (!worker.includes("MAX_BREAKING_DURATION_HOURS")) fail("Worker missing standing-condition filter");
 else ok("Worker filters multi-month roadworks out of breaking events");
+if (!worker.includes("/api/news-events")) fail("Worker missing /api/news-events");
+else ok("Worker exposes /api/news-events");
+if (!worker.includes("match_phrase")) fail("news_events must store the matched phrase (audit trail for every pin)");
+else ok("Worker records the phrase that placed each news pin");
+if (!worker.includes("AbortSignal.timeout")) fail("news fetches need timeouts (an untimed source stalled the endpoint 21s)");
+else ok("news source fetches are time-bounded");
+if (!existsSync(join(root, "db/schema-news-events.sql"))) fail("missing db/schema-news-events.sql");
+else ok("db/schema-news-events.sql present");
+if (!existsSync(join(root, "scripts/build-venue-gazetteer.py"))) fail("missing venue gazetteer builder");
+else ok("venue gazetteer builder present");
 if (!worker.includes("cityEvents")) fail("Worker scoreboard missing cityEvents feed (added 2026-08-09)");
 else ok("Worker scoreboard surfaces cityEvents feed");
 if (!existsSync(join(root, "db/schema.sql"))) fail("missing db/schema.sql");

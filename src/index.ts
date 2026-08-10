@@ -922,6 +922,322 @@ async function listCityEvents(request: Request, env: Env): Promise<Response> {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Geolocated news ("what the city is talking about, and where")
+//
+// The honesty problem this solves: news headlines carry no coordinates.
+// GDELT's GEO API, which used to supply them, is retired (404). So a pin
+// is only created when a REAL place name from public/bkk-venues.geojson
+// (built from OpenStreetMap by scripts/build-venue-gazetteer.py) appears
+// in the headline or summary. The literal matched phrase is stored on the
+// row, so every pin can be audited back to the words that placed it.
+// Articles that match nothing get no pin and are not stored — never a
+// guess, never a dump at city centre.
+// ─────────────────────────────────────────────────────────────────
+
+// Verified live: each of these returns parseable <item>s. Bangkok Post's
+// `bangkok.xml`, `general.xml` and `most-viewed.xml` all 404 — these three
+// are the ones that actually exist.
+const NEWS_FEEDS = [
+  { url: "https://www.bangkokpost.com/rss/data/most-recent.xml", source: "bangkokpost.com" },
+  { url: "https://www.bangkokpost.com/rss/data/thailand.xml", source: "bangkokpost.com" },
+  { url: "https://www.bangkokpost.com/rss/data/news.xml", source: "bangkokpost.com" },
+  { url: "https://www.khaosodenglish.com/feed/", source: "khaosodenglish.com" },
+];
+
+// GDELT aggregates far more outlets than any single RSS feed, which is what
+// turns "trending" into something measurable rather than anecdotal. It rate-
+// limits to 1 request/5s — fine for a 5-minute cron. Failures are caught and
+// ignored exactly like a dead RSS feed, so the layer degrades to RSS alone.
+const GDELT_DOC_API =
+  "https://api.gdeltproject.org/api/v2/doc/doc?query=Bangkok%20sourcecountry:TH" +
+  "&mode=ArtList&format=json&timespan=3d&maxrecords=75&sort=datedesc";
+
+const VENUES_ASSET = "/bkk-venues.geojson";
+const NEWS_WINDOW_DAYS = 14;
+const NEWS_CACHE_TTL_SECONDS = 300;
+const NEWS_FETCH_TIMEOUT_MS = 4000;
+
+type VenueEntry = {
+  name: string;
+  aliases: string[];
+  kind: string;
+  precision: string;
+  lat: number;
+  lng: number;
+};
+
+let venuesCache: VenueEntry[] | null = null;
+
+async function getVenues(env: Env, request: Request): Promise<VenueEntry[]> {
+  if (venuesCache) return venuesCache;
+  const fc = await loadJsonAsset<AtlasFeatureCollection>(env, request, VENUES_ASSET);
+  const list: VenueEntry[] = [];
+  for (const f of fc?.features ?? []) {
+    const p = (f.properties ?? {}) as {
+      name?: string; aliases?: string[]; kind?: string; precision?: string;
+    };
+    const coords = (f.geometry as { coordinates?: number[] } | undefined)?.coordinates;
+    if (!p.name || !coords) continue;
+    list.push({
+      name: p.name,
+      aliases: Array.isArray(p.aliases) ? p.aliases : [],
+      kind: p.kind ?? "venue",
+      precision: p.precision ?? "venue",
+      lng: coords[0],
+      lat: coords[1],
+    });
+  }
+  // Longest names first: "IMPACT Challenger" should win over "IMPACT".
+  list.sort((a, b) => b.name.length - a.name.length);
+  venuesCache = list;
+  return list;
+}
+
+function stripTags(s: string): string {
+  return s
+    .replace(/<!\[CDATA\[|\]\]>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'").replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseRssItems(xml: string): Array<{ title: string; link: string; pubDate: string; description: string }> {
+  const items: Array<{ title: string; link: string; pubDate: string; description: string }> = [];
+  const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? [];
+  for (const block of blocks) {
+    const pick = (tag: string) => {
+      const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
+      return m ? stripTags(m[1]) : "";
+    };
+    const title = pick("title");
+    const link = pick("link");
+    if (!title || !link) continue;
+    items.push({ title, link, pubDate: pick("pubDate"), description: pick("description") });
+  }
+  return items;
+}
+
+/** Escape for use inside a RegExp, so venue names with punctuation
+ * ("Groove @ CentralWorld") can't corrupt the pattern. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Find the most specific gazetteer entry named in the text. Word
+ * boundaries only — substring matching would put "Ari" inside "Aria". */
+function matchVenue(text: string, venues: VenueEntry[]): { venue: VenueEntry; phrase: string } | null {
+  for (const v of venues) {
+    for (const candidate of [v.name, ...v.aliases]) {
+      if (candidate.length < 4) continue;
+      const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(candidate)}($|[^\\p{L}\\p{N}])`, "iu");
+      if (re.test(text)) return { venue: v, phrase: candidate };
+    }
+  }
+  return null;
+}
+
+/** Stable id from the URL so re-polling the same article is an upsert,
+ * not a duplicate pin. */
+async function hashId(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
+async function ingestNewsEvents(env: Env, request: Request): Promise<{ scanned: number; matched: number; unmatched: number }> {
+  const venues = await getVenues(env, request);
+  const districts = await getDistrictsGeoJson(env, request);
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  let scanned = 0;
+  let matched = 0;
+
+  // All sources in parallel. Sequentially this took 11.7s (4 feeds +
+  // GDELT, each up to the timeout); concurrently it costs about one
+  // slow source, which is what a user-facing endpoint can afford.
+  const fetched = await Promise.allSettled(
+    NEWS_FEEDS.map(async (feed) => ({
+      feed,
+      xml: await (await fetch(feed.url, {
+        headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+        signal: AbortSignal.timeout(NEWS_FETCH_TIMEOUT_MS),
+      }).then((r) => (r.ok ? r : Promise.reject(new Error(String(r.status)))))).text(),
+    })),
+  );
+
+  for (const settled of fetched) {
+    if (settled.status !== "fulfilled") continue; // a dead feed must not stop the others
+    const { feed, xml } = settled.value;
+
+    for (const item of parseRssItems(xml)) {
+      scanned++;
+      const haystack = `${item.title} ${item.description}`;
+      const hit = matchVenue(haystack, venues);
+      if (!hit) continue;   // no real place named → no pin, not stored
+      matched++;
+
+      const { id: districtId, name: districtName } = findDistrictForPoint(districts, hit.venue.lng, hit.venue.lat);
+      const id = await hashId(item.link);
+      statements.push(
+        env.CIVIC_DB.prepare(
+          `INSERT INTO news_events
+             (id, title, url, source, published_at, summary, venue_name, venue_kind,
+              precision, match_phrase, lat, lng, district_id, district_name_en, first_seen_at)
+           VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
+           ON CONFLICT(id) DO NOTHING`,
+        ).bind(
+          id,
+          item.title,
+          item.link,
+          feed.source,
+          item.pubDate || null,
+          item.description ? item.description.slice(0, 500) : null,
+          hit.venue.name,
+          hit.venue.kind,
+          hit.venue.precision,
+          hit.phrase,
+          hit.venue.lat,
+          hit.venue.lng,
+          districtId,
+          districtName,
+          now,
+        ),
+      );
+    }
+  }
+
+  // GDELT last, and entirely optional — same matcher, same honesty rule.
+  try {
+    const res = await fetch(GDELT_DOC_API, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+      signal: AbortSignal.timeout(NEWS_FETCH_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      const body = (await res.json()) as { articles?: Array<{ title?: string; url?: string; domain?: string; seendate?: string }> };
+      for (const art of body.articles ?? []) {
+        if (!art.title || !art.url) continue;
+        scanned++;
+        const hit = matchVenue(art.title, venues);
+        if (!hit) continue;
+        matched++;
+        const { id: districtId, name: districtName } = findDistrictForPoint(districts, hit.venue.lng, hit.venue.lat);
+        const id = await hashId(art.url);
+        statements.push(
+          env.CIVIC_DB.prepare(
+            `INSERT INTO news_events
+               (id, title, url, source, published_at, summary, venue_name, venue_kind,
+                precision, match_phrase, lat, lng, district_id, district_name_en, first_seen_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
+             ON CONFLICT(id) DO NOTHING`,
+          ).bind(
+            id, art.title, art.url, art.domain ?? "gdelt", art.seendate ?? null, null,
+            hit.venue.name, hit.venue.kind, hit.venue.precision, hit.phrase,
+            hit.venue.lat, hit.venue.lng, districtId, districtName, now,
+          ),
+        );
+      }
+    }
+  } catch {
+    // GDELT throttles aggressively; RSS alone is a valid degraded mode.
+  }
+
+  if (statements.length) await env.CIVIC_DB.batch(statements);
+  return { scanned, matched, unmatched: scanned - matched };
+}
+
+/** Geolocated news as GeoJSON, one feature per VENUE (not per article),
+ * carrying its mention count — that count is the "trending" signal the
+ * client sizes markers by. */
+async function listNewsEvents(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  // Do NOT block the response on ingestion. Polling five upstream sources
+  // took 6.3s even in parallel, which is unacceptable for a layer toggle.
+  // The 5-minute cron is the real ingest path; this just nudges a refresh
+  // in the background and serves whatever D1 already holds (~50ms).
+  if (ctx) {
+    ctx.waitUntil(ingestNewsEvents(env, request).catch(() => {}));
+  }
+
+  const since = new Date(Date.now() - NEWS_WINDOW_DAYS * 86400_000).toISOString();
+  const { results } = await env.CIVIC_DB.prepare(
+    `SELECT * FROM news_events WHERE first_seen_at >= ?1 ORDER BY first_seen_at DESC`,
+  ).bind(since).all<{
+    id: string; title: string; url: string; source: string | null;
+    published_at: string | null; summary: string | null;
+    venue_name: string; venue_kind: string | null; precision: string;
+    match_phrase: string; lat: number; lng: number;
+    district_id: number | null; district_name_en: string | null; first_seen_at: string;
+  }>();
+
+  // Group by venue so a venue with 6 stories is one loud pin, not 6 stacked.
+  const byVenue = new Map<string, {
+    venueName: string; venueKind: string | null; precision: string;
+    lat: number; lng: number; districtNameEn: string | null;
+    mentions: number; latestAt: string;
+    articles: Array<{ title: string; url: string; source: string | null; publishedAt: string | null; matchPhrase: string }>;
+  }>();
+
+  for (const r of results) {
+    const key = r.venue_name;
+    if (!byVenue.has(key)) {
+      byVenue.set(key, {
+        venueName: r.venue_name,
+        venueKind: r.venue_kind,
+        precision: r.precision,
+        lat: r.lat,
+        lng: r.lng,
+        districtNameEn: r.district_name_en,
+        mentions: 0,
+        latestAt: r.first_seen_at,
+        articles: [],
+      });
+    }
+    const entry = byVenue.get(key)!;
+    entry.mentions++;
+    if (r.first_seen_at > entry.latestAt) entry.latestAt = r.first_seen_at;
+    if (entry.articles.length < 6) {
+      entry.articles.push({
+        title: r.title,
+        url: r.url,
+        source: r.source,
+        publishedAt: r.published_at,
+        matchPhrase: r.match_phrase,
+      });
+    }
+  }
+
+  const features = [...byVenue.values()]
+    .sort((a, b) => b.mentions - a.mentions)
+    .map((v) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [v.lng, v.lat] },
+      properties: {
+        venueName: v.venueName,
+        venueKind: v.venueKind,
+        precision: v.precision,
+        districtNameEn: v.districtNameEn,
+        mentions: v.mentions,
+        latestAt: v.latestAt,
+        articles: v.articles,
+      },
+    }));
+
+  return jsonResponse(
+    {
+      type: "FeatureCollection",
+      count: features.length,
+      articleCount: results.length,
+      windowDays: NEWS_WINDOW_DAYS,
+      attribution: "Bangkok Post + Khaosod English RSS; places resolved against OpenStreetMap venues",
+      disclaimer:
+        "A pin exists only where a real place name from the OSM-built gazetteer was found in the headline or summary — the matched phrase is on every article. Stories that name no place are not shown. `precision: area` means a neighbourhood anchor, not a street address. Coverage is limited to the feeds polled, so this is a sample of city conversation, not all of it.",
+      features,
+    },
+    { headers: { "cache-control": `public, max-age=${NEWS_CACHE_TTL_SECONDS}` } },
+  );
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     // 200, not 503: no-key is the known steady state until a Longdo key
@@ -1601,7 +1917,7 @@ function apiCatalog(request: Request): Response {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api" || url.pathname === "/api/") {
       return apiCatalog(request);
@@ -1623,6 +1939,9 @@ export default {
     }
     if (url.pathname === "/api/city-events") {
       return listCityEvents(request, env);
+    }
+    if (url.pathname === "/api/news-events") {
+      return listNewsEvents(request, env, ctx);
     }
     if (url.pathname === "/api/risk") {
       return lookupRisk(request, env);
@@ -1675,6 +1994,8 @@ export default {
           const req = new Request("https://atlas.nonarkara.org/");
           const result = await ingestCityEvents(env, req);
           console.log("city-events cron ingest", JSON.stringify(result));
+          const news = await ingestNewsEvents(env, req);
+          console.log("news-events cron ingest", JSON.stringify(news));
         } catch (error) {
           console.warn("city-events cron ingest failed:", String(error));
         }
