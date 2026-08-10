@@ -185,6 +185,15 @@ async function checkScoreboard() {
   assert(body.feeds.newsEvents.endpoint === "/api/news-events", `newsEvents.endpoint=${body.feeds.newsEvents.endpoint}`);
   assert(body.feeds.landmarks, "scoreboard missing landmarks feed (heritage landmarks added 2026-08-10)");
   assert(body.feeds.landmarks.endpoint === "/bkk-landmarks.geojson", `landmarks.endpoint=${body.feeds.landmarks.endpoint}`);
+  // The Fine Arts Department register (571 monuments) is the bkk site's
+  // /heritage page — not this GeoJSON. Lock the honest source string so
+  // a future agent can't re-lie the scoreboard into claiming FAD ownership.
+  assert(
+    typeof body.feeds.landmarks.source === "string" &&
+      /OSM|schematic/i.test(body.feeds.landmarks.source) &&
+      !/Fine Arts Department heritage register/i.test(body.feeds.landmarks.source),
+    `landmarks.source must describe OSM/schematic heights, not FAD register; got ${body.feeds.landmarks.source}`,
+  );
   logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m · newsEvents=${body.feeds.newsEvents.windowDays}d · landmarks=${body.feeds.landmarks.count}`);
 }
 

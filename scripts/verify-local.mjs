@@ -288,6 +288,11 @@ if (!worker.includes("bkk-venues.geojson")) fail("Worker missing gazetteer refer
 else ok("Worker references bkk-venues.geojson gazetteer");
 if (!worker.includes("landmarks")) fail("Worker scoreboard missing landmarks feed (heritage landmarks added 2026-08-10)");
 else ok("Worker scoreboard surfaces landmarks feed");
+if (!worker.includes("OSM footprints + schematic heritage heights")) {
+  fail("Worker landmarks.source must stay honest (OSM/schematic — not Fine Arts Department register)");
+} else if (/Fine Arts Department heritage register/.test(worker)) {
+  fail("Worker still claims landmarks are the Fine Arts Department register");
+} else ok("Worker landmarks.source is honest (OSM/schematic heights)");
 if (!app.includes("installNewsEvents")) fail("public/app.js missing installNewsEvents");
 else ok("app.js has installNewsEvents");
 if (!app.includes("openNewsEventPopup")) fail("public/app.js missing openNewsEventPopup");
