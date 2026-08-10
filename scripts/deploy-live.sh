@@ -11,8 +11,10 @@ cd "$ROOT"
 
 EXPECTED_ACCOUNT="74ad6bf8dfaaccf82de6f0847f7d2d54"
 LIVE_URL="${LIVE_URL:-https://atlas.nonarkara.org/}"
+LIVE_ORIGIN="${LIVE_URL%/}"
 MARKER_ABOUT='id="atlas-about"'
 MARKER_LABS='id="atlas-labs"'
+MARKER_LANDMARKS='installLandmarks'
 WAIT_SECS="${DEPLOY_CACHE_WAIT_SECS:-12}"
 
 echo "==> ensure main is current"
@@ -20,9 +22,17 @@ git fetch origin main
 git checkout main
 git pull --ff-only origin main
 
-echo "==> preflight: About markup present in public/"
+echo "==> preflight: About markup + landmarks wiring present in public/"
 if ! grep -q "$MARKER_ABOUT" public/index.html; then
   echo "ERROR: $MARKER_ABOUT missing from public/index.html — refusing to deploy stale tree" >&2
+  exit 1
+fi
+if ! grep -q "$MARKER_LANDMARKS" public/app.js; then
+  echo "ERROR: $MARKER_LANDMARKS missing from public/app.js — refusing to deploy stale tree" >&2
+  exit 1
+fi
+if [[ ! -f public/bkk-landmarks.geojson || ! -f public/bkk-heritage-detail.geojson ]]; then
+  echo "ERROR: heritage GeoJSON missing under public/ — refusing to deploy" >&2
   exit 1
 fi
 
@@ -49,17 +59,22 @@ echo "==> waiting ${WAIT_SECS}s for Workers asset edge cache to catch up"
 sleep "$WAIT_SECS"
 
 verify_once() {
-  local html
+  local html app lm_code lm_http heritage_http
   html="$(curl -sL "$LIVE_URL")"
-  local bytes about labs
+  app="$(curl -sL "$LIVE_ORIGIN/app.js")"
+  lm_http="$(curl -s -o /dev/null -w '%{http_code}' "$LIVE_ORIGIN/bkk-landmarks.geojson")"
+  heritage_http="$(curl -s -o /dev/null -w '%{http_code}' "$LIVE_ORIGIN/bkk-heritage-detail.geojson")"
+  local bytes about labs landmarks
   bytes="$(printf '%s' "$html" | wc -c | tr -d ' ')"
   about="$(printf '%s' "$html" | grep -c "$MARKER_ABOUT" || true)"
   labs="$(printf '%s' "$html" | grep -c "$MARKER_LABS" || true)"
-  printf 'bytes=%s about=%s labs=%s\n' "$bytes" "$about" "$labs"
-  [[ "$about" -ge 1 && "$labs" -eq 0 ]]
+  landmarks="$(printf '%s' "$app" | grep -c "$MARKER_LANDMARKS" || true)"
+  printf 'bytes=%s about=%s labs=%s landmarks=%s lm_http=%s heritage_http=%s\n' \
+    "$bytes" "$about" "$labs" "$landmarks" "$lm_http" "$heritage_http"
+  [[ "$about" -ge 1 && "$labs" -eq 0 && "$landmarks" -ge 1 && "$lm_http" == "200" && "$heritage_http" == "200" ]]
 }
 
-echo "==> live verify (3 stable checks)"
+echo "==> live verify (3 stable checks: About + landmarks + heritage GeoJSON)"
 ok=0
 for i in 1 2 3; do
   echo -n "  check $i: "
@@ -75,8 +90,8 @@ for i in 1 2 3; do
 done
 
 if [[ "$ok" -lt 3 ]]; then
-  echo "ERROR: live HTML did not stabilize on About build ($ok/3). Deploy may still be propagating." >&2
+  echo "ERROR: live did not stabilize on About + heritage build ($ok/3). Deploy may still be propagating." >&2
   exit 1
 fi
 
-echo "OK: live matches About build on $LIVE_URL"
+echo "OK: live matches About + heritage build on $LIVE_URL"
