@@ -3,6 +3,32 @@
    Atlas-specific UI sits in .atlas-*; everything else follows the
    house rules. */
 
+/* Sao Chingcha — the BKKx family typeface (bkk.nonarkara.org and this
+   atlas both use it now). Named after เสาชิงช้า, the Giant Swing.
+   Non-looped, full Thai block, full Latin, one family for both scripts.
+   Self-hosted; source and provenance: _shared/fonts/sao-chingcha/. */
+@font-face {
+  font-family: "Sao Chingcha";
+  src: url("/fonts/sao-chingcha-300.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sao Chingcha";
+  src: url("/fonts/sao-chingcha-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sao Chingcha";
+  src: url("/fonts/sao-chingcha-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --ink: #11120f;
   --paper: #f1efe8;
@@ -11,8 +37,8 @@
   --orange: #ff6b35;
   --muted: #a4a69b;
   --line: rgba(241, 239, 232, 0.18);
-  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Sao Chingcha", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Sao Chingcha", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
