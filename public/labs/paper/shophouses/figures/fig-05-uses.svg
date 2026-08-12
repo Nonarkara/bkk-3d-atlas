@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" role="img" aria-labelledby="t d">
+  <title id="t">Ground-floor use of remaining Rattanakosin shophouses</title>
+  <desc id="d">751 units still commercial on the ground floor (45.28 percent); 289 residential (17.45 percent). The bifunctional type has not vanished.</desc>
+  <rect width="720" height="260" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 05 · GROUND FLOOR · 1,656 UNITS</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The shop is still the street</text>
+  <g font-family="ui-monospace, monospace">
+    <rect x="24" y="80" width="326" height="120" fill="#c9ff38" stroke="#11120f"/>
+    <text x="187" y="132" text-anchor="middle" font-size="28" font-weight="700" fill="#11120f">751</text>
+    <text x="187" y="156" text-anchor="middle" font-size="12" fill="#11120f">COMMERCIAL · 45.28%</text>
+    <rect x="360" y="80" width="126" height="120" fill="#11120f"/>
+    <text x="423" y="132" text-anchor="middle" font-size="22" font-weight="700" fill="#c9ff38">289</text>
+    <text x="423" y="156" text-anchor="middle" font-size="11" fill="#f1efe8">RESIDENTIAL</text>
+    <text x="423" y="172" text-anchor="middle" font-size="11" fill="#f1efe8">17.45%</text>
+    <rect x="496" y="80" width="200" height="120" fill="#d8d4c8" stroke="#11120f"/>
+    <text x="596" y="132" text-anchor="middle" font-size="22" font-weight="700" fill="#11120f">616</text>
+    <text x="596" y="156" text-anchor="middle" font-size="11" fill="#5b5d54">OTHER / MIXED</text>
+    <text x="596" y="172" text-anchor="middle" font-size="11" fill="#5b5d54">37.27%</text>
+  </g>
+  <text x="24" y="232" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Commercial rows sit on arteries; residential rows retreat to lanes between them. Onsawangchai &amp; Funo 2004.</text>
+</svg>

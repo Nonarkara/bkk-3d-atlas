@@ -449,15 +449,25 @@ report.
     Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
     the client labels both, so nobody reads an area pin as a street
     address. 14-day rolling window. Endpoint: `/api/news-events`.
-17. **Heritage landmarks** (Fine Arts Department register, baked
-    into `public/bkk-landmarks.geojson`) — 73 ancient monuments
-    rendered as 3D fill-extrusions on the buildings layer, with
-    real heights (Victory Monument 50 m shaft, Phu Khao Thong 45 m,
-    Phra Sumen Fort 60 m). Always on with buildings; not a separate
-    toggle. The Rattanakosin Old Town detail PMTiles
-    (`bkk-heritage-detail.geojson`, 3.8 MB) takes over at z14+ to
-    show the temple geometry of the Grand Palace, Wat Pho, Wat
-    Phra Kaew and the royal field.
+17. **Heritage landmarks** (OSM footprints + schematic heights, baked
+    into `public/bkk-landmarks.geojson`) — 73 masses (Victory Monument
+    50 m shaft, Golden Mount chedi ~60 m, palace/temple overrides).
+    Always on with buildings; not a separate toggle. **Not** the Fine
+    Arts Department register (571 monuments live on
+    `bkk.nonarkara.org/heritage`). The Rattanakosin Old Town detail
+    (`bkk-heritage-detail.geojson`, 3.8 MB, 9,275 footprints) takes
+    over at z14+ so the inner city reads as wats and 2–3 storey rows.
+
+## Labs / research tab
+
+Working papers sit on the atlas at `/labs/`, not as detached PDFs:
+
+1. **Working paper 01** — `/labs/paper/` — the system thesis
+   (432,077 buildings, one laptop).
+2. **Working paper 02** — `/labs/paper/shophouses/` — the shophouse
+   bible. Takes the 2001–02 Rattanakosin survey (1,656 units, 44
+   groups, five plan types, three landlords) off the shelf and
+   wires it to `?at=` fly-tos. About drawer → Research.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
 frame — **except alarm red** on the incidents layer (the one

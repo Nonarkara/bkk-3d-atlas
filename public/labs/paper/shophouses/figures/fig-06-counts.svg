@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="t d">
+  <title id="t">Three inventories that do not match</title>
+  <desc id="d">1,656 surveyed shophouse units in Rattanakosin (2001-02); 1,960 CPB heritage shophouse units nationwide in 15 sites; 9,275 OSM footprints in the atlas Old Town layer. Different objects, same city.</desc>
+  <rect width="720" height="300" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 06 · THREE INVENTORIES</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The shelf, the landlord, the map</text>
+  <g font-family="ui-monospace, monospace" text-anchor="middle">
+    <rect x="36" y="80" width="200" height="160" fill="#11120f"/>
+    <text x="136" y="140" font-size="36" font-weight="700" fill="#c9ff38">1,656</text>
+    <text x="136" y="168" font-size="11" fill="#f1efe8">SURVEYED UNITS</text>
+    <text x="136" y="186" font-size="11" fill="#c9a227">Rattanakosin 200102</text>
+    <text x="136" y="214" font-size="10" fill="#8a8c82">Onsawangchai &amp; Funo</text>
+    <rect x="260" y="80" width="200" height="160" fill="#c9a227"/>
+    <text x="360" y="140" font-size="36" font-weight="700" fill="#11120f">1,960</text>
+    <text x="360" y="168" font-size="11" fill="#11120f">CPB HERITAGE UNITS</text>
+    <text x="360" y="186" font-size="11" fill="#11120f">15 sites · early 2000s</text>
+    <text x="360" y="214" font-size="10" fill="#3a3a32">Yongtanit 2012 / CPB 2004</text>
+    <rect x="484" y="80" width="200" height="160" fill="#c9ff38" stroke="#11120f"/>
+    <text x="584" y="140" font-size="36" font-weight="700" fill="#11120f">9,275</text>
+    <text x="584" y="168" font-size="11" fill="#11120f">OSM FOOTPRINTS</text>
+    <text x="584" y="186" font-size="11" fill="#11120f">atlas Old Town 2026</text>
+    <text x="584" y="214" font-size="10" fill="#3a3a32">bkk-heritage-detail.geojson</text>
+  </g>
+  <text x="24" y="272" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">These are not the same object. A unit is a bay. A CPB site is a landlord inventory. A footprint is whatever OSM drew. The bibles job is to keep them from being collapsed.</text>
+</svg>

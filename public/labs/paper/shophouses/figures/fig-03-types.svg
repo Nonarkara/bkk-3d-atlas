@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-labelledby="t d">
+  <title id="t">Five spatial types of Rattanakosin shophouses</title>
+  <desc id="d">Onsawangchai and Funo classify 44 façade groups into five plan types by open space: A forecourt, B front verandah, C enclosed, D rear court, E two courts.</desc>
+  <rect width="920" height="280" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 03 · TYPOLOGY</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">44 groups collapse to five plans</text>
+  <g font-family="ui-monospace, monospace" font-size="11" fill="#11120f">
+    <!-- A -->
+    <g transform="translate(36,80)">
+      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
+      <rect x="8" y="8" width="134" height="36" fill="#c9ff38" stroke="#11120f"/>
+      <rect x="8" y="52" width="134" height="90" fill="#f1efe8" stroke="#11120f"/>
+      <text x="75" y="30" text-anchor="middle">FORECOURT</text>
+      <text x="75" y="178" text-anchor="middle" font-weight="700">A</text>
+    </g>
+    <!-- B -->
+    <g transform="translate(206,80)">
+      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
+      <rect x="8" y="8" width="134" height="22" fill="#c9ff38" stroke="#11120f"/>
+      <rect x="8" y="38" width="134" height="104" fill="#f1efe8" stroke="#11120f"/>
+      <text x="75" y="24" text-anchor="middle">VERANDAH</text>
+      <text x="75" y="178" text-anchor="middle" font-weight="700">B</text>
+    </g>
+    <!-- C -->
+    <g transform="translate(376,80)">
+      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
+      <rect x="8" y="8" width="134" height="134" fill="#f1efe8" stroke="#11120f"/>
+      <text x="75" y="80" text-anchor="middle">ENCLOSED</text>
+      <text x="75" y="178" text-anchor="middle" font-weight="700">C</text>
+    </g>
+    <!-- D -->
+    <g transform="translate(546,80)">
+      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
+      <rect x="8" y="8" width="134" height="96" fill="#f1efe8" stroke="#11120f"/>
+      <rect x="8" y="112" width="134" height="30" fill="#c9ff38" stroke="#11120f"/>
+      <text x="75" y="60" text-anchor="middle">REAR COURT</text>
+      <text x="75" y="178" text-anchor="middle" font-weight="700">D</text>
+    </g>
+    <!-- E -->
+    <g transform="translate(716,80)">
+      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
+      <rect x="8" y="8" width="134" height="28" fill="#c9ff38" stroke="#11120f"/>
+      <rect x="8" y="44" width="134" height="62" fill="#f1efe8" stroke="#11120f"/>
+      <rect x="8" y="114" width="134" height="28" fill="#c9ff38" stroke="#11120f"/>
+      <text x="75" y="78" text-anchor="middle">TWO COURTS</text>
+      <text x="75" y="178" text-anchor="middle" font-weight="700">E</text>
+    </g>
+  </g>
+  <text x="24" y="262" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Redrawn from Onsawangchai &amp; Funo, J. Archit. Plann. AIJ 69 (586), 2004  open-space appearance, not façade style.</text>
+</svg>

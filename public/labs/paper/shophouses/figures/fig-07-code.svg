@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" role="img" aria-labelledby="t d">
+  <title id="t">1979 Building Control envelope for a 6A'</title>
+  <desc id="d">Minimum width 4 metres column-to-column; depth 4 to 24 metres; ground floor at least 30 square metres; rear open space 3 metres; a row not more than 10 units or 40 metres.</desc>
+  <rect width="720" height="240" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 07 · CODE ENVELOPE · B.E. 2522</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The law that flattened the later row</text>
+  <g font-family="ui-monospace, monospace" font-size="13" fill="#11120f">
+    <rect x="24" y="76" width="128" height="88" fill="#c9ff38" stroke="#11120f"/>
+    <text x="88" y="114" text-anchor="middle" font-weight="700">e 4 m</text>
+    <text x="88" y="134" text-anchor="middle">WIDTH</text>
+    <rect x="168" y="76" width="200" height="88" fill="#11120f"/>
+    <text x="268" y="114" text-anchor="middle" font-weight="700" fill="#c9ff38">424 m</text>
+    <text x="268" y="134" text-anchor="middle" fill="#f1efe8">DEPTH</text>
+    <rect x="384" y="76" width="140" height="88" fill="#c9a227"/>
+    <text x="454" y="114" text-anchor="middle" font-weight="700">e 30 m²</text>
+    <text x="454" y="134" text-anchor="middle">G.F. AREA</text>
+    <rect x="540" y="76" width="156" height="88" fill="#d8d4c8" stroke="#11120f"/>
+    <text x="618" y="114" text-anchor="middle" font-weight="700">d 10 / 40 m</text>
+    <text x="618" y="134" text-anchor="middle">UNITS / ROW</text>
+  </g>
+  <text x="24" y="196" font-family="Georgia, serif" font-size="13" fill="#11120f">Rear open space e 3 m. Front open space e 6 m if not on a public road. Pre-1936 / pre-1979 rows (Bovornniwet, roadside Asdang) often have no back lane.</text>
+  <text x="24" y="222" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Building Control Act B.E. 2522 and ministerial rules as cited in Onsawangchai &amp; Funo 2004; KMUTT flexibility surveys 201112.</text>
+</svg>

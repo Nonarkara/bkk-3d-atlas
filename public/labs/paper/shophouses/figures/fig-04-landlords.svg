@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="t d">
+  <title id="t">Who owns the remaining Rattanakosin shophouses</title>
+  <desc id="d">Bureau of the Crown Property 46.56 percent, private 23.85 percent, temple 16.73 percent. The rest is mixed or other institutions.</desc>
+  <rect width="720" height="300" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 04 · LANDLORDS · 1,656 UNITS</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">Conservation is a landlord problem</text>
+  <!-- bars -->
+  <g font-family="ui-monospace, monospace" font-size="12" fill="#11120f">
+    <text x="24" y="100">Crown Property (BCP / CPB)</text>
+    <rect x="24" y="108" width="502" height="28" fill="#11120f"/>
+    <text x="536" y="128" fill="#11120f" font-weight="700">46.56%</text>
+    <text x="24" y="168">Private sector</text>
+    <rect x="24" y="176" width="257" height="28" fill="#c9a227"/>
+    <text x="292" y="196">23.85%</text>
+    <text x="24" y="236">Temple</text>
+    <rect x="24" y="244" width="180" height="28" fill="#c9ff38" stroke="#11120f"/>
+    <text x="216" y="264">16.73%</text>
+  </g>
+  <text x="24" y="292" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Onsawangchai &amp; Funo 2004 field survey (JulAug 2001 / AprMay 2002). Remainder: mixed / other.</text>
+</svg>

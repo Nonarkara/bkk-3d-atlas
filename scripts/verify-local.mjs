@@ -50,6 +50,23 @@ mustExist("public/style.css");
 mustExist("src/index.ts");
 mustExist("wrangler.toml");
 mustExist("public/labs/paper/index.html");
+mustExist("public/labs/index.html");
+mustExist("public/labs/paper/shophouses/index.html");
+{
+  const shophousePaper = readFileSync(join(root, "public/labs/paper/shophouses/index.html"), "utf8");
+  const about = readFileSync(join(root, "public/index.html"), "utf8");
+  const labs = readFileSync(join(root, "public/labs/index.html"), "utf8");
+  if (!shophousePaper.includes("1,656")) fail("shophouse bible missing 1,656-unit survey number");
+  else ok("shophouse bible cites 1,656 surveyed units");
+  if (!shophousePaper.includes("Onsawangchai")) fail("shophouse bible missing Onsawangchai & Funo");
+  else ok("shophouse bible cites Onsawangchai & Funo 2004");
+  if (!shophousePaper.includes("fig-03-types.svg")) fail("shophouse bible missing typology figure");
+  else ok("shophouse bible ships typology figure");
+  if (!about.includes("/labs/paper/shophouses/")) fail("About drawer missing shophouse bible link");
+  else ok("About research tab links the shophouse bible");
+  if (!labs.includes("/labs/paper/shophouses/")) fail("Labs index missing working paper 02");
+  else ok("Labs research tab lists working paper 02");
+}
 
 mustJson("public/bkk-areas.json", (data) => {
   if (!Array.isArray(data.areas) || data.areas.length < 1) {
