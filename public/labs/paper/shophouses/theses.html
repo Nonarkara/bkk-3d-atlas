@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The shelf — recovered theses on Bangkok shophouses — Dr Non</title>
+  <meta name="description" content="Recovered graduate theses on Bangkok shophouses and historic conservation areas. Perplexity claimed 55; this catalog lists what could be verified from repositories, not invented titles." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="https://atlas.nonarkara.org/labs/paper/shophouses/theses.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Thai:wght@400;700&family=Spectral:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/labs/paper.css" />
+</head>
+<body class="paper-page paper-page-wide">
+  <header class="paper-header">
+    <a class="paper-back" href="/labs/paper/shophouses/">← Working paper 02</a>
+    <span class="paper-eyebrow">Research catalog · BKKx Labs · 2026</span>
+  </header>
+
+  <main class="paper-main">
+    <article class="paper-article">
+      <p class="paper-kicker">A Bangkokian’s atlas · the shelf · ตึกแถว</p>
+      <h1 class="paper-title">The shelf</h1>
+      <p class="paper-subtitle">
+        Perplexity claimed 55 graduate theses plus 3 papers.
+        This page lists what could be verified. The rest were not invented.
+      </p>
+
+      <div class="paper-byline">
+        <div class="paper-author">Recovered catalog</div>
+        <div class="paper-affiliation">
+          Companion to working paper 02 —
+          <a href="/labs/paper/shophouses/">The row is the city</a>.
+        </div>
+        <div class="paper-meta" id="catalog-meta">
+          Loading catalog.json…
+        </div>
+      </div>
+
+      <div class="paper-note">
+        <p>
+          The Perplexity Computer thread
+          (<a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830</a>)
+          is Cloudflare-gated from the sandbox that built this bible.
+          Entries below were recovered from named authors and university
+          repositories. <strong>Direct PDF</strong> means the link is a
+          file. <strong>Repository</strong> means a landing page where
+          you click through. Rows marked <em>not fully verified</em>
+          have sparse metadata — usually a missing author or year.
+          Machine-readable source:
+          <a href="catalog.json"><code>catalog.json</code></a>.
+        </p>
+      </div>
+
+      <nav class="paper-toc" aria-label="Catalog sections">
+        <p class="paper-toc-kicker">Sections</p>
+        <ol id="catalog-toc">
+          <li><a href="#A">A · ตึกแถว</a></li>
+          <li><a href="#B">B · อาคารพาณิชย์</a></li>
+          <li><a href="#C">C · Historic districts</a></li>
+          <li><a href="#D">D · Overseas</a></li>
+          <li><a href="#E">E · KMUTT papers</a></li>
+        </ol>
+      </nav>
+
+      <div id="catalog-root">
+        <p>If this paragraph stays, JavaScript did not load. Open <a href="catalog.json">catalog.json</a> directly.</p>
+      </div>
+
+      <footer class="paper-foot">
+        <p>
+          Back to
+          <a href="/labs/paper/shophouses/">working paper 02</a>
+          ·
+          <a href="/labs/">Labs</a>
+          ·
+          <a href="/">the atlas</a>.
+        </p>
+        <p class="paper-foot-meta">
+          © 2026 Dr Non · Bangkok · Catalog recovered 2026-08-12
+          · Titles © their authors · Do not cite Perplexity as the source
+        </p>
+      </footer>
+    </article>
+  </main>
+  <script>
+    const ACCESS_LABEL = {
+      "direct-pdf": "Direct PDF",
+      "repository": "Repository / download page"
+    };
+
+    function esc(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function titleBlock(entry) {
+      const en = entry.titleEn ? `<span class="catalog-en">${esc(entry.titleEn)}</span>` : "";
+      const th = entry.titleTh ? `<span class="catalog-th">${esc(entry.titleTh)}</span>` : "";
+      return [en, th].filter(Boolean).join("");
+    }
+
+    function authorBlock(entry) {
+      const en = entry.author || "Author not fully verified";
+      const th = entry.authorTh ? ` <span class="catalog-th">(${esc(entry.authorTh)})</span>` : "";
+      return `${esc(en)}${th}`;
+    }
+
+    function flags(entry) {
+      const bits = [];
+      if (entry.phd) bits.push('<span class="catalog-flag catalog-flag-phd">PhD</span>');
+      if (entry.notFullyVerified?.length) {
+        bits.push(`<span class="catalog-flag catalog-flag-nfv">not fully verified: ${esc(entry.notFullyVerified.join(", "))}</span>`);
+      }
+      return bits.join(" ");
+    }
+
+    fetch("catalog.json")
+      .then((res) => {
+        if (!res.ok) throw new Error(res.statusText);
+        return res.json();
+      })
+      .then((data) => {
+        const theses = data.sections.filter((s) => s.id !== "E").flatMap((s) => s.entries);
+        const papers = data.sections.find((s) => s.id === "E")?.entries ?? [];
+        const pdfs = [...theses, ...papers].filter((e) => e.access === "direct-pdf").length;
+        const repos = [...theses, ...papers].filter((e) => e.access === "repository").length;
+        const phds = theses.filter((e) => e.phd).length;
+
+        document.getElementById("catalog-meta").innerHTML =
+          `Recovered ${theses.length} theses + ${papers.length} papers` +
+          ` · Perplexity claimed ${data.claimed.theses} + ${data.claimed.papers}` +
+          ` · ${pdfs} Direct PDF · ${repos} repository` +
+          ` · ${phds} dissertations marked PhD` +
+          ` · Source <code>catalog.json</code>`;
+
+        document.getElementById("catalog-toc").innerHTML = data.sections.map((section) => {
+          const n = section.entries.length;
+          const claimed = section.claimed != null ? ` <small>(${n} recovered / ${section.claimed} claimed)</small>` : ` <small>(${n})</small>`;
+          return `<li><a href="#${section.id}">${esc(section.id)} · ${esc(section.title)}</a>${claimed}</li>`;
+        }).join("");
+
+        document.getElementById("catalog-root").innerHTML = data.sections.map((section) => {
+          const rows = section.entries.map((entry) => {
+            const year = entry.year ?? "—";
+            const access = ACCESS_LABEL[entry.access] || entry.access;
+            const accessClass = entry.access === "direct-pdf" ? "catalog-access-pdf" : "catalog-access-repo";
+            const notes = entry.notes ? `<p class="catalog-notes">${esc(entry.notes)}</p>` : "";
+            return `<tr>
+              <td><code>${esc(entry.id)}</code></td>
+              <td>
+                ${titleBlock(entry)}
+                ${flags(entry)}
+                ${notes}
+              </td>
+              <td>${authorBlock(entry)}</td>
+              <td>${esc(entry.degree || "—")}<br><span class="catalog-muted">${esc(entry.university || "")}</span></td>
+              <td>${esc(year)}<br><span class="catalog-muted">${esc(entry.language || "")}</span></td>
+              <td>
+                <a class="${accessClass}" href="${esc(entry.url)}" rel="noreferrer">${esc(access)}</a>
+                ${entry.landing ? `<br><a class="catalog-muted" href="${esc(entry.landing)}" rel="noreferrer">landing page</a>` : ""}
+                ${entry.doi ? `<br><span class="catalog-muted">doi:${esc(entry.doi)}</span>` : ""}
+              </td>
+            </tr>`;
+          }).join("");
+
+          return `<section class="paper-section" id="${esc(section.id)}">
+            <h2>${esc(section.id)}. ${esc(section.title)}</h2>
+            <p>Recovered ${section.entries.length}${section.claimed != null ? ` of ${section.claimed} claimed` : ""}.</p>
+            <div class="catalog-table-wrap">
+              <table class="paper-table catalog-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Degree / university</th>
+                    <th>Year</th>
+                    <th>Access</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </section>`;
+        }).join("");
+      })
+      .catch((error) => {
+        document.getElementById("catalog-root").innerHTML =
+          `<p>Could not load <a href="catalog.json">catalog.json</a> (${esc(error.message)}).</p>`;
+      });
+  </script>
+</body>
+</html>

@@ -467,7 +467,9 @@ Working papers sit on the atlas at `/labs/`, not as detached PDFs:
 2. **Working paper 02** — `/labs/paper/shophouses/` — the shophouse
    bible. Takes the 2001–02 Rattanakosin survey (1,656 units, 44
    groups, five plan types, three landlords) off the shelf and
-   wires it to `?at=` fly-tos. About drawer → Research.
+   wires it to `?at=` fly-tos. Companion catalog:
+   `/labs/paper/shophouses/theses.html` (`catalog.json`).
+   About drawer → Research.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
 frame — **except alarm red** on the incidents layer (the one
