@@ -76,6 +76,12 @@ mustExist("public/labs/paper/shophouses/theses.html");
   else ok("Labs research tab lists working paper 02");
   if (!labs.includes("/labs/paper/shophouses/theses.html")) fail("Labs index missing thesis catalog");
   else ok("Labs research tab lists the thesis catalog");
+  if (!/href="\/labs\/paper\/"/.test(about)) fail("About drawer missing working paper 01 link");
+  else ok("About research tab links working paper 01");
+  if (!about.includes("https://bkk.nonarkara.org/rowhouses")) fail("About drawer missing live cultural map");
+  else ok("About research tab links the live cultural map");
+  if (!labs.includes("https://bkk.nonarkara.org/rowhouses")) fail("Labs index missing live cultural map");
+  else ok("Labs research tab lists the live cultural map");
 }
 mustJson("public/labs/paper/shophouses/catalog.json", (data) => {
   const sections = data.sections;
