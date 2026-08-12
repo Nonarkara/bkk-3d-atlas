@@ -1097,7 +1097,7 @@ body.is-night .atlas-header {
   font-size: 14px;
   line-height: 1.7;
 }
-.atlas-about-section a {
+.atlas-about-section a:not(.atlas-paper-btn) {
   color: var(--signal);
   border-bottom: 1px solid rgba(201, 255, 56, 0.35);
 }

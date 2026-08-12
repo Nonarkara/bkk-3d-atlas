@@ -82,6 +82,20 @@ mustExist("public/labs/paper/shophouses/theses.html");
   else ok("About research tab links the live cultural map");
   if (!labs.includes("https://bkk.nonarkara.org/rowhouses")) fail("Labs index missing live cultural map");
   else ok("Labs research tab lists the live cultural map");
+  for (const [rel, html] of [
+    ["public/labs/index.html", labs],
+    ["public/labs/paper/index.html", readFileSync(join(root, "public/labs/paper/index.html"), "utf8")],
+    ["public/labs/paper/shophouses/index.html", shophousePaper],
+    ["public/labs/paper/shophouses/theses.html", thesesPage],
+  ]) {
+    if (html.includes('href="/style.css"')) fail(`${rel} must not load atlas style.css (dark chrome leaks onto paper)`);
+    else ok(`${rel} is isolated from atlas style.css`);
+  }
+  const aboutCss = readFileSync(join(root, "public/style.css"), "utf8");
+  if (!aboutCss.includes("a:not(.atlas-paper-btn)")) fail("About link rule paints paper buttons yellow-on-yellow");
+  else ok("About paper buttons keep ink-on-signal contrast");
+  if (about.includes("bkk.nonarkara.org/rowhouses/bible")) fail("About drawer links a bible hub that is not live yet");
+  else ok("About drawer does not 404 the unpublished bible hub");
 }
 mustJson("public/labs/paper/shophouses/catalog.json", (data) => {
   const sections = data.sections;
