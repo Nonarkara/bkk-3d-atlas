@@ -1,0 +1,3294 @@
+From b1a2e58be28d4a02c2e1cef6c9b58197a4b2bf6b Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Wed, 12 Aug 2026 20:48:56 +0000
+Subject: [PATCH 1/2] Add the shophouse bible and stop collapsing inventories.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The directory hero no longer sums six papers into “870+ units.”
+Onsawangchai’s 1,656, CPB’s 1,960, corridor published counts,
+and the Overture review queue stay separate. Working paper 02
+and the recovered thesis catalog now live at /rowhouses/bible.
+Yaowarat’s ONEP record maps to Plaeng Nam and Wanit–Sampheng;
+Luenrit publishes its ICCROM ~220 without adding it to the survey.
+---
+ README.md                                     |  10 +-
+ docs/rowhouse-atlas-method.md                 |  13 +
+ site/app/PlaceMasthead.tsx                    |   1 +
+ site/app/case-for-bangkok/page.tsx            |   1 +
+ site/app/data/heritage-comparison.ts          |   4 +-
+ site/app/data/oldtown-spots.ts                |   5 +-
+ site/app/data/onep-rowhouse-register.ts       |   2 +-
+ site/app/globals.css                          |   1 +
+ site/app/heritage-atlas/HomepageClient.tsx    |   1 +
+ site/app/rowhouses/bible/page.tsx             | 162 +++
+ site/app/rowhouses/page.tsx                   |  30 +-
+ site/app/sitemap.ts                           |  32 +-
+ .../data/bangkok-rowhouse-atlas.geojson       |  14 +-
+ site/public/rowhouses/bible/catalog.json      | 779 ++++++++++++++
+ .../bible/figures/fig-01-timeline.svg         |  48 +
+ .../bible/figures/fig-02-section.svg          |  32 +
+ .../rowhouses/bible/figures/fig-03-types.svg  |  50 +
+ .../bible/figures/fig-04-landlords.svg        |  20 +
+ .../rowhouses/bible/figures/fig-05-uses.svg   |  21 +
+ .../rowhouses/bible/figures/fig-06-counts.svg |  25 +
+ .../rowhouses/bible/figures/fig-07-code.svg   |  23 +
+ site/public/rowhouses/bible/paper.css         | 410 ++++++++
+ site/public/rowhouses/bible/paper.html        | 970 ++++++++++++++++++
+ site/public/rowhouses/bible/theses.html       | 200 ++++
+ site/tests/rendered-html.test.mjs             |  42 +
+ 25 files changed, 2875 insertions(+), 21 deletions(-)
+ create mode 100644 site/app/rowhouses/bible/page.tsx
+ create mode 100644 site/public/rowhouses/bible/catalog.json
+ create mode 100644 site/public/rowhouses/bible/figures/fig-01-timeline.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-02-section.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-03-types.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-04-landlords.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-05-uses.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-06-counts.svg
+ create mode 100644 site/public/rowhouses/bible/figures/fig-07-code.svg
+ create mode 100644 site/public/rowhouses/bible/paper.css
+ create mode 100644 site/public/rowhouses/bible/paper.html
+ create mode 100644 site/public/rowhouses/bible/theses.html
+
+diff --git a/README.md b/README.md
+index 3fd48ea..6ea6e75 100644
+--- a/README.md
++++ b/README.md
+@@ -4,8 +4,9 @@
+ 
+ **[bkk.nonarkara.org](https://bkk.nonarkara.org)** — **BKKxC(ulture)**, this repo. A cultural heritage system for
+ Bangkok: the Fine Arts Department's own register of 571 protected monuments, mapped honestly; nine heritage
+-quarters with authored histories and a licensed photo each; a sourced atlas of 22 rowhouse clusters, their
+-cultural corridors and an opt-in building-footprint review queue; seven walking routes with real street-following
++quarters with authored histories and a licensed photo each; a sourced atlas of 29 rowhouse corridors, their
++cultural corridors, an official ONEP category-E ledger, an opt-in building-footprint review queue, and the
++shophouse bible at `/rowhouses/bible`; seven walking routes with real street-following
+ geometry and Minecraft coordinates where a monument falls inside a generated world; an English/Thai toggle
+ across all of it; and a personal essay on why the project exists at all. The 3D map is the front door — pick a
+ quarter, fly there, drill into the register.
+@@ -33,13 +34,14 @@ graph TD
+         Areas["/areas/:slug — nine quarters<br/>authored history + licensed photo"]
+         Walks["/walks/:slug — seven walks<br/>real OSRM street geometry"]
+         About["/about — the essay<br/>why this exists"]
+-        Rowhouses["/rowhouses — 22 sourced clusters<br/>corridors + footprint review queue"]
++        Rowhouses["/rowhouses — 29 sourced corridors<br/>ONEP ledger + footprint queue"]
++        Bible["/rowhouses/bible — working paper 02<br/>1,656 survey + thesis shelf"]
+         Case["/case-for-bangkok — comparative dossier<br/>claims, gaps and Asian comparators"]
+         Worlds["/worlds, /atlas/:district<br/>the Minecraft walkthrough"]
+     end
+-    FrontDoor --> Areas
+     FrontDoor --> Register
+     FrontDoor --> Rowhouses
++    Rowhouses --> Bible
+     Register --> Areas
+     Register --> Walks
+     Areas --> Walks
+diff --git a/docs/rowhouse-atlas-method.md b/docs/rowhouse-atlas-method.md
+index bacd896..73a4550 100644
+--- a/docs/rowhouse-atlas-method.md
++++ b/docs/rowhouse-atlas-method.md
+@@ -105,3 +105,16 @@ A nomination-grade or regulatory atlas needs one polygon per surviving building,
+ age band, alteration and condition, current use, occupancy/tenure where ethically collectable, linked archival
+ photographs, and an audit trail for every change. Satellite and machine classification can propose candidates;
+ street-level inspection, archival evidence and community review must confirm them.
++
++## Scholarship that sits on the map
++
++The explorer directory is not the literature. Working paper 02 — *The row is the city* — lives at
++`/rowhouses/bible` (long form: `/rowhouses/bible/paper.html`; recovered thesis catalog:
++`/rowhouses/bible/theses.html` and `catalog.json`). It keeps four inventories separate:
++
++- Onsawangchai & Funo 2004: **1,656** remaining Rattanakosin units (2001–02 field survey)
++- Crown Property Bureau: **1,960** units across 15 commercial sites
++- Corridor published counts from several papers (Tha Tien 490, Sam Phraeng 119, Bowonniwet 46, Khao Hong 9, Asdang–Ban Mo 108, Srasong–Longtha 98, Luenrit ~220). These are **not** one survey and must not be added into a city total.
++- Overture 2026-07-22.0 review queue: **2,311** shapes, **1,001** strong morphology — not heritage designations
++
++The 1988 composition study (14,421 units) calibrates candidate shape only.
+diff --git a/site/app/PlaceMasthead.tsx b/site/app/PlaceMasthead.tsx
+index a8d4366..49e8c5e 100644
+--- a/site/app/PlaceMasthead.tsx
++++ b/site/app/PlaceMasthead.tsx
+@@ -17,6 +17,7 @@ export function PlaceMasthead() {
+       </Link>
+       <nav className="register-nav" aria-label="Primary navigation">
+         <Link href="/rowhouses">Rowhouses</Link>
++        <Link href="/rowhouses/bible">Bible</Link>
+         <Link href="/case-for-bangkok">The case</Link>
+         <Link href="/heritage#quarters">{t("nav_quarters")}</Link>
+         <Link href="/heritage#walks">{t("nav_walks")}</Link>
+diff --git a/site/app/case-for-bangkok/page.tsx b/site/app/case-for-bangkok/page.tsx
+index 783d516..9b86622 100644
+--- a/site/app/case-for-bangkok/page.tsx
++++ b/site/app/case-for-bangkok/page.tsx
+@@ -31,6 +31,7 @@ export default function CaseForBangkokPage() {
+         </p>
+         <div className="bangkok-case-actions">
+           <Link href="/rowhouses">Read the rowhouse evidence</Link>
++          <Link href="/rowhouses/bible">Read the bible</Link>
+           <a href="/data/bangkok-rowhouse-atlas.geojson" download>Download open GeoJSON ↓</a>
+           <a href="/data/bangkok-rowhouse-footprint-candidates.geojson" download>Review {footprintSummary.candidate_count.toLocaleString()} footprints ↓</a>
+         </div>
+diff --git a/site/app/data/heritage-comparison.ts b/site/app/data/heritage-comparison.ts
+index 41c5504..ad439ac 100644
+--- a/site/app/data/heritage-comparison.ts
++++ b/site/app/data/heritage-comparison.ts
+@@ -21,7 +21,7 @@ export const COMPARISON_SITES: ComparisonSite[] = [
+     country: "Thailand",
+     status: "Not inscribed as an historic city",
+     propertyScale: "No proposed boundary yet; this atlas maps 29 dispersed corridors and reconciles 26 of 46 ONEP category-E records",
+-    documentedFabric: "870+ units counted in mapped ensembles; a separate CPB inventory reports 1,960 units across 15 commercial sites, with overlap not yet reconciled",
++    documentedFabric: "Onsawangchai & Funo 2004: 1,656 remaining Rattanakosin units (2001–02). CPB: 1,960 units across 15 commercial sites. Corridor papers name other counts; they are not one survey and must not be added together. This atlas maps 29 corridors and locates 26 of 46 ONEP category-E records.",
+     urbanLogic: "Royal capital + river trade + immigrant quarters + road, rail and canal markets",
+     strongestClaim: "Exceptional diversity and continued metropolitan use—not frozen uniformity",
+     pressureOrTradeoff: "Fragmented protection; ordinary shophouses outside protected zones remain vulnerable",
+@@ -99,7 +99,7 @@ export const BANGKOK_CLAIMS = [
+     status: "proved" as const,
+     title: "Ordinary buildings carry metropolitan history.",
+     body: "Fine Arts records, academic inventories and conservation cases repeatedly identify shophouse rows—not only temples and palaces—as the structure connecting trade, dwelling and public space.",
+-    evidence: "870+ individually counted units · CPB inventory: 1,960 units across 15 sites (not added because records overlap)",
++    evidence: "Onsawangchai & Funo 2004: 1,656 remaining Rattanakosin units. CPB: 1,960 units across 15 sites. Corridor papers name other counts — not one survey, not added together.",
+   },
+   {
+     status: "promising" as const,
+diff --git a/site/app/data/oldtown-spots.ts b/site/app/data/oldtown-spots.ts
+index 25d25ef..c6bf904 100644
+--- a/site/app/data/oldtown-spots.ts
++++ b/site/app/data/oldtown-spots.ts
+@@ -85,7 +85,7 @@ export const OLDTOWN_SPOTS: OldtownSpot[] = [
+     evidence: "published inventory",
+     typology: "Market-and-pier shophouse ensemble",
+     units: 490,
+-    note: "Not one building: 490 shop units, a market and a river landing working as a single urban instrument. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
++    note: "Not one building: 490 shop units, a market and a river landing working as a single urban instrument (Journal of Cultural Geography, 2018). That figure is not Onsawangchai & Funo’s 1,656 remaining Rattanakosin units and must not be added to it. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
+     noteTh: "ไม่ใช่อาคารหลังเดียว แต่เป็นตึกแถว 490 คูหา ตลาด และท่าเรือที่ทำงานร่วมกัน กลิ่น การค้าส่ง และจังหวะเรือคือส่วนหนึ่งของมรดก",
+     explorerTip: "Enter from Maha Rat, cross the market, then look back from the Wat Arun ferry queue.",
+     center: [100.490557, 13.746481],
+@@ -306,7 +306,8 @@ export const OLDTOWN_SPOTS: OldtownSpot[] = [
+     period: "Early 20th century",
+     evidence: "published inventory",
+     typology: "Neoclassical Chinatown shophouse block",
+-    note: "Tenants stopped demolition, organised, financed and reopened the restored block in 2022. This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community.",
++    units: 220,
++    note: "Tenants stopped demolition, organised, financed and reopened the restored block in 2022 (~220 bays; ICCROM / Siam Society). This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community. The 220 is not part of Onsawangchai’s 1,656 and must not be added to it.",
+     noteTh: "ผู้เช่าหยุดการรื้อถอน รวมตัว หาเงิน และเปิดกลุ่มอาคารที่บูรณะแล้วอีกครั้งในปี 2565 นี่คือคำตอบว่าการอนุรักษ์ไม่จำเป็นต้องมาจากคนนอกชุมชน",
+     explorerTip: "Read the whole block before entering a café; the collective project matters more than any single tenancy.",
+     center: [100.50565, 13.74446],
+diff --git a/site/app/data/onep-rowhouse-register.ts b/site/app/data/onep-rowhouse-register.ts
+index a9492f6..82e8120 100644
+--- a/site/app/data/onep-rowhouse-register.ts
++++ b/site/app/data/onep-rowhouse-register.ts
+@@ -57,7 +57,7 @@ export const ONEP_ROWHOUSE_RECORDS: OnepRowhouseRecord[] = [
+   { id: "2E1-078", thai: "ตึกแถวเชิงสะพานพระพุทธยอดฟ้า ฝั่งพระนคร", english: "Phra Nakhon bridgehead rows at Memorial Bridge", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 2, 2], total: 10, priority: 4, mappedSlugs: ["memorial-bridge-rows"] },
+   { id: "2E1-079", thai: "ตึกแถวในซอยบ้านพานถม ถนนพระสุเมรุ", english: "Ban Phan Thom alley and Phra Sumen rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 2, 2], total: 10, priority: 4, mappedSlugs: ["ban-phan-thom-rows"] },
+   { id: "2E5-080", thai: "ตึกแถวริมถนนเจริญกรุง", english: "Charoen Krung Road rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 2, 2], total: 10, priority: 4, mappedSlugs: ["bang-rak-charoen-krung"] },
+-  { id: "2E6-081", thai: "ตึกแถวริมถนนเยาวราช", english: "Yaowarat Road rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 3, 3], total: 12, priority: 4, mappedSlugs: ["plaeng-nam"] },
++  { id: "2E6-081", thai: "ตึกแถวริมถนนเยาวราช", english: "Yaowarat Road rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 3, 3], total: 12, priority: 4, mappedSlugs: ["plaeng-nam", "wanit-sampheng"] },
+   { id: "2E6-082", thai: "ตึกแถวถนนวานิช 1 (สำเพ็งหรือสามเพ็ง)", english: "Wanit 1 / Sampheng rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 3, 3], total: 12, priority: 4, mappedSlugs: ["wanit-sampheng"] },
+   { id: "2E6-083", thai: "ตึกแถวริมถนนทรงวาด", english: "Song Wat Road rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 3, 2], total: 11, priority: 4, mappedSlugs: ["song-wat"] },
+   { id: "2E6-084", thai: "ตึกแถวบริเวณจักรวรรดิ", english: "Chakkrawat Road rows", zone: "intermediate", recordType: rowhouse, scores: [2, 2, 2, 2, 2], total: 10, priority: 4, mappedSlugs: [] },
+diff --git a/site/app/globals.css b/site/app/globals.css
+index 44d9b1e..2d93492 100644
+--- a/site/app/globals.css
++++ b/site/app/globals.css
+@@ -3402,6 +3402,7 @@ footer small { grid-column: 1 / -1; margin-top: 60px; padding-top: 24px; border-
+ .onep-coverage-intro p { max-width: 66ch; margin: 0 0 12px; font: 500 14px/1.55 var(--font-body); }
+ .onep-coverage-intro a { color: var(--seal, #8c2f23); font: 700 10px/1 var(--font-mono); text-underline-offset: 3px; }
+ .onep-coverage-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 30px 0 18px; border: 1px solid var(--ink); }
++.onep-coverage-stats:has(> :nth-child(5)) { grid-template-columns: repeat(5, 1fr); }
+ .onep-coverage-stats div { padding: 13px 15px; border-right: 1px solid var(--ink); }
+ .onep-coverage-stats div:last-child { border-right: 0; }
+ .onep-coverage-stats strong { display: block; font: 700 28px/1 var(--font-display); }
+diff --git a/site/app/heritage-atlas/HomepageClient.tsx b/site/app/heritage-atlas/HomepageClient.tsx
+index 6c61e38..c684f62 100644
+--- a/site/app/heritage-atlas/HomepageClient.tsx
++++ b/site/app/heritage-atlas/HomepageClient.tsx
+@@ -65,6 +65,7 @@ export function HomepageClient({ quarters, initialQuarter }: Props) {
+         </div>
+         <nav className="atlas-shell-nav" aria-label="Heritage navigation">
+           <Link href="/rowhouses">Rowhouses</Link>
++          <Link href="/rowhouses/bible">Bible</Link>
+           <Link href="/case-for-bangkok">The case</Link>
+           <Link href="/heritage#register">{t("nav_register")}</Link>
+           <Link href="/heritage#walks">{t("nav_walks")}</Link>
+diff --git a/site/app/rowhouses/bible/page.tsx b/site/app/rowhouses/bible/page.tsx
+new file mode 100644
+index 0000000..0d8a2cd
+--- /dev/null
++++ b/site/app/rowhouses/bible/page.tsx
+@@ -0,0 +1,162 @@
++import type { Metadata } from "next";
++import Link from "next/link";
++import { PlaceMasthead } from "../../PlaceMasthead";
++import catalog from "../../../public/rowhouses/bible/catalog.json";
++
++export const metadata: Metadata = {
++  title: "The row is the city — shophouse bible",
++  description:
++    "Working paper 02 and recovered thesis catalog for Bangkok shophouses. Four inventories kept separate: Onsawangchai 1,656, CPB 1,960, corridor published counts, Overture review queue.",
++  alternates: { canonical: "/rowhouses/bible" },
++  openGraph: {
++    title: "The row is the city — a Bangkok shophouse bible",
++    description: "1,656 surveyed units, 44 groups, five plans, three landlords — taken off the shelf and put on the map.",
++    url: "https://bkk.nonarkara.org/rowhouses/bible",
++  },
++};
++
++const theses = catalog.sections.filter((section) => section.id !== "E").flatMap((section) => section.entries);
++const papers = catalog.sections.find((section) => section.id === "E")?.entries ?? [];
++const phds = theses.filter((entry) => entry.phd);
++
++export default function ShophouseBiblePage() {
++  return (
++    <div className="register rowhouse-directory">
++      <PlaceMasthead />
++      <header className="rowhouse-directory-hero">
++        <p className="register-eyebrow">Working paper 02 · ตึกแถว · the shelf</p>
++        <h1>The row is the city.</h1>
++        <p className="rowhouse-directory-th" lang="th">ตึกแถวคือเมือง</p>
++        <p className="rowhouse-directory-dek">
++          The map locates corridors. This page is the scholarship those corridors
++          sit on — and the inventories that must not be added together.
++        </p>
++        <div className="rowhouse-directory-stats" aria-label="Bible summary">
++          <div><strong>1,656</strong><span>Onsawangchai 2001–02 units</span></div>
++          <div><strong>1,960</strong><span>CPB heritage bays · 15 sites</span></div>
++          <div><strong>{theses.length}</strong><span>recovered theses</span></div>
++          <div><strong>{phds.length}</strong><span>dissertations marked PhD</span></div>
++        </div>
++        <div className="rowhouse-directory-actions">
++          <a href="/rowhouses/bible/paper.html">Read the full paper</a>
++          <a href="/rowhouses/bible/theses.html">Open the thesis shelf</a>
++          <Link href="/rowhouses">Back to the map directory</Link>
++          <Link href="/?view=rowhouses">Open the 3D map</Link>
++        </div>
++      </header>
++
++      <section className="rowhouse-method" aria-labelledby="inventories-title">
++        <div>
++          <p className="register-eyebrow">Hard boundary</p>
++          <h2 id="inventories-title">Four inventories. Not one total.</h2>
++        </div>
++        <div className="rowhouse-method-grid">
++          <p>
++            <strong>Onsawangchai &amp; Funo 2004.</strong> Walked Rattanakosin in
++            2001–02. <strong>1,656 remaining shophouse units</strong>, 44 façade
++            families, five plans, three landlords. AIJ 577 and 586. This is the
++            best city-core field count we have. It is twenty-five years old.
++          </p>
++          <p>
++            <strong>Crown Property Bureau.</strong> 15 shophouse sites,{" "}
++            <strong>1,960 units</strong> in the CPB heritage inventory. Overlap
++            with the 2001–02 survey is not a join. Do not add 1,656 + 1,960.
++          </p>
++          <p>
++            <strong>Corridor published counts.</strong> Six papers name unit
++            numbers on mapped ensembles (Tha Tien 490, Sam Phraeng 119,
++            Bowonniwet 46, Khao Hong 9, Asdang–Ban Mo 108, Srasong–Longtha 98).
++            ICCROM’s Luenrit case adds ~220. Those figures are not one survey.
++            Summing the six papers into “870 academically counted units” was
++            the original sin of the first directory hero.
++          </p>
++          <p>
++            <strong>Overture review queue.</strong> 2,311 present-day shapes near
++            the 29 corridors, of which 1,001 score as strong morphology. They are
++            not heritage designations. The 1988 composition study (14,421 units)
++            calibrates shape only.
++          </p>
++        </div>
++      </section>
++
++      <section className="onep-coverage" aria-labelledby="shelf-title">
++        <div className="onep-coverage-intro">
++          <div>
++            <p className="register-eyebrow">The shelf · recovered catalog</p>
++            <h2 id="shelf-title">42 theses, not 55 invented ones.</h2>
++          </div>
++          <div>
++            <p>
++              Perplexity claimed 55 graduate theses plus 3 papers. The thread is
++              gated. This catalog recovers what named authors and university
++              repositories actually give: {theses.length} theses and {papers.length}{" "}
++              KMUTT papers. Direct PDF versus repository is a field. Incomplete
++              metadata stays marked. The six named PhDs are included.
++            </p>
++            <a href="/rowhouses/bible/theses.html">Browse every recovered record ↗</a>
++          </div>
++        </div>
++        <div className="onep-coverage-stats" aria-label="Catalog recovery">
++          {catalog.sections.map((section) => (
++            <div key={section.id}>
++              <strong>{section.entries.length}{section.claimed != null ? `/${section.claimed}` : ""}</strong>
++              <span>{section.id} · {section.title}</span>
++            </div>
++          ))}
++        </div>
++        <div className="onep-ledger">
++          <details open>
++            <summary><span>Named PhD dissertations</span><small>{phds.length} recovered</small></summary>
++            <div className="onep-ledger-table" role="table" aria-label="Named PhD dissertations">
++              {phds.map((entry) => (
++                <div className="onep-ledger-row" role="row" key={entry.id}>
++                  <code role="cell">{entry.id}</code>
++                  <div role="cell">
++                    <strong>{entry.titleEn || entry.titleTh}</strong>
++                    {entry.titleTh && entry.titleEn ? <small lang="th">{entry.titleTh}</small> : null}
++                  </div>
++                  <span role="cell">{entry.author || "not fully verified"}</span>
++                  <span role="cell">{entry.university}{entry.year ? ` · ${entry.year}` : ""}</span>
++                  <div role="cell" className="is-mapped">
++                    <a href={entry.url} target="_blank" rel="noreferrer">
++                      {entry.access === "direct-pdf" ? "Direct PDF" : "Repository"}
++                    </a>
++                  </div>
++                </div>
++              ))}
++            </div>
++          </details>
++        </div>
++        <p className="onep-coverage-note">
++          Machine-readable source: <a href="/rowhouses/bible/catalog.json">catalog.json</a>.
++          Do not cite Perplexity as the authority.
++        </p>
++      </section>
++
++      <section className="rowhouse-method" aria-labelledby="meta-title">
++        <div>
++          <p className="register-eyebrow">Seven arguments</p>
++          <h2 id="meta-title">What the literature is actually saying.</h2>
++        </div>
++        <div className="rowhouse-method-grid">
++          <p><strong>Import.</strong> Singapore 1859, Charoen Krung 1861. Not indigenous Rattanakosin fabric.</p>
++          <p><strong>Typology.</strong> 44 façade groups collapse to five plans A–E.</p>
++          <p><strong>Ordinary heritage.</strong> Fine Arts gazettes monuments. The row is everyday fabric.</p>
++          <p><strong>Landlord.</strong> CPB 46.56% of remaining surveyed units. The monarchy’s property office is the largest landlord of the type.</p>
++          <p><strong>Live-work.</strong> 751 of 1,656 still a shop on the ground floor in 2001.</p>
++          <p><strong>Community.</strong> Luenrit / Khao Hong versus Old Siam Plaza.</p>
++          <p><strong>Shelf.</strong> A number that cannot open a camera is inert. The map is why this paper exists.</p>
++        </div>
++      </section>
++
++      <footer className="rowhouse-directory-foot">
++        <strong>Read the long form. Then walk the row.</strong>
++        <p>
++          Full paper: <a href="/rowhouses/bible/paper.html">The row is the city</a>.
++          Thesis shelf: <a href="/rowhouses/bible/theses.html">42 recovered records</a>.
++          Evidence map: <Link href="/rowhouses">29 corridors</Link>.
++        </p>
++      </footer>
++    </div>
++  );
++}
+diff --git a/site/app/rowhouses/page.tsx b/site/app/rowhouses/page.tsx
+index ba9e393..9bfc772 100644
+--- a/site/app/rowhouses/page.tsx
++++ b/site/app/rowhouses/page.tsx
+@@ -46,6 +46,7 @@ const structuredData = {
+ 
+ export default function RowhouseAtlasPage() {
+   const countedUnits = OLDTOWN_SPOTS.reduce((sum, spot) => sum + (spot.units ?? 0), 0);
++  const countedPapers = OLDTOWN_SPOTS.filter((spot) => spot.units).length;
+   const zoneLabels: Record<OnepSurveyZone, string> = {
+     inner: "Inner Rattanakosin",
+     intermediate: "Intermediate conservation area",
+@@ -69,11 +70,12 @@ export default function RowhouseAtlasPage() {
+           <div className="rowhouse-directory-stats" aria-label="Rowhouse atlas summary">
+             <div><strong>{OLDTOWN_SPOTS.length}</strong><span>mapped corridors</span></div>
+             <div><strong>{ONEP_MAPPED_RECORDS.length}/{ONEP_ROWHOUSE_RECORDS.length}</strong><span>ONEP records located</span></div>
+-            <div><strong>{countedUnits}+</strong><span>published units</span></div>
++            <div><strong>1,656</strong><span>2001–02 Rattanakosin survey</span></div>
+             <div><strong>{footprintSummary.candidate_count.toLocaleString()}</strong><span>footprints to review</span></div>
+           </div>
+           <div className="rowhouse-directory-actions">
+             <Link href="/?view=rowhouses">Open the 3D map</Link>
++            <Link href="/rowhouses/bible">Read the bible</Link>
+             <a href="#directory">Read the directory ↓</a>
+             <a href="/data/bangkok-rowhouse-atlas.geojson" download>GeoJSON ↓</a>
+             <a href="/data/bangkok-rowhouse-footprint-candidates.geojson" download>Candidate footprints ↓</a>
+@@ -90,6 +92,26 @@ export default function RowhouseAtlasPage() {
+             <p><strong>Published count</strong> uses a scholarly or institutional inventory, including unit numbers where reported.</p>
+             <p><strong>Curated corridor</strong> locates a documented community or street, but does not claim cadastral precision.</p>
+             <p><strong>Map geometry</strong> uses solid lines for high-confidence axes and dashed lines for interpretive connections.</p>
++            <p><strong>Inventories stay separate.</strong> The 2001–02 Rattanakosin survey counted 1,656 remaining units. Corridor papers name other figures. Do not add them into one city total.</p>
++          </div>
++        </section>
++
++        <section className="onep-coverage" aria-labelledby="inventories-title">
++          <div className="onep-coverage-intro">
++            <div>
++              <p className="register-eyebrow">Inventories · do not collapse</p>
++              <h2 id="inventories-title">A sum of papers is not a survey.</h2>
++            </div>
++            <div>
++              <p>
++                {countedPapers} mapped corridors carry a published unit number
++                ({countedUnits} if you add them). That arithmetic is not a city
++                inventory. Tha Tien’s 490 alone is more than half of the sum, and
++                it comes from a different paper than Onsawangchai &amp; Funo’s
++                1,656. The bible keeps those objects apart.
++              </p>
++              <Link href="/rowhouses/bible">Open the shophouse bible ↗</Link>
++            </div>
+           </div>
+         </section>
+ 
+@@ -219,7 +241,11 @@ export default function RowhouseAtlasPage() {
+ 
+         <footer className="rowhouse-directory-foot">
+           <strong>This is a foundation, not a finished canon.</strong>
+-          <p>Next: block-level geometry, façade surveys, oral histories, ownership risk and repeat photography.</p>
++          <p>
++            Next: locate the remaining {ONEP_MAPPING_QUEUE.length} official records
++            building by building. Scholarship: <Link href="/rowhouses/bible">the bible</Link>
++            and <a href="/rowhouses/bible/theses.html">the thesis shelf</a>.
++          </p>
+         </footer>
+       </div>
+     </>
+diff --git a/site/app/sitemap.ts b/site/app/sitemap.ts
+index 1a90f90..ae5f4be 100644
+--- a/site/app/sitemap.ts
++++ b/site/app/sitemap.ts
+@@ -9,10 +9,34 @@ export default function sitemap(): MetadataRoute.Sitemap {
+ 
+   return [
+     {
+-      url: siteUrl,
+-      lastModified,
+-      changeFrequency: "weekly",
+-      priority: 1,
++      url: `${siteUrl}/rowhouses`,
++      lastModified: new Date("2026-08-12T00:00:00+07:00"),
++      changeFrequency: "weekly" as const,
++      priority: 0.95,
++    },
++    {
++      url: `${siteUrl}/rowhouses/bible`,
++      lastModified: new Date("2026-08-12T00:00:00+07:00"),
++      changeFrequency: "weekly" as const,
++      priority: 0.9,
++    },
++    {
++      url: `${siteUrl}/rowhouses/bible/paper.html`,
++      lastModified: new Date("2026-08-12T00:00:00+07:00"),
++      changeFrequency: "monthly" as const,
++      priority: 0.85,
++    },
++    {
++      url: `${siteUrl}/rowhouses/bible/theses.html`,
++      lastModified: new Date("2026-08-12T00:00:00+07:00"),
++      changeFrequency: "monthly" as const,
++      priority: 0.85,
++    },
++    {
++      url: `${siteUrl}/case-for-bangkok`,
++      lastModified: new Date("2026-08-12T00:00:00+07:00"),
++      changeFrequency: "monthly" as const,
++      priority: 0.85,
+     },
+     {
+       url: `${siteUrl}/worlds`,
+diff --git a/site/public/data/bangkok-rowhouse-atlas.geojson b/site/public/data/bangkok-rowhouse-atlas.geojson
+index 3baafc2..fa3fc0a 100644
+--- a/site/public/data/bangkok-rowhouse-atlas.geojson
++++ b/site/public/data/bangkok-rowhouse-atlas.geojson
+@@ -113,7 +113,7 @@
+         "onep_conservation_priorities": [
+           3
+         ],
+-        "note": "Not one building: 490 shop units, a market and a river landing working as a single urban instrument. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
++        "note": "Not one building: 490 shop units, a market and a river landing working as a single urban instrument (Journal of Cultural Geography, 2018). That figure is not Onsawangchai & Funo’s 1,656 remaining Rattanakosin units and must not be added to it. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
+         "explorer_tip": "Enter from Maha Rat, cross the market, then look back from the Wat Arun ferry queue.",
+         "source": "Journal of Cultural Geography / Tha Tien study",
+         "source_url": "https://www.tandfonline.com/doi/abs/10.1080/08873631.2018.1506545",
+@@ -162,7 +162,7 @@
+         "onep_conservation_priorities": [
+           3
+         ],
+-        "note": "Not one building: 490 shop units, a market and a river landing working as a single urban instrument. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
++        "note": "Not one building: 490 shop units, a market and a river landing working as a single urban instrument (Journal of Cultural Geography, 2018). That figure is not Onsawangchai & Funo’s 1,656 remaining Rattanakosin units and must not be added to it. The smell, wholesale trade and ferry rhythm are part of the heritage—not noise around it.",
+         "explorer_tip": "Enter from Maha Rat, cross the market, then look back from the Wat Arun ferry queue.",
+         "source": "Journal of Cultural Geography / Tha Tien study",
+         "source_url": "https://www.tandfonline.com/doi/abs/10.1080/08873631.2018.1506545",
+@@ -867,7 +867,7 @@
+         "period": "Early 20th century",
+         "typology": "Neoclassical Chinatown shophouse block",
+         "evidence": "published inventory",
+-        "documented_units": null,
++        "documented_units": 220,
+         "register_id": null,
+         "onep_survey_ids": [
+           "3E6-047"
+@@ -875,7 +875,7 @@
+         "onep_conservation_priorities": [
+           4
+         ],
+-        "note": "Tenants stopped demolition, organised, financed and reopened the restored block in 2022. This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community.",
++        "note": "Tenants stopped demolition, organised, financed and reopened the restored block in 2022 (~220 bays; ICCROM / Siam Society). This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community. The 220 is not part of Onsawangchai’s 1,656 and must not be added to it.",
+         "explorer_tip": "Read the whole block before entering a café; the collective project matters more than any single tenancy.",
+         "source": "ICCROM Cultural Heritage for Inclusive Growth",
+         "source_url": "https://ch4igrowth.iccrom.org/case-studies/luenrit-community-conservation-and-rehabilitation-project",
+@@ -912,7 +912,7 @@
+         "period": "Early 20th century",
+         "typology": "Neoclassical Chinatown shophouse block",
+         "evidence": "published inventory",
+-        "documented_units": null,
++        "documented_units": 220,
+         "register_id": null,
+         "onep_survey_ids": [
+           "3E6-047"
+@@ -920,7 +920,7 @@
+         "onep_conservation_priorities": [
+           4
+         ],
+-        "note": "Tenants stopped demolition, organised, financed and reopened the restored block in 2022. This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community.",
++        "note": "Tenants stopped demolition, organised, financed and reopened the restored block in 2022 (~220 bays; ICCROM / Siam Society). This is Bangkok's strongest answer to the idea that conservation must arrive from outside the community. The 220 is not part of Onsawangchai’s 1,656 and must not be added to it.",
+         "explorer_tip": "Read the whole block before entering a café; the collective project matters more than any single tenancy.",
+         "source": "ICCROM Cultural Heritage for Inclusive Growth",
+         "source_url": "https://ch4igrowth.iccrom.org/case-studies/luenrit-community-conservation-and-rehabilitation-project",
+@@ -1110,6 +1110,7 @@
+         "documented_units": null,
+         "register_id": "FAD-5648",
+         "onep_survey_ids": [
++          "2E6-081",
+           "2E6-082"
+         ],
+         "onep_conservation_priorities": [
+@@ -1159,6 +1160,7 @@
+         "documented_units": null,
+         "register_id": "FAD-5648",
+         "onep_survey_ids": [
++          "2E6-081",
+           "2E6-082"
+         ],
+         "onep_conservation_priorities": [
+diff --git a/site/public/rowhouses/bible/catalog.json b/site/public/rowhouses/bible/catalog.json
+new file mode 100644
+index 0000000..e354fbc
+--- /dev/null
++++ b/site/public/rowhouses/bible/catalog.json
+@@ -0,0 +1,779 @@
++{
++  "title": "The shelf — recovered graduate theses on Bangkok shophouses and historic conservation areas",
++  "updated": "2026-08-12",
++  "pointer": {
++    "label": "Perplexity Computer thread (commission pointer, not a citable authority)",
++    "url": "https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3"
++  },
++  "claimed": {
++    "theses": 55,
++    "papers": 3,
++    "phd": 6,
++    "sections": { "A": 17, "B": 5, "C": 27, "D": 6, "E": 3 }
++  },
++  "note": "Perplexity claimed 55 theses plus 3 open-access papers. The thread is Cloudflare-gated from this sandbox, so the list below is recovered from named authors and university repositories — not scraped from the thread, and not padded with invented titles. Entries marked notFullyVerified have sparse repository metadata (missing author, year, or both). Access is Direct PDF when the URL is a verified file, or Repository when it is a landing page.",
++  "phdNamed": [
++    "Peeraya Boonprasong",
++    "Narut Kupthanaroj",
++    "Tanat Bha-aryaphatn",
++    "Pheereeya Boonchaiyapruek",
++    "Tiamsoon Sirisrisak",
++    "Monsicha Bejrananda"
++  ],
++  "sections": [
++    {
++      "id": "A",
++      "title": "Thai university theses directly about shophouses (ตึกแถว)",
++      "claimed": 17,
++      "entries": [
++        {
++          "id": "A01",
++          "titleTh": "กระบวนการการเปลี่ยนแปลงประโยชน์ใช้สอยในตึกแถว: กรณีศึกษาตึกแถวบริเวณท่าเตียน กรุงเทพฯ",
++          "titleEn": "Use Transformation Process of Shophouses: A Case Study of Tha Tien’s Shophouse, Bangkok",
++          "author": "Peeraya Boonprasong",
++          "authorTh": "พีรยา บุญประสงค์",
++          "degree": "PhD Architecture",
++          "university": "Chulalongkorn University",
++          "year": 2017,
++          "language": "en",
++          "access": "repository",
++          "url": "https://digital.car.chula.ac.th/chulaetd/510/",
++          "doi": "10.58837/chula.the.2017.20",
++          "phd": true,
++          "verified": true
++        },
++        {
++          "id": "A02",
++          "titleTh": "ตึกแถวร้างในกรุงเทพมหานคร: รากสาเหตุและทางเลือกเชิงยุทธศาสตร์",
++          "titleEn": "Vacant shophouse buildings in Bangkok: the root causes and strategic options",
++          "author": "Nabila Imam",
++          "degree": "MSc Urban Strategies",
++          "university": "Chulalongkorn University",
++          "year": 2022,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=5933&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/4934/",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Student ID 6378007025 implies enrolment B.E. 2563; graduation year inferred."
++        },
++        {
++          "id": "A03",
++          "titleTh": "การศึกษาตึกแถวในสมัยรัชกาลที่ 5 จากแผนที่กรุงเทพฯ ปี พ.ศ.2450 เขตสัมพันธวงศ์",
++          "titleEn": "A study of shophouses during the period of King Rama the Fifth based on a 1907 Bangkok map: case study of Samphanthawong District",
++          "author": "Kavin Lim",
++          "authorTh": "ควิน ลิมป์",
++          "degree": "Master of Architecture",
++          "university": "Chulalongkorn University",
++          "year": 2010,
++          "language": "th",
++          "access": "repository",
++          "url": "https://digital.car.chula.ac.th/chulaetd/71683/",
++          "doi": "10.58837/chula.the.2010.2027",
++          "phd": false,
++          "verified": true,
++          "notes": "Field count: 2,430 shophouse bays on the 1907 map; 310 still intact in 2007–10 survey; 16 façade types."
++        },
++        {
++          "id": "A04",
++          "titleTh": "การอนุรักษ์สถาปัตยกรรมประเภทตึกแถวริมถนนเจริญกรุง ระหว่างรัชกาลที่ 4 ถึงรัชกาลที่ 7",
++          "titleEn": "The conservation of shophouses on Charoenkrung Road: between the reign of King Rama IV and King Rama VII",
++          "author": "Sayanee Virochrut",
++          "degree": "Master of Architecture",
++          "university": "Chulalongkorn University",
++          "year": null,
++          "language": "th",
++          "access": "repository",
++          "url": "https://www.car.chula.ac.th/display7.php?bib=1580580",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Eight sets / ~100 bays, Saphan Mon to Chalermphan 53. Already cited in working paper 02."
++        },
++        {
++          "id": "A05",
++          "titleTh": "คืนชีพสถาปัตยกรรมตึกแถวร้อยปีสู่พิพิธภัณฑ์ชุมชนเจริญไชย ย่านเยาวราช",
++          "titleEn": "Revitalizing historic shophouses to Charoen Chai Community Museum, Yaowarat Chinatown, Bangkok",
++          "author": "Jearanaimanee Sasdeeart",
++          "authorTh": "เจียระไน มณีสัสดีอาจ",
++          "degree": "Master of Architecture",
++          "university": "Thammasat University",
++          "year": 2023,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2023/TU_2023_6516030316_18382_29204.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "A06",
++          "titleTh": "การปรับปรุงอาคารตึกแถวเก่าติดแนวรถไฟฟ้า: กรณีศึกษา ตึกแถวติดแนวถนนจรัญสนิทวงศ์ กรุงเทพมหานคร",
++          "titleEn": "The renovation of old shophouses near skytrain lines: a case study of shophouses on Charansanitwong Road in Bangkok Metropolis",
++          "author": "Suchabadee Tumpong",
++          "authorTh": "สุชาบดี ทุมพงษ์",
++          "degree": "Master of Architecture",
++          "university": "Thammasat University",
++          "year": 2023,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2023/TU_2023_6516030266_18360_29284.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "A07",
++          "titleTh": "แนวทางการออกแบบทางเท้าร่วมกับตึกแถวผ่านกระบวนการการวิเคราะห์พฤติกรรมของคนเดินเท้าและหาบเร่แผงลอย: กรณีศึกษา ย่านเยาวราช กรุงเทพมหานคร",
++          "titleEn": "Towards the walkway and shophouse coexisting solution in the design guideline by behavioral analysis of street vendors and pedestrians in Yaowarat District, Bangkok",
++          "author": "Amika Naknawaphan",
++          "degree": "Master of Urban Design",
++          "university": "Thammasat University",
++          "year": 2018,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2018/TU_2018_6016123090_10555_10815.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "A08",
++          "titleTh": "แนวทางการเพิ่มมูลค่าตึกแถวเก่าเขตดอนเมือง กรุงเทพมหานคร",
++          "titleEn": "Guidelines to add value to old shop-houses in Don Mueang area, Bangkok Metropolis",
++          "author": "Puangpech Chieowattanakul",
++          "authorTh": "พวงเพชร เชี่ยววัฒนกุล",
++          "degree": "Master of Fine Arts",
++          "university": "Silpakorn University",
++          "year": 2018,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/2131/1/60906308.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/2131",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Year inferred from student ID 60906308 (enrolment B.E. 2560)."
++        },
++        {
++          "id": "A09",
++          "titleTh": "แนวโน้มของการใช้งานใหม่ของเรือนแถวริมน้ำชุมชนตลาดหัวตะเข้ กรุงเทพมหานคร จากการศึกษาปรากฏการณ์เจนตริฟิเคชัน",
++          "titleEn": "Trend of new use from gentrification phenomenon: a study of rowhouses in Hua Takhe waterfront community, Bangkok",
++          "author": "Suchacree Dhirasedh",
++          "authorTh": "สุชาครีย์ ถิรเศรษฐ์",
++          "degree": "Master’s (Architecture)",
++          "university": "Silpakorn University",
++          "year": null,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/4637/1/61052203.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/4637",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year", "degree"],
++          "notes": "Advisor: Peeraya Boonprasong. Timber rowhouses (เรือนแถว), not concrete ตึกแถว — related type, eastern Bangkok."
++        },
++        {
++          "id": "A10",
++          "titleTh": "การศึกษาคุณค่าทางสถาปัตยกรรมของที่พักอาศัยชาวจีนโพ้นทะเล ในเขตสัมพันธวงศ์และเขตคลองสาน กรุงเทพมหานคร เพื่อการอนุรักษ์",
++          "titleEn": "A study of architectural values for conserving overseas Chinese dwellings in Samphanthawong and Khlong San districts, Bangkok",
++          "author": "Pichet Titha",
++          "authorTh": "พิเชฐ ธิถา",
++          "degree": "Master of Arts",
++          "university": "Silpakorn University",
++          "year": null,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/1315/1/58052201.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/1315",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Classifies overseas-Chinese dwellings into shophouses and private residences (Saphan Han, Sampeng, Talad Noi, Khlong San)."
++        },
++        {
++          "id": "A11",
++          "titleTh": null,
++          "titleEn": "Regeneration of Chinese urban heritage: a case study of Tha Tien shophouses, Bangkok",
++          "author": "Sheng-Man Lin",
++          "degree": "Master of Architecture",
++          "university": "Chulalongkorn University",
++          "year": 2014,
++          "language": "en",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2014.1685",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["degree"],
++          "notes": "Advisor listed as Rachaporn Choochuey."
++        },
++        {
++          "id": "A12",
++          "titleTh": "กระบวนการเปลี่ยนแปลงและผลกระทบต่ออัตลักษณ์เชิงพื้นที่ของอาคารร้านค้าดั้งเดิมในย่านตลาดเก่าชุมชนเยาวราช",
++          "titleEn": "Changes and impacts toward spatial identity of the old-market traditional shop-houses in Yaowarat community, Bangkok’s Chinatown",
++          "author": "Nattawut Rungrotsitichai",
++          "authorTh": "ณัฐวุฒิ รุ่งโรจน์สิทธิชัย",
++          "degree": "MA Human and Social Development",
++          "university": "Chulalongkorn University",
++          "year": 2020,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=5469&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/4470/",
++          "doi": "10.58837/chula.the.2020.926",
++          "phd": false,
++          "verified": true
++        }
++      ]
++    },
++    {
++      "id": "B",
++      "title": "Thai theses on old commercial buildings (อาคารพาณิชย์) in Bangkok",
++      "claimed": 5,
++      "entries": [
++        {
++          "id": "B01",
++          "titleTh": "ความคุ้มค่าในการลงทุนปรับปรุงอาคารพาณิชย์เก่าเขตพื้นที่ย่านธุรกิจ (CBD) ให้เป็นโฮมออฟฟิศเชิงอนุรักษ์พลังงาน",
++          "titleEn": "An investment benefit for the renovation of old commercial buildings in the central business district (CBD) of Bangkok to home-office buildings for energy conservation",
++          "author": "Kulawich Nuipetchara",
++          "authorTh": "กุลวิชญ์ นุ้ยเพชร",
++          "degree": "MSc Innovative Real Estate Development",
++          "university": "Thammasat University",
++          "year": 2015,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2015/TU_2015_5716033278_3243_3333.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "B02",
++          "titleTh": "แนวทางการจัดการอาคารพาณิชย์ที่มีการปรับปรุงเป็นอาคารอยู่อาศัยรวม: กรณีศึกษาอาคารพาณิชย์ในซอยหมู่บ้านวิกรม แขวงหัวหมาก กรุงเทพมหานคร",
++          "titleEn": "Management guidelines for commercial buildings converted to collective housing: a case study of commercial buildings in Soi Mooban Wikrom, Hua Mak, Bangkok",
++          "author": null,
++          "degree": "Master’s",
++          "university": "Chulalongkorn University",
++          "year": 2006,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2006.1832",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["author", "degree"]
++        },
++        {
++          "id": "B03",
++          "titleTh": "ข้อจำกัดทางด้านกายภาพและกฎหมายในการปรับปรุงอาคารพาณิชย์ให้เป็นที่พักอาศัยรวมประเภทห้องเช่า: กรณีศึกษา อาคารพาณิชย์ในเขตราชเทวี",
++          "titleEn": "Physical and legal constraints on converting commercial buildings into rental-room collective housing: a case study of commercial buildings in Ratchathewi",
++          "author": null,
++          "degree": "Master’s",
++          "university": "Chulalongkorn University",
++          "year": 2005,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2005.1694",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["author", "degree"]
++        },
++        {
++          "id": "B04",
++          "titleTh": "แนวทางการปรับปรุงอาคารพาณิชย์เพื่อเป็นพื้นที่ทางศิลปะของพำนักศิลปินในย่านสร้างสรรค์: กรณีศึกษา ถนนทรงวาด กรุงเทพมหานคร",
++          "titleEn": "Guidelines for adapting commercial buildings as artist-residence space in a creative district: a case study of Song Wat Road, Bangkok",
++          "author": null,
++          "degree": "Master’s",
++          "university": "Thammasat University",
++          "year": 2021,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.14457/tu.the.2021.880",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["author", "degree"]
++        },
++        {
++          "id": "B05",
++          "titleTh": "พลวัตเชิงพื้นที่และการฟื้นฟูบูรณะย่านพาณิชยกรรมเก่าริมน้ำ: กรณีศึกษาย่านปากคลองตลาด กรุงเทพมหานคร",
++          "titleEn": "Dynamics of space and rehabilitation for old commercial districts in waterfront areas: a case study of Pak Khlong Talat District, Bangkok",
++          "author": "Parisa Musigakama",
++          "authorTh": "ปาริษา มูสิกะคามะ",
++          "degree": "Master’s",
++          "university": "Chulalongkorn University",
++          "year": null,
++          "language": "th",
++          "access": "repository",
++          "url": "https://www.car.chula.ac.th/display7.php?bib=1848823",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year", "degree"]
++        }
++      ]
++    },
++    {
++      "id": "C",
++      "title": "Thai theses on historic conservation areas / old-town districts",
++      "claimed": 27,
++      "entries": [
++        {
++          "id": "C01",
++          "titleTh": null,
++          "titleEn": "The steps towards a model for tourism development in oldtown area: the heritage community of Charoen Krung Road",
++          "author": "Tanat Bha-aryaphatn",
++          "degree": "PhD Architectural Heritage Management and Tourism",
++          "university": "Silpakorn University",
++          "year": 2018,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/2148/1/57056964.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/2148",
++          "phd": true,
++          "verified": true
++        },
++        {
++          "id": "C02",
++          "titleTh": "ย่านไชน่าทาวน์เยาวราช: พื้นที่การนำเสนออัตลักษณ์เชิงซ้อนของวัฒนธรรมความเป็นจีนในสังคมไทยร่วมสมัย",
++          "titleEn": "Bangkok’s Chinatown: a space for presenting multiple identities of Chineseness in contemporary Thai society",
++          "author": "Narut Kupthanaroj",
++          "authorTh": "นรุตม์ คุปต์ธนโรจน์",
++          "degree": "Doctoral dissertation (Thai studies / folklore)",
++          "university": "Chulalongkorn University",
++          "year": 2015,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2015.1770",
++          "landing": "http://cuir.car.chula.ac.th/handle/123456789/50679",
++          "phd": true,
++          "verified": true,
++          "notes": "Named as one of the six PhDs in the Perplexity roundup. Cultural-identity dissertation, not a building-typology thesis. Fieldwork includes Charoen Chai, Talad Noi, and Woeng Nakhon Kasem."
++        },
++        {
++          "id": "C03",
++          "titleTh": "อัตลักษณ์ทางวัฒนธรรมของชุมชนตลาดเก่า: กรณีศึกษา ชุมชนตลาดน้อย กรุงเทพมหานคร",
++          "titleEn": "Cultural identity of old market community: a case study of Talad Noi community, Bangkok",
++          "author": "Supansa Chimpalee",
++          "authorTh": "สุพรรณสา ฉิมพาลี",
++          "degree": "Master of Urban Environmental Planning and Development",
++          "university": "Thammasat University",
++          "year": 2022,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2022/TU_2022_6316031092_15174_23345.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C04",
++          "titleTh": "แนวทางการปรับปรุงตรอกการค้าในชุมชนเมืองเพื่อส่งเสริมการท่องเที่ยว: กรณีศึกษา ซอยวานิช 1 ย่านสำเพ็ง กรุงเทพมหานคร",
++          "titleEn": "Development guidelines of urban shopping alley supporting tourism: the case of Soi Wanich 1, Sampeng, Bangkok",
++          "author": "Thitima Boonyarattaphan",
++          "authorTh": "ฐิติมา บุญยรัตน์พันธุ์",
++          "degree": "Master of Architecture",
++          "university": "Thammasat University",
++          "year": 2019,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2019/TU_2019_6116030229_12296_13107.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C05",
++          "titleTh": "การศึกษาศิลปะสาธารณะที่ส่งผลต่อความมีชีวิตชีวาของเมือง: กรณีศึกษา ผลงานศิลปะจัดวาง เทศกาลงานออกแบบกรุงเทพฯ 2020 ย่านเจริญกรุง-ตลาดน้อย",
++          "titleEn": "Impacts of public art on urban vibrancy: a case study of Bangkok Design Week 2020 at Charoenkrung–Talat Noi district",
++          "author": "Marada Sangpadung",
++          "authorTh": "มาระดา แสงผดุง",
++          "degree": "Master of Urban Environmental Planning and Development",
++          "university": "Thammasat University",
++          "year": 2021,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2021/TU_2021_6116031128_12325_21775.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C06",
++          "titleTh": "พัฒนาการและการปรับตัวเพื่อรองรับการท่องเที่ยวของชุมชนย่านเยาวราช",
++          "titleEn": "Evolution and adaptation of Yaowarat community in accordance with tourism promotion",
++          "author": "Tastiya Temsuriyawong",
++          "authorTh": "ทัศติยะ เต็มสุริยวงค์",
++          "degree": "MA Human and Social Development",
++          "university": "Chulalongkorn University",
++          "year": 2020,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=5479&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/4480/",
++          "doi": "10.58837/chula.the.2020.936",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C07",
++          "titleTh": "มุมมองของนักท่องเที่ยวต่อการท่องเที่ยวโดยชุมชนเพื่อเป็นยุทธศาสตร์ในการฟื้นฟูย่านประวัติศาสตร์: กรณีศึกษานางเลิ้ง",
++          "titleEn": "Tourist’s perspective on community-based tourism as a strategy for historic neighborhood revitalization: a case study of Nang Loeng",
++          "author": "Ni Li",
++          "authorTh": "หนี่ หลี",
++          "degree": "MSc Urban Strategies",
++          "university": "Chulalongkorn University",
++          "year": 2024,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=75192&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/74133/",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C08",
++          "titleTh": "พิพิธภัณฑ์คติชนและบทบาทในการจัดแสดงและอนุรักษ์มรดกทางวัฒนธรรมชุมชน: กรณีศึกษา ศูนย์ประวัติศาสตร์เยาวราช พิพิธภัณฑ์บางลำพู และพิพิธภัณฑ์ชาวบางกอก",
++          "titleEn": "Folklore museums and their roles in displaying and preserving communal cultural heritage: the case studies of Yaowarat Chinatown Heritage Center, Bang Lamphu Museum and Bangkokian Museum",
++          "author": "Xie Xiaoran",
++          "authorTh": "เซี่ย เซียวหลัน",
++          "degree": "MA Thai Studies",
++          "university": "Chulalongkorn University",
++          "year": 2018,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=3647&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/2648/",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C09",
++          "titleTh": "การปรับประโยชน์ใช้สอยอาคารประวัติศาสตร์เพื่อเป็นพื้นที่การเรียนรู้สร้างสรรค์ กรณีศึกษา อาคารในพื้นที่อนุรักษ์ของกรุงเทพมหานคร",
++          "titleEn": "Adaptive reuse of historic buildings to creative learning space: case studies of the buildings in the Bangkok conservation area",
++          "author": "Bhuree Ampunsook",
++          "authorTh": "ภูรี อำพันสุข",
++          "degree": "Master of Architecture",
++          "university": "Chulalongkorn University",
++          "year": 2018,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "https://digital.car.chula.ac.th/cgi/viewcontent.cgi?article=4530&context=chulaetd",
++          "landing": "https://digital.car.chula.ac.th/chulaetd/3531/",
++          "phd": false,
++          "verified": true,
++          "notes": "Advisor: Wimonrart Issarathumnoon."
++        },
++        {
++          "id": "C10",
++          "titleTh": "การศึกษาเพื่อการอนุรักษ์ย่านนางเลิ้ง",
++          "titleEn": "A study for the conservation of the Nang Loeng district",
++          "author": null,
++          "degree": "Master’s",
++          "university": "Chulalongkorn University",
++          "year": 2000,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2000.1482",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["author", "degree", "titleEn"]
++        },
++        {
++          "id": "C11",
++          "titleTh": null,
++          "titleEn": "Nang Loeng: role and development (Chula 2003 dissertation — Thai title not fully verified)",
++          "author": null,
++          "degree": "Master’s",
++          "university": "Chulalongkorn University",
++          "year": 2003,
++          "language": "th",
++          "access": "repository",
++          "url": "https://doi.org/10.58837/chula.the.2003.1657",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["author", "degree", "titleTh", "titleEn"]
++        },
++        {
++          "id": "C12",
++          "titleTh": null,
++          "titleEn": "The regeneration of the historic area of Song Wat through the adaptive reuse of heritage buildings and the sense of place",
++          "author": "Chomkhwan Suvarnananda",
++          "authorTh": "จอมขวัญ สุวรรณานนท์",
++          "degree": "Independent study / Master’s (Architecture)",
++          "university": "Silpakorn University",
++          "year": 2023,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/5017/1/620220037.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/5017",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C13",
++          "titleTh": "ภูมิทัศน์วัฒนธรรมชุมชนตลาดน้อย เขตสัมพันธวงศ์ กรุงเทพมหานคร",
++          "titleEn": "Cultural landscape of Talad-Noi, Samphanthawong, Bangkok",
++          "author": "Watunyuta Janyaraksakul",
++          "authorTh": "วทัญญุตา จรรยารักษ์สกุล",
++          "degree": "Master’s (Architecture)",
++          "university": "Silpakorn University",
++          "year": 2024,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/5025/1/630220065.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/5025",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Abstract covers 1767–2024; year inferred from student ID 630220065."
++        },
++        {
++          "id": "C14",
++          "titleTh": "การปรับใช้อาคารเก่าเพื่อเป็นพื้นที่ศิลปะในพื้นที่ย่านเจริญกรุงระหว่างปี พ.ศ.2558–2566",
++          "titleEn": "The adaptive reuse of old buildings into art space in Charoen Krung district from 2015 to 2023",
++          "author": "Nattanit Phuthiang",
++          "authorTh": "ณัฐนิช พุฒเหียง",
++          "degree": "Master’s (Painting, Sculpture and Graphic Arts)",
++          "university": "Silpakorn University",
++          "year": 2023,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/5379/1/650120013.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/5379",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"]
++        },
++        {
++          "id": "C15",
++          "titleTh": "อิทธิพลของสถานีรถไฟฟ้าใต้ดินวัดมังกรต่อการเปลี่ยนแปลงพื้นที่โดยรอบ",
++          "titleEn": "The influence of the Wat Mangkon mass rapid transit station on surrounding areas",
++          "author": "Rungtiwa Chanyoyod",
++          "authorTh": "รุ่งทิวา จันทร์ย่อยศ",
++          "degree": "Master of Architecture",
++          "university": "Silpakorn University",
++          "year": null,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/3166/1/59051211.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/3166",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"]
++        },
++        {
++          "id": "C16",
++          "titleTh": "สัณฐานเมืองเพื่อการพัฒนาย่านสร้างสรรค์บางรัก กรุงเทพมหานคร",
++          "titleEn": "Urban morphology for development of creative district Bangrak, Bangkok",
++          "author": "Sorawich Rungrotjanarak",
++          "authorTh": "สรวิศ รุ่งโรจนารักษ์",
++          "degree": "Master of Urban and Environmental Planning",
++          "university": "Silpakorn University",
++          "year": null,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ithesis-ir.su.ac.th/dspace/bitstream/123456789/2529/1/59058311.pdf",
++          "landing": "http://ithesis-ir.su.ac.th/dspace/handle/123456789/2529",
++          "phd": false,
++          "verified": true,
++          "notFullyVerified": ["year"]
++        },
++        {
++          "id": "C17",
++          "titleTh": "แนวทางการสนับสนุนให้ย่านเจริญกรุงเป็นศูนย์กลางคิด–ผลิต–ขาย สำหรับอุตสาหกรรมสร้างสรรค์ ผ่านโครงการวางและจัดทำผังเมืองรวมกรุงเทพมหานคร",
++          "titleEn": "A land-use approach to promote Charoenkrung district as the creative industry hub for the Bangkok Comprehensive Plan",
++          "author": "Benjamin Punson",
++          "authorTh": "เบญจมินทร์ ปันสน",
++          "degree": "Master of Urban Environmental Planning and Development",
++          "university": "Thammasat University",
++          "year": 2019,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2019/TU_2019_6116031169_12326_13116.pdf",
++          "phd": false,
++          "verified": true
++        },
++        {
++          "id": "C18",
++          "titleTh": "การศึกษาความเป็นไปได้ในการพัฒนาโครงการอสังหาริมทรัพย์ในย่านเจริญกรุงเพื่อนำรายได้ไปพัฒนาพื้นที่เศรษฐกิจสร้างสรรค์",
++          "titleEn": "Income-generating real estate for Charoenkrung creative area",
++          "author": "Sathita Saelee",
++          "authorTh": "สาธิตา แซ่ลี้",
++          "degree": "MSc Real Estate Business (independent study)",
++          "university": "Thammasat University",
++          "year": 2021,
++          "language": "th",
++          "access": "direct-pdf",
++          "url": "http://ethesisarchive.library.tu.ac.th/thesis/2021/TU_2021_6302034654_14704_19087.pdf",
++          "phd": false,
++          "verified": true,
++          "notes": "Independent study, not a thesis proper. Includes adaptive reuse of a conservation building at Charoen Krung Soi 30 (Captain Bush Lane)."
++        }
++      ]
++    },
++    {
++      "id": "D",
++      "title": "Overseas theses",
++      "claimed": 6,
++      "entries": [
++        {
++          "id": "D01",
++          "titleTh": null,
++          "titleEn": "Spatial culture and spatial capital in Bangkok: a study of adaptability and diversity in the urban transformation process",
++          "author": "Pheereeya Boonchaiyapruek",
++          "degree": "PhD (Bartlett School of Architecture)",
++          "university": "University College London",
++          "year": 2017,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://discovery.ucl.ac.uk/id/eprint/1566916/7/Boonchaiyapruek_1566916_e-thesis.pdf.signature%20removed.pdf",
++          "landing": "https://discovery.ucl.ac.uk/id/eprint/1566916/",
++          "phd": true,
++          "verified": true,
++          "notes": "Named PhD in the Perplexity roundup. Romanisation differs from Peeraya Boonprasong (A01); treated as a separate UCL dissertation, not collapsed."
++        },
++        {
++          "id": "D02",
++          "titleTh": null,
++          "titleEn": "The notion of Historic Urban Landscape and its application to visual impact assessment of a historical town: the case of Old Bangkok",
++          "author": "Tiamsoon Sirisrisak",
++          "degree": "PhD Urban Engineering",
++          "university": "University of Tokyo",
++          "year": 2011,
++          "language": "en",
++          "access": "repository",
++          "url": "http://ud.t.u-tokyo.ac.jp/en/research/",
++          "phd": true,
++          "verified": true,
++          "notes": "Listed on the Tokyo Urban Design Lab research page. Related journal paper: Sirisrisak 2009, Habitat International 33(4)."
++        },
++        {
++          "id": "D03",
++          "titleTh": null,
++          "titleEn": "Conservation of old Bangkok and early shophouses",
++          "author": "Yongtanit Pimonsathean",
++          "degree": "Doctoral thesis",
++          "university": "University of Tokyo",
++          "year": null,
++          "language": "en",
++          "access": "repository",
++          "url": "http://ud.t.u-tokyo.ac.jp/en/research/",
++          "phd": true,
++          "verified": true,
++          "notFullyVerified": ["year", "titleEn"],
++          "notes": "Title as listed on the Tokyo Urban Design Lab page. Later Siam Society 2012 paper on the Crown Property Bureau is already cited in working paper 02."
++        },
++        {
++          "id": "D04",
++          "titleTh": null,
++          "titleEn": "Traditional urban community and its role in heritage planning: the case of Bangkok heritage core",
++          "author": "Wimonrart Issarathumnoon",
++          "authorTh": "วิมลรัตน์ อิสระธรรมนูญ",
++          "degree": "PhD Urban Engineering",
++          "university": "University of Tokyo",
++          "year": null,
++          "language": "en",
++          "access": "repository",
++          "url": "http://ud.t.u-tokyo.ac.jp/en/research/",
++          "phd": true,
++          "verified": true,
++          "notFullyVerified": ["year"],
++          "notes": "Degree confirmed on her Chulalongkorn faculty page. Extra Tokyo dissertation beyond Perplexity’s six-name list."
++        },
++        {
++          "id": "D05",
++          "titleTh": null,
++          "titleEn": "Spatial patterns of shop-houses: a case study of traditional and contemporary shop-houses in southern Thailand",
++          "author": "Monsicha Bejrananda",
++          "degree": "PhD",
++          "university": "Texas Tech University",
++          "year": 1998,
++          "language": "en",
++          "access": "repository",
++          "url": "https://ttu-ir.tdl.org/items/5f7f92e5-8f8d-4b47-a034-3221e2b31603",
++          "phd": true,
++          "verified": true,
++          "notes": "Named PhD in the Perplexity roundup. Southern Thailand, not Bangkok — kept because it is the named dissertation."
++        },
++        {
++          "id": "D06",
++          "titleTh": null,
++          "titleEn": "The historic canal system in Bangkok, Thailand: guidelines for reestablishing public space functions",
++          "author": "Noppamas Chansiri",
++          "degree": "Master of Landscape Architecture",
++          "university": "Virginia Tech",
++          "year": 1999,
++          "language": "en",
++          "access": "repository",
++          "url": "https://vtechworks.lib.vt.edu/items/00b3e700-b127-432a-86b4-d072e60a2591",
++          "phd": false,
++          "verified": true,
++          "notes": "Rattanakosin Island canals. Perplexity listed Virginia Tech in section D; this is the recovered Bangkok thesis. MIT slot not recovered (Singapore shophouse studio essays exist; no Bangkok MIT dissertation found)."
++        },
++        {
++          "id": "D07",
++          "titleTh": null,
++          "titleEn": "Global tourism and community life: toward a responsible tourism framework",
++          "author": "Napat Settachai",
++          "degree": "PhD Urban and Regional Planning",
++          "university": "University of Hawaiʻi",
++          "year": 2005,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://scholarspace.manoa.hawaii.edu/server/api/core/bitstreams/51242f6b-0957-42a5-ac8c-bb206db75f32/content",
++          "phd": true,
++          "verified": true,
++          "notes": "Tha Tien fieldwork. Extra overseas dissertation, not in Perplexity’s six-name list. MIT was claimed and not found."
++        }
++      ]
++    },
++    {
++      "id": "E",
++      "title": "Related KMUTT research papers (bonus, non-thesis)",
++      "claimed": 3,
++      "entries": [
++        {
++          "id": "E01",
++          "titleTh": null,
++          "titleEn": "Bangkok shophouse: an approach for quality design solutions",
++          "author": "Chamnarn Tirapas",
++          "degree": "Conference paper",
++          "university": "King Mongkut’s University of Technology Thonburi",
++          "year": 2011,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://soad.kmutt.ac.th/wp-content/uploads/2018/10/2011IntC2.pdf",
++          "phd": false,
++          "verified": true,
++          "kind": "paper",
++          "notes": "4×4 m module; 1:1–1:6 depth ratio. Already cited in working paper 02."
++        },
++        {
++          "id": "E02",
++          "titleTh": null,
++          "titleEn": "Flexibility survey of Bangkok shophouses for mixed-use development",
++          "author": "Chamnarn Tirapas and Supawadee Boonyachut",
++          "degree": "Conference paper",
++          "university": "King Mongkut’s University of Technology Thonburi",
++          "year": 2012,
++          "language": "en",
++          "access": "direct-pdf",
++          "url": "https://soad.kmutt.ac.th/wp-content/uploads/2018/10/2012IntC27.pdf",
++          "phd": false,
++          "verified": true,
++          "kind": "paper",
++          "notes": "Survey of 102 shophouses. Width 3.5–6 m in the wild. Already cited in working paper 02."
++        },
++        {
++          "id": "E03",
++          "titleTh": null,
++          "titleEn": "Bangkok shop house support design for accommodating changes and future mixed-use building",
++          "author": "Chamnarn Tirapas and Katsuhiko Suzuki",
++          "degree": "Conference paper",
++          "university": "King Mongkut’s University of Technology Thonburi / APSA",
++          "year": 2013,
++          "language": "en",
++          "access": "repository",
++          "url": "https://www.academia.edu/26741560/Bangkok_Shophouse_Support_Design_for_Accommodating_Changes_and_Future_Mixed_Use_Building",
++          "phd": false,
++          "verified": true,
++          "kind": "paper",
++          "notes": "12th International Congress of the Asian Planning Schools Association, National Taiwan University. Open Building support-infill."
++        }
++      ]
++    }
++  ]
++}
+diff --git a/site/public/rowhouses/bible/figures/fig-01-timeline.svg b/site/public/rowhouses/bible/figures/fig-01-timeline.svg
+new file mode 100644
+index 0000000..66a83b1
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-01-timeline.svg
+@@ -0,0 +1,48 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-labelledby="t d">
++  <title id="t">Timeline: how the Bangkok shophouse arrived</title>
++  <desc id="d">1851 Bowring Treaty through 1979 Building Control Act. The row is a modernization instrument, not an indigenous Rattanakosin type.</desc>
++  <rect width="920" height="280" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 01 � FORMATION</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The row is imported, then legislated</text>
++  <line x1="40" y1="150" x2="880" y2="150" stroke="#11120f" stroke-width="2"/>
++  <g font-family="ui-monospace, monospace" font-size="10" fill="#11120f">
++    <g transform="translate(48,150)">
++      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
++      <text y="-18" font-weight="700">1851</text>
++      <text y="28" fill="#5b5d54">Bowring Treaty</text>
++      <text y="42" fill="#5b5d54">opens the port</text>
++    </g>
++    <g transform="translate(168,150)">
++      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
++      <text y="-18" font-weight="700">1859</text>
++      <text y="28" fill="#5b5d54">Srisuriyawong</text>
++      <text y="42" fill="#5b5d54">studies Singapore</text>
++    </g>
++    <g transform="translate(300,150)">
++      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
++      <text y="-18" font-weight="700">186163</text>
++      <text y="28" fill="#5b5d54">Charoenkrung,</text>
++      <text y="42" fill="#5b5d54">Bamrungmuang,</text>
++      <text y="56" fill="#5b5d54">Fuangnakorn</text>
++    </g>
++    <g transform="translate(448,150)">
++      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
++      <text y="-18" font-weight="700">1870</text>
++      <text y="28" fill="#5b5d54">Rama V: uniform</text>
++      <text y="42" fill="#5b5d54">fa�ade + verandah</text>
++    </g>
++    <g transform="translate(592,150)">
++      <circle r="6" fill="#11120f"/>
++      <text y="-18" font-weight="700" fill="#11120f">1936</text>
++      <text y="28" fill="#5b5d54">Crown Property</text>
++      <text y="42" fill="#5b5d54">Act � CPB born</text>
++    </g>
++    <g transform="translate(728,150)">
++      <circle r="6" fill="#11120f"/>
++      <text y="-18" font-weight="700">1979</text>
++      <text y="28" fill="#5b5d54">Building Control</text>
++      <text y="42" fill="#5b5d54">4 m � d24 m</text>
++    </g>
++  </g>
++  <text x="24" y="262" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Sources: Onsawangchai &amp; Funo 2004; Crown Property Act B.E. 2479; Building Control Act B.E. 2522.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-02-section.svg b/site/public/rowhouses/bible/figures/fig-02-section.svg
+new file mode 100644
+index 0000000..c5a1767
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-02-section.svg
+@@ -0,0 +1,32 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-labelledby="t d">
++  <title id="t">Section through a Bangkok shophouse</title>
++  <desc id="d">Ground floor shop opening to the street; stair and airwell in the middle; dwelling above; rear service court. No mandatory five-foot arcade.</desc>
++  <rect width="720" height="420" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 02 � SECTION</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">Live-work, not a fa�ade</text>
++  <!-- street -->
++  <rect x="24" y="340" width="120" height="28" fill="#d8d4c8"/>
++  <text x="84" y="358" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#5b5d54">STREET</text>
++  <!-- building mass -->
++  <rect x="144" y="88" width="420" height="280" fill="none" stroke="#11120f" stroke-width="2"/>
++  <!-- floors -->
++  <line x1="144" y1="178" x2="564" y2="178" stroke="#11120f" stroke-width="1"/>
++  <line x1="144" y1="258" x2="564" y2="258" stroke="#11120f" stroke-width="1"/>
++  <!-- shop opening -->
++  <rect x="144" y="268" width="70" height="100" fill="#c9ff38" stroke="#11120f"/>
++  <text x="179" y="322" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10">SHOP</text>
++  <!-- stair -->
++  <path d="M250 368 L250 268 L290 268 L290 178 L330 178 L330 88" fill="none" stroke="#11120f" stroke-width="2"/>
++  <text x="270" y="248" font-family="ui-monospace, monospace" font-size="10" fill="#5b5d54">STAIR</text>
++  <!-- airwell -->
++  <rect x="360" y="98" width="70" height="250" fill="#e8f4ff" stroke="#11120f" stroke-dasharray="4 3"/>
++  <text x="395" y="230" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="#3b5cdb">AIRWELL</text>
++  <!-- dwelling -->
++  <text x="220" y="140" font-family="Georgia, serif" font-size="13" fill="#11120f">dwelling</text>
++  <text x="220" y="220" font-family="Georgia, serif" font-size="13" fill="#11120f">stock / family</text>
++  <!-- rear -->
++  <rect x="564" y="300" width="80" height="68" fill="#efe8d8" stroke="#11120f"/>
++  <text x="604" y="338" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9">REAR</text>
++  <text x="604" y="352" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9">e3 m*</text>
++  <text x="24" y="396" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Schematic, not a measured drawing. *Rear open space is a 1979 code rule; pre-code temple rows often have none. Bangkok never required Singapores five-foot arcade.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-03-types.svg b/site/public/rowhouses/bible/figures/fig-03-types.svg
+new file mode 100644
+index 0000000..f8b978f
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-03-types.svg
+@@ -0,0 +1,50 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-labelledby="t d">
++  <title id="t">Five spatial types of Rattanakosin shophouses</title>
++  <desc id="d">Onsawangchai and Funo classify 44 fa�ade groups into five plan types by open space: A forecourt, B front verandah, C enclosed, D rear court, E two courts.</desc>
++  <rect width="920" height="280" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 03 � TYPOLOGY</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">44 groups collapse to five plans</text>
++  <g font-family="ui-monospace, monospace" font-size="11" fill="#11120f">
++    <!-- A -->
++    <g transform="translate(36,80)">
++      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
++      <rect x="8" y="8" width="134" height="36" fill="#c9ff38" stroke="#11120f"/>
++      <rect x="8" y="52" width="134" height="90" fill="#f1efe8" stroke="#11120f"/>
++      <text x="75" y="30" text-anchor="middle">FORECOURT</text>
++      <text x="75" y="178" text-anchor="middle" font-weight="700">A</text>
++    </g>
++    <!-- B -->
++    <g transform="translate(206,80)">
++      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
++      <rect x="8" y="8" width="134" height="22" fill="#c9ff38" stroke="#11120f"/>
++      <rect x="8" y="38" width="134" height="104" fill="#f1efe8" stroke="#11120f"/>
++      <text x="75" y="24" text-anchor="middle">VERANDAH</text>
++      <text x="75" y="178" text-anchor="middle" font-weight="700">B</text>
++    </g>
++    <!-- C -->
++    <g transform="translate(376,80)">
++      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
++      <rect x="8" y="8" width="134" height="134" fill="#f1efe8" stroke="#11120f"/>
++      <text x="75" y="80" text-anchor="middle">ENCLOSED</text>
++      <text x="75" y="178" text-anchor="middle" font-weight="700">C</text>
++    </g>
++    <!-- D -->
++    <g transform="translate(546,80)">
++      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
++      <rect x="8" y="8" width="134" height="96" fill="#f1efe8" stroke="#11120f"/>
++      <rect x="8" y="112" width="134" height="30" fill="#c9ff38" stroke="#11120f"/>
++      <text x="75" y="60" text-anchor="middle">REAR COURT</text>
++      <text x="75" y="178" text-anchor="middle" font-weight="700">D</text>
++    </g>
++    <!-- E -->
++    <g transform="translate(716,80)">
++      <rect width="150" height="150" fill="none" stroke="#11120f" stroke-width="1.5"/>
++      <rect x="8" y="8" width="134" height="28" fill="#c9ff38" stroke="#11120f"/>
++      <rect x="8" y="44" width="134" height="62" fill="#f1efe8" stroke="#11120f"/>
++      <rect x="8" y="114" width="134" height="28" fill="#c9ff38" stroke="#11120f"/>
++      <text x="75" y="78" text-anchor="middle">TWO COURTS</text>
++      <text x="75" y="178" text-anchor="middle" font-weight="700">E</text>
++    </g>
++  </g>
++  <text x="24" y="262" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Redrawn from Onsawangchai &amp; Funo, J. Archit. Plann. AIJ 69 (586), 2004  open-space appearance, not fa�ade style.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-04-landlords.svg b/site/public/rowhouses/bible/figures/fig-04-landlords.svg
+new file mode 100644
+index 0000000..dd2e3d2
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-04-landlords.svg
+@@ -0,0 +1,20 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="t d">
++  <title id="t">Who owns the remaining Rattanakosin shophouses</title>
++  <desc id="d">Bureau of the Crown Property 46.56 percent, private 23.85 percent, temple 16.73 percent. The rest is mixed or other institutions.</desc>
++  <rect width="720" height="300" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 04 � LANDLORDS � 1,656 UNITS</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">Conservation is a landlord problem</text>
++  <!-- bars -->
++  <g font-family="ui-monospace, monospace" font-size="12" fill="#11120f">
++    <text x="24" y="100">Crown Property (BCP / CPB)</text>
++    <rect x="24" y="108" width="502" height="28" fill="#11120f"/>
++    <text x="536" y="128" fill="#11120f" font-weight="700">46.56%</text>
++    <text x="24" y="168">Private sector</text>
++    <rect x="24" y="176" width="257" height="28" fill="#c9a227"/>
++    <text x="292" y="196">23.85%</text>
++    <text x="24" y="236">Temple</text>
++    <rect x="24" y="244" width="180" height="28" fill="#c9ff38" stroke="#11120f"/>
++    <text x="216" y="264">16.73%</text>
++  </g>
++  <text x="24" y="292" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Onsawangchai &amp; Funo 2004 field survey (JulAug 2001 / AprMay 2002). Remainder: mixed / other.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-05-uses.svg b/site/public/rowhouses/bible/figures/fig-05-uses.svg
+new file mode 100644
+index 0000000..68d74da
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-05-uses.svg
+@@ -0,0 +1,21 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" role="img" aria-labelledby="t d">
++  <title id="t">Ground-floor use of remaining Rattanakosin shophouses</title>
++  <desc id="d">751 units still commercial on the ground floor (45.28 percent); 289 residential (17.45 percent). The bifunctional type has not vanished.</desc>
++  <rect width="720" height="260" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 05 � GROUND FLOOR � 1,656 UNITS</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The shop is still the street</text>
++  <g font-family="ui-monospace, monospace">
++    <rect x="24" y="80" width="326" height="120" fill="#c9ff38" stroke="#11120f"/>
++    <text x="187" y="132" text-anchor="middle" font-size="28" font-weight="700" fill="#11120f">751</text>
++    <text x="187" y="156" text-anchor="middle" font-size="12" fill="#11120f">COMMERCIAL � 45.28%</text>
++    <rect x="360" y="80" width="126" height="120" fill="#11120f"/>
++    <text x="423" y="132" text-anchor="middle" font-size="22" font-weight="700" fill="#c9ff38">289</text>
++    <text x="423" y="156" text-anchor="middle" font-size="11" fill="#f1efe8">RESIDENTIAL</text>
++    <text x="423" y="172" text-anchor="middle" font-size="11" fill="#f1efe8">17.45%</text>
++    <rect x="496" y="80" width="200" height="120" fill="#d8d4c8" stroke="#11120f"/>
++    <text x="596" y="132" text-anchor="middle" font-size="22" font-weight="700" fill="#11120f">616</text>
++    <text x="596" y="156" text-anchor="middle" font-size="11" fill="#5b5d54">OTHER / MIXED</text>
++    <text x="596" y="172" text-anchor="middle" font-size="11" fill="#5b5d54">37.27%</text>
++  </g>
++  <text x="24" y="232" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Commercial rows sit on arteries; residential rows retreat to lanes between them. Onsawangchai &amp; Funo 2004.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-06-counts.svg b/site/public/rowhouses/bible/figures/fig-06-counts.svg
+new file mode 100644
+index 0000000..4cf633a
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-06-counts.svg
+@@ -0,0 +1,25 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="t d">
++  <title id="t">Three inventories that do not match</title>
++  <desc id="d">1,656 surveyed shophouse units in Rattanakosin (2001-02); 1,960 CPB heritage shophouse units nationwide in 15 sites; 9,275 OSM footprints in the atlas Old Town layer. Different objects, same city.</desc>
++  <rect width="720" height="300" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 06 � THREE INVENTORIES</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The shelf, the landlord, the map</text>
++  <g font-family="ui-monospace, monospace" text-anchor="middle">
++    <rect x="36" y="80" width="200" height="160" fill="#11120f"/>
++    <text x="136" y="140" font-size="36" font-weight="700" fill="#c9ff38">1,656</text>
++    <text x="136" y="168" font-size="11" fill="#f1efe8">SURVEYED UNITS</text>
++    <text x="136" y="186" font-size="11" fill="#c9a227">Rattanakosin 200102</text>
++    <text x="136" y="214" font-size="10" fill="#8a8c82">Onsawangchai &amp; Funo</text>
++    <rect x="260" y="80" width="200" height="160" fill="#c9a227"/>
++    <text x="360" y="140" font-size="36" font-weight="700" fill="#11120f">1,960</text>
++    <text x="360" y="168" font-size="11" fill="#11120f">CPB HERITAGE UNITS</text>
++    <text x="360" y="186" font-size="11" fill="#11120f">15 sites � early 2000s</text>
++    <text x="360" y="214" font-size="10" fill="#3a3a32">Yongtanit 2012 / CPB 2004</text>
++    <rect x="484" y="80" width="200" height="160" fill="#c9ff38" stroke="#11120f"/>
++    <text x="584" y="140" font-size="36" font-weight="700" fill="#11120f">9,275</text>
++    <text x="584" y="168" font-size="11" fill="#11120f">OSM FOOTPRINTS</text>
++    <text x="584" y="186" font-size="11" fill="#11120f">atlas Old Town 2026</text>
++    <text x="584" y="214" font-size="10" fill="#3a3a32">bkk-heritage-detail.geojson</text>
++  </g>
++  <text x="24" y="272" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">These are not the same object. A unit is a bay. A CPB site is a landlord inventory. A footprint is whatever OSM drew. The bibles job is to keep them from being collapsed.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/figures/fig-07-code.svg b/site/public/rowhouses/bible/figures/fig-07-code.svg
+new file mode 100644
+index 0000000..9d9f627
+--- /dev/null
++++ b/site/public/rowhouses/bible/figures/fig-07-code.svg
+@@ -0,0 +1,23 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" role="img" aria-labelledby="t d">
++  <title id="t">1979 Building Control envelope for a 6A'</title>
++  <desc id="d">Minimum width 4 metres column-to-column; depth 4 to 24 metres; ground floor at least 30 square metres; rear open space 3 metres; a row not more than 10 units or 40 metres.</desc>
++  <rect width="720" height="240" fill="#f1efe8"/>
++  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 07 � CODE ENVELOPE � B.E. 2522</text>
++  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The law that flattened the later row</text>
++  <g font-family="ui-monospace, monospace" font-size="13" fill="#11120f">
++    <rect x="24" y="76" width="128" height="88" fill="#c9ff38" stroke="#11120f"/>
++    <text x="88" y="114" text-anchor="middle" font-weight="700">e 4 m</text>
++    <text x="88" y="134" text-anchor="middle">WIDTH</text>
++    <rect x="168" y="76" width="200" height="88" fill="#11120f"/>
++    <text x="268" y="114" text-anchor="middle" font-weight="700" fill="#c9ff38">424 m</text>
++    <text x="268" y="134" text-anchor="middle" fill="#f1efe8">DEPTH</text>
++    <rect x="384" y="76" width="140" height="88" fill="#c9a227"/>
++    <text x="454" y="114" text-anchor="middle" font-weight="700">e 30 m�</text>
++    <text x="454" y="134" text-anchor="middle">G.F. AREA</text>
++    <rect x="540" y="76" width="156" height="88" fill="#d8d4c8" stroke="#11120f"/>
++    <text x="618" y="114" text-anchor="middle" font-weight="700">d 10 / 40 m</text>
++    <text x="618" y="134" text-anchor="middle">UNITS / ROW</text>
++  </g>
++  <text x="24" y="196" font-family="Georgia, serif" font-size="13" fill="#11120f">Rear open space e 3 m. Front open space e 6 m if not on a public road. Pre-1936 / pre-1979 rows (Bovornniwet, roadside Asdang) often have no back lane.</text>
++  <text x="24" y="222" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Building Control Act B.E. 2522 and ministerial rules as cited in Onsawangchai &amp; Funo 2004; KMUTT flexibility surveys 201112.</text>
++</svg>
+diff --git a/site/public/rowhouses/bible/paper.css b/site/public/rowhouses/bible/paper.css
+new file mode 100644
+index 0000000..e3f04a3
+--- /dev/null
++++ b/site/public/rowhouses/bible/paper.css
+@@ -0,0 +1,410 @@
++/* BKKx Labs research paper — the "BKKx Law Review" companion to
++   the 3D atlas. The aesthetic is the MoMA / Spectral Law style
++   we use on the BKKx proposal — paper background, Spectral serif
++   for the body, IBM Plex for the inline code, sharp edges, no
++   shadows. The thesis is serious, the typography carries it. */
++
++:root {
++  --paper-bg: #f1efe8;
++  --paper-ink: #11120f;
++  --paper-muted: #5b5d54;
++  --paper-rule: rgba(17, 18, 15, 0.16);
++  --paper-signal: #c9ff38;
++  --paper-accent: #c9a227;
++  --paper-font-body: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
++  --paper-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
++  --paper-font-thai: "IBM Plex Sans Thai", "Spectral", sans-serif;
++}
++
++* { box-sizing: border-box; }
++html, body { margin: 0; padding: 0; background: var(--paper-bg); color: var(--paper-ink); }
++body { font-family: var(--paper-font-body); font-size: 18px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
++
++a { color: var(--paper-ink); border-bottom: 1px solid var(--paper-ink); text-decoration: none; }
++a:hover { color: var(--paper-accent); border-color: var(--paper-accent); }
++
++code {
++  font-family: var(--paper-font-mono);
++  font-size: 0.88em;
++  background: rgba(17, 18, 15, 0.06);
++  padding: 1px 5px;
++}
++
++::selection { background: var(--paper-signal); color: var(--paper-ink); }
++
++.paper-header {
++  display: grid;
++  grid-template-columns: 1fr auto;
++  align-items: center;
++  padding: 22px 32px;
++  border-bottom: 1px solid var(--paper-rule);
++  background: var(--paper-bg);
++  position: sticky;
++  top: 0;
++  z-index: 5;
++}
++
++.paper-back {
++  font-family: var(--paper-font-mono);
++  font-size: 12px;
++  font-weight: 600;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  border-bottom: none;
++}
++.paper-back:hover { color: var(--paper-accent); }
++.paper-eyebrow {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.16em;
++  text-transform: uppercase;
++  color: var(--paper-muted);
++}
++
++.paper-main {
++  max-width: 760px;
++  margin: 0 auto;
++  padding: 48px 24px 96px;
++}
++
++.paper-article { font-family: var(--paper-font-body); }
++
++.paper-kicker {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.16em;
++  text-transform: uppercase;
++  color: var(--paper-accent);
++  margin: 0 0 18px;
++}
++
++.paper-title {
++  font-family: var(--paper-font-body);
++  font-size: clamp(34px, 5vw, 56px);
++  font-weight: 800;
++  letter-spacing: -0.02em;
++  line-height: 1.05;
++  margin: 0 0 18px;
++}
++
++.paper-subtitle {
++  font-family: var(--paper-font-body);
++  font-style: italic;
++  font-size: 22px;
++  line-height: 1.5;
++  color: var(--paper-muted);
++  margin: 0 0 36px;
++  max-width: 660px;
++}
++
++.paper-byline {
++  display: grid;
++  grid-template-columns: 1fr;
++  gap: 4px;
++  padding: 18px 0;
++  border-top: 1px solid var(--paper-ink);
++  border-bottom: 1px solid var(--paper-ink);
++  margin: 0 0 48px;
++}
++.paper-author {
++  font-family: var(--paper-font-body);
++  font-size: 22px;
++  font-weight: 800;
++  letter-spacing: -0.01em;
++}
++.paper-affiliation {
++  font-style: italic;
++  color: var(--paper-muted);
++  font-size: 15px;
++}
++.paper-meta {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  color: var(--paper-muted);
++  margin-top: 8px;
++  letter-spacing: 0.04em;
++}
++
++.paper-section {
++  margin: 0 0 48px;
++}
++.paper-section h2 {
++  font-family: var(--paper-font-body);
++  font-size: 28px;
++  font-weight: 800;
++  letter-spacing: -0.02em;
++  line-height: 1.2;
++  margin: 0 0 16px;
++  padding-top: 24px;
++  border-top: 1px solid var(--paper-rule);
++}
++.paper-section p {
++  margin: 0 0 16px;
++  font-size: 18px;
++  line-height: 1.7;
++}
++.paper-section p:first-of-type::first-line {
++  font-weight: 600;
++}
++.paper-section ul, .paper-section ol {
++  margin: 0 0 16px;
++  padding-left: 24px;
++  font-size: 17px;
++  line-height: 1.7;
++}
++.paper-section li { margin-bottom: 6px; }
++.paper-section li strong { font-weight: 700; }
++
++.paper-references {
++  font-size: 15px;
++  line-height: 1.6;
++  color: var(--paper-muted);
++}
++.paper-references li { margin-bottom: 12px; }
++
++.paper-toc {
++  margin: 0 0 48px;
++  padding: 18px 0;
++  border-top: 1px solid var(--paper-rule);
++  border-bottom: 1px solid var(--paper-rule);
++}
++.paper-toc-kicker {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 0.16em;
++  text-transform: uppercase;
++  color: var(--paper-accent);
++  margin: 0 0 10px;
++}
++.paper-toc ol {
++  margin: 0;
++  padding-left: 22px;
++  columns: 2;
++  gap: 24px;
++  font-size: 15px;
++  line-height: 1.7;
++}
++.paper-toc a { border-bottom-color: transparent; }
++.paper-toc a:hover { border-bottom-color: var(--paper-accent); }
++
++.paper-figure {
++  margin: 8px 0 28px;
++}
++.paper-figure img {
++  display: block;
++  width: 100%;
++  height: auto;
++  background: var(--paper-bg);
++  border: 1px solid var(--paper-rule);
++}
++.paper-figure figcaption {
++  font-family: var(--paper-font-body);
++  font-size: 14px;
++  font-style: italic;
++  color: var(--paper-muted);
++  margin-top: 8px;
++  line-height: 1.5;
++}
++
++.paper-table {
++  width: 100%;
++  border-collapse: collapse;
++  font-size: 15px;
++  margin: 8px 0 28px;
++}
++.paper-table caption {
++  text-align: left;
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  color: var(--paper-muted);
++  margin-bottom: 8px;
++}
++.paper-table th,
++.paper-table td {
++  text-align: left;
++  padding: 8px 10px 8px 0;
++  border-bottom: 1px solid var(--paper-rule);
++  vertical-align: top;
++}
++.paper-table th {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  color: var(--paper-muted);
++  font-weight: 600;
++}
++
++.paper-pull {
++  margin: 8px 0 28px;
++  padding: 8px 0 8px 18px;
++  border-left: 3px solid var(--paper-ink);
++  font-style: italic;
++  font-size: 18px;
++  line-height: 1.55;
++}
++.paper-pull cite {
++  display: block;
++  margin-top: 10px;
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  font-style: normal;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  color: var(--paper-muted);
++}
++
++.paper-note {
++  margin: 8px 0 28px;
++  padding: 16px 18px;
++  border: 1px solid var(--paper-ink);
++  background: rgba(201, 255, 56, 0.12);
++}
++.paper-note p { margin: 0; font-size: 16px; }
++
++.paper-meta-list li { margin-bottom: 14px; }
++
++.paper-index {
++  display: grid;
++  gap: 18px;
++  margin: 32px 0 48px;
++}
++.paper-index-card {
++  display: block;
++  padding: 22px 0;
++  border-top: 1px solid var(--paper-ink);
++  border-bottom: none;
++}
++.paper-index-card:hover { color: var(--paper-ink); }
++.paper-index-card small {
++  display: block;
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  letter-spacing: 0.14em;
++  text-transform: uppercase;
++  color: var(--paper-accent);
++  margin-bottom: 8px;
++}
++.paper-index-card strong {
++  display: block;
++  font-size: 26px;
++  font-weight: 800;
++  letter-spacing: -0.02em;
++  line-height: 1.15;
++  margin-bottom: 8px;
++}
++.paper-index-card span {
++  display: block;
++  font-style: italic;
++  color: var(--paper-muted);
++  font-size: 16px;
++  line-height: 1.5;
++}
++
++@media (max-width: 600px) {
++  .paper-toc ol { columns: 1; }
++}
++
++.paper-foot {
++  margin-top: 72px;
++  padding-top: 24px;
++  border-top: 2px solid var(--paper-ink);
++}
++.paper-foot p {
++  font-size: 15px;
++  line-height: 1.7;
++  color: var(--paper-muted);
++  margin: 0 0 8px;
++}
++.paper-foot code {
++  font-size: 0.92em;
++  background: rgba(17, 18, 15, 0.06);
++}
++.paper-foot-meta {
++  margin-top: 16px !important;
++  font-family: var(--paper-font-mono);
++  font-size: 11px !important;
++  letter-spacing: 0.04em;
++}
++
++.paper-page-wide .paper-main {
++  max-width: 1080px;
++}
++
++.catalog-table-wrap {
++  overflow-x: auto;
++  margin: 8px 0 28px;
++}
++.catalog-table {
++  min-width: 860px;
++  font-size: 14px;
++}
++.catalog-table td {
++  font-size: 14px;
++  line-height: 1.45;
++}
++.catalog-en {
++  display: block;
++  font-style: italic;
++}
++.catalog-th {
++  display: block;
++  font-family: var(--paper-font-thai);
++  font-size: 13px;
++  color: var(--paper-muted);
++  margin-top: 4px;
++}
++.catalog-notes {
++  margin: 8px 0 0 !important;
++  font-size: 12px !important;
++  color: var(--paper-muted);
++  font-style: italic;
++}
++.catalog-muted {
++  color: var(--paper-muted);
++  font-size: 12px;
++  border-bottom: none;
++}
++.catalog-flag {
++  display: inline-block;
++  margin: 6px 6px 0 0;
++  font-family: var(--paper-font-mono);
++  font-size: 10px;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  padding: 2px 6px;
++  border: 1px solid var(--paper-rule);
++}
++.catalog-flag-phd {
++  border-color: var(--paper-ink);
++  background: rgba(201, 255, 56, 0.18);
++}
++.catalog-flag-nfv {
++  color: var(--paper-muted);
++}
++.catalog-access-pdf,
++.catalog-access-repo {
++  font-family: var(--paper-font-mono);
++  font-size: 11px;
++  letter-spacing: 0.04em;
++  text-transform: uppercase;
++}
++.catalog-access-pdf { border-bottom-color: var(--paper-ink); }
++.catalog-access-repo { color: var(--paper-muted); }
++.catalog-table td:nth-child(3) .catalog-th {
++  display: inline;
++  margin-top: 0;
++}
++
++@media (max-width: 600px) {
++  .paper-main { padding: 24px 18px 60px; }
++  .paper-title { font-size: 32px; }
++  .paper-subtitle { font-size: 18px; }
++  .paper-section h2 { font-size: 22px; }
++  .paper-section p, .paper-section ul, .paper-section ol { font-size: 16px; }
++}
+diff --git a/site/public/rowhouses/bible/paper.html b/site/public/rowhouses/bible/paper.html
+new file mode 100644
+index 0000000..a57bae7
+--- /dev/null
++++ b/site/public/rowhouses/bible/paper.html
+@@ -0,0 +1,970 @@
++<!doctype html>
++<html lang="en">
++<head>
++  <meta charset="utf-8" />
++  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
++  <title>The row is the city — a Bangkok shophouse bible — Dr Non</title>
++  <meta name="description" content="Working paper 02: an operational shophouse bible for Bangkok. 1,656 surveyed units, 44 groups, five plans, three landlords — taken off the shelf and put on the atlas." />
++  <link rel="icon" href="/favicon.png" type="image/png" />
++  <link rel="canonical" href="https://bkk.nonarkara.org/rowhouses/bible/paper.html" />
++  <link rel="preconnect" href="https://fonts.googleapis.com" />
++  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
++  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Thai:wght@400;700&family=Spectral:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet" />
++  <link rel="stylesheet" href="./paper.css" />
++</head>
++<body class="paper-page">
++  <header class="paper-header">
++    <a class="paper-back" href="/rowhouses">← Rowhouse atlas</a>
++    <span class="paper-eyebrow">Research paper · BKKxC(ulture) · 2026</span>
++  </header>
++
++  <main class="paper-main">
++    <article class="paper-article">
++      <p class="paper-kicker">A Bangkokian’s atlas · working paper 02 · ตึกแถว</p>
++      <h1 class="paper-title">The row is the city</h1>
++      <p class="paper-subtitle">
++        A shophouse bible for Bangkok. The papers already exist.
++        They stay on shelves. This one sits on the map.
++      </p>
++
++      <div class="paper-byline">
++        <div class="paper-author">Dr Non</div>
++        <div class="paper-affiliation">
++          Born Bangkok, 1981. BKKx / TKC / Axiom. Bangkok 10240.
++        </div>
++        <div class="paper-meta">
++          Version 2026-08-12 · Working paper 02 · Primary sources 2004–2026
++          · Atlas counts from <code>bkk-heritage-detail.geojson</code>
++        </div>
++      </div>
++
++      <nav class="paper-toc" aria-label="Paper contents">
++        <p class="paper-toc-kicker">Contents</p>
++        <ol>
++          <li><a href="#tldr">TL;DR</a></li>
++          <li><a href="#method">How this bible was built</a></li>
++          <li><a href="#meta">Seven meta-arguments</a></li>
++          <li><a href="#what">What a ตึกแถว is</a></li>
++          <li><a href="#import">Imported, not indigenous</a></li>
++          <li><a href="#survey">The 2001–02 survey</a></li>
++          <li><a href="#types">Five plans, not forty-four styles</a></li>
++          <li><a href="#arcade">The missing five-foot way</a></li>
++          <li><a href="#code">The 1979 envelope</a></li>
++          <li><a href="#ordinary">Ordinary urban heritage</a></li>
++          <li><a href="#landlord">The landlord problem</a></li>
++          <li><a href="#luenrit">Luenrit, Khao Hong, Old Siam</a></li>
++          <li><a href="#tourism">Tourism is a use change</a></li>
++          <li><a href="#atlas">What the atlas can and cannot see</a></li>
++          <li><a href="#use">How to use this bible</a></li>
++          <li><a href="#shelf">The shelf: recovered theses</a></li>
++          <li><a href="#refs">References</a></li>
++        </ol>
++      </nav>
++
++      <section class="paper-section" id="tldr">
++        <h2>TL;DR</h2>
++        <p>
++          Bangkok’s inner city is not a collection of temples with
++          leftover housing. It is a <em>row city</em>. The unit is the
++          ตึกแถว — a live-work bay, four-ish metres wide, stacked
++          shop-under-dwelling, repeated until it becomes a street.
++          In July–August 2001 and April–May 2002, Nawit Onsawangchai
++          and Shuji Funo walked Rattanakosin and counted
++          <strong>1,656 remaining shophouse units</strong>, grouped
++          into <strong>44 façade/location families</strong>, owned
++          chiefly by the Crown Property Bureau (46.56%), private
++          landlords (23.85%), and temples (16.73%). Nearly half
++          (751 units, 45.28%) still used the ground floor as a shop.
++        </p>
++        <p>
++          That survey is twenty-five years old. It is still the best
++          number we have. This directory at
++          <a href="/rowhouses">bkk.nonarkara.org/rowhouses</a>
++          now locates 29 corridors against the official ONEP
++          category-E ledger (26 of 46 records linked; 20 still in
++          the mapping queue). Fine Arts gazettes monuments. The Building
++          Control Act of 1979 (B.E. 2522) legislates a later, flatter
++          row — width ≥ 4 m, depth 4–24 m, ground floor ≥ 30 m², rear
++          open space ≥ 3 m, a run of not more than ten units or 40 m.
++          Neither instrument sees the thing Onsawangchai actually
++          counted: a bifunctional street wall whose landlord is often
++          the monarchy’s property office.
++        </p>
++        <p>
++          This paper takes those shelf numbers, the CPB’s own heritage
++          inventory (15 shophouse sites, 1,960 units), the Bangrak
++          “ordinary urban heritage” argument, the Luenrit community
++          corporation, and the atlas’s 9,275 Old Town footprints, and
++          holds them in one place so they cannot be collapsed into
++          each other. Then it tells you where to fly the map.
++        </p>
++      </section>
++
++      <section class="paper-section" id="method">
++        <h2>1. How this bible was built</h2>
++        <p>
++          The commission was blunt: research on Bangkok shophouses
++          already exists; it sits on shelves; use it. A Perplexity
++          Computer thread
++          (<a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830-d668-4516-be4c-cfe95d49acc3</a>)
++          was the pointer. That page is Cloudflare-gated from this
++          sandbox — I could not scrape the thread. A later roundup
++          from the same thread claimed 55 graduate theses plus 3
++          papers. I recovered what the named authors and university
++          repositories would actually give me:
++          <a href="./theses.html">42 theses and the 3 KMUTT papers</a>,
++          filed in <code>catalog.json</code>. I did not invent the
++          missing titles to fake 55. The spine of the argument is
++          still the primary papers any serious cluster on this topic
++          returns, redrawn as original figures, locked against the
++          atlas.
++        </p>
++        <p>
++          The spine is the Kyoto pair from 2004: Onsawangchai &amp;
++          Funo on formation and typology (AIJ 577), and the follow-up
++          on spatial organisation across three landlords (AIJ 586).
++          Around that: Yongtanit Pimonsathean’s 2012 Siam Society
++          paper on the Crown Property Bureau; the Bangrak ordinary-heritage
++          criteria; Sayanee Virochrut’s Charoenkrung conservation
++          thesis (Rama IV–VII, Saphan Mon to Chalermphan 53);
++          KMUTT’s flexibility / quality-design surveys of the modern
++          ตึกแถว; the Building Control Act B.E. 2522; Luenrit as
++          documented by the Siam Society and ICCROM; tourism-use
++          transformation work from Charoenkrung and Chiang Mai’s
++          Chang Moi. Atlas counts are from
++          <code>public/bkk-heritage-detail.geojson</code> as of
++          2026-08-10: 9,275 footprints, median height 9 m, 1,086
++          tagged <code>commercial</code>, 286 <code>retail</code>,
++          154 <code>terrace</code>.
++        </p>
++        <p>
++          Figures in this paper are redrawn. They are not scans of
++          the AIJ plates. Where a number is a field count, it is
++          cited to the survey. Where a number is an OSM tag, it is
++          cited to the GeoJSON. Mixing those two is the original
++          sin of “heritage dashboards.”
++        </p>
++      </section>
++
++      <section class="paper-section" id="meta">
++        <h2>2. Seven meta-arguments</h2>
++        <p>
++          The literature does not disagree on facts so much as it
++          talks past itself. Seven arguments keep recurring. This
++          bible names them so you can see which one a paper is
++          actually making.
++        </p>
++        <ol class="paper-meta-list">
++          <li>
++            <strong>The import thesis.</strong>
++            The Rattanakosin shophouse is not an indigenous type that
++            evolved with the 1782 capital. It is a mid-nineteenth-century
++            import, catalysed by Singapore after the Bowring Treaty,
++            built as roads were cut. Onsawangchai &amp; Funo are
++            explicit: “It was not an indigenous architecture that
++            evolved along with Ratanakosin.”
++          </li>
++          <li>
++            <strong>The typology thesis.</strong>
++            Façade similarity produces 44 groups. Open space produces
++            five plans (A–E). Style is a grouping device; the plan is
++            the argument. Most “conservation” still photographs the
++            façade and ignores the court.
++          </li>
++          <li>
++            <strong>The ordinary-heritage thesis.</strong>
++            Fine Arts registers ancient monuments. The row is
++            “everyday-life heritage” (Yongtanit) / “ordinary urban
++            heritage” (Bangrak). A gazetted wat and an ungazetted
++            shophouse row can share a party wall. Only one of them
++            exists in law.
++          </li>
++          <li>
++            <strong>The landlord thesis.</strong>
++            Almost half the remaining Rattanakosin units in 2001–02
++            belonged to the Bureau of the Crown Property. Conservation
++            of the row is a tenure problem before it is a style
++            problem. Temple rows, CPB rows, and private rows transform
++            differently because their landlords do.
++          </li>
++          <li>
++            <strong>The live-work thesis.</strong>
++            The type’s job is bifunctional: shop on the street,
++            dwelling above. 45% still did that in 2001. Tourism
++            conversion (café, gallery, guesthouse) is a
++            <em>use</em> transformation. Façade grants that freeze
++            the front and empty the shop have already lost.
++          </li>
++          <li>
++            <strong>The community thesis.</strong>
++            Luenrit (~220 bays, ~100 families) and Khao Hong (nine
++            units on Phra Athit, tenants kept) are the counter-models
++            to Talat Ming Mueang → Old Siam Plaza. The row survives
++            when the tenant corporation is treated as a conservation
++            actor, not as a relocation cost.
++          </li>
++          <li>
++            <strong>The shelf thesis — this paper’s own.</strong>
++            The 2001 survey, the 2004 AIJ plates, the 2012 CPB
++            inventory, the Charoenkrung theses: they are good, and
++            they are inert. A city that cannot click from a number
++            to a camera has not used its research. The atlas is the
++            operationalization, not a replacement for the survey.
++          </li>
++        </ol>
++      </section>
++
++      <section class="paper-section" id="what">
++        <h2>3. What a ตึกแถว is</h2>
++        <p>
++          Thai names two things English collapses. <span lang="th">ตึกแถว</span>
++          (<em>tuek thaeo</em>) is the masonry or concrete row —
++          the modern shophouse. <span lang="th">ห้องแถว</span>
++          (<em>hong thaeo</em>) is the older timber row. The Building
++          Control language treats both as a unit measured
++          column-centre to column-centre. In the inner city the
++          thing you are looking at is almost always a ตึกแถว:
++          a party-wall bay, 3.5–6 m wide in the wild, 4 m minimum
++          in the 1979 code, 12 m or more deep, two to five storeys,
++          ground floor open to the pavement, stair at the back of
++          the shop, airwell punching light into the middle, dwelling
++          (or stock, or grandparents) above.
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-02-section.svg" alt="Section through a Bangkok shophouse: street, shop, stair, airwell, dwelling, rear court" />
++          <figcaption>
++            Fig. 02 — Live-work, not a façade. Schematic section.
++            Bangkok never required Singapore’s five-foot arcade;
++            the shop meets the street. Rear open space is a 1979
++            rule; many temple rows predate it.
++          </figcaption>
++        </figure>
++        <p>
++          KMUTT’s design surveys (2011–12) describe the later
++          city-wide type as a 4 × 4 m modular frame, ratio 1:1 to
++          1:6 toward the back, L-stair pushed rear so the shop
++          keeps the front, party wall in brick because the code
++          wants fire resistance and brick is cheap. The roof is
++          often flat so the next generation can add a floor. That
++          is the Bangkok shophouse as a <em>growth machine</em>,
++          not as a heritage object. The Rattanakosin survey is
++          looking at the ancestors of that machine — the ones
++          built before the code flattened the bay.
++        </p>
++      </section>
++
++      <section class="paper-section" id="import">
++        <h2>4. Imported, not indigenous</h2>
++        <p>
++          Rattanakosin is founded in 1782 as a water city. From
++          Rama I to Rama III (1782–1851) only about twelve small
++          primary roads are cut, to connect palaces and temples.
++          People live on the river. The Bowring Treaty (1855)
++          opens the port. In 1859 King Rama IV sends Minister
++          Srisuriyawong to Singapore. He comes back with two
++          things: the idea of a paved road, and the idea of the
++          linear shophouse. Outer Charoenkrung is built outside
++          the citadel in 1861; Inner Charoenkrung, Bamrungmuang
++          and Fuangnakorn follow in 1862–63. Fuangnakorn’s rows
++          are built on the King’s command. Bamrungmuang’s first
++          rows are private and “primitive.” In 1870 Rama V goes
++          to Singapore and Java, comes home, straightens
++          Bamrungmuang, and orders the Privy Purse Bureau to
++          build shophouses with a <em>uniform front façade and
++          verandah</em> on both sides.
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-01-timeline.svg" alt="Timeline from the 1851 Bowring Treaty to the 1979 Building Control Act" />
++          <figcaption>
++            Fig. 01 — The row arrives with the road, then the
++            landlord, then the code. It is a modernization
++            instrument.
++          </figcaption>
++        </figure>
++        <p>
++          Three city elements, in Onsawangchai’s analysis, sponsor
++          the type:
++        </p>
++        <ol>
++          <li>
++            <strong>The paved road.</strong> Concurrent with the
++            shophouse. Turns a water people into a land people.
++            Roadside land is the new rent machine.
++          </li>
++          <li>
++            <strong>The city wall.</strong> Once the British have
++            Burma, the wall is obsolete. Demolished wall-and-moat
++            land becomes shophouse sites; the ring road runs
++            beside the ghost of the wall.
++          </li>
++          <li>
++            <strong>Palace and temple precincts.</strong> After
++            sakdina is abolished and Rama V cuts 38 roads inside
++            the wall, palace owners slice roadside precincts into
++            rental rows. Temples do the same. The row is how a
++            precinct becomes an income.
++          </li>
++        </ol>
++        <p>
++          The Privy Purse Bureau is the protagonist. It already
++          holds large tracts; it hears about road cuttings first;
++          land prices jump when a road opens; PPB builds or takes
++          the rows to collect rent from Chinese immigrants who
++          can pay. The Bureau of the Crown Property is that
++          office after 1936. When you look at a uniform verandah
++          on Bamrungmuang, you are looking at a royal investment
++          product from the 1870s, not at “vernacular Thailand.”
++        </p>
++        <blockquote class="paper-pull">
++          They were freely constructed without the control of any
++          ordinances or building codes but were shaped by demand
++          of the royalty and Privy Purse Bureau. They could enjoy
++          full use of shophouse space without any requirement for
++          the construction of front arcaded walkway.
++          <cite>Onsawangchai &amp; Funo, 2004</cite>
++        </blockquote>
++      </section>
++
++      <section class="paper-section" id="survey">
++        <h2>5. The 2001–02 survey — still the best number</h2>
++        <p>
++          Fieldwork: July–August 2001 (distribution, use, physical
++          features of every remaining unit in Rattanakosin) and
++          April–May 2002 (measured drawings and interviews on three
++          landlord sites). Result: <strong>1,656 units</strong>,
++          classified by façade, form and location into
++          <strong>44 groups</strong>.
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-05-uses.svg" alt="751 commercial, 289 residential, 616 other or mixed ground-floor uses" />
++          <figcaption>
++            Fig. 05 — Ground-floor use, 1,656 units. Commercial
++            rows sit on arteries; residential rows sit on the
++            lanes between them.
++          </figcaption>
++        </figure>
++        <table class="paper-table">
++          <caption>Rattanakosin shophouses, Onsawangchai &amp; Funo 2004</caption>
++          <thead>
++            <tr><th>Claim</th><th>Number</th><th>Share</th></tr>
++          </thead>
++          <tbody>
++            <tr><td>Remaining units</td><td>1,656</td><td>100%</td></tr>
++            <tr><td>Façade / location groups</td><td>44</td><td>—</td></tr>
++            <tr><td>Ground floor still a shop</td><td>751</td><td>45.28%</td></tr>
++            <tr><td>Residential</td><td>289</td><td>17.45%</td></tr>
++            <tr><td>Bureau of the Crown Property</td><td>—</td><td>46.56%</td></tr>
++            <tr><td>Private sector</td><td>—</td><td>23.85%</td></tr>
++            <tr><td>Temple</td><td>—</td><td>16.73%</td></tr>
++            <tr><td>BCP rents sampled (17 of 44 groups)</td><td>฿200–2,630 / month</td><td>—</td></tr>
++            <tr><td>BCP units used as government offices</td><td>3</td><td>—</td></tr>
++          </tbody>
++        </table>
++        <p>
++          Read the rent line twice. In 2001–02 the biggest landlord
++          in the old city was collecting a few hundred to a couple
++          of thousand baht a month on heritage fabric. That is not
++          a market. That is a holding pattern. The transformation
++          pressure does not come from the existing rent. It comes
++          from the option to redevelop.
++        </p>
++        <p>
++          Three measured sites in the spatial paper make the
++          landlord difference concrete:
++        </p>
++        <ul>
++          <li>
++            <strong>Temple — Wat Bowonniwet.</strong> 46 shophouses,
++            built somewhere between 1851 and 1868 (Rama IV).
++            No back lane. Pre-code.
++          </li>
++          <li>
++            <strong>BCP — Srasong-Longtha.</strong> Temple-adjacent
++            BCP stock; later additions (Suthat, 1952) already
++            negotiating the code.
++          </li>
++          <li>
++            <strong>Private — Asdang.</strong> 108 shophouses,
++            early 20th century into Rama VII (to 1925). Roadside
++            bays pre-1936; inner-block modern bays invent a
++            private “open space” by eating the back lane.
++          </li>
++        </ul>
++      </section>
++
++      <section class="paper-section" id="types">
++        <h2>6. Five plans, not forty-four styles</h2>
++        <p>
++          Forty-four groups is a field method: if two rows look
++          alike and sit together, they are one group. The spatial
++          paper then asks a better question — where is the open
++          air? — and the 44 collapse to five:
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-03-types.svg" alt="Five plan types A through E: forecourt, front verandah, enclosed, rear court, two courts" />
++          <figcaption>
++            Fig. 03 — Open-space appearance, not façade style.
++            Redrawn from Onsawangchai &amp; Funo 2004.
++          </figcaption>
++        </figure>
++        <ol>
++          <li><strong>A · Forecourt.</strong> A court in front of the shop. The street is already a room.</li>
++          <li><strong>B · Front verandah.</strong> The Rama V uniform type. A shaded strip, not quite Singapore’s five-foot way, not quite nothing.</li>
++          <li><strong>C · Enclosed.</strong> No court. Maximum rentable floor. The airwell, if it exists, is the only lung.</li>
++          <li><strong>D · Rear court.</strong> Service, cooking, washing, later parking. The 1979 code tries to legislate this as a 3 m void.</li>
++          <li><strong>E · Two courts.</strong> Front and rear. The most generous, the rarest under land pressure.</li>
++        </ol>
++        <p>
++          If you only restore stucco, you can turn a D into a C
++          without anyone at Fine Arts noticing. The plan is the
++          heritage. The façade is the postcard.
++        </p>
++      </section>
++
++      <section class="paper-section" id="arcade">
++        <h2>7. The missing five-foot way</h2>
++        <p>
++          This is the Bangkok exception, and it is the point of
++          the 2004 papers. In Singapore, Penang, Malacca, the
++          colonial shophouse is legally required to give the
++          street a covered arcade — the five-foot way. The
++          Rattanakosin row was built <em>without that ordinance</em>.
++          Royalty and the Privy Purse wanted full use of the
++          ground floor. The shop meets the pavement. Shade is
++          optional, a verandah when Rama V copies what he liked
++          in Singapore, not a right-of-way.
++        </p>
++        <p>
++          So when a conservation drawing copies a George Town
++          section onto Charoenkrung, it is lying. The Bangkok
++          type is a cousin, not a clone. It is also why the
++          later ตึกแถว of the 1970s–90s can be so brutal: there
++          was never a public arcade to defend. The code that
++          finally arrives legislates width, depth, rear void,
++          and fire — not a civic walkway.
++        </p>
++      </section>
++
++      <section class="paper-section" id="code">
++        <h2>8. The 1979 envelope</h2>
++        <p>
++          Building Control Act B.E. 2522 and the ministerial
++          rules that follow it are how the later city got its
++          endless identical rows. Onsawangchai quotes the
++          operative language: each unit of <em>hong thaeo</em>
++          or <em>tuek thaeo</em> must have a width, measured
++          perpendicularly from the centre of one column to the
++          centre of another, of not less than 4 m; a depth from
++          the front wall on the ground floor of not less than
++          4 m and not more than 24 m; a ground-floor area of
++          not less than 30 m²; entrances from front and rear.
++          Rear open space not less than 3 m. If the row is not
++          on a public road, a front open space of not less than
++          6 m. KMUTT adds the row-length cap: not more than
++          10 units, not more than 40 m in one run.
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-07-code.svg" alt="Code envelope: width at least 4 metres, depth 4 to 24 metres, ground floor at least 30 square metres, at most 10 units or 40 metres per row" />
++          <figcaption>
++            Fig. 07 — The law that flattened the later row.
++            Pre-code temple and roadside rows often fail every
++            one of these tests and are, for that reason, the
++            actual heritage.
++          </figcaption>
++        </figure>
++        <p>
++          The meta-argument: the code is a hygiene and fire
++          document pretending to be a type definition. It
++          produces a liveable minimum and a city of clones.
++          The 1861–1935 rows are interesting <em>because they
++          predate it</em>. Conserving them by bringing them
++          “up to code” is how you erase them.
++        </p>
++      </section>
++
++      <section class="paper-section" id="ordinary">
++        <h2>9. Ordinary urban heritage</h2>
++        <p>
++          Yongtanit’s opening is the legal fact everyone
++          dances around: authorized conservation in Thailand
++          still means ancient monuments under the Fine Arts
++          Department. The power to register has not been
++          devolved. ICOMOS Venice (1964) and Washington (1987)
++          already asked for modest works and historic towns.
++          Thai law did not follow. So the row survives, when
++          it survives, by accident, by landlord whim, or by
++          a community that can make enough noise.
++        </p>
++        <p>
++          Bangrak is the test case for calling the row
++          heritage without waiting for FAD. The district
++          urbanizes from 1864 with Charoen Krung — New Road —
++          south of the royal island, between the river,
++          Yaowarat, and the embassy belt. Shophouses are
++          first clear on the 1911 map as linear rectangles
++          along Charoen Krung and at the Silom junction.
++          Indian and South Asian rows to the north, Chinese
++          rows to the south, Western offices and churches in
++          the mix. The selection criterion in that paper is
++          almost embarrassingly empirical: <em>still there
++          since 1911</em>. Continuity of a mixed
++          commercial-residential bay is the value. Not stucco.
++          Not a royal gazette volume.
++        </p>
++        <p>
++          Sayanee Virochrut’s Chula thesis takes a slice of
++          the same road — Charoenkrung from Saphan Mon to
++          Saphan Chalermphan 53 — and looks at eight sets,
++          about 100 bays, Rama IV through Rama VII, as a
++          conservation problem. That is the right scale:
++          not “Bangkok shophouses,” not one photogenic
++          corner, but a run of road long enough to see
++          reign-by-reign change and short enough to walk.
++        </p>
++        <p>
++          Fly the atlas to the road that made the type:
++          <a href="/atlas/historic-core?at=100.516,13.726,15.4">Charoen Krung / Bang Rak</a> ·
++          <a href="/atlas/historic-core?at=100.510,13.740,15.8">Yaowarat</a> ·
++          <a href="/atlas/historic-core?at=100.508,13.736,16.2">Song Wat</a> ·
++          <a href="/atlas/historic-core?at=100.513,13.733,16.2">Talad Noi</a>.
++        </p>
++      </section>
++
++      <section class="paper-section" id="landlord">
++        <h2>10. The landlord problem</h2>
++        <p>
++          CPB, early 2000s preliminary inventory: 24 palace /
++          residence sites, 6 office / facility sites, and
++          <strong>fifteen shophouse and commercial sites
++          totalling 1,960 units</strong>. Named inner-city
++          rows include Na Phralan, Tha Chang, Tha Thian,
++          Praeng Phuthon, Praeng Nara, Loenrit, Songwat,
++          Phra Athit, Dheva Sathan on Bamrungmuang. The
++          Bureau holds about 37,000 rental contracts on
++          41,000 rai; only 7% of the land is “profitable”;
++          that 7% is mostly inner-city. In 2011 rental
++          income was reported at 2.7 billion baht, plus
++          dividends from SCB and Siam Cement.
++        </p>
++        <figure class="paper-figure">
++          <img src="figures/fig-04-landlords.svg" alt="Stacked bars: Crown Property 46.56 percent, private 23.85 percent, temple 16.73 percent" />
++          <figcaption>
++            Fig. 04 — Who owned the 1,656 remaining
++            Rattanakosin units in 2001–02. Conservation
++            policy that does not name the landlord is
++            theatre.
++          </figcaption>
++        </figure>
++        <p>
++          The 1936 Crown Property Act is the hinge. Rama V
++          had already split private royal property from the
++          national treasury. After 1932 the split is
++          regularised into public property, the King’s
++          private property, and crown property. CPB is not
++          a ministry. It does not have to follow bureaucratic
++          conservation procedure. That is why it can demolish
++          Talat Ming Mueang and also, later, invent matching
++          funds for Na Phralan. The same landlord, two
++          decades, two theologies.
++        </p>
++      </section>
++
++      <section class="paper-section" id="luenrit">
++        <h2>11. Luenrit, Khao Hong, Old Siam</h2>
++        <p>
++          Three CPB stories. They are the whole argument in
++          miniature.
++        </p>
++        <p>
++          <strong>Talat Ming Mueang → Old Siam Plaza (1990s).</strong>
++          Two late-nineteenth-century shophouse blocks and a
++          1920s–30s neoclassical market, famous for tailors
++          and an early bus depot. Decline, clearance,
++          shopping mall with a historic name. Yongtanit calls
++          it what it is: gentrification with a historic touch.
++          The row is remembered in the brand.
++        </p>
++        <p>
++          <strong>Khao Hong, Phra Athit (from 2005).</strong>
++          Nine units, about seventy years old. First idea:
++          boutique hotel, compensate the tenants, Singapore
++          Chinatown script. After planners push back, CPB
++          keeps the tenants, pays for renovation, asks for
++          design guidelines. Two-year job. Yongtanit calls
++          it a blueprint for community-based shophouse
++          conservation by the Bureau. Matching-fund later
++          (CPB 75% / tenant 25%) is applied at Na Phralan
++          (completed 2011) and promised for Tha Chang, Tha
++          Thian, Ban Mo — no gentrification, contracts
++          extended.
++        </p>
++        <p>
++          <strong>Luenrit (Chinatown, completed 2022).</strong>
++          About 220 classic bays, late Rama V / early 20th
++          century, ~100 families, Indian, Chinese, Thai,
++          wholesale trade. CPB had a developer deal. The
++          tenants formed Chumchon Luenrit Company, took the
++          lease, renovated themselves. First time the Bureau
++          abandoned “renovate it ourselves or lease to a
++          developer.” ICCROM lists it as a joint-investment,
++          co-management case, not a consultation theatre.
++        </p>
++        <p>
++          The 1997 Rattanakosin conservation and development
++          master plan — prepared without serious public
++          consultation — wanted Tha Thian and Tha Phrachan
++          communities moved for open space and tourists.
++          Both sit on CPB land. The plan had to be abandoned.
++          Mahakan Fort, next door in spirit, became the
++          international version of the same fight. The
++          row-city is not a façade inventory. It is a
++          tenancy map.
++        </p>
++        <p>
++          Fly:
++          <a href="/atlas/historic-core?at=100.499,13.753,16.4">Na Phra Lan</a> ·
++          <a href="/atlas/historic-core?at=100.494,13.743,16.4">Tha Tian</a> ·
++          <a href="/atlas/historic-core?at=100.495,13.763,16.4">Phra Athit / Khao Hong</a> ·
++          <a href="/atlas/historic-core?at=100.509,13.738,16.5">Luenrit / Song Wat</a>.
++        </p>
++      </section>
++
++      <section class="paper-section" id="tourism">
++        <h2>12. Tourism is a use change</h2>
++        <p>
++          Charoenkrung as “creative district,” Chang Moi in
++          Chiang Mai as café-and-guesthouse row, the
++          Singapore Chinatown script that almost ate Khao
++          Hong: the literature now has indices for this
++          (function transformation, tourism intensity,
++          commercial displacement). The finding is stable
++          across cities. A conservation framework that
++          watches façades, skylines, and landmark projects
++          will miss the death of the type. The type dies
++          when the ground floor stops being a shop the
++          neighbourhood uses.
++        </p>
++        <p>
++          751 of 1,656 Rattanakosin units still had a
++          commercial ground floor in 2001. That is the
++          baseline. We do not have a 2026 resurvey. The
++          atlas cannot invent one from OSM tags. What it
++          can do is refuse to colour a café row as if it
++          were still a hardware street. Honesty here is
++          a research program, not a paint rule: walk the
++          44 groups again.
++        </p>
++      </section>
++
++      <section class="paper-section" id="atlas">
++        <h2>13. What the atlas can and cannot see</h2>
++        <figure class="paper-figure">
++          <img src="figures/fig-06-counts.svg" alt="Three inventories: 1656 surveyed units, 1960 CPB heritage units, 9275 OSM footprints" />
++          <figcaption>
++            Fig. 06 — Three inventories, three objects. A
++            unit is a bay. A CPB site is a landlord list.
++            A footprint is whatever OSM drew. Do not add
++            them.
++          </figcaption>
++        </figure>
++        <p>
++          The Old Town layer is 9,275 footprints with baked
++          heights. Median height 9 m — the atlas default
++          when OSM is silent. For untagged commercial /
++          retail / terrace in Rattanakosin we lift that
++          default to 12 m so the inner city reads as two-
++          to three-storey rows rather than a flat plate.
++          Temples go to 18 m unless a real tag wins.
++          Landmarks (Victory 50 m shaft, Golden Mount
++          chedi ~60 m) are a separate GeoJSON of 73
++          schematic masses. None of this is a shophouse
++          survey.
++        </p>
++        <p>
++          OSM in the Old Town bbox, by
++          <code>building</code> / <code>building_type</code>:
++        </p>
++        <table class="paper-table">
++          <caption>bkk-heritage-detail.geojson · 9,275 features · 2026-08-10</caption>
++          <thead>
++            <tr><th>Tag</th><th>Count</th><th>How to read it</th></tr>
++          </thead>
++          <tbody>
++            <tr><td><code>yes</code> (untagged)</td><td>5,481</td><td>The silence. Many of these <em>are</em> rows.</td></tr>
++            <tr><td><code>house</code></td><td>1,425</td><td>Often a bay that someone tagged as a house.</td></tr>
++            <tr><td><code>commercial</code></td><td>1,086</td><td>Closest OSM proxy for live-work.</td></tr>
++            <tr><td><code>temple</code></td><td>541</td><td>The gazetted city, over-visible.</td></tr>
++            <tr><td><code>retail</code></td><td>286</td><td>Shop without the dwelling claim.</td></tr>
++            <tr><td><code>terrace</code></td><td>154</td><td>The rare explicit row tag.</td></tr>
++            <tr><td><code>shophouse</code></td><td>~0</td><td>The word the atlas paints, OSM almost never uses.</td></tr>
++          </tbody>
++        </table>
++        <p>
++          That last row is the tell. The atlas colour table
++          includes <code>shophouse → #e5e5e5</code>, and the
++          legend says “commercial / shophouse,” but the
++          GeoJSON almost never carries the tag. We are
++          painting a type the volunteers did not name. The
++          2001 survey named it 1,656 times. The honest
++          next step is not a prettier extrusion. It is to
++          join the 44 groups to footprints.
++        </p>
++        <div class="paper-note">
++          <p>
++            <strong>What this paper will not do.</strong>
++            It will not claim the atlas “has 1,656
++            shophouses.” It will not claim landmarks.geojson
++            is the Fine Arts register (that lie was audited
++            out in 2026-08-10: the 73 masses are OSM +
++            schematic heights; the 571 FAD monuments live
++            on bkk.nonarkara.org/heritage). It will not
++            pretend a 12 m default is a measured eaves
++            height.
++          </p>
++        </div>
++      </section>
++
++      <section class="paper-section" id="use">
++        <h2>14. How to use this bible</h2>
++        <p>
++          The point of taking papers off the shelf is that
++          a reader can do something by this afternoon.
++        </p>
++        <ol>
++          <li>
++            Open
++            <a href="/atlas/historic-core?at=100.4927,13.7516,15.2">Rattanakosin at street zoom</a>
++            on this cultural map — the sourced corridors are the layer.
++            On the operational twin
++            (<a href="https://atlas.nonarkara.org/?at=100.4927,13.7516,15.2">atlas.nonarkara.org</a>),
++            turn building paint to type. The paper-coloured
++            commercial bays and the gold wats are the two
++            cities sharing a party wall.
++          </li>
++          <li>
++            Walk Charoenkrung as a formation diagram, not
++            a café crawl:
++            <a href="/atlas/historic-core?at=100.516,13.726,15.4">Bang Rak</a>
++            was the international commercial district the
++            road invented; the 1911 rectangles are still
++            the criterion.
++          </li>
++          <li>
++            Treat CPB named rows as a separate layer in
++            your head until we have one in the file: Na
++            Phralan, Tha Tian, Tha Chang, Praeng Nara,
++            Phra Athit, Loenrit, Songwat.
++          </li>
++          <li>
++            If you are a student: resurvey the 44 groups.
++            Use is the variable that went stale. Plan type
++            (A–E) is the variable conservation still
++            ignores. Publish the join as GeoJSON. The
++            atlas will take it.
++          </li>
++          <li>
++            If you are BMA or FAD: stop writing master
++            plans that relocate riverfront rows for “open
++            space.” The 1997 plan already failed. Luenrit
++            already demonstrated the alternative. The
++            papers are on the shelf. This tab is so you
++            cannot say you could not find them.
++          </li>
++        </ol>
++        <p>
++          Working paper 01 was the system. Working paper 02
++          is the fabric the system is supposed to be able
++          to see. The row is the city. The monument is the
++          exception.
++        </p>
++      </section>
++
++      <section class="paper-section" id="shelf">
++        <h2>15. The shelf: recovered theses</h2>
++        <p>
++          Perplexity’s roundup organised 55 theses into five
++          sections: 17 Thai dissertations on ตึกแถว (A), 5 on
++          อาคารพาณิชย์ (B), 27 on historic districts (C), 6
++          overseas (D), and 3 KMUTT papers (E). Six named PhDs:
++          Peeraya Boonprasong (Chula), Narut Kupthanaroj (Chula),
++          Tanat Bha-aryaphatn (Silpakorn), Pheereeya
++          Boonchaiyapruek (UCL), Tiamsoon Sirisrisak (Tokyo),
++          Monsicha Bejrananda (Texas Tech). Thammasat links were
++          supposed to be Direct PDFs; many Chula records are
++          repository landing pages.
++        </p>
++        <p>
++          This sandbox could not scrape the thread. The recovered
++          catalog is 42 theses + 3 papers, not 55. Section A is
++          12 of 17. Section C is 18 of 27. Section D includes the
++          six named doctorates plus Wimonrart Issarathumnoon’s
++          Tokyo dissertation and Napat Settachai’s 2005 Hawaiʻi
++          PhD on Tha Tien; the claimed MIT Bangkok thesis was not
++          found. Bejrananda is southern Thailand, not Bangkok —
++          kept because it is the named dissertation. Incomplete
++          authors and years stay marked
++          <em>not fully verified</em>.
++        </p>
++        <p>
++          The catalog is a first-class page, not a footnote:
++          <a href="./theses.html">The shelf</a>
++          (<code>catalog.json</code>). Direct PDF versus
++          Repository is a field, not a vibe. Use it to open the
++          files. Do not cite Perplexity as the source.
++        </p>
++      </section>
++
++      <section class="paper-section" id="refs">
++        <h2>16. References</h2>
++        <p>
++          Primary papers first. The Perplexity thread is a
++          pointer, not a source. Atlas files are data, not
++          scholarship.
++        </p>
++        <ul class="paper-references">
++          <li>
++            Onsawangchai, Nawit, and Shuji Funo. 2004.
++            “Consideration on Formation and Typology of
++            Shophouse in Ratanakosin Area, Bangkok, Thailand.”
++            <em>Journal of Architecture and Planning (AIJ)</em>
++            69 (577): 9–15.
++            <a href="https://doi.org/10.3130/aija.69.9_2">doi:10.3130/aija.69.9_2</a>
++          </li>
++          <li>
++            Onsawangchai, Nawit, and Shuji Funo. 2004.
++            “Spatial Organization and Transformation Process
++            of Shophouse in Ratanakosin Area, Bangkok: A
++            comparative study of shophouses from three
++            different landowners.”
++            <em>Journal of Architecture and Planning (AIJ)</em>
++            69 (586).
++            <a href="https://doi.org/10.3130/aija.69.1_12">doi:10.3130/aija.69.1_12</a>
++          </li>
++          <li>
++            Yongtanit Pimonsathean. 2012. “The Crown Property
++            Bureau and Heritage Conservation.”
++            <em>Journal of the Siam Society</em> 100: 107–122.
++            <a href="https://thesiamsociety.org/wp-content/uploads/2012/04/JSS_100_0i_YongtanitPimonsathean_TheCrownPropertyBureauAndHeritageConservation.pdf">PDF</a>
++          </li>
++          <li>
++            “Selection Criteria of Ordinary Urban Heritages
++            Through the Case of Bangrak, a Multi-Cultural &amp;
++            Old Commercial District of Bangkok.”
++            <em>Nakhara</em>.
++            <a href="https://doi.org/10.54028/nj202221209">doi:10.54028/nj202221209</a>
++          </li>
++          <li>
++            Virochrut, Sayanee.
++            <em>The conservation of shophouses on Charoenkrung
++            Road: between the reign of King Rama IV and King
++            Rama VII</em>
++            (การอนุรักษ์สถาปัตยกรรมประเภทตึกแถวริมถนนเจริญกรุง…).
++            Master’s thesis, Chulalongkorn University.
++            Eight sets / ~100 bays, Saphan Mon–Chalermphan 53.
++          </li>
++          <li>
++            “Bangkok Shophouse: An Approach for Quality Design
++            Solutions.” KMUTT School of Architecture and Design,
++            2011. 4×4 m module, 1:1–1:6 depth ratio.
++          </li>
++          <li>
++            “Flexibility Survey of Bangkok Shophouses.” KMUTT,
++            2012. Width 3.5–6 m in the wild; code minima 4 m /
++            4–24 m / 30 m² / 3 m rear / 10 units / 40 m row.
++          </li>
++          <li>
++            Building Control Act B.E. 2522 (1979), and
++            ministerial regulations on <em>tuek thaeo</em> /
++            <em>hong thaeo</em> dimensions.
++          </li>
++          <li>
++            Crown Property Act B.E. 2479 (1936); Crown Property
++            Bureau Act B.E. 2491 (1948, as amended). CPB 2004.
++            <em>Tassaneeyakan: Heritage Buildings of the Crown
++            Property Bureau</em>.
++          </li>
++          <li>
++            Siam Society Knowledge Hub / ICCROM CH4IG.
++            Luenrit Community Conservation and Rehabilitation
++            Project. ~220 bays, Chumchon Luenrit Co., Ltd.,
++            restoration completed 2022.
++          </li>
++          <li>
++            “Evaluating use transformation of shophouses: a
++            case study of tourism-oriented change in Chang Moi,
++            Chiang Mai, Thailand.”
++            <em>International Journal of Urban Sustainable
++            Development</em>, 2026.
++            <a href="https://doi.org/10.1080/19463138.2026.2677384">doi:10.1080/19463138.2026.2677384</a>
++          </li>
++          <li>
++            “The Forgotten Heritage of the Rattanakosin Area.”
++            <em>Journal of Urban Culture Research</em>.
++            Rattanakosin Island 4.1 km²; CPB assets at risk.
++            <a href="https://doi.org/10.58837/chula.jucr.9.1.4">doi:10.58837/chula.jucr.9.1.4</a>
++          </li>
++          <li>
++            “Changes in the Bangrak Area after the Construction
++            of Charoen Krung Road during the Reigns of Kings
++            Rama IV–VI (1851–1925).”
++            <em>Journal of the Faculty of Arts, Silpakorn
++            University</em>.
++          </li>
++          <li>
++            UNESCO. 2011. <em>Recommendation on the Historic
++            Urban Landscape</em>.
++          </li>
++          <li>
++            ICOMOS. 1964. Venice Charter; 1987. Washington
++            Charter (historic towns and urban areas).
++          </li>
++          <li>
++            BKKx 3D Atlas. 2026.
++            Recovered thesis catalog:
++            <a href="./theses.html">The shelf</a>
++            (<code>catalog.json</code> — 42 theses + 3 KMUTT papers;
++            Perplexity claimed 55). Direct PDF vs repository is a
++            field. Incomplete metadata stays marked.
++          </li>
++          <li>
++            BKKx 3D Atlas. 2026.
++            <code>public/bkk-heritage-detail.geojson</code>
++            (9,275 footprints);
++            <code>public/bkk-landmarks.geojson</code>
++            (73 schematic masses — not the FAD register);
++            <a href="https://atlas.nonarkara.org/labs/paper/">working paper 01</a>.
++          </li>
++          <li>
++            Perplexity Computer thread (commission pointer, not
++            a citable authority):
++            <a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830-d668-4516-be4c-cfe95d49acc3</a>.
++          </li>
++        </ul>
++      </section>
++
++      <footer class="paper-foot">
++        <p>
++          Walk the corridors at
++          <a href="/rowhouses">bkk.nonarkara.org/rowhouses</a>.
++          The bible hub is
++          <a href="/rowhouses/bible">/rowhouses/bible</a>.
++          Paper 01 is the system
++          (<a href="https://atlas.nonarkara.org/labs/paper/">432,077 buildings</a>).
++          Paper 02 is the fabric.
++          The shelf is
++          <a href="./theses.html">the recovered catalog</a>.
++          Source:
++          <code>github.com/Nonarkara/BKKx</code>
++          and the 3D twin
++          <code>github.com/Nonarkara/bkk-3d-atlas</code>.
++        </p>
++        <p class="paper-foot-meta">
++          © 2026 Dr Non · Bangkok · Figures original to this
++          paper · Survey numbers © their authors · OSM data
++          © OpenStreetMap contributors (ODbL-1.0)
++        </p>
++      </footer>
++    </article>
++  </main>
++</body>
++</html>
+diff --git a/site/public/rowhouses/bible/theses.html b/site/public/rowhouses/bible/theses.html
+new file mode 100644
+index 0000000..74c2d33
+--- /dev/null
++++ b/site/public/rowhouses/bible/theses.html
+@@ -0,0 +1,200 @@
++<!doctype html>
++<html lang="en">
++<head>
++  <meta charset="utf-8" />
++  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
++  <title>The shelf — recovered theses on Bangkok shophouses — Dr Non</title>
++  <meta name="description" content="Recovered graduate theses on Bangkok shophouses and historic conservation areas. Perplexity claimed 55; this catalog lists what could be verified from repositories, not invented titles." />
++  <link rel="icon" href="/favicon.png" type="image/png" />
++  <link rel="canonical" href="https://bkk.nonarkara.org/rowhouses/bible/theses.html" />
++  <link rel="preconnect" href="https://fonts.googleapis.com" />
++  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
++  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Thai:wght@400;700&family=Spectral:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet" />
++  <link rel="stylesheet" href="./paper.css" />
++</head>
++<body class="paper-page paper-page-wide">
++  <header class="paper-header">
++    <a class="paper-back" href="./paper.html">← The row is the city</a>
++    <span class="paper-eyebrow">Research catalog · BKKxC(ulture) · 2026</span>
++  </header>
++
++  <main class="paper-main">
++    <article class="paper-article">
++      <p class="paper-kicker">A Bangkokian’s atlas · the shelf · ตึกแถว</p>
++      <h1 class="paper-title">The shelf</h1>
++      <p class="paper-subtitle">
++        Perplexity claimed 55 graduate theses plus 3 papers.
++        This page lists what could be verified. The rest were not invented.
++      </p>
++
++      <div class="paper-byline">
++        <div class="paper-author">Recovered catalog</div>
++        <div class="paper-affiliation">
++          Companion to working paper 02 —
++          <a href="./paper.html">The row is the city</a>.
++        </div>
++        <div class="paper-meta" id="catalog-meta">
++          Loading catalog.json…
++        </div>
++      </div>
++
++      <div class="paper-note">
++        <p>
++          The Perplexity Computer thread
++          (<a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830</a>)
++          is Cloudflare-gated from the sandbox that built this bible.
++          Entries below were recovered from named authors and university
++          repositories. <strong>Direct PDF</strong> means the link is a
++          file. <strong>Repository</strong> means a landing page where
++          you click through. Rows marked <em>not fully verified</em>
++          have sparse metadata — usually a missing author or year.
++          Machine-readable source:
++          <a href="./catalog.json"><code>catalog.json</code></a>.
++        </p>
++      </div>
++
++      <nav class="paper-toc" aria-label="Catalog sections">
++        <p class="paper-toc-kicker">Sections</p>
++        <ol id="catalog-toc">
++          <li><a href="#A">A · ตึกแถว</a></li>
++          <li><a href="#B">B · อาคารพาณิชย์</a></li>
++          <li><a href="#C">C · Historic districts</a></li>
++          <li><a href="#D">D · Overseas</a></li>
++          <li><a href="#E">E · KMUTT papers</a></li>
++        </ol>
++      </nav>
++
++      <div id="catalog-root">
++        <p>If this paragraph stays, JavaScript did not load. Open <a href="./catalog.json">catalog.json</a> directly.</p>
++      </div>
++
++      <footer class="paper-foot">
++        <p>
++          Back to
++          <a href="./paper.html">working paper 02</a>
++          ·
++          <a href="/rowhouses/bible">bible hub</a>
++          ·
++          <a href="/rowhouses">rowhouse atlas</a>
++          ·
++          <a href="https://atlas.nonarkara.org/labs/">Labs</a>.
++        </p>
++        <p class="paper-foot-meta">
++          © 2026 Dr Non · Bangkok · Catalog recovered 2026-08-12
++          · Titles © their authors · Do not cite Perplexity as the source
++        </p>
++      </footer>
++    </article>
++  </main>
++  <script>
++    const ACCESS_LABEL = {
++      "direct-pdf": "Direct PDF",
++      "repository": "Repository / download page"
++    };
++
++    function esc(value) {
++      return String(value ?? "")
++        .replace(/&/g, "&amp;")
++        .replace(/</g, "&lt;")
++        .replace(/>/g, "&gt;")
++        .replace(/"/g, "&quot;");
++    }
++
++    function titleBlock(entry) {
++      const en = entry.titleEn ? `<span class="catalog-en">${esc(entry.titleEn)}</span>` : "";
++      const th = entry.titleTh ? `<span class="catalog-th">${esc(entry.titleTh)}</span>` : "";
++      return [en, th].filter(Boolean).join("");
++    }
++
++    function authorBlock(entry) {
++      const en = entry.author || "Author not fully verified";
++      const th = entry.authorTh ? ` <span class="catalog-th">(${esc(entry.authorTh)})</span>` : "";
++      return `${esc(en)}${th}`;
++    }
++
++    function flags(entry) {
++      const bits = [];
++      if (entry.phd) bits.push('<span class="catalog-flag catalog-flag-phd">PhD</span>');
++      if (entry.notFullyVerified?.length) {
++        bits.push(`<span class="catalog-flag catalog-flag-nfv">not fully verified: ${esc(entry.notFullyVerified.join(", "))}</span>`);
++      }
++      return bits.join(" ");
++    }
++
++    fetch("./catalog.json")
++      .then((res) => {
++        if (!res.ok) throw new Error(res.statusText);
++        return res.json();
++      })
++      .then((data) => {
++        const theses = data.sections.filter((s) => s.id !== "E").flatMap((s) => s.entries);
++        const papers = data.sections.find((s) => s.id === "E")?.entries ?? [];
++        const pdfs = [...theses, ...papers].filter((e) => e.access === "direct-pdf").length;
++        const repos = [...theses, ...papers].filter((e) => e.access === "repository").length;
++        const phds = theses.filter((e) => e.phd).length;
++
++        document.getElementById("catalog-meta").innerHTML =
++          `Recovered ${theses.length} theses + ${papers.length} papers` +
++          ` · Perplexity claimed ${data.claimed.theses} + ${data.claimed.papers}` +
++          ` · ${pdfs} Direct PDF · ${repos} repository` +
++          ` · ${phds} dissertations marked PhD` +
++          ` · Source <code>catalog.json</code>`;
++
++        document.getElementById("catalog-toc").innerHTML = data.sections.map((section) => {
++          const n = section.entries.length;
++          const claimed = section.claimed != null ? ` <small>(${n} recovered / ${section.claimed} claimed)</small>` : ` <small>(${n})</small>`;
++          return `<li><a href="#${section.id}">${esc(section.id)} · ${esc(section.title)}</a>${claimed}</li>`;
++        }).join("");
++
++        document.getElementById("catalog-root").innerHTML = data.sections.map((section) => {
++          const rows = section.entries.map((entry) => {
++            const year = entry.year ?? "—";
++            const access = ACCESS_LABEL[entry.access] || entry.access;
++            const accessClass = entry.access === "direct-pdf" ? "catalog-access-pdf" : "catalog-access-repo";
++            const notes = entry.notes ? `<p class="catalog-notes">${esc(entry.notes)}</p>` : "";
++            return `<tr>
++              <td><code>${esc(entry.id)}</code></td>
++              <td>
++                ${titleBlock(entry)}
++                ${flags(entry)}
++                ${notes}
++              </td>
++              <td>${authorBlock(entry)}</td>
++              <td>${esc(entry.degree || "—")}<br><span class="catalog-muted">${esc(entry.university || "")}</span></td>
++              <td>${esc(year)}<br><span class="catalog-muted">${esc(entry.language || "")}</span></td>
++              <td>
++                <a class="${accessClass}" href="${esc(entry.url)}" rel="noreferrer">${esc(access)}</a>
++                ${entry.landing ? `<br><a class="catalog-muted" href="${esc(entry.landing)}" rel="noreferrer">landing page</a>` : ""}
++                ${entry.doi ? `<br><span class="catalog-muted">doi:${esc(entry.doi)}</span>` : ""}
++              </td>
++            </tr>`;
++          }).join("");
++
++          return `<section class="paper-section" id="${esc(section.id)}">
++            <h2>${esc(section.id)}. ${esc(section.title)}</h2>
++            <p>Recovered ${section.entries.length}${section.claimed != null ? ` of ${section.claimed} claimed` : ""}.</p>
++            <div class="catalog-table-wrap">
++              <table class="paper-table catalog-table">
++                <thead>
++                  <tr>
++                    <th>ID</th>
++                    <th>Title</th>
++                    <th>Author</th>
++                    <th>Degree / university</th>
++                    <th>Year</th>
++                    <th>Access</th>
++                  </tr>
++                </thead>
++                <tbody>${rows}</tbody>
++              </table>
++            </div>
++          </section>`;
++        }).join("");
++      })
++      .catch((error) => {
++        document.getElementById("catalog-root").innerHTML =
++          `<p>Could not load <a href="./catalog.json">catalog.json</a> (${esc(error.message)}).</p>`;
++      });
++  </script>
++</body>
++</html>
+diff --git a/site/tests/rendered-html.test.mjs b/site/tests/rendered-html.test.mjs
+index e1d28b5..4725522 100644
+--- a/site/tests/rendered-html.test.mjs
++++ b/site/tests/rendered-html.test.mjs
+@@ -175,6 +175,48 @@ test("serves the rowhouse research directory", async () => {
+   assert.match(html, /application\/ld\+json/);
+   assert.match(html, /GeoJSON/);
+   assert.match(html, /solid lines for high-confidence axes/i);
++  assert.match(html, /1,656/);
++  assert.match(html, /A sum of papers is not a survey/);
++  assert.match(html, /href="\/rowhouses\/bible"/);
++  assert.match(html, /~220 bays/);
++  assert.doesNotMatch(html, /870\+<\/strong><span>published units/);
++});
++
++test("serves the shophouse bible and recovered thesis catalog", async () => {
++  const { readFileSync, existsSync } = await import("node:fs");
++  const { fileURLToPath } = await import("node:url");
++  const response = await render("/rowhouses/bible");
++  assert.equal(response.status, 200);
++  const html = await response.text();
++  assert.match(html, /The row is the city/);
++  assert.match(html, /Four inventories. Not one total/);
++  assert.match(html, /Onsawangchai/);
++  assert.match(html, /1,656/);
++  assert.match(html, /Peeraya Boonprasong/);
++  assert.match(html, /Direct PDF/);
++  assert.match(html, /href="\/rowhouses\/bible\/paper.html"/);
++  assert.match(html, /href="\/rowhouses\/bible\/theses.html"/);
++  assert.doesNotMatch(html, /870 academically counted units<\/strong>/);
++
++  const paperPath = fileURLToPath(new URL("../public/rowhouses/bible/paper.html", import.meta.url));
++  const thesesPath = fileURLToPath(new URL("../public/rowhouses/bible/theses.html", import.meta.url));
++  const catalogPath = fileURLToPath(new URL("../public/rowhouses/bible/catalog.json", import.meta.url));
++  assert.ok(existsSync(paperPath), "missing paper.html");
++  assert.ok(existsSync(thesesPath), "missing theses.html");
++  const paper = readFileSync(paperPath, "utf8");
++  assert.match(paper, /1,656/);
++  assert.match(paper, /Onsawangchai/);
++  assert.match(paper, /href="\/rowhouses"/);
++  assert.match(paper, /href="\/rowhouses\/bible"/);
++  assert.doesNotMatch(paper, /Live with the atlas at/);
++  const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
++  const theses = catalog.sections.filter((section) => section.id !== "E").flatMap((section) => section.entries);
++  assert.ok(theses.length >= 40, `catalog too thin: ${theses.length}`);
++  for (const name of ["Peeraya Boonprasong", "Narut Kupthanaroj", "Tanat Bha-aryaphatn", "Boonchaiyapruek", "Tiamsoon Sirisrisak", "Bejrananda"]) {
++    assert.ok(theses.some((entry) => (entry.author || "").includes(name)), `catalog missing ${name}`);
++  }
++  const accesses = new Set(theses.map((entry) => entry.access));
++  assert.ok(accesses.has("direct-pdf") && accesses.has("repository"));
+ });
+ 
+ test("exports the rowhouse atlas as open confidence-labelled GeoJSON", async () => {
+-- 
+2.43.0
+
+
+From e2fcf5691c18c0ac314a70aa3d77fb848ebeb035 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Wed, 12 Aug 2026 20:51:04 +0000
+Subject: [PATCH 2/2] Make npm test import TypeScript data modules on Node 22.
+
+The rendered-html tests load oldtown-spots.ts and related files
+directly. Node 22 needs --experimental-strip-types for that, which
+the data:rowhouses script already used.
+---
+ site/package.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/site/package.json b/site/package.json
+index 657dfac..32cc89e 100644
+--- a/site/package.json
++++ b/site/package.json
+@@ -9,7 +9,7 @@
+     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
+     "build": "npm run data:rowhouses && WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build && node scripts/fix-asset-manifest.mjs",
+     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
+-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
++    "test": "npm run build && node --experimental-strip-types --test tests/rendered-html.test.mjs",
+     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+     "db:generate": "drizzle-kit generate",
+     "data:rowhouses": "node --experimental-strip-types scripts/export-rowhouse-data.mjs",
+-- 
+2.43.0
+
