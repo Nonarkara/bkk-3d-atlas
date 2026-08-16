@@ -192,15 +192,42 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 }
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
-<<<<<<< HEAD
-<<<<<<< HEAD
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "installNewsEvents", "openNewsEventPopup", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true"]) {
-=======
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION"]) {
->>>>>>> b86828f (Verify landmarks wiring in local laptop checks.)
-=======
-for (const token of ["ensureStackOrder", "wireStackPresets", "installDistricts", "LAYER_STACK", "installFlood", "floodHitAt", "applyNightMode", "installHeat", "loadCctvData", "openCctvPopup", "CCTV_LAYER", "installCivicPois", "installCivicDensity", "installCityEvents", "startCityEventPolling", "parseJsonProp", "wireAboutDrawer", "applyCivicPoiFilter", "loadCivicPoiGeoJson", "pointLayersOwningClick", "BKKX_BUILDINGS_HI_LAYER", "hideBaseBuildingFills", "BUILDING_EXTRUSION_FILTER", "antialias: true", "installLandmarks", "LANDMARKS_LAYER", "RATTANAKOSIN_HEIGHT_EXPRESSION", "HERITAGE_DETAIL_URL", "bkk-heritage-detail.geojson"]) {
->>>>>>> c2b313b (Old Town detail layer: full footprints + monument silhouettes.)
+// This branch combines the urban-management, Buzz and Old Town layers.
+// Keep their verification tokens as a union: none of those feature sets
+// replaces another, and unresolved merge markers make this script invalid JS.
+for (const token of [
+  "ensureStackOrder",
+  "wireStackPresets",
+  "installDistricts",
+  "LAYER_STACK",
+  "installFlood",
+  "floodHitAt",
+  "applyNightMode",
+  "installHeat",
+  "loadCctvData",
+  "openCctvPopup",
+  "CCTV_LAYER",
+  "installCivicPois",
+  "installCivicDensity",
+  "installCityEvents",
+  "startCityEventPolling",
+  "installNewsEvents",
+  "openNewsEventPopup",
+  "parseJsonProp",
+  "wireAboutDrawer",
+  "applyCivicPoiFilter",
+  "loadCivicPoiGeoJson",
+  "pointLayersOwningClick",
+  "BKKX_BUILDINGS_HI_LAYER",
+  "hideBaseBuildingFills",
+  "BUILDING_EXTRUSION_FILTER",
+  "antialias: true",
+  "installLandmarks",
+  "LANDMARKS_LAYER",
+  "RATTANAKOSIN_HEIGHT_EXPRESSION",
+  "HERITAGE_DETAIL_URL",
+  "bkk-heritage-detail.geojson",
+]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
 }
