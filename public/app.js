@@ -500,6 +500,15 @@ const HEAT_LAYER = "bkkx-heat-heat";
 const HEAT_CIRCLE_LAYER = "bkkx-heat-circles";
 const HEAT_API = "https://api.open-meteo.com/v1/forecast";
 
+// NASA GIBS regional aerosol optical depth (AOD). This is a daily
+// MODIS Terra + Aqua observation at roughly 1 km — useful for seeing
+// the regional haze field, but deliberately not labelled as ground-level
+// PM2.5. GIBS publishes the Web Mercator tiles through zoom 7.
+const AEROSOL_SOURCE = "bkkx-aerosol";
+const AEROSOL_LAYER = "bkkx-aerosol-tiles";
+const AEROSOL_MAX_ZOOM = 7;
+const AEROSOL_DATA_LAG_DAYS = 2;
+
 // Schematic flood envelopes (Labs sandbox). NOT official DDPM/BMA
 // flood lines — generalized 2011-style corridors + monsoon pockets.
 const FLOOD_SOURCE = "bkkx-flood";
@@ -598,6 +607,7 @@ const LAYER_STACK = [
   HEAT_CIRCLE_LAYER,
   AQI_LAYER,
   AQI_CIRCLE_LAYER,
+  AEROSOL_LAYER,
   RAIN_LAYER,
   CCTV_HALO_LAYER,
   CCTV_LAYER,
@@ -637,7 +647,7 @@ function applyOverlayCompositing(map) {
   // Night mode sets colours first; opacity softens after.
   applyNightMode(map);
 
-  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.flood || state.layerOn.heat);
+  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.aerosol || state.layerOn.flood || state.layerOn.heat);
   const rainOpacity = state.overlayOpacity;
   const aqiOpacity = Math.min(0.72, state.overlayOpacity + 0.12);
   const heatOpacity = Math.min(0.68, state.overlayOpacity + 0.08);
@@ -650,6 +660,9 @@ function applyOverlayCompositing(map) {
   }
   if (map.getLayer(HEAT_LAYER)) {
     try { map.setPaintProperty(HEAT_LAYER, "heatmap-opacity", heatOpacity); } catch {}
+  }
+  if (map.getLayer(AEROSOL_LAYER)) {
+    try { map.setPaintProperty(AEROSOL_LAYER, "raster-opacity", state.overlayOpacity); } catch {}
   }
   if (map.getLayer(FLOOD_FILL)) {
     try { map.setPaintProperty(FLOOD_FILL, "fill-opacity", state.floodOpacity); } catch {}
@@ -761,6 +774,7 @@ function updateStackChips() {
     "flood-sensors": "Gauges",
     heat: "Heat",
     aqi: "AQI",
+    aerosol: "Satellite AOD",
     rain: "Rain",
   };
   const on = Object.keys(labels).filter((id) => state.layerOn[id]);
@@ -779,7 +793,7 @@ function updateStackChips() {
   for (const id of on) {
     const chip = document.createElement("span");
     chip.className = "atlas-stack-chip";
-    if (id === "rain" || id === "aqi" || id === "flood" || id === "heat") chip.classList.add("is-weather");
+    if (id === "rain" || id === "aqi" || id === "aerosol" || id === "flood" || id === "heat") chip.classList.add("is-weather");
     chip.textContent = labels[id];
     el.appendChild(chip);
   }
@@ -939,6 +953,16 @@ const LAYERS = [
       stopRainLoop();
       setLayersVisible(map, [RAIN_LAYER], false);
     },
+  },
+  {
+    id: "aerosol",
+    name: "Satellite aerosol",
+    description: "NASA MODIS · daily regional AOD",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [AEROSOL_LAYER],
+    install: async (map) => { installAerosol(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [AEROSOL_LAYER], false),
   },
   {
     id: "flood",
@@ -1865,6 +1889,58 @@ function setLayerStatus(layerId, text) {
     el.textContent = text;
     // Civic legend filters append "· N/5 types" onto this base string.
     if (layerId === "civic-pois") el.dataset.baseStatus = text;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NASA GIBS aerosol optical depth (regional satellite observation)
+// ─────────────────────────────────────────────────────────────────
+
+function aerosolObservationDate() {
+  const date = new Date(Date.now() - AEROSOL_DATA_LAG_DAYS * 86_400_000);
+  return date.toISOString().slice(0, 10);
+}
+
+function installAerosol(map) {
+  if (map.getLayer(AEROSOL_LAYER)) {
+    setLayersVisible(map, [AEROSOL_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const observationDate = aerosolObservationDate();
+  const tiles = [
+    `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_MAIAC_L2G_AerosolOpticalDepth/default/${observationDate}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png`,
+  ];
+  if (!map.getSource(AEROSOL_SOURCE)) {
+    try {
+      map.addSource(AEROSOL_SOURCE, {
+        type: "raster",
+        tiles,
+        tileSize: 256,
+        maxzoom: AEROSOL_MAX_ZOOM,
+        attribution: "Aerosol optical depth © NASA EOSDIS GIBS · MODIS MAIAC",
+      });
+    } catch (error) {
+      console.warn("Aerosol source failed:", error);
+      setLayerStatus("aerosol", "unavailable · NASA GIBS failed");
+      return;
+    }
+  }
+  try {
+    map.addLayer({
+      id: AEROSOL_LAYER,
+      type: "raster",
+      source: AEROSOL_SOURCE,
+      paint: {
+        "raster-opacity": state.overlayOpacity,
+        "raster-fade-duration": 180,
+      },
+    });
+    setLayerStatus("aerosol", `NASA MODIS · ${observationDate} · regional AOD, not PM2.5`);
+    applyOverlayCompositing(map);
+  } catch (error) {
+    console.warn("Aerosol layer failed:", error);
+    setLayerStatus("aerosol", "unavailable · layer failed");
   }
 }
 
@@ -4028,13 +4104,11 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, heat: false, flood: false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, heat: false, flood: false, terrain: false, night: false },
-      aqi: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: true, heat: false, flood: false, terrain: false, night: false },
-      heat: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, heat: true, flood: false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, heat: false, flood: true, terrain: true, night: false },
-      night: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: false, aqi: false, heat: false, flood: false, terrain: false, night: true },
-      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, heat: false, flood: true, terrain: false, night: false },
+      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      aerosol: { buildings: true, rail: false, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
+      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;

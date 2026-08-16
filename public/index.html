@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, terrain, air quality, rain radar, district boundaries, BTS/MRT lines, canals. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, traffic, CCTV, incidents, flood gauges, rain radar, PM2.5 and NASA satellite aerosol. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
@@ -91,12 +91,10 @@
 
         <div class="atlas-stack-presets" id="atlas-stack-presets" role="group" aria-label="Layer stack presets">
           <button type="button" class="atlas-preset-btn is-active" data-preset="city">City</button>
-          <button type="button" class="atlas-preset-btn" data-preset="rain">City + rain</button>
-          <button type="button" class="atlas-preset-btn" data-preset="aqi">City + AQI</button>
-          <button type="button" class="atlas-preset-btn" data-preset="heat">City + heat</button>
+          <button type="button" class="atlas-preset-btn" data-preset="pulse">Live pulse</button>
+          <button type="button" class="atlas-preset-btn" data-preset="rain">Rain now</button>
           <button type="button" class="atlas-preset-btn" data-preset="flood">Flood watch</button>
-          <button type="button" class="atlas-preset-btn" data-preset="night">Night</button>
-          <button type="button" class="atlas-preset-btn" data-preset="pulse">Full pulse</button>
+          <button type="button" class="atlas-preset-btn" data-preset="aerosol">Satellite air</button>
         </div>
         <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
 
@@ -303,6 +301,16 @@
             </label>
             <div class="atlas-legend" id="legend-aqi" hidden></div>
           </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-aerosol" />
+              <span class="atlas-layer-name">
+                <strong>Satellite aerosol</strong>
+                <small id="toggle-aerosol-detail">NASA MODIS · daily regional AOD</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-aerosol-state" aria-live="polite">off</span>
+            </label>
+          </li>
         </ul>
 
         <p class="atlas-eyebrow atlas-eyebrow-sub">Look</p>
@@ -321,7 +329,7 @@
 
         <label class="atlas-opacity">
           <span>Weather overlay strength <strong id="overlay-opacity-value">45%</strong></span>
-          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain heat and AQI overlay opacity" />
+          <input type="range" id="overlay-opacity" min="20" max="75" value="45" step="5" aria-label="Rain heat AQI and satellite aerosol overlay opacity" />
         </label>
         <label class="atlas-opacity">
           <span>Flood envelope strength <strong id="flood-opacity-value">38%</strong></span>

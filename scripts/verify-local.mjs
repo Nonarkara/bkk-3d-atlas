@@ -205,6 +205,8 @@ for (const token of [
   "floodHitAt",
   "applyNightMode",
   "installHeat",
+  "installAerosol",
+  "MODIS_Combined_MAIAC_L2G_AerosolOpticalDepth",
   "loadCctvData",
   "openCctvPopup",
   "CCTV_LAYER",
