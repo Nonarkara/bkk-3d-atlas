@@ -68,7 +68,7 @@ free tile APIs (Esri, RainViewer, Open-Meteo), and Cloudflare Workers
 city paints. Inspect falls back to client-side nearest land-price when
 `/api/land-price` is unreachable. Layer toggles soft-hide instead of
 tearing down WebGL sources, so re-toggling rain/AQI stays cheap.
-Presets stack city + rain / heat / AQI / flood / night without losing
+Presets stack city + rain / 10 m wind / heat / AQI / flood without losing
 the silhouette.
 
 ## Deploy
@@ -416,12 +416,16 @@ report.
 13. **Rain radar** (RainViewer) — most-recent past frame from
     `api.rainviewer.com/public/weather-maps.json`, 5-min client
     cache, opacity 0.65.
-14. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
+14. **Current wind field** (Open-Meteo) — 36 current 10 m model cells
+    across Bangkok, rendered as clickable downwind arrows with speed
+    colours and gust values. This is a forecast-model field, explicitly
+    not presented as a street-level sensor network.
+15. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
     assessment, aggregated from 2.28M parcels to 477 UTMMAP3 zones.
     Each zone is a point on the map coloured by average appraisal
     price (500–435,000 ฿/sq.wah). Six-step ramp from cream to dark
     amber.
-15. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
+16. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
     "!" pins for breaking city events with reporter-supplied
     coordinates. Source: `https://event.longdo.com/feed/json` — real
     lat/lng from the reporter, no geocoding guesswork. Pinned
@@ -436,7 +440,7 @@ report.
     is a rolling 20-item window for all of Thailand; a 5-minute cron
     in `wrangler.toml` keeps the store fresh between visitors.
     Endpoint: `/api/city-events`.
-16. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
+17. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
     "●" pins for "what the city is talking about": motor shows,
     concerts, gatherings, the things that draw crowds and wreck
     traffic. **No fabricated coordinates.** A pin only exists when a
@@ -449,7 +453,7 @@ report.
     Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
     the client labels both, so nobody reads an area pin as a street
     address. 14-day rolling window. Endpoint: `/api/news-events`.
-17. **Heritage landmarks** (Fine Arts Department register, baked
+18. **Heritage landmarks** (Fine Arts Department register, baked
     into `public/bkk-landmarks.geojson`) — 73 ancient monuments
     rendered as 3D fill-extrusions on the buildings layer, with
     real heights (Victory Monument 50 m shaft, Phu Khao Thong 45 m,

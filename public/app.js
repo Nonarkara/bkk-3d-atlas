@@ -500,6 +500,15 @@ const HEAT_LAYER = "bkkx-heat-heat";
 const HEAT_CIRCLE_LAYER = "bkkx-heat-circles";
 const HEAT_API = "https://api.open-meteo.com/v1/forecast";
 
+// Current 10 m wind from Open-Meteo. A 6×6 Bangkok grid is converted
+// client-side into directional arrow shafts + heads, so direction stays
+// legible without depending on a webfont glyph or pretending these model
+// cells are street-level anemometers.
+const WIND_SOURCE = "bkkx-wind";
+const WIND_LAYER = "bkkx-wind-arrows";
+const WIND_ORIGIN_LAYER = "bkkx-wind-origins";
+const WIND_API = "https://api.open-meteo.com/v1/forecast";
+
 // NASA GIBS regional aerosol optical depth (AOD). This is a daily
 // MODIS Terra + Aqua observation at roughly 1 km — useful for seeing
 // the regional haze field, but deliberately not labelled as ground-level
@@ -609,6 +618,8 @@ const LAYER_STACK = [
   AQI_CIRCLE_LAYER,
   AEROSOL_LAYER,
   RAIN_LAYER,
+  WIND_ORIGIN_LAYER,
+  WIND_LAYER,
   CCTV_HALO_LAYER,
   CCTV_LAYER,
   LIVE_CAM_HALO_LAYER,
@@ -647,7 +658,7 @@ function applyOverlayCompositing(map) {
   // Night mode sets colours first; opacity softens after.
   applyNightMode(map);
 
-  const weatherOn = !!(state.layerOn.rain || state.layerOn.aqi || state.layerOn.aerosol || state.layerOn.flood || state.layerOn.heat);
+  const weatherOn = !!(state.layerOn.rain || state.layerOn.wind || state.layerOn.aqi || state.layerOn.aerosol || state.layerOn.flood || state.layerOn.heat);
   const rainOpacity = state.overlayOpacity;
   const aqiOpacity = Math.min(0.72, state.overlayOpacity + 0.12);
   const heatOpacity = Math.min(0.68, state.overlayOpacity + 0.08);
@@ -776,6 +787,7 @@ function updateStackChips() {
     aqi: "AQI",
     aerosol: "Satellite AOD",
     rain: "Rain",
+    wind: "Wind",
   };
   const on = Object.keys(labels).filter((id) => state.layerOn[id]);
   el.innerHTML = "";
@@ -793,7 +805,7 @@ function updateStackChips() {
   for (const id of on) {
     const chip = document.createElement("span");
     chip.className = "atlas-stack-chip";
-    if (id === "rain" || id === "aqi" || id === "aerosol" || id === "flood" || id === "heat") chip.classList.add("is-weather");
+    if (id === "rain" || id === "wind" || id === "aqi" || id === "aerosol" || id === "flood" || id === "heat") chip.classList.add("is-weather");
     chip.textContent = labels[id];
     el.appendChild(chip);
   }
@@ -922,6 +934,23 @@ const LAYERS = [
       { color: "#fb923c", label: "32–35°C" },
       { color: "#ef4444", label: "35–38°C" },
       { color: "#9f1239", label: "38°C+" },
+    ],
+  },
+  {
+    id: "wind",
+    name: "Wind field",
+    description: "Open-Meteo · current 10 m model",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [WIND_ORIGIN_LAYER, WIND_LAYER],
+    install: async (map) => { await installWind(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [WIND_ORIGIN_LAYER, WIND_LAYER], false),
+    legend: [
+      { color: "#60a5fa", label: "< 10 km/h" },
+      { color: "#22d3ee", label: "10–20 km/h" },
+      { color: "#facc15", label: "20–30 km/h" },
+      { color: "#fb923c", label: "30–40 km/h" },
+      { color: "#ef4444", label: "40 km/h+" },
     ],
   },
   {
@@ -1766,6 +1795,166 @@ async function installHeat(map) {
     console.warn("Heat layer failed:", error);
     setLayerStatus("heat", "unavailable · layer failed");
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Current 10 m wind field (Open-Meteo forecast model)
+// ─────────────────────────────────────────────────────────────────
+
+function windOffset(lon, lat, bearingDeg, distanceDeg) {
+  const bearing = bearingDeg * Math.PI / 180;
+  const latScale = Math.max(0.2, Math.cos(lat * Math.PI / 180));
+  return [
+    lon + Math.sin(bearing) * distanceDeg / latScale,
+    lat + Math.cos(bearing) * distanceDeg,
+  ];
+}
+
+function windArrowGeometry(lon, lat, speedKmh, directionDeg) {
+  // Meteorological direction says where wind comes FROM. The arrow points
+  // downwind, hence +180°. Length is deliberately capped: it communicates
+  // relative speed without implying an exact trajectory between grid cells.
+  const flowBearing = (directionDeg + 180) % 360;
+  const length = 0.010 + Math.min(60, Math.max(0, speedKmh)) / 60 * 0.024;
+  const end = windOffset(lon, lat, flowBearing, length);
+  const headLength = length * 0.30;
+  const left = windOffset(end[0], end[1], flowBearing + 150, headLength);
+  const right = windOffset(end[0], end[1], flowBearing - 150, headLength);
+  return {
+    type: "MultiLineString",
+    coordinates: [
+      [[lon, lat], end],
+      [left, end],
+      [right, end],
+    ],
+  };
+}
+
+function windCompass(directionDeg) {
+  const points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  return points[Math.round((((directionDeg % 360) + 360) % 360) / 22.5) % 16];
+}
+
+async function fetchWindGrid() {
+  const lats = [];
+  const lons = [];
+  for (let i = 0; i < 6; i++) {
+    const lat = (13.49 + (14.10 - 13.49) * (i / 5)).toFixed(3);
+    for (let j = 0; j < 6; j++) {
+      lats.push(lat);
+      lons.push((100.30 + (100.95 - 100.30) * (j / 5)).toFixed(3));
+    }
+  }
+  const url = `${WIND_API}?latitude=${lats.join(",")}&longitude=${lons.join(",")}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kmh&timezone=UTC`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const locations = Array.isArray(data) ? data : data ? [data] : [];
+  const features = [];
+  let capturedAt = null;
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i];
+    const speed = Number(loc?.current?.wind_speed_10m);
+    const direction = Number(loc?.current?.wind_direction_10m);
+    const gust = Number(loc?.current?.wind_gusts_10m);
+    const lat = Number(loc?.latitude ?? lats[i]);
+    const lon = Number(loc?.longitude ?? lons[i]);
+    if (![speed, direction, lat, lon].every(Number.isFinite)) continue;
+    capturedAt ||= loc?.current?.time ?? null;
+    features.push({
+      type: "Feature",
+      properties: {
+        speedKmh: speed,
+        gustKmh: Number.isFinite(gust) ? gust : null,
+        directionDeg: direction,
+        directionLabel: windCompass(direction),
+        flowBearing: (direction + 180) % 360,
+        capturedAt: loc?.current?.time ?? null,
+        observationLevel: "10 m model field",
+      },
+      geometry: windArrowGeometry(lon, lat, speed, direction),
+    });
+  }
+  if (!features.length) return null;
+  return { type: "FeatureCollection", features, _capturedAt: capturedAt };
+}
+
+async function installWind(map) {
+  const geojson = await fetchWindGrid();
+  if (!geojson) {
+    setLayerStatus("wind", "unavailable · Open-Meteo failed");
+    return;
+  }
+  if (!map.getSource(WIND_SOURCE)) {
+    map.addSource(WIND_SOURCE, {
+      type: "geojson",
+      data: geojson,
+      attribution: "Wind model © Open-Meteo",
+    });
+  } else {
+    try { map.getSource(WIND_SOURCE).setData(geojson); } catch {}
+  }
+
+  if (!map.getLayer(WIND_ORIGIN_LAYER)) {
+    map.addLayer({
+      id: WIND_ORIGIN_LAYER,
+      type: "circle",
+      source: WIND_SOURCE,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 1.5, 14, 3.2],
+        "circle-color": "#f8fafc",
+        "circle-stroke-color": "#0f172a",
+        "circle-stroke-width": 1,
+        "circle-opacity": 0.9,
+      },
+    });
+  }
+  if (!map.getLayer(WIND_LAYER)) {
+    map.addLayer({
+      id: WIND_LAYER,
+      type: "line",
+      source: WIND_SOURCE,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: {
+        "line-color": [
+          "interpolate", ["linear"], ["get", "speedKmh"],
+          0, "#60a5fa",
+          10, "#22d3ee",
+          20, "#facc15",
+          30, "#fb923c",
+          40, "#ef4444",
+        ],
+        "line-width": [
+          "interpolate", ["linear"], ["zoom"],
+          9, ["interpolate", ["linear"], ["get", "speedKmh"], 0, 1, 40, 2.4],
+          14, ["interpolate", ["linear"], ["get", "speedKmh"], 0, 2, 40, 4.2],
+        ],
+        "line-opacity": 0.92,
+      },
+    });
+    map.on("click", WIND_LAYER, (event) => {
+      const properties = event.features?.[0]?.properties;
+      if (!properties) return;
+      const speed = Number(properties.speedKmh).toFixed(1);
+      const gust = properties.gustKmh == null ? "—" : Number(properties.gustKmh).toFixed(1);
+      const direction = Number(properties.directionDeg).toFixed(0);
+      new maplibregl.Popup({ closeButton: true, maxWidth: "250px" })
+        .setLngLat(event.lngLat)
+        .setHTML(`<strong>10 m wind</strong><br>${speed} km/h from ${properties.directionLabel} (${direction}°)<br>Gust ${gust} km/h<br><small>Open-Meteo model · not a street sensor</small>`)
+        .addTo(map);
+    });
+    map.on("mouseenter", WIND_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", WIND_LAYER, () => { map.getCanvas().style.cursor = ""; });
+  } else {
+    setLayersVisible(map, [WIND_ORIGIN_LAYER, WIND_LAYER], true);
+  }
+
+  const speeds = geojson.features.map((feature) => feature.properties.speedKmh);
+  const gusts = geojson.features.map((feature) => feature.properties.gustKmh).filter(Number.isFinite);
+  const average = (speeds.reduce((sum, value) => sum + value, 0) / speeds.length).toFixed(1);
+  const maxGust = gusts.length ? Math.max(...gusts).toFixed(1) : "—";
+  const when = geojson._capturedAt ? ` · ${geojson._capturedAt.replace("T", " ")} UTC` : "";
+  setLayerStatus("wind", `Open-Meteo · ${geojson.features.length} cells · avg ${average} · gust ${maxGust} km/h${when}`);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -4104,11 +4293,11 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      aerosol: { buildings: true, rail: false, traffic: false, cctv: false, khlongs: true, rain: false, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
-      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
+      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      aerosol: { buildings: true, rail: false, traffic: false, cctv: false, khlongs: true, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
+      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;

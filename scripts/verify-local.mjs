@@ -205,6 +205,8 @@ for (const token of [
   "floodHitAt",
   "applyNightMode",
   "installHeat",
+  "installWind",
+  "windArrowGeometry",
   "installAerosol",
   "MODIS_Combined_MAIAC_L2G_AerosolOpticalDepth",
   "loadCctvData",
@@ -233,6 +235,11 @@ for (const token of [
 ]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);
+}
+if (!html.includes('id="toggle-wind"') || !html.includes('id="legend-wind"')) {
+  fail("index.html missing wind field toggle or legend");
+} else {
+  ok("index.html has wind field toggle + legend");
 }
 if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
 else ok("street-zoom buildings hand off past tippecanoe maxzoom");

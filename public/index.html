@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, traffic, CCTV, incidents, flood gauges, rain radar, PM2.5 and NASA satellite aerosol. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
@@ -26,7 +26,7 @@
           <span class="atlas-title-desk">Bangkok, live, block by block</span>
           <span class="atlas-title-phone">Bangkok · live 3D atlas</span>
         </h1>
-        <small>432,077 buildings · CCTV · flood sensors · traffic · AQI · rain radar · BTS/MRT</small>
+        <small>432,077 buildings · CCTV · flood sensors · traffic · wind · AQI · rain radar · BTS/MRT</small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
@@ -281,6 +281,17 @@
           </li>
           <li>
             <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-wind" />
+              <span class="atlas-layer-name">
+                <strong>Wind field</strong>
+                <small id="toggle-wind-detail">Open-Meteo · current 10 m model</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-wind-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-wind" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-heat" />
               <span class="atlas-layer-name">
                 <strong>Heat</strong>
@@ -466,7 +477,7 @@
               <li>
                 <strong>Live inputs.</strong>
                 iTIC/Longdo traffic + CCTV, RainViewer radar, Open-Meteo
-                heat/AQI, HII/ThaiWater flood gauges — honest about what is
+                wind/heat/AQI, HII/ThaiWater flood gauges — honest about what is
                 live vs schematic.
               </li>
               <li>
@@ -483,8 +494,8 @@
             <ol class="atlas-labs-list atlas-labs-list-shipped">
               <li>
                 <strong>Multi-layer city stack.</strong>
-                Buildings under translucent rain, heat, AQI, and flood.
-                Presets: City · rain · AQI · heat · Flood watch · Night · Full pulse.
+                Buildings under translucent rain, wind, heat, AQI, and flood.
+                Presets: City · Live pulse · Rain now · Flood watch · Satellite air.
               </li>
               <li>
                 <strong>Inspect + risk API.</strong>
@@ -508,6 +519,12 @@
               <li>
                 <strong>Flood sensors + rain radar.</strong>
                 HII/ThaiWater gauges and animated RainViewer frames over the silhouette.
+              </li>
+              <li>
+                <strong>Current wind field.</strong>
+                A 6 × 6 Open-Meteo model grid turns 10 m speed and direction into
+                clickable arrow shafts and heads. It explains where rain and haze
+                may move without pretending to be a street-level sensor network.
               </li>
               <li>
                 <strong>Night lights / blackout.</strong>
@@ -643,7 +660,7 @@
             <p>
               <strong>Live &amp; open civic.</strong>
               iTIC/Longdo (traffic, public CCTV), RainViewer, Open-Meteo
-              (heat / PM2.5), HII/ThaiWater (water levels), BMA /
+              (10 m wind / heat / PM2.5), HII/ThaiWater (water levels), BMA /
               data.go.th / data.bangkok.go.th (schools, sports grounds,
               car parks, museums, waterway landmarks). Land-price
               choropleth from Treasury road-level analysis (Home Buyers).
