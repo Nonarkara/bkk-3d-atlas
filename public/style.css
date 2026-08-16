@@ -1367,3 +1367,23 @@ body.atlas-about-open { overflow: hidden; }
     height: 113px;
   }
 }
+
+/* the title is now an <h1> — keep the class styling, drop the UA margins */
+h1.atlas-title { margin: 0; line-height: 1.05; }
+
+/* sibling-site links: same weight as the rest of the nav, one signal on hover */
+.atlas-nav-sibling { color: var(--paper); }
+.atlas-nav-sibling:hover { color: var(--signal); }
+
+/* MapLibre's scale bar ships as a grey box in the browser's default font.
+   On the Console surface it reads as a bug. Same ink, same mono, hairline. */
+.atlas-map :where(.maplibregl-ctrl-scale) {
+  background: rgba(17, 18, 15, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-top: 0;
+  color: var(--paper);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+}

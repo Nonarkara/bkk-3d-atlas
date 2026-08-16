@@ -4193,6 +4193,30 @@ async function init() {
 
   state.map = map;
 
+  // The map container is a CSS-grid `1fr` row whose height depends on the
+  // header's `auto` row, which depends on webfont metrics. If MapLibre reads
+  // the container before Sao Chingcha swaps in, it captures the wrong height
+  // and never hears about the correction — the canvas paints into a corner
+  // of a black box. A ResizeObserver on the container is the actual fix:
+  // it fires on the layout settle, on the font swap, on orientation change,
+  // and on the mobile stack, none of which reliably fire `window.resize`.
+  const mapEl = document.getElementById("atlas-map");
+  if (typeof ResizeObserver !== "undefined" && mapEl) {
+    let last = 0;
+    new ResizeObserver(() => {
+      const h = mapEl.clientHeight;
+      if (h && h !== last) {
+        last = h;
+        map.resize();
+      }
+    }).observe(mapEl);
+  }
+  // Belt and braces: the two moments the observer can miss on old engines.
+  map.once("load", () => map.resize());
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => map.resize());
+  }
+
   // The OpenFreeMap dark style references a "wood-pattern" sprite image
   // it doesn't ship — MapLibre warned about it on every single page load.
   // Supply a 1×1 transparent stand-in for any missing style image so the
