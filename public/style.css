@@ -1305,11 +1305,16 @@ body.atlas-about-open { overflow: hidden; }
   .atlas-title-phone { display: inline; }
 
   .atlas-header-nav {
-    gap: 0;
+    gap: 14px;
     font-size: 9px;
     letter-spacing: 0.06em;
   }
   .atlas-header-nav a { color: var(--muted); }
+  /* Three external links survive the phone filter above (heritage, shophouses,
+     GitHub). Each needs to be a real tap target, not a run-on word. */
+  .atlas-header-nav a[href^="https"] {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px;
+  }
 
   .atlas-map { min-height: 0; }
 
