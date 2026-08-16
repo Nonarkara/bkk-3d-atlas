@@ -154,7 +154,7 @@ the endpoints above change.
 | `GET /api/atlas/areas?bbox=&category=` | The 16 curated areas, filterable by viewport or category. |
 | `GET /api/atlas/districts` | All 50 khet, joined to Treasury land-price data, with centroids. |
 | `GET /api/atlas/at-this-point?lng=&lat=` | The generalised "click the city" — district, land price, flood status, nearest transit, summary band. One call. |
-| `GET /api/atlas/transit?lng=&lat=&radius=&limit=` | Up to N nearest rail segments with line, ref, color, distance. |
+| `GET /api/atlas/transit?lng=&lat=&radius=&limit=` | Nearest rail segments, scheduled boat corridors and passenger piers, with distances and sources. |
 | `GET /api/atlas/buildings?bbox=&limit=` | Honest pointer to the 432K PMTiles + the 9,275-feature Rattanakosin detail (no fake server-side bbox query yet). |
 | `GET /api/atlas/scoreboard` | Single object: live feed health, counts, district/rail/building totals, traffic-feed configured status, last civic-data ingest. |
 
@@ -410,22 +410,26 @@ report.
    neighbouring provinces have real hills.
 9. **Live traffic** (iTIC / Longdo) — proxy at `/api/traffic`.
 10. **Rail lines** (BTS / MRT / ARL / SRT) — 9 lines in official colors.
-11. **Canals & rivers** (Chao Phraya + 3,026 khlongs).
-12. **Air quality** (Open-Meteo CAMS) — heatmap of PM2.5 from an
+11. **Boat routes & piers** — four maintained passenger corridors and
+    16 named piers across the Chao Phraya, Khlong Saen Saep and the
+    Tha Tien–Wat Arun crossing. Dotted lines mean scheduled orientation
+    geometry, explicitly not live vessel tracking or navigation channels.
+12. **Canals & rivers** (Chao Phraya + 3,026 khlongs).
+13. **Air quality** (Open-Meteo CAMS) — heatmap of PM2.5 from an
     8×8 grid over the Bangkok bbox, EPA-style colour ramp.
-13. **Rain radar** (RainViewer) — most-recent past frame from
+14. **Rain radar** (RainViewer) — most-recent past frame from
     `api.rainviewer.com/public/weather-maps.json`, 5-min client
     cache, opacity 0.65.
-14. **Current wind field** (Open-Meteo) — 36 current 10 m model cells
+15. **Current wind field** (Open-Meteo) — 36 current 10 m model cells
     across Bangkok, rendered as clickable downwind arrows with speed
     colours and gust values. This is a forecast-model field, explicitly
     not presented as a street-level sensor network.
-15. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
+16. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
     assessment, aggregated from 2.28M parcels to 477 UTMMAP3 zones.
     Each zone is a point on the map coloured by average appraisal
     price (500–435,000 ฿/sq.wah). Six-step ramp from cream to dark
     amber.
-16. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
+17. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
     "!" pins for breaking city events with reporter-supplied
     coordinates. Source: `https://event.longdo.com/feed/json` — real
     lat/lng from the reporter, no geocoding guesswork. Pinned
@@ -440,7 +444,7 @@ report.
     is a rolling 20-item window for all of Thailand; a 5-minute cron
     in `wrangler.toml` keeps the store fresh between visitors.
     Endpoint: `/api/city-events`.
-17. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
+18. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
     "●" pins for "what the city is talking about": motor shows,
     concerts, gatherings, the things that draw crowds and wreck
     traffic. **No fabricated coordinates.** A pin only exists when a
@@ -453,7 +457,7 @@ report.
     Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
     the client labels both, so nobody reads an area pin as a street
     address. 14-day rolling window. Endpoint: `/api/news-events`.
-18. **Heritage landmarks** (Fine Arts Department register, baked
+19. **Heritage landmarks** (Fine Arts Department register, baked
     into `public/bkk-landmarks.geojson`) — 73 ancient monuments
     rendered as 3D fill-extrusions on the buildings layer, with
     real heights (Victory Monument 50 m shaft, Phu Khao Thong 45 m,

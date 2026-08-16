@@ -92,6 +92,19 @@ mustJson("public/bkk-rail.geojson", (data) => {
   ok(`${data.features?.length ?? 0} rail segments`);
 });
 
+mustJson("public/bkk-water-transit.geojson", (data) => {
+  const routes = (data.features || []).filter((feature) => feature.properties?.feature_type === "route");
+  const piers = (data.features || []).filter((feature) => feature.properties?.feature_type === "pier");
+  if (routes.length !== 4) fail(`expected 4 water-transit routes, got ${routes.length}`);
+  else ok("4 scheduled water-transit corridors");
+  if (piers.length !== 16) fail(`expected 16 passenger piers, got ${piers.length}`);
+  else ok("16 passenger piers");
+  if (!String(data.disclaimer || "").includes("not live vessel positions")) fail("water-transit disclaimer must reject live-position inference");
+  else ok("water-transit geometry is honestly labelled non-live");
+  if (!routes.every((feature) => String(feature.properties?.source_url || "").startsWith("https://"))) fail("water-transit route missing source URL");
+  else ok("every water-transit corridor has a source URL");
+});
+
 mustJson("public/bkk-traffic-sample.geojson", (data) => {
   ok(`${data.features?.length ?? 0} traffic sample segments`);
 });
@@ -207,6 +220,8 @@ for (const token of [
   "installHeat",
   "installWind",
   "windArrowGeometry",
+  "loadWaterTransitData",
+  "wireWaterTransitInteractions",
   "installAerosol",
   "MODIS_Combined_MAIAC_L2G_AerosolOpticalDepth",
   "loadCctvData",
@@ -240,6 +255,11 @@ if (!html.includes('id="toggle-wind"') || !html.includes('id="legend-wind"')) {
   fail("index.html missing wind field toggle or legend");
 } else {
   ok("index.html has wind field toggle + legend");
+}
+if (!html.includes('id="toggle-water-transit"') || !html.includes('id="legend-water-transit"')) {
+  fail("index.html missing water-transit toggle or legend");
+} else {
+  ok("index.html has water-transit toggle + legend");
 }
 if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
 else ok("street-zoom buildings hand off past tippecanoe maxzoom");
@@ -351,6 +371,11 @@ const ATLAS_PATHS = [
 for (const path of ATLAS_PATHS) {
   if (!worker.includes(`"${path}"`)) fail(`Worker missing AI-readable mirror route ${path}`);
   else ok(`Worker exposes ${path}`);
+}
+if (!worker.includes("ATLAS_WATER_TRANSIT_ASSET") || !worker.includes("waterRoutes") || !worker.includes("piers")) {
+  fail("Worker transit endpoint missing water routes or piers");
+} else {
+  ok("Worker transit endpoint is multimodal (rail + boats + piers)");
 }
 
 // /api/traffic 200-with-configured-false contract: the no-key state is

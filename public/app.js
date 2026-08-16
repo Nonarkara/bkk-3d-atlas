@@ -326,6 +326,12 @@ const RAIL_SOURCE = "bkkx-rail";
 const RAIL_LAYER = "bkkx-rail-line";
 const RAIL_DATA_URL = "/bkk-rail.geojson";
 
+const WATER_TRANSIT_SOURCE = "bkkx-water-transit";
+const WATER_TRANSIT_ROUTE_LAYER = "bkkx-water-transit-routes";
+const WATER_TRANSIT_FERRY_LAYER = "bkkx-water-transit-ferry";
+const WATER_TRANSIT_PIER_LAYER = "bkkx-water-transit-piers";
+const WATER_TRANSIT_DATA_URL = "/bkk-water-transit.geojson";
+
 const RAIL_COLOR_EXPRESSION = [
   "match", ["get", "line"],
   "BTS-Sukhumvit", "#00853F",
@@ -607,6 +613,9 @@ const LAYER_STACK = [
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
   RAIL_LAYER,
+  WATER_TRANSIT_ROUTE_LAYER,
+  WATER_TRANSIT_FERRY_LAYER,
+  WATER_TRANSIT_PIER_LAYER,
   TRAFFIC_LAYER,
   FLOOD_FILL,
   FLOOD_LINE,
@@ -770,6 +779,7 @@ function updateStackChips() {
   const labels = {
     buildings: "City",
     rail: "Rail",
+    "water-transit": "Boats",
     traffic: "Traffic",
     cctv: "CCTV",
     "live-cams": "Live",
@@ -862,6 +872,22 @@ const LAYERS = [
     layers: [RAIL_LAYER],
     install: async (map) => { await loadRailData(map); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [RAIL_LAYER], false),
+  },
+  {
+    id: "water-transit",
+    name: "Boat routes & piers",
+    description: "Chao Phraya + Saen Saep · scheduled",
+    defaultOn: true,
+    softUninstall: true,
+    layers: [WATER_TRANSIT_ROUTE_LAYER, WATER_TRANSIT_FERRY_LAYER, WATER_TRANSIT_PIER_LAYER],
+    install: async (map) => { await loadWaterTransitData(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [WATER_TRANSIT_ROUTE_LAYER, WATER_TRANSIT_FERRY_LAYER, WATER_TRANSIT_PIER_LAYER], false),
+    legend: [
+      { color: "#f29b38", label: "Chao Phraya Express" },
+      { color: "#54c7ec", label: "Tourist Boat" },
+      { color: "#31b7a3", label: "Khlong Saen Saep" },
+      { color: "#f5f1e8", label: "cross-river ferry" },
+    ],
   },
   {
     id: "traffic",
@@ -3830,6 +3856,113 @@ async function loadRailData(map) {
   }
 }
 
+async function loadWaterTransitData(map) {
+  const layers = [WATER_TRANSIT_ROUTE_LAYER, WATER_TRANSIT_FERRY_LAYER, WATER_TRANSIT_PIER_LAYER];
+  if (layers.every((id) => map.getLayer(id))) {
+    setLayersVisible(map, layers, true);
+    return;
+  }
+  const geojson = await fetchJson(WATER_TRANSIT_DATA_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("water-transit", "unavailable · route file failed");
+    return;
+  }
+  try {
+    if (!map.getSource(WATER_TRANSIT_SOURCE)) {
+      map.addSource(WATER_TRANSIT_SOURCE, { type: "geojson", data: geojson });
+    }
+    if (!map.getLayer(WATER_TRANSIT_ROUTE_LAYER)) {
+      map.addLayer({
+        id: WATER_TRANSIT_ROUTE_LAYER,
+        type: "line",
+        source: WATER_TRANSIT_SOURCE,
+        minzoom: 9,
+        filter: ["all", ["==", ["get", "feature_type"], "route"], ["!=", ["get", "mode"], "cross-river-ferry"]],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 2, 14, 4, 17, 6],
+          "line-dasharray": [0.4, 2.2],
+          "line-opacity": 0.95,
+        },
+      });
+    }
+    if (!map.getLayer(WATER_TRANSIT_FERRY_LAYER)) {
+      map.addLayer({
+        id: WATER_TRANSIT_FERRY_LAYER,
+        type: "line",
+        source: WATER_TRANSIT_SOURCE,
+        minzoom: 11,
+        filter: ["all", ["==", ["get", "feature_type"], "route"], ["==", ["get", "mode"], "cross-river-ferry"]],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 4, "line-dasharray": [0.1, 1.5], "line-opacity": 1 },
+      });
+    }
+    if (!map.getLayer(WATER_TRANSIT_PIER_LAYER)) {
+      map.addLayer({
+        id: WATER_TRANSIT_PIER_LAYER,
+        type: "circle",
+        source: WATER_TRANSIT_SOURCE,
+        minzoom: 11,
+        filter: ["==", ["get", "feature_type"], "pier"],
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3, 15, 6],
+          "circle-color": "#11120f",
+          "circle-stroke-color": "#54c7ec",
+          "circle-stroke-width": 2,
+          "circle-opacity": 0.96,
+        },
+      });
+    }
+    wireWaterTransitInteractions(map);
+    const routes = geojson.features.filter((feature) => feature.properties?.feature_type === "route").length;
+    const piers = geojson.features.filter((feature) => feature.properties?.feature_type === "pier").length;
+    setLayerStatus("water-transit", `${routes} scheduled corridors · ${piers} piers · not live positions`);
+  } catch (error) {
+    console.warn("Water transit layer failed:", error);
+    setLayerStatus("water-transit", "unavailable · layer failed");
+  }
+}
+
+function wireWaterTransitInteractions(map) {
+  if (map.__bkkxWaterTransitWired) return;
+  map.__bkkxWaterTransitWired = true;
+  const routeLayers = [WATER_TRANSIT_ROUTE_LAYER, WATER_TRANSIT_FERRY_LAYER];
+  for (const layerId of routeLayers) {
+    map.on("click", layerId, (event) => {
+      const p = event.features?.[0]?.properties;
+      if (!p) return;
+      new maplibregl.Popup({ closeButton: true, maxWidth: "310px", className: "atlas-cctv-popup" })
+        .setLngLat(event.lngLat)
+        .setHTML(`
+          <p class="atlas-cctv-kicker">Scheduled water transit · not live tracking</p>
+          <strong class="atlas-cctv-title">${escapeHtml(p.name)}</strong>
+          <p class="atlas-cctv-status">${escapeHtml(p.name_th || "")} · ${escapeHtml(p.operator || "")}</p>
+          <p class="atlas-cctv-status">${escapeHtml(p.service_note || "Check the operator before travel.")}</p>
+          <a href="${escapeHtml(p.source_url || WATER_TRANSIT_DATA_URL)}" target="_blank" rel="noreferrer">Check operator ↗</a>
+        `)
+        .addTo(map);
+    });
+  }
+  map.on("click", WATER_TRANSIT_PIER_LAYER, (event) => {
+    const p = event.features?.[0]?.properties;
+    if (!p) return;
+    new maplibregl.Popup({ closeButton: true, maxWidth: "280px", className: "atlas-cctv-popup" })
+      .setLngLat(event.lngLat)
+      .setHTML(`
+        <p class="atlas-cctv-kicker">Passenger pier</p>
+        <strong class="atlas-cctv-title">${escapeHtml(p.name)} · ${escapeHtml(p.name_th || "")}</strong>
+        <p class="atlas-cctv-status">${escapeHtml(p.services || "")}</p>
+        <p class="atlas-cctv-status">Nearby: ${escapeHtml(p.nearby || "—")}</p>
+      `)
+      .addTo(map);
+  });
+  for (const layerId of [...routeLayers, WATER_TRANSIT_PIER_LAYER]) {
+    map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
+  }
+}
+
 async function loadKhlongData(map) {
   if (map.getLayer(KHLONG_RIVER_LAYER) || map.getLayer(KHLONG_CANAL_LAYER)) {
     setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER], true);
@@ -4074,6 +4207,9 @@ function pointLayersOwningClick(map, point) {
     LIVE_CAM_LAYER,
     CIVIC_POI_LAYER,
     FLOOD_SENSOR_LAYER,
+    WATER_TRANSIT_ROUTE_LAYER,
+    WATER_TRANSIT_FERRY_LAYER,
+    WATER_TRANSIT_PIER_LAYER,
   ].filter((id) => map.getLayer(id));
   if (owners.length === 0) return [];
   return map.queryRenderedFeatures(point, { layers: owners });
@@ -4081,7 +4217,7 @@ function pointLayersOwningClick(map, point) {
 
 function wireInspect(map) {
   map.on("click", (event) => {
-    // Point layers (CCTV, civic POIs, live cams, flood sensors) own the click.
+    // Interactive overlays own the click instead of also opening building inspect.
     if (pointLayersOwningClick(map, event.point).length) return;
     runInspect(map, event);
   });
@@ -4293,11 +4429,11 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, traffic: true, cctv: false, khlongs: true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      aerosol: { buildings: true, rail: false, traffic: false, cctv: false, khlongs: true, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, traffic: false, cctv: false, khlongs: true, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
-      pulse: { buildings: true, rail: true, traffic: true, cctv: true, khlongs: false, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
+      city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: true, "water-transit": true, traffic: false, cctv: false, khlongs: true, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
+      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: false, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;

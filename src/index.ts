@@ -1305,7 +1305,7 @@ async function proxyTraffic(request: Request, env: Env): Promise<Response> {
 //   GET /api/atlas/areas?bbox=&category=        — 16 curated areas, filterable
 //   GET /api/atlas/districts                    — 50 khet + merged land-price
 //   GET /api/atlas/at-this-point?lng=&lat=      — district+land+flood+nearest
-//   GET /api/atlas/transit?lng=&lat=&radius=    — N nearest rail segments
+//   GET /api/atlas/transit?lng=&lat=&radius=    — nearest rail + water transit
 //   GET /api/atlas/buildings?bbox=&limit=       — PMTiles pointer (honest)
 //   GET /api/atlas/scoreboard                   — single object: live health
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1315,6 +1315,7 @@ const ATLAS_AREAS_ASSET = "/bkk-areas.json";
 const ATLAS_DISTRICTS_ASSET = "/bkk-districts.geojson";
 const ATLAS_LAND_PRICE_ASSET = "/bkk-land-price-districts.geojson";
 const ATLAS_RAIL_ASSET = "/bkk-rail.geojson";
+const ATLAS_WATER_TRANSIT_ASSET = "/bkk-water-transit.geojson";
 const ATLAS_BUILDINGS_COUNT = 432077;
 const ATLAS_BUILDINGS_RATTANAKOSIN_COUNT = 9275;
 const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-08-04";
@@ -1408,6 +1409,7 @@ let areasCache: { name: string; version: string; license?: string; areas: AtlasA
 let districtsCache: AtlasFeatureCollection | null = null;
 let landPriceCache: AtlasFeatureCollection | null = null;
 let railCache: AtlasFeatureCollection | null = null;
+let waterTransitCache: AtlasFeatureCollection | null = null;
 
 type AtlasArea = {
   id: string;
@@ -1456,6 +1458,13 @@ async function getRailGeoJson(env: Env, request: Request) {
     railCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_RAIL_ASSET);
   }
   return railCache;
+}
+
+async function getWaterTransitGeoJson(env: Env, request: Request) {
+  if (!waterTransitCache) {
+    waterTransitCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_WATER_TRANSIT_ASSET);
+  }
+  return waterTransitCache;
 }
 
 /** Filter areas by category and/or viewport bbox. The bbox test is a quick
@@ -1557,10 +1566,11 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
   if (parsed instanceof Response) return parsed;
   const { lng, lat } = parsed;
 
-  const [districts, landPrice, rail, floodCollection] = await Promise.all([
+  const [districts, landPrice, rail, waterTransit, floodCollection] = await Promise.all([
     getDistrictsGeoJson(env, request),
     getLandPriceGeoJson(env, request),
     getRailGeoJson(env, request),
+    getWaterTransitGeoJson(env, request),
     loadFloodCollection(env, request),
   ]);
 
@@ -1634,6 +1644,37 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
     nearestTransit = best;
   }
 
+  let nearestWaterTransit: {
+    id: string | null;
+    name: string | null;
+    mode: string | null;
+    featureType: string;
+    distanceM: number;
+    closestPoint: [number, number];
+  } | null = null;
+  if (waterTransit) {
+    for (const f of waterTransit.features) {
+      const featureType = (f.properties?.feature_type as string | undefined) ?? "unknown";
+      let result: { point: [number, number]; distanceM: number } | null = null;
+      if (f.geometry.type === "LineString") {
+        result = closestVertexOnLine(lng, lat, f.geometry.coordinates);
+      } else if (f.geometry.type === "Point") {
+        const [pointLng, pointLat] = f.geometry.coordinates;
+        result = { point: [pointLng, pointLat], distanceM: haversineMeters(lng, lat, pointLng, pointLat) };
+      }
+      if (result && (nearestWaterTransit === null || result.distanceM < nearestWaterTransit.distanceM)) {
+        nearestWaterTransit = {
+          id: (f.properties?.id as string | undefined) ?? null,
+          name: (f.properties?.name as string | undefined) ?? null,
+          mode: (f.properties?.mode as string | undefined) ?? null,
+          featureType,
+          distanceM: Math.round(result.distanceM),
+          closestPoint: result.point,
+        };
+      }
+    }
+  }
+
   // Summary band — a one-line read the agent can use directly.
   const landPriceBand =
     landPriceRow?.peakNewPrice == null
@@ -1643,12 +1684,16 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
         : landPriceRow.peakNewPrice >= 100000
           ? "mid"
           : "value";
+  const nearestTransitDistance = Math.min(
+    nearestTransit?.distanceM ?? Number.POSITIVE_INFINITY,
+    nearestWaterTransit?.distanceM ?? Number.POSITIVE_INFINITY,
+  );
   const transitBand =
-    nearestTransit == null
+    !Number.isFinite(nearestTransitDistance)
       ? "unknown"
-      : nearestTransit.distanceM <= 600
+      : nearestTransitDistance <= 600
         ? "walkable"
-        : nearestTransit.distanceM <= 1500
+        : nearestTransitDistance <= 1500
           ? "near"
           : "far";
   const floodBand = flood.inside ? (flood.top?.severity ?? "inside") : "clear";
@@ -1667,6 +1712,7 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
         depthHintM: flood.top?.depthHintM ?? null,
       },
       nearestTransit,
+      nearestWaterTransit,
       summary: { landPriceBand, transitBand, floodBand },
       disclaimer:
         "Civic-readout endpoint, not a real-estate or insurance-grade service. Flood is the schematic 2011-style envelope, not an official forecast. Land price is the district group's peak road figure.",
@@ -1690,7 +1736,10 @@ async function atlasTransit(request: Request, env: Env): Promise<Response> {
   const limitParam = Number.parseInt(url.searchParams.get("limit") ?? "5", 10);
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 20) : 5;
 
-  const rail = await getRailGeoJson(env, request);
+  const [rail, waterTransit] = await Promise.all([
+    getRailGeoJson(env, request),
+    getWaterTransitGeoJson(env, request),
+  ]);
   if (!rail) {
     return jsonResponse({ error: "rail_unavailable", message: `Could not load ${ATLAS_RAIL_ASSET}.` }, { status: 502 });
   }
@@ -1721,15 +1770,70 @@ async function atlasTransit(request: Request, env: Env): Promise<Response> {
   hits.sort((a, b) => a.distanceM - b.distanceM);
   const trimmed = hits.slice(0, limit);
 
+  const waterRoutes: Array<{
+    id: string | null;
+    name: string | null;
+    mode: string | null;
+    distanceM: number;
+    closestPoint: [number, number];
+    sourceUrl: string | null;
+  }> = [];
+  const piers: Array<{
+    id: string | null;
+    name: string | null;
+    nameTh: string | null;
+    mode: string | null;
+    services: string | null;
+    distanceM: number;
+    coordinates: [number, number];
+  }> = [];
+  if (waterTransit) {
+    for (const f of waterTransit.features) {
+      if (f.geometry.type === "LineString" && f.properties?.feature_type === "route") {
+        const result = closestVertexOnLine(lng, lat, f.geometry.coordinates);
+        if (result.distanceM <= radius) {
+          waterRoutes.push({
+            id: (f.properties?.id as string | undefined) ?? null,
+            name: (f.properties?.name as string | undefined) ?? null,
+            mode: (f.properties?.mode as string | undefined) ?? null,
+            distanceM: Math.round(result.distanceM),
+            closestPoint: result.point,
+            sourceUrl: (f.properties?.source_url as string | undefined) ?? null,
+          });
+        }
+      } else if (f.geometry.type === "Point" && f.properties?.feature_type === "pier") {
+        const [pointLng, pointLat] = f.geometry.coordinates;
+        const distanceM = haversineMeters(lng, lat, pointLng, pointLat);
+        if (distanceM <= radius) {
+          piers.push({
+            id: (f.properties?.id as string | undefined) ?? null,
+            name: (f.properties?.name as string | undefined) ?? null,
+            nameTh: (f.properties?.name_th as string | undefined) ?? null,
+            mode: (f.properties?.mode as string | undefined) ?? null,
+            services: (f.properties?.services as string | undefined) ?? null,
+            distanceM: Math.round(distanceM),
+            coordinates: [pointLng, pointLat],
+          });
+        }
+      }
+    }
+  }
+  waterRoutes.sort((a, b) => a.distanceM - b.distanceM);
+  piers.sort((a, b) => a.distanceM - b.distanceM);
+
   return jsonResponse(
     {
       tool: "atlas-transit",
       version: ATLAS_API_VERSION,
       source: ATLAS_RAIL_ASSET,
+      waterTransitSource: ATLAS_WATER_TRANSIT_ASSET,
       query: { lng, lat, radiusM: radius, limit },
       count: trimmed.length,
       totalInRadius: hits.length,
       segments: trimmed,
+      waterRoutes: waterRoutes.slice(0, limit),
+      piers: piers.slice(0, limit),
+      disclaimer: "Water routes are maintained service corridors, not live vessel positions or navigational channels. Check the linked operator before travel.",
     },
     {
       headers: {
@@ -1838,6 +1942,7 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
       buildings: { totalMetro: ATLAS_BUILDINGS_COUNT, totalRattanakosin: ATLAS_BUILDINGS_RATTANAKOSIN_COUNT, regeneratedAt: ATLAS_BUILDINGS_PMTILES_REGEN },
       districts: 50,
       rail: { lines: 9, segments: 126 },
+      waterTransit: { routes: 4, piers: 16, source: ATLAS_WATER_TRANSIT_ASSET, livePositions: false },
       khlongs: { total: 4063, river: "Chao Phraya", canals: 3026 },
       landPrice: { districts: 50, parcels: 2281482, source: "Treasury 2024-2028" },
       civicPois: { count: civicPoiCount, lastIngestedAt },
@@ -1912,7 +2017,7 @@ function apiCatalog(request: Request): Response {
         { path: "/api/atlas/areas", method: "GET", description: "16 curated atlas areas (AI-readable mirror)." },
         { path: "/api/atlas/districts", method: "GET", description: "50 khet + merged land-price summary." },
         { path: "/api/atlas/at-this-point", method: "GET", description: "District + land + flood + nearest transit at a point.", query: ["lng", "lat"] },
-        { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments.", query: ["lng", "lat", "radius?", "limit?"] },
+        { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments, scheduled boat corridors and passenger piers.", query: ["lng", "lat", "radius?", "limit?"] },
         { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 432K buildings." },
         { path: "/api/atlas/scoreboard", method: "GET", description: "Single-object live health / inventory." },
         { path: "/bkk-buildings.pmtiles", method: "GET", description: "432,077 OSM buildings — HTTP Range from R2." },
@@ -1921,6 +2026,7 @@ function apiCatalog(request: Request): Response {
       staticGeojson: [
         "/bkk-areas.json",
         "/bkk-rail.geojson",
+        "/bkk-water-transit.geojson",
         "/bkk-khlongs.geojson",
         "/bkk-buildings-rattanakosin.geojson",
         "/bkk-traffic-sample.geojson",

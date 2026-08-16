@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol. Built by a Bangkokian born in 1981, tired of waiting for the BMA to catch up." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, rail and boat transit, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
@@ -26,7 +26,7 @@
           <span class="atlas-title-desk">Bangkok, live, block by block</span>
           <span class="atlas-title-phone">Bangkok · live 3D atlas</span>
         </h1>
-        <small>432,077 buildings · CCTV · flood sensors · traffic · wind · AQI · rain radar · BTS/MRT</small>
+        <small>432,077 buildings · boats + rail · CCTV · flood sensors · traffic · wind · AQI · rain radar</small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
@@ -125,6 +125,17 @@
               </span>
               <span class="atlas-layer-state" id="toggle-rail-state" aria-live="polite">on</span>
             </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-water-transit" checked />
+              <span class="atlas-layer-name">
+                <strong>Boat routes &amp; piers</strong>
+                <small id="toggle-water-transit-detail">Chao Phraya + Saen Saep · scheduled</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-water-transit-state" aria-live="polite">on</span>
+            </label>
+            <div class="atlas-legend" id="legend-water-transit" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -508,6 +519,12 @@
                 <a href="/api/cctv">/api/cctv</a>
               </li>
               <li>
+                <strong>Rail + water transit.</strong>
+                Nine rail lines plus four dotted boat corridors and 16 passenger piers.
+                Dots mean scheduled orientation, not pretend-live boats.
+                <a href="/api/atlas/transit?lng=100.4904&amp;lat=13.74579">Ask the multimodal API</a>.
+              </li>
+              <li>
                 <strong>Civic open data.</strong>
                 Amenities + density by district from BMA / data.go.th via D1 —
                 <a href="/api/civic-pois">/api/civic-pois</a>.
@@ -664,6 +681,14 @@
               data.go.th / data.bangkok.go.th (schools, sports grounds,
               car parks, museums, waterway landmarks). Land-price
               choropleth from Treasury road-level analysis (Home Buyers).
+            </p>
+            <p>
+              <strong>Passenger boats.</strong>
+              Maintained service references from
+              <a href="https://www.chaophrayaexpressboat.com/" target="_blank" rel="noreferrer">Chao Phraya Express Boat</a>,
+              <a href="https://www.chaophrayatouristboat.com/tourist_boat" target="_blank" rel="noreferrer">Chao Phraya Tourist Boat</a>
+              and the Thai Government Contact Center’s Khlong Saen Saep record.
+              Corridors and piers are not live vessel positions.
             </p>
             <p>
               <strong>Host.</strong>
