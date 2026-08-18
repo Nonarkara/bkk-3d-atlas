@@ -1392,3 +1392,21 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   letter-spacing: 0.04em;
   padding: 1px 6px;
 }
+
+/* ---- density pass (2026-08-18) ---- */
+/* the panel: 28/24 → 20/16. The About chip was a 70 px bordered box at the
+   top of an operations panel, pointing at who built it rather than at what
+   the operator does — it becomes a quiet line and Quick Jump moves up. */
+.atlas-panel { gap: 16px; padding: 20px clamp(18px, 2.2vw, 28px) 24px; }
+.atlas-operate-bar { gap: 6px; padding-bottom: 0; }
+.atlas-about-chip {
+  padding: 8px 0; border: 0; border-bottom: 1px solid rgba(255,255,255,0.16);
+  background: transparent; grid-template-columns: auto 1fr; align-items: baseline; gap: 10px;
+}
+.atlas-about-chip-kicker { font-size: 9px; }
+.atlas-quick-heading { margin: 0 0 10px; font-size: 19px; }
+.atlas-area-btn { padding: 8px 10px; font-size: 11.5px; min-height: 40px; }
+.atlas-area-grid { gap: 6px; }
+.atlas-data-heading { margin: 0 0 8px; font-size: 15px; }
+.atlas-layers { gap: 4px; padding-top: 14px; }
+@media (hover: none), (pointer: coarse) { .atlas-area-btn { min-height: 44px; } }
