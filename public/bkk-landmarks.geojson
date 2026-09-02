@@ -1,9 +1,9 @@
 {
   "type": "FeatureCollection",
   "name": "bkk-landmarks",
-  "version": "2026-09-02",
-  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, and modern Bangkok icons (towers, hotels, malls). Pair with bkk-heritage-detail.geojson.",
-  "featureCount": 93,
+  "version": "2026-09-02b",
+  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, modern Bangkok icons (towers, hotels, malls, civic, bridges). Pair with bkk-heritage-detail.geojson.",
+  "featureCount": 110,
   "features": [
     {
       "type": "Feature",
@@ -6716,6 +6716,1093 @@
         "height": 35,
         "base_height": 0,
         "source": "OSM way 376797216 · height 35m (7 floors)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5006016,
+              13.7596284
+            ],
+            [
+              100.5016944,
+              13.7601234
+            ],
+            [
+              100.5014984,
+              13.7605316
+            ],
+            [
+              100.5004056,
+              13.7600366
+            ],
+            [
+              100.5006016,
+              13.7596284
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bangkok-city-hall",
+        "name": "ศาลาว่าการกรุงเทพมหานคร",
+        "name_en": "Bangkok City Hall (Sala Lai Thai)",
+        "kind": "civic",
+        "height": 50,
+        "base_height": 0,
+        "source": "Bangkok City Hall · Italianate facade · ~50m · 4 floors"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5320469,
+              13.746664
+            ],
+            [
+              100.5320288,
+              13.7465633
+            ],
+            [
+              100.5320207,
+              13.7465185
+            ],
+            [
+              100.5319678,
+              13.7462245
+            ],
+            [
+              100.5319562,
+              13.7461601
+            ],
+            [
+              100.5323677,
+              13.7460901
+            ],
+            [
+              100.532756,
+              13.7460242
+            ],
+            [
+              100.5329039,
+              13.7459991
+            ],
+            [
+              100.5331549,
+              13.7459564
+            ],
+            [
+              100.5333833,
+              13.7459175
+            ],
+            [
+              100.5335488,
+              13.7458894
+            ],
+            [
+              100.5335759,
+              13.7460401
+            ],
+            [
+              100.5335912,
+              13.7461252
+            ],
+            [
+              100.5336129,
+              13.7462456
+            ],
+            [
+              100.5336353,
+              13.7463699
+            ],
+            [
+              100.5336395,
+              13.7463934
+            ],
+            [
+              100.5332273,
+              13.7464634
+            ],
+            [
+              100.5328154,
+              13.7465334
+            ],
+            [
+              100.5324561,
+              13.7465945
+            ],
+            [
+              100.5320469,
+              13.746664
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-siam-center",
+        "name": "สยามเซ็นเตอร์",
+        "name_en": "Siam Center",
+        "kind": "mall",
+        "height": 35,
+        "base_height": 0,
+        "source": "OSM way 25701334 · height 35m (6 floors)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.539391,
+              13.7451769
+            ],
+            [
+              100.5401217,
+              13.7453021
+            ],
+            [
+              100.540009,
+              13.7459231
+            ],
+            [
+              100.5392783,
+              13.7457979
+            ],
+            [
+              100.539391,
+              13.7451769
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-gaysorn",
+        "name": "เกษร วิลเลจ",
+        "name_en": "Gaysorn Village",
+        "kind": "mall",
+        "height": 50,
+        "base_height": 0,
+        "source": "Gaysorn Village · 2019 rebuild · 6 floors above + 7 below · ~50m visible above ground"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5440506,
+              13.7444442
+            ],
+            [
+              100.5447898,
+              13.744507
+            ],
+            [
+              100.5447494,
+              13.7449558
+            ],
+            [
+              100.5440102,
+              13.744893
+            ],
+            [
+              100.5440506,
+              13.7444442
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-central-chidlom",
+        "name": "เซ็นทรัล ชิดลม",
+        "name_en": "Central Chidlom",
+        "kind": "mall",
+        "height": 35,
+        "base_height": 0,
+        "source": "Central Chidlom · 6 floors · ~35m · 2007 rebuild"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5455444,
+              13.7265242
+            ],
+            [
+              100.5455676,
+              13.7266697
+            ],
+            [
+              100.5451382,
+              13.7267476
+            ],
+            [
+              100.5450251,
+              13.7267681
+            ],
+            [
+              100.5450358,
+              13.7268333
+            ],
+            [
+              100.5450399,
+              13.7268582
+            ],
+            [
+              100.5448183,
+              13.726895
+            ],
+            [
+              100.5448979,
+              13.7273024
+            ],
+            [
+              100.5449276,
+              13.7274896
+            ],
+            [
+              100.5449967,
+              13.7278471
+            ],
+            [
+              100.5450529,
+              13.7281374
+            ],
+            [
+              100.5451139,
+              13.7284529
+            ],
+            [
+              100.5451986,
+              13.7289337
+            ],
+            [
+              100.5454644,
+              13.7288944
+            ],
+            [
+              100.5457268,
+              13.72885
+            ],
+            [
+              100.5466827,
+              13.728691
+            ],
+            [
+              100.5479965,
+              13.7284959
+            ],
+            [
+              100.5480506,
+              13.7286078
+            ],
+            [
+              100.5481763,
+              13.7292886
+            ],
+            [
+              100.5484177,
+              13.7293068
+            ],
+            [
+              100.5485786,
+              13.7293407
+            ],
+            [
+              100.5485813,
+              13.7294528
+            ],
+            [
+              100.5497501,
+              13.7294231
+            ],
+            [
+              100.5496716,
+              13.7290873
+            ],
+            [
+              100.549572,
+              13.7282746
+            ],
+            [
+              100.5495603,
+              13.7281793
+            ],
+            [
+              100.5495643,
+              13.7279649
+            ],
+            [
+              100.5495429,
+              13.7274497
+            ],
+            [
+              100.549512,
+              13.7274119
+            ],
+            [
+              100.5494443,
+              13.7274006
+            ],
+            [
+              100.5487081,
+              13.7275243
+            ],
+            [
+              100.548655,
+              13.7268569
+            ],
+            [
+              100.5486685,
+              13.7263814
+            ],
+            [
+              100.5486712,
+              13.7247592
+            ],
+            [
+              100.5486363,
+              13.7247279
+            ],
+            [
+              100.5480712,
+              13.724965
+            ],
+            [
+              100.5460404,
+              13.7258169
+            ],
+            [
+              100.546165,
+              13.7261106
+            ],
+            [
+              100.5462313,
+              13.7262954
+            ],
+            [
+              100.545928,
+              13.7263942
+            ],
+            [
+              100.5455444,
+              13.7265242
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-one-bangkok",
+        "name": "วัน แบงค็อก (อาคาร 1)",
+        "name_en": "One Bangkok (Tower 1 — tallest)",
+        "kind": "tower",
+        "height": 215,
+        "base_height": 0,
+        "source": "OSM way 608350816 · height 215m (One Bangkok complex; tallest of 4 office towers)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5679754,
+              13.7303347
+            ],
+            [
+              100.5686246,
+              13.7303347
+            ],
+            [
+              100.5686246,
+              13.7309653
+            ],
+            [
+              100.5679754,
+              13.7309653
+            ],
+            [
+              100.5679754,
+              13.7303347
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-rama-ix-tower",
+        "name": "อาคาร พระราม 9",
+        "name_en": "Rama IX Tower",
+        "kind": "tower",
+        "height": 270,
+        "base_height": 0,
+        "source": "Rama IX Tower · 270m · 67 floors · completed 1997 · distinctive crown"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5446181,
+              13.7396248
+            ],
+            [
+              100.5450819,
+              13.7396248
+            ],
+            [
+              100.5450819,
+              13.7400752
+            ],
+            [
+              100.5446181,
+              13.7400752
+            ],
+            [
+              100.5446181,
+              13.7396248
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sindhorn-tower",
+        "name": "สินธร ทาวเวอร์",
+        "name_en": "Sindhorn Tower",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "Sindhorn Tower · ~130m · 33 floors · Langsuan · 2018"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5488218,
+              13.7397797
+            ],
+            [
+              100.5493782,
+              13.7397797
+            ],
+            [
+              100.5493782,
+              13.7403203
+            ],
+            [
+              100.5488218,
+              13.7403203
+            ],
+            [
+              100.5488218,
+              13.7397797
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-m-thai-tower",
+        "name": "เอ็ม ไทย ทาวเวอร์ (ออล ซีซั่นส์ เพลส)",
+        "name_en": "M Thai Tower (All Seasons Place)",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "M Thai Tower (formerly CRC Tower / All Seasons Place) · 130m · 29 floors · 1996"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.561345,
+              13.7361023
+            ],
+            [
+              100.561855,
+              13.7361023
+            ],
+            [
+              100.561855,
+              13.7365977
+            ],
+            [
+              100.561345,
+              13.7365977
+            ],
+            [
+              100.561345,
+              13.7361023
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-scb-park-plaza",
+        "name": "เอสซีบี พาร์ค พลาซ่า",
+        "name_en": "SCB Park Plaza (East Tower)",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "SCB Park Plaza · 130m · twin towers · Ratchadaphisek · 2006"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5126182,
+              13.7186248
+            ],
+            [
+              100.5130818,
+              13.7186248
+            ],
+            [
+              100.5130818,
+              13.7190752
+            ],
+            [
+              100.5126182,
+              13.7190752
+            ],
+            [
+              100.5126182,
+              13.7186248
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-chatrium-residence",
+        "name": "�ัทรีม สาทร",
+        "name_en": "Chatrium Residence Sathon Bangkok",
+        "kind": "hotel",
+        "height": 165,
+        "base_height": 0,
+        "source": "Chatrium Residence Sathon · 165m · 32 floors · riverside"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5650218,
+              13.7286297
+            ],
+            [
+              100.5655782,
+              13.7286297
+            ],
+            [
+              100.5655782,
+              13.7291703
+            ],
+            [
+              100.5650218,
+              13.7291703
+            ],
+            [
+              100.5650218,
+              13.7286297
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-marriott-queens-park",
+        "name": "แมริออท ควีนส์ พาร์ค",
+        "name_en": "Bangkok Marriott Marquis Queen's Park",
+        "kind": "hotel",
+        "height": 110,
+        "base_height": 0,
+        "source": "Bangkok Marriott Marquis Queen's Park · 110m · 30 floors · Sukhumvit 22 · 2014"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4939392,
+              13.7383358
+            ],
+            [
+              100.4940441,
+              13.7382339
+            ],
+            [
+              100.4970608,
+              13.7411642
+            ],
+            [
+              100.4969559,
+              13.7412661
+            ],
+            [
+              100.4939392,
+              13.7383358
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-memorial",
+        "name": "สะพานพระพุทธยอดฟ้า",
+        "name_en": "Memorial Bridge (Phra Phuttha Yodfa)",
+        "kind": "bridge",
+        "height": 12,
+        "base_height": 0,
+        "source": "Memorial Bridge · through-truss · 12m deck · 678m · opened 1932 · first bridge across Chao Phraya"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4996699,
+              13.775765
+            ],
+            [
+              100.4997763,
+              13.7756927
+            ],
+            [
+              100.5023301,
+              13.779235
+            ],
+            [
+              100.5022237,
+              13.7793073
+            ],
+            [
+              100.4996699,
+              13.775765
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-krung-thon",
+        "name": "สะพานกรุงธน",
+        "name_en": "Krung Thon Bridge",
+        "kind": "bridge",
+        "height": 14,
+        "base_height": 0,
+        "source": "Krung Thon Bridge · steel-truss · 14m deck · 1958"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5157143,
+              13.7373591
+            ],
+            [
+              100.5172111,
+              13.7376681
+            ],
+            [
+              100.5170857,
+              13.7382409
+            ],
+            [
+              100.5155889,
+              13.7379319
+            ],
+            [
+              100.5157143,
+              13.7373591
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-hua-lamphong",
+        "name": "หัวลำโพง",
+        "name_en": "Hua Lamphong (old Bangkok Railway Station)",
+        "kind": "civic",
+        "height": 30,
+        "base_height": 0,
+        "source": "Hua Lamphong · 1910 Italian Neo-Renaissance · 30m visible · service moved to Krung Thep Aphiwat 2023 (partial retention as museum)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5388798,
+              13.7450505
+            ],
+            [
+              100.5396783,
+              13.7449143
+            ],
+            [
+              100.5397111,
+              13.7449062
+            ],
+            [
+              100.5398874,
+              13.7460135
+            ],
+            [
+              100.5399797,
+              13.7466842
+            ],
+            [
+              100.5400388,
+              13.7466988
+            ],
+            [
+              100.5399857,
+              13.7467277
+            ],
+            [
+              100.5400825,
+              13.7474307
+            ],
+            [
+              100.5400458,
+              13.7474355
+            ],
+            [
+              100.5400658,
+              13.7475805
+            ],
+            [
+              100.5401094,
+              13.7478975
+            ],
+            [
+              100.5400122,
+              13.7479124
+            ],
+            [
+              100.5394877,
+              13.7479926
+            ],
+            [
+              100.5394398,
+              13.7479999
+            ],
+            [
+              100.5393997,
+              13.748006
+            ],
+            [
+              100.5388109,
+              13.7480889
+            ],
+            [
+              100.5386988,
+              13.7481091
+            ],
+            [
+              100.5385502,
+              13.748136
+            ],
+            [
+              100.5383923,
+              13.7481261
+            ],
+            [
+              100.5383423,
+              13.7478488
+            ],
+            [
+              100.5383098,
+              13.7478149
+            ],
+            [
+              100.53829,
+              13.7477634
+            ],
+            [
+              100.538292,
+              13.7477084
+            ],
+            [
+              100.5383122,
+              13.7476655
+            ],
+            [
+              100.5382968,
+              13.7475834
+            ],
+            [
+              100.5382899,
+              13.7475462
+            ],
+            [
+              100.5382666,
+              13.7474215
+            ],
+            [
+              100.538262,
+              13.747397
+            ],
+            [
+              100.5382306,
+              13.7473645
+            ],
+            [
+              100.5381815,
+              13.7472309
+            ],
+            [
+              100.5381358,
+              13.7470385
+            ],
+            [
+              100.5381212,
+              13.7469772
+            ],
+            [
+              100.5380997,
+              13.7467471
+            ],
+            [
+              100.5381294,
+              13.7464695
+            ],
+            [
+              100.5384936,
+              13.7464213
+            ],
+            [
+              100.5386304,
+              13.7464032
+            ],
+            [
+              100.5385858,
+              13.7461311
+            ],
+            [
+              100.5380699,
+              13.7462033
+            ],
+            [
+              100.5380148,
+              13.7458322
+            ],
+            [
+              100.5379978,
+              13.7457095
+            ],
+            [
+              100.5379943,
+              13.7456857
+            ],
+            [
+              100.5379768,
+              13.7456809
+            ],
+            [
+              100.537965,
+              13.745666
+            ],
+            [
+              100.5379037,
+              13.7452419
+            ],
+            [
+              100.5379251,
+              13.7452084
+            ],
+            [
+              100.5379346,
+              13.7452071
+            ],
+            [
+              100.538319,
+              13.7451547
+            ],
+            [
+              100.5383396,
+              13.7451626
+            ],
+            [
+              100.5383511,
+              13.7451799
+            ],
+            [
+              100.5383662,
+              13.7452843
+            ],
+            [
+              100.5383814,
+              13.7452823
+            ],
+            [
+              100.5383965,
+              13.7452802
+            ],
+            [
+              100.5383762,
+              13.7451391
+            ],
+            [
+              100.538383,
+              13.7451198
+            ],
+            [
+              100.5383955,
+              13.7451089
+            ],
+            [
+              100.5387151,
+              13.7450653
+            ],
+            [
+              100.538734,
+              13.7450627
+            ],
+            [
+              100.5387581,
+              13.7450595
+            ],
+            [
+              100.5388438,
+              13.7450478
+            ],
+            [
+              100.5388798,
+              13.7450505
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-centralworld",
+        "name": "เซ็นทรัลเวิลด์",
+        "name_en": "CentralWorld",
+        "kind": "mall",
+        "height": 35,
+        "base_height": 0,
+        "source": "OSM way 157482067 · height 35m (OSM height tag; 7 floors; 550,000 m² GFA)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4984218,
+              13.7684393
+            ],
+            [
+              100.4983017,
+              13.7682239
+            ],
+            [
+              100.4950706,
+              13.7699225
+            ],
+            [
+              100.4951911,
+              13.7701385
+            ],
+            [
+              100.4984218,
+              13.7684393
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-rama-viii",
+        "name": "สะพานพระราม 8 (พื้นสะพาน)",
+        "name_en": "Rama VIII Bridge (deck)",
+        "kind": "bridge",
+        "height": 12,
+        "base_height": 0,
+        "source": "Rama VIII Bridge · cable-stayed · 12m deck height · 2,450m total · opened 2002"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4969609,
+              13.7688649
+            ],
+            [
+              100.4972391,
+              13.7688649
+            ],
+            [
+              100.4972391,
+              13.7691351
+            ],
+            [
+              100.4969609,
+              13.7691351
+            ],
+            [
+              100.4969609,
+              13.7688649
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-rama-viii-pylon",
+        "name": "สะพานพระราม 8 (เสาไพลอน)",
+        "name_en": "Rama VIII Bridge (inverted-Y pylon)",
+        "kind": "bridge",
+        "height": 160,
+        "base_height": 0,
+        "source": "Rama VIII Bridge inverted-Y pylon · 160m · located west of the cable-stayed span, near Bang Yi Khan"
       }
     }
   ]
