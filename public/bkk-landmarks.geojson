@@ -1,9 +1,9 @@
 {
   "type": "FeatureCollection",
   "name": "bkk-landmarks",
-  "version": "2026-09-02c",
-  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, modern Bangkok icons (towers, hotels, malls, civic, bridges, markets, stadiums). Pair with bkk-heritage-detail.geojson.",
-  "featureCount": 143,
+  "version": "2026-09-02d",
+  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, modern Bangkok icons (towers, hotels, malls, civic, bridges, parks, shrines, markets, stadiums). Pair with bkk-heritage-detail.geojson.",
+  "featureCount": 158,
   "features": [
     {
       "type": "Feature",
@@ -9090,6 +9090,591 @@
         "height": 30,
         "base_height": 0,
         "source": "Thunderdome · 30m dome · 12,000 seats · 1998 · Muang Thong Thani"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.538181,
+              13.7285276
+            ],
+            [
+              100.5450309,
+              13.7297009
+            ],
+            [
+              100.544419,
+              13.7330724
+            ],
+            [
+              100.5375691,
+              13.7318991
+            ],
+            [
+              100.538181,
+              13.7285276
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-lumphini-park",
+        "name": "สวนลุมพินี",
+        "name_en": "Lumphini Park",
+        "kind": "park",
+        "height": 8,
+        "base_height": 0,
+        "source": "Lumphini Park · 8m tree canopy · 57 ha · 1920s · Bangkok's 'Central Park' · Pathum Wan"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5548267,
+              13.7259486
+            ],
+            [
+              100.5631733,
+              13.7259486
+            ],
+            [
+              100.5631733,
+              13.7286514
+            ],
+            [
+              100.5548267,
+              13.7286514
+            ],
+            [
+              100.5548267,
+              13.7259486
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-benjakitti-park",
+        "name": "สวนเบญจกิติ",
+        "name_en": "Benjakitti Park",
+        "kind": "park",
+        "height": 8,
+        "base_height": 0,
+        "source": "Benjakitti Park · 8m canopy · 130 ha · 2004 + 2022 extension · Asok"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5642799,
+              13.7302991
+            ],
+            [
+              100.5663201,
+              13.7302991
+            ],
+            [
+              100.5663201,
+              13.7321009
+            ],
+            [
+              100.5642799,
+              13.7321009
+            ],
+            [
+              100.5642799,
+              13.7302991
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-benchasiri-park",
+        "name": "สวนเบญจศิริ",
+        "name_en": "Benchasiri Park",
+        "kind": "park",
+        "height": 8,
+        "base_height": 0,
+        "source": "Benchasiri Park · 8m canopy · 7.5 ha · Sukhumvit 24 · 1993 (Queen's Park)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4950406,
+              13.7555793
+            ],
+            [
+              100.4973594,
+              13.7555793
+            ],
+            [
+              100.4973594,
+              13.7570207
+            ],
+            [
+              100.4950406,
+              13.7570207
+            ],
+            [
+              100.4950406,
+              13.7555793
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-saranrom-park",
+        "name": "สวนสราญรมย์",
+        "name_en": "Saranrom Park",
+        "kind": "park",
+        "height": 8,
+        "base_height": 0,
+        "source": "Saranrom Park · 8m canopy · 12 ha · 1860s royal garden · Phra Nakhon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4912797,
+              13.7553991
+            ],
+            [
+              100.4933203,
+              13.7553991
+            ],
+            [
+              100.4933203,
+              13.7572009
+            ],
+            [
+              100.4912797,
+              13.7572009
+            ],
+            [
+              100.4912797,
+              13.7553991
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-rommaneenat-park",
+        "name": "สวนรมณีนาถ",
+        "name_en": "Rommaneenat Park",
+        "kind": "park",
+        "height": 8,
+        "base_height": 0,
+        "source": "Rommaneenat Park · 8m canopy · 7 ha · beside Grand Palace · Phra Nakhon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.510545,
+              13.7207523
+            ],
+            [
+              100.511055,
+              13.7207523
+            ],
+            [
+              100.511055,
+              13.7212477
+            ],
+            [
+              100.510545,
+              13.7212477
+            ],
+            [
+              100.510545,
+              13.7207523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sathorn-unique",
+        "name": "สาทร ยูนีค (ตึกผี)",
+        "name_en": "Sathorn Unique (the Ghost Tower)",
+        "kind": "tower",
+        "height": 137,
+        "base_height": 0,
+        "source": "Sathorn Unique · 137m · 49 floors · abandoned 1996 (construction stop) · never completed · 2014 collapse"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5278682,
+              13.7206748
+            ],
+            [
+              100.5283318,
+              13.7206748
+            ],
+            [
+              100.5283318,
+              13.7211252
+            ],
+            [
+              100.5278682,
+              13.7211252
+            ],
+            [
+              100.5278682,
+              13.7206748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bangkok-city-tower",
+        "name": "แบงค็อก ซิตี้ ทาวเวอร์",
+        "name_en": "Bangkok City Tower (Sathorn)",
+        "kind": "tower",
+        "height": 150,
+        "base_height": 0,
+        "source": "Bangkok City Tower · 150m · 32 floors · South Sathorn · 1993"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5242682,
+              13.7208748
+            ],
+            [
+              100.5247318,
+              13.7208748
+            ],
+            [
+              100.5247318,
+              13.7213252
+            ],
+            [
+              100.5242682,
+              13.7213252
+            ],
+            [
+              100.5242682,
+              13.7208748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sathorn-city-tower",
+        "name": "สาทร ซิตี้ ทาวเวอร์",
+        "name_en": "Sathorn City Tower",
+        "kind": "tower",
+        "height": 110,
+        "base_height": 0,
+        "source": "Sathorn City Tower · 110m · 34 floors · South Sathorn · 1994"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5307449,
+              13.7440523
+            ],
+            [
+              100.5312551,
+              13.7440523
+            ],
+            [
+              100.5312551,
+              13.7445477
+            ],
+            [
+              100.5307449,
+              13.7445477
+            ],
+            [
+              100.5307449,
+              13.7440523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-chamchuri-square",
+        "name": "จามจุรี สแควร์",
+        "name_en": "Chamchuri Square",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "Chamchuri Square · 130m · 40 floors · Phaya Thai Rd · 1997"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5829913,
+              13.7138973
+            ],
+            [
+              100.5834087,
+              13.7138973
+            ],
+            [
+              100.5834087,
+              13.7143027
+            ],
+            [
+              100.5829913,
+              13.7143027
+            ],
+            [
+              100.5829913,
+              13.7138973
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-rhythm-sukhumvit",
+        "name": "ริธึ่ม สุขุมวิท 50",
+        "name_en": "Rhythm Sukhumvit 50",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "Rhythm Sukhumvit 50 · 130m · 38 floors · Phra Khanong · 2019"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5389165,
+              13.7474189
+            ],
+            [
+              100.5390835,
+              13.7474189
+            ],
+            [
+              100.5390835,
+              13.7475811
+            ],
+            [
+              100.5389165,
+              13.7475811
+            ],
+            [
+              100.5389165,
+              13.7474189
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-erawan-shrine",
+        "name": "ศาลพระพรหมเอราวัณ",
+        "name_en": "Erawan Shrine (Phra Phrom)",
+        "kind": "shrine",
+        "height": 12,
+        "base_height": 0,
+        "source": "Erawan Shrine · 12m · 4-faced Phra Phrom · 1956 · Ratchaprasong intersection"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5349258,
+              13.7292649
+            ],
+            [
+              100.5350742,
+              13.7292649
+            ],
+            [
+              100.5350742,
+              13.7295351
+            ],
+            [
+              100.5349258,
+              13.7295351
+            ],
+            [
+              100.5349258,
+              13.7292649
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sri-maha-mariamman",
+        "name": "วัดศรีมหามารีอาม",
+        "name_en": "Sri Maha Mariamman Temple",
+        "kind": "shrine",
+        "height": 25,
+        "base_height": 0,
+        "source": "Sri Maha Mariamman · 25m colorful gopuram · 1879 · Silom's Hindu temple"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4937165,
+              13.7542189
+            ],
+            [
+              100.4938835,
+              13.7542189
+            ],
+            [
+              100.4938835,
+              13.7543811
+            ],
+            [
+              100.4937165,
+              13.7543811
+            ],
+            [
+              100.4937165,
+              13.7542189
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-devaraja-shrine",
+        "name": "ศาลหลักเมือง (เทพารักษ์)",
+        "name_en": "Devaraja Shrine (City Pillar)",
+        "kind": "shrine",
+        "height": 15,
+        "base_height": 0,
+        "source": "Bangkok City Pillar Shrine · 15m · 1782 · Phra Nakhon · Brahma-faced"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5400725,
+              13.7493243
+            ],
+            [
+              100.5419275,
+              13.7493243
+            ],
+            [
+              100.5419275,
+              13.7506757
+            ],
+            [
+              100.5400725,
+              13.7506757
+            ],
+            [
+              100.5400725,
+              13.7493243
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-pratunam",
+        "name": "ตลาดประตูน้ำ",
+        "name_en": "Pratunam Market",
+        "kind": "mall",
+        "height": 18,
+        "base_height": 0,
+        "source": "Pratunam Market area · 18m · 4-storey shophouses · clothing wholesale"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5333971,
+              13.7575495
+            ],
+            [
+              100.5346029,
+              13.7575495
+            ],
+            [
+              100.5346029,
+              13.7584505
+            ],
+            [
+              100.5333971,
+              13.7584505
+            ],
+            [
+              100.5333971,
+              13.7575495
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bobae",
+        "name": "ตลาดบ่อแข่ง",
+        "name_en": "Bobae Market (Hat Yai-style)",
+        "kind": "mall",
+        "height": 14,
+        "base_height": 0,
+        "source": "Bobae Market · 14m · 3 floors · 24-hour · clothing wholesale · Ratchathewi"
       }
     }
   ]
