@@ -1,9 +1,9 @@
 {
   "type": "FeatureCollection",
   "name": "bkk-landmarks",
-  "version": "2026-09-02b",
-  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, modern Bangkok icons (towers, hotels, malls, civic, bridges). Pair with bkk-heritage-detail.geojson.",
-  "featureCount": 110,
+  "version": "2026-09-02c",
+  "description": "Curated landmark extrusions: Victory Monument 50 m shaft, Democracy Monument, Golden Mount (~60 m), Rattanakosin heritage height overrides, modern Bangkok icons (towers, hotels, malls, civic, bridges, markets, stadiums). Pair with bkk-heritage-detail.geojson.",
+  "featureCount": 143,
   "features": [
     {
       "type": "Feature",
@@ -7803,6 +7803,1293 @@
         "height": 160,
         "base_height": 0,
         "source": "Rama VIII Bridge inverted-Y pylon · 160m · located west of the cable-stayed span, near Bang Yi Khan"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5285754,
+              13.7243847
+            ],
+            [
+              100.5292246,
+              13.7243847
+            ],
+            [
+              100.5292246,
+              13.7250153
+            ],
+            [
+              100.5285754,
+              13.7250153
+            ],
+            [
+              100.5285754,
+              13.7243847
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-saladaeng-one",
+        "name": "เดอะ ศาลเจ้ากรุง วัน",
+        "name_en": "The Saladaeng One (One City)",
+        "kind": "tower",
+        "height": 195,
+        "base_height": 0,
+        "source": "One City · 195m · 54 floors · twin towers · Silom · 2024"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5206986,
+              13.7235072
+            ],
+            [
+              100.5213014,
+              13.7235072
+            ],
+            [
+              100.5213014,
+              13.7240928
+            ],
+            [
+              100.5206986,
+              13.7240928
+            ],
+            [
+              100.5206986,
+              13.7235072
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sathorn-square",
+        "name": "สาทร สแควร์",
+        "name_en": "Sathorn Square",
+        "kind": "tower",
+        "height": 195,
+        "base_height": 0,
+        "source": "Sathorn Square · 195m · 40 floors · North Sathorn · 2011"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.569945,
+              13.7301523
+            ],
+            [
+              100.570455,
+              13.7301523
+            ],
+            [
+              100.570455,
+              13.7306477
+            ],
+            [
+              100.569945,
+              13.7306477
+            ],
+            [
+              100.569945,
+              13.7301523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bhiraj-tower",
+        "name": "ภิรัช ทาวเวอร์ แอท เอ็มควอเทียร์",
+        "name_en": "Bhiraj Tower at EmQuartier",
+        "kind": "tower",
+        "height": 165,
+        "base_height": 0,
+        "source": "Bhiraj Tower · 165m · 36 floors · Sukhumvit · 2016"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.564745,
+              13.7318523
+            ],
+            [
+              100.565255,
+              13.7318523
+            ],
+            [
+              100.565255,
+              13.7323477
+            ],
+            [
+              100.564745,
+              13.7323477
+            ],
+            [
+              100.564745,
+              13.7318523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-aia-east",
+        "name": "เอไอเอ อีสท์ เกตเวย์",
+        "name_en": "AIA East Gateway",
+        "kind": "tower",
+        "height": 130,
+        "base_height": 0,
+        "source": "AIA East Gateway · 130m · 33 floors · Sukhumvit 35 · 2015"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5162682,
+              13.7202748
+            ],
+            [
+              100.5167318,
+              13.7202748
+            ],
+            [
+              100.5167318,
+              13.7207252
+            ],
+            [
+              100.5162682,
+              13.7207252
+            ],
+            [
+              100.5162682,
+              13.7202748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-the-line",
+        "name": "เดอะ ไลน์ สาทร",
+        "name_en": "The Line Sathorn",
+        "kind": "tower",
+        "height": 165,
+        "base_height": 0,
+        "source": "The Line Sathorn · 165m · 48 floors · Wiphahadi · 2022"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5657681,
+              13.7510748
+            ],
+            [
+              100.5662319,
+              13.7510748
+            ],
+            [
+              100.5662319,
+              13.7515252
+            ],
+            [
+              100.5657681,
+              13.7515252
+            ],
+            [
+              100.5657681,
+              13.7510748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-lumpini-tower",
+        "name": "ลุมพินี เพลส พระราม 9",
+        "name_en": "Lumpini Place Rama IX",
+        "kind": "tower",
+        "height": 152,
+        "base_height": 0,
+        "source": "Lumpini Place Rama IX · ~152m · 45 floors · 1994"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.540645,
+              13.7392523
+            ],
+            [
+              100.541155,
+              13.7392523
+            ],
+            [
+              100.541155,
+              13.7397477
+            ],
+            [
+              100.540645,
+              13.7397477
+            ],
+            [
+              100.540645,
+              13.7392523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-four-seasons",
+        "name": "โฟร์ซีซั่น",
+        "name_en": "Four Seasons Hotel Bangkok",
+        "kind": "hotel",
+        "height": 130,
+        "base_height": 0,
+        "source": "Four Seasons Hotel Bangkok · 130m · 32 floors · Ratchadamri · 2010"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5464681,
+              13.7428748
+            ],
+            [
+              100.5469319,
+              13.7428748
+            ],
+            [
+              100.5469319,
+              13.7433252
+            ],
+            [
+              100.5464681,
+              13.7433252
+            ],
+            [
+              100.5464681,
+              13.7428748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-okura",
+        "name": "โอกุระ เพรสทีจ",
+        "name_en": "Hotel Okura Prestige Bangkok",
+        "kind": "hotel",
+        "height": 130,
+        "base_height": 0,
+        "source": "Hotel Okura Prestige · 130m · 34 floors · Wireless Road · 2012"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5292913,
+              13.7224973
+            ],
+            [
+              100.5297087,
+              13.7224973
+            ],
+            [
+              100.5297087,
+              13.7229027
+            ],
+            [
+              100.5292913,
+              13.7229027
+            ],
+            [
+              100.5292913,
+              13.7224973
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-banyan-tree",
+        "name": "บันยันทรี",
+        "name_en": "Banyan Tree Bangkok",
+        "kind": "hotel",
+        "height": 170,
+        "base_height": 0,
+        "source": "Banyan Tree Bangkok · 170m · 61 floors · Sathorn/South · 1996"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5227682,
+              13.7242748
+            ],
+            [
+              100.5232318,
+              13.7242748
+            ],
+            [
+              100.5232318,
+              13.7247252
+            ],
+            [
+              100.5227682,
+              13.7247252
+            ],
+            [
+              100.5227682,
+              13.7242748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-w-bangkok",
+        "name": "ดับเบิลยู แบงค็อก",
+        "name_en": "W Bangkok",
+        "kind": "hotel",
+        "height": 100,
+        "base_height": 0,
+        "source": "W Bangkok Hotel · 100m · 31 floors · North Sathorn · 2012"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5387681,
+              13.7392748
+            ],
+            [
+              100.5392319,
+              13.7392748
+            ],
+            [
+              100.5392319,
+              13.7397252
+            ],
+            [
+              100.5387681,
+              13.7397252
+            ],
+            [
+              100.5387681,
+              13.7392748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-st-regis",
+        "name": "เดอะ เซนต์ รีจีส",
+        "name_en": "The St. Regis Bangkok",
+        "kind": "hotel",
+        "height": 145,
+        "base_height": 0,
+        "source": "The St. Regis Bangkok · 145m · 43 floors · Ratchadamri · 2011"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.548045,
+              13.7402523
+            ],
+            [
+              100.548555,
+              13.7402523
+            ],
+            [
+              100.548555,
+              13.7407477
+            ],
+            [
+              100.548045,
+              13.7407477
+            ],
+            [
+              100.548045,
+              13.7402523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-conrad-bangkok",
+        "name": "คอนราด",
+        "name_en": "Conrad Bangkok",
+        "kind": "hotel",
+        "height": 130,
+        "base_height": 0,
+        "source": "Conrad Bangkok · 130m · 32 floors · Wireless Road · 2003"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5370681,
+              13.7575748
+            ],
+            [
+              100.5375319,
+              13.7575748
+            ],
+            [
+              100.5375319,
+              13.7580252
+            ],
+            [
+              100.5370681,
+              13.7580252
+            ],
+            [
+              100.5370681,
+              13.7575748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-puliman-king-power",
+        "name": "พูลแมน คิง พาวเวอร์",
+        "name_en": "Pullman Bangkok King Power",
+        "kind": "hotel",
+        "height": 110,
+        "base_height": 0,
+        "source": "Pullman Bangkok King Power · 110m · 30 floors · Rang Nam · 2007"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5298044,
+              13.7446403
+            ],
+            [
+              100.530636,
+              13.744711
+            ],
+            [
+              100.5305956,
+              13.7451597
+            ],
+            [
+              100.529764,
+              13.745089
+            ],
+            [
+              100.5298044,
+              13.7446403
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-mbk",
+        "name": "เอ็มบีเค",
+        "name_en": "MBK Center",
+        "kind": "mall",
+        "height": 50,
+        "base_height": 0,
+        "source": "MBK Center · 50m · 8 floors · 1986 · flagship Thai mall"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5600986,
+              13.7375523
+            ],
+            [
+              100.5607014,
+              13.7375523
+            ],
+            [
+              100.5607014,
+              13.7380477
+            ],
+            [
+              100.5600986,
+              13.7380477
+            ],
+            [
+              100.5600986,
+              13.7375523
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-terminal-21",
+        "name": "เทอร์มินัล 21 อโศก",
+        "name_en": "Terminal 21 Asok",
+        "kind": "mall",
+        "height": 45,
+        "base_height": 0,
+        "source": "Terminal 21 Asok · 45m · 9 floors · 2011 · airport-themed mall"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5689218,
+              13.7299748
+            ],
+            [
+              100.5694782,
+              13.7299748
+            ],
+            [
+              100.5694782,
+              13.7304252
+            ],
+            [
+              100.5689218,
+              13.7304252
+            ],
+            [
+              100.5689218,
+              13.7299748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-emsphere",
+        "name": "เอ็มสเฟียร์",
+        "name_en": "EmSphere",
+        "kind": "mall",
+        "height": 35,
+        "base_height": 0,
+        "source": "EmSphere · 35m · 6 floors · Phrom Phong · 2023 (newest EmDistrict)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.539129,
+              13.7495423
+            ],
+            [
+              100.539871,
+              13.7495423
+            ],
+            [
+              100.539871,
+              13.7498577
+            ],
+            [
+              100.539129,
+              13.7498577
+            ],
+            [
+              100.539129,
+              13.7495423
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-platinum",
+        "name": "แพลทินัม แฟชั่น มอลล์",
+        "name_en": "Platinum Fashion Mall",
+        "kind": "mall",
+        "height": 45,
+        "base_height": 0,
+        "source": "Platinum Fashion Mall · 45m · 6 floors · Pratunam wholesale"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.566329,
+              13.7570297
+            ],
+            [
+              100.567071,
+              13.7570297
+            ],
+            [
+              100.567071,
+              13.7575703
+            ],
+            [
+              100.566329,
+              13.7575703
+            ],
+            [
+              100.566329,
+              13.7570297
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-central-rama-9",
+        "name": "เซ็นทรัล พระราม 9",
+        "name_en": "Central Rama 9 (Fortune Town)",
+        "kind": "mall",
+        "height": 50,
+        "base_height": 0,
+        "source": "Central Rama 9 / Fortune Town · 50m · 9 floors · 1996"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.569929,
+              13.7659297
+            ],
+            [
+              100.570671,
+              13.7659297
+            ],
+            [
+              100.570671,
+              13.7664703
+            ],
+            [
+              100.569929,
+              13.7664703
+            ],
+            [
+              100.569929,
+              13.7659297
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-esplanade",
+        "name": "เอสพลานาด รัชดาภิเษก",
+        "name_en": "Esplanade Ratchadaphisek",
+        "kind": "mall",
+        "height": 35,
+        "base_height": 0,
+        "source": "Esplanade Ratchadaphisek · 35m · 7 floors · Ratchadaphisek · 2007"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5157985,
+              13.7166477
+            ],
+            [
+              100.5159109,
+              13.7167107
+            ],
+            [
+              100.5122015,
+              13.7229523
+            ],
+            [
+              100.5120891,
+              13.7228893
+            ],
+            [
+              100.5157985,
+              13.7166477
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-taksin",
+        "name": "สะพานตากสิน (พระราม 3)",
+        "name_en": "Taksin Bridge (Phra Ram 3)",
+        "kind": "bridge",
+        "height": 14,
+        "base_height": 0,
+        "source": "Taksin Bridge · 14m deck · 1,661m · cable-stayed over Chao Phraya · 1982"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4999979,
+              13.7059101
+            ],
+            [
+              100.5001214,
+              13.7059491
+            ],
+            [
+              100.4984021,
+              13.7110899
+            ],
+            [
+              100.4982786,
+              13.7110509
+            ],
+            [
+              100.4999979,
+              13.7059101
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-rama-iii",
+        "name": "สะพานพระราม 3",
+        "name_en": "Rama III Bridge",
+        "kind": "bridge",
+        "height": 12,
+        "base_height": 0,
+        "source": "Rama III Bridge · 12m deck · steel-box · 1992"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4967351,
+              13.7369279
+            ],
+            [
+              100.4968649,
+              13.7369279
+            ],
+            [
+              100.4968649,
+              13.7410721
+            ],
+            [
+              100.4967351,
+              13.7410721
+            ],
+            [
+              100.4967351,
+              13.7369279
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bridge-phra-pok-klao",
+        "name": "สะพานพระปกเกล้า",
+        "name_en": "Phra Pok Klao Bridge",
+        "kind": "bridge",
+        "height": 12,
+        "base_height": 0,
+        "source": "Phra Pok Klao Bridge · 12m deck · 1984 · 6-lane road · connects Phra Nakhon to Thonburi"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5483346,
+              13.7991282
+            ],
+            [
+              100.5527705,
+              13.7995051
+            ],
+            [
+              100.5526654,
+              13.8006718
+            ],
+            [
+              100.5482295,
+              13.8002949
+            ],
+            [
+              100.5483346,
+              13.7991282
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-chatuchak",
+        "name": "ตลาดจตุจักร",
+        "name_en": "Chatuchak Weekend Market",
+        "kind": "mall",
+        "height": 12,
+        "base_height": 0,
+        "source": "Chatuchak Weekend Market · 12m · 27 sections · 8,000+ stalls · largest weekend market in SE Asia"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4975826,
+              13.7420586
+            ],
+            [
+              100.4984174,
+              13.7420586
+            ],
+            [
+              100.4984174,
+              13.7449414
+            ],
+            [
+              100.4975826,
+              13.7449414
+            ],
+            [
+              100.4975826,
+              13.7420586
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-pak-khlong-talat",
+        "name": "ปากคลองตลาด",
+        "name_en": "Pak Khlong Talat (Flower Market)",
+        "kind": "mall",
+        "height": 10,
+        "base_height": 0,
+        "source": "Pak Khlong Talat · 10m · 24-hour flower market · Phra Nakhon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5099351,
+              13.7368378
+            ],
+            [
+              100.5100649,
+              13.7368378
+            ],
+            [
+              100.5100649,
+              13.7411622
+            ],
+            [
+              100.5099351,
+              13.7411622
+            ],
+            [
+              100.5099351,
+              13.7368378
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sampeng",
+        "name": "ซอกก๋ง ตลาดสำเพ็ง",
+        "name_en": "Sampeng Lane (wholesale market)",
+        "kind": "mall",
+        "height": 18,
+        "base_height": 0,
+        "source": "Sampeng Lane · 18m · 2-storey shophouses · Yaowarat · narrow wholesale street"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5520723,
+              13.8050495
+            ],
+            [
+              100.5539277,
+              13.8050495
+            ],
+            [
+              100.5539277,
+              13.8059505
+            ],
+            [
+              100.5520723,
+              13.8059505
+            ],
+            [
+              100.5520723,
+              13.8050495
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-or-tor-kor",
+        "name": "ตลาด อ.ต.ก.",
+        "name_en": "Or Tor Kor Market",
+        "kind": "mall",
+        "height": 14,
+        "base_height": 0,
+        "source": "Or Tor Kor Market · 14m · 3 sections · Chatuchak side · government wholesale market"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4850826,
+              13.7552847
+            ],
+            [
+              100.4859174,
+              13.7552847
+            ],
+            [
+              100.4859174,
+              13.7559153
+            ],
+            [
+              100.4850826,
+              13.7559153
+            ],
+            [
+              100.4850826,
+              13.7552847
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-rakhang",
+        "name": "วัดราชบพิธสถิตมหาสีมาราม",
+        "name_en": "Wat Rakhang Kositaram",
+        "kind": "civic",
+        "height": 22,
+        "base_height": 0,
+        "source": "Wat Rakhang · 22m main chedi · Thonburi · 19c · bell-trumpet era"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4962826,
+              13.7574297
+            ],
+            [
+              100.4971174,
+              13.7574297
+            ],
+            [
+              100.4971174,
+              13.7579703
+            ],
+            [
+              100.4962826,
+              13.7579703
+            ],
+            [
+              100.4962826,
+              13.7574297
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-bowonniwet",
+        "name": "วัดบวรมงคล",
+        "name_en": "Wat Bowonniwet",
+        "kind": "civic",
+        "height": 30,
+        "base_height": 0,
+        "source": "Wat Bowonniwet · 30m chedi · royal temple · Phra Nakhon · 1820s"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4988826,
+              13.7553748
+            ],
+            [
+              100.4997174,
+              13.7553748
+            ],
+            [
+              100.4997174,
+              13.7558252
+            ],
+            [
+              100.4988826,
+              13.7558252
+            ],
+            [
+              100.4988826,
+              13.7553748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-ratchabophit",
+        "name": "วัดราชบพิธ",
+        "name_en": "Wat Ratchabophit",
+        "kind": "civic",
+        "height": 28,
+        "base_height": 0,
+        "source": "Wat Ratchabophit · 28m phra chedi · 19c · Ayutthaya-meets-Gothic design"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5009363,
+              13.7509396
+            ],
+            [
+              100.5018637,
+              13.7509396
+            ],
+            [
+              100.5018637,
+              13.7516604
+            ],
+            [
+              100.5009363,
+              13.7516604
+            ],
+            [
+              100.5009363,
+              13.7509396
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-suthat",
+        "name": "วัดสุทัศนเทพวราราม",
+        "name_en": "Wat Suthat Thepwararam",
+        "kind": "civic",
+        "height": 32,
+        "base_height": 0,
+        "source": "Wat Suthat · 32m principal chedi · 19c · first-class royal temple"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5015218,
+              13.7544748
+            ],
+            [
+              100.5020782,
+              13.7544748
+            ],
+            [
+              100.5020782,
+              13.7549252
+            ],
+            [
+              100.5015218,
+              13.7549252
+            ],
+            [
+              100.5015218,
+              13.7544748
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-ratchanatdaram",
+        "name": "วัดราชนัดดา (โลหะปราสาท)",
+        "name_en": "Wat Ratchanatdaram (Loha Prasat)",
+        "kind": "civic",
+        "height": 36,
+        "base_height": 0,
+        "source": "Loha Prasat · 36m · 5-tier metal-castle chedi · only one of its kind in the world · 1846"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.6209797,
+              13.7545892
+            ],
+            [
+              100.6230203,
+              13.7545892
+            ],
+            [
+              100.6230203,
+              13.7562108
+            ],
+            [
+              100.6209797,
+              13.7562108
+            ],
+            [
+              100.6209797,
+              13.7545892
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-rajamangala",
+        "name": "ราชมังคลากีฬาสถาน",
+        "name_en": "Rajamangala National Stadium",
+        "kind": "civic",
+        "height": 35,
+        "base_height": 0,
+        "source": "Rajamangala National Stadium · 35m · 65,000 seats · 1998 Asian Games · Hua Mark"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5470967,
+              13.9038045
+            ],
+            [
+              100.5483033,
+              13.9038045
+            ],
+            [
+              100.5483033,
+              13.9047955
+            ],
+            [
+              100.5470967,
+              13.9047955
+            ],
+            [
+              100.5470967,
+              13.9038045
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-thunderdome",
+        "name": "ธันเดอร์โดม",
+        "name_en": "Thunderdome (Muang Thong Thani)",
+        "kind": "civic",
+        "height": 30,
+        "base_height": 0,
+        "source": "Thunderdome · 30m dome · 12,000 seats · 1998 · Muang Thong Thani"
       }
     }
   ]
