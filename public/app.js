@@ -256,6 +256,10 @@ const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
 };
 
 // Landmark paint — gold for wats / monument, warmer for Golden Mount.
+// New kinds (2026-09-02): modern Bangkok icons — towers, hotels, malls,
+// civic, bridge. Color choices follow the atlas house rule: cool steel
+// for engineered structures, warm gold for hospitality, neutral for
+// retail/civic, silver-blue for crossings.
 const LANDMARK_COLOR = [
   "match", ["get", "kind"],
   "monument", "#e8d5a3",
@@ -267,6 +271,12 @@ const LANDMARK_COLOR = [
   "ubosot", "#f5b800",
   "viharn", "#d4a017",
   "heritage", "#f5b800",
+  // ── modern Bangkok icons ──
+  "tower", "#9ba3b4",      // steel/cool — modern skyscraper
+  "hotel", "#e9a91a",      // warm gold — luxury hospitality (same as throne)
+  "mall", "#88a8b8",       // cool neutral — retail podium
+  "civic", "#d4c5a8",      // warm cream — government / public
+  "bridge", "#7d8a9a",     // silver-blue — river crossing
   "#f5b800",
 ];
 const LANDMARK_PAINT = {
