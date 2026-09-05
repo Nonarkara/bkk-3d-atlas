@@ -457,15 +457,18 @@ report.
     Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
     the client labels both, so nobody reads an area pin as a street
     address. 14-day rolling window. Endpoint: `/api/news-events`.
-19. **Heritage landmarks** (Fine Arts Department register, baked
-    into `public/bkk-landmarks.geojson`) — 73 ancient monuments
-    rendered as 3D fill-extrusions on the buildings layer, with
-    real heights (Victory Monument 50 m shaft, Phu Khao Thong 45 m,
-    Phra Sumen Fort 60 m). Always on with buildings; not a separate
-    toggle. The Rattanakosin Old Town detail PMTiles
-    (`bkk-heritage-detail.geojson`, 3.8 MB) takes over at z14+ to
-    show the temple geometry of the Grand Palace, Wat Pho, Wat
-    Phra Kaew and the royal field.
+19. **Curated landmarks** (`public/bkk-landmarks.geojson`) —
+    100 curated features: 73 ancient monuments & historic cores (Victory
+    Monument 50 m shaft, Phu Khao Thong 45 m, Phra Sumen Fort 60 m, Grand
+    Palace) plus 27 verified modern skyline icons with cited heights and
+    accurate pins (MahaNakhon 314 m, Baiyoke II 304 m, State Tower 247 m,
+    One Bangkok 215 m, Sathorn Unique 185 m planned). Unverified or
+    misplaced features are quarantined in `public/bkk-landmarks-quarantine.geojson`.
+    Rendered as 3D fill-extrusions with the buildings stack. Always on
+    with buildings; not a separate toggle. The Rattanakosin Old Town detail
+    PMTiles (`bkk-heritage-detail.geojson`, 3.8 MB) takes over at z14+ to
+    show the temple geometry of the Grand Palace, Wat Pho, Wat Phra Kaew,
+    and the royal field.
 
 BKKx aesthetic: signal yellow stays the only saturated color in the
 frame — **except alarm red** on the incidents layer (the one

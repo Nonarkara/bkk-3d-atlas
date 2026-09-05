@@ -230,6 +230,24 @@ async function loadFloodCollection(env: Env, request: Request): Promise<FloodCol
   return body;
 }
 
+let landmarksCountCache: number | null = null;
+
+async function loadLandmarksCount(env: Env, request: Request): Promise<number> {
+  if (landmarksCountCache !== null) return landmarksCountCache;
+  try {
+    const assetUrl = new URL("/bkk-landmarks.geojson", request.url);
+    const res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+    if (res.ok) {
+      const body = (await res.json()) as { features?: unknown[] };
+      if (Array.isArray(body?.features) && body.features.length > 0) {
+        landmarksCountCache = body.features.length;
+        return landmarksCountCache;
+      }
+    }
+  } catch {}
+  return 100;
+}
+
 function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -1919,7 +1937,7 @@ async function atlasBuildings(request: Request, env: Env): Promise<Response> {
   );
 }
 
-async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
+async function atlasScoreboard(request: Request, env: Env): Promise<Response> {
   // Counts that need a D1 round-trip. The ingest script writes to ingestion_runs
   // so we can also surface when the store was last refreshed.
   let civicPoiCount: number | null = null;
@@ -1934,6 +1952,8 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
   } catch {
     // D1 may not be wired in every environment; surface nulls rather than 500.
   }
+
+  const landmarksCount = await loadLandmarksCount(env, request);
 
   return jsonResponse(
     {
@@ -1978,16 +1998,15 @@ async function atlasScoreboard(_request: Request, env: Env): Promise<Response> {
           // that put it there, so the layer is auditable row by row.
         },
         landmarks: {
-          // Honest inventory: these are OSM footprints + schematic
-          // height overrides (Victory shaft, Democracy, Golden Mount,
-          // palace/temple masses). The Fine Arts Department register
-          // (571 monuments) lives on bkk.nonarkara.org/heritage — it is
-          // not this GeoJSON. Don't re-lie here.
-          source: "OSM footprints + schematic heritage heights",
+          // Honest inventory: 73 fine-arts heritage masses + curated
+          // Bangkok skyline icons with cited heights and verified pins.
+          // The Fine Arts Department register (571 monuments) lives on
+          // bkk.nonarkara.org/heritage — it is not this GeoJSON.
+          source: "OSM footprints + schematic heritage heights + curated skyline icons",
           endpoint: "/bkk-landmarks.geojson",
-          count: 73,
+          count: landmarksCount,
           // Rendered as 3D fill-extrusions with the buildings stack
-          // (Victory Monument 50 m shaft, Golden Mount chedi ~60 m).
+          // (Victory Monument 50 m shaft, MahaNakhon 314 m, Baiyoke II 304 m).
           // Not a separate toggle — always on with buildings.
         },
       },

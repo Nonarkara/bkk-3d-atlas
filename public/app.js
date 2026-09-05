@@ -278,7 +278,7 @@ const LANDMARK_COLOR = [
   "civic", "#d4c5a8",      // warm cream — government / public
   "bridge", "#7d8a9a",     // silver-blue — river crossing
   "park", "#5a8a3a",       // forest green — public parks (low-rise)
-  "shrine", "#d946a0",     // bright pink — Hindu/Chinese shrines
+  "shrine", "#e9a91a",     // warm gold — shrines comply with one-amber palette rule
   "#f5b800",
 ];
 const LANDMARK_PAINT = {
@@ -1626,7 +1626,7 @@ async function installLandmarks(map) {
         id: LANDMARKS_LAYER,
         type: "fill-extrusion",
         source: LANDMARKS_SOURCE,
-        minzoom: 13,
+        minzoom: 10.5,
         paint: LANDMARK_PAINT,
       });
     } catch (error) {

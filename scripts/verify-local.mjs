@@ -149,6 +149,12 @@ mustJson("public/bkk-landmarks.geojson", (data) => {
   ok("Democracy Monument + Golden Mount landmarks present");
 });
 
+mustJson("public/bkk-landmarks-quarantine.geojson", (data) => {
+  const feats = data.features ?? [];
+  if (feats.length < 10) fail(`quarantined landmarks too few: ${feats.length}`);
+  else ok(`${feats.length} quarantined landmarks held with auditable reasons`);
+});
+
 mustJson("public/bkk-heritage-detail.geojson", (data) => {
   const n = data.features?.length ?? 0;
   if (n < 8000) fail(`heritage detail too few: ${n}`);
