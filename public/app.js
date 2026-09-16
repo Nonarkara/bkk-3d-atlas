@@ -4756,6 +4756,89 @@ function wireAboutDrawer() {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// BKK provincial live strip — ThaiWater steal (2026-09-16)
+// Renders the 5-card top KPI strip from /api/water/bkk/kpi (provincial
+// rain 1d/3d/7d + temperature). Honest degradation: if the upstream is
+// down, the values fade to "—" and the freshness dot turns red. Stays
+// "loading…" with a yellow dot during the first fetch.
+// ─────────────────────────────────────────────────────────────────
+
+function bkkLiveSeverity(mm) {
+  if (mm == null || Number.isNaN(Number(mm))) return null;
+  const v = Number(mm);
+  if (v === 0) return "none";
+  if (v < 10) return "light";
+  if (v < 35) return "moderate";
+  if (v < 90) return "heavy";
+  return "very-heavy";
+}
+
+function setBkkCardText(cardId, value, whereText, severity) {
+  const card = document.querySelector(`.atlas-bkk-card[data-card="${cardId}"]`);
+  const valueEl = document.getElementById(`bkk-card-${cardId}-value`);
+  const whereEl = document.getElementById(`bkk-card-${cardId}-where`);
+  if (!card || !valueEl) return;
+  if (severity != null) {
+    card.setAttribute("data-severity", severity);
+  }
+  card.classList.toggle("is-loading", !value && !whereText);
+  if (value != null) valueEl.textContent = String(value);
+  if (whereText != null && whereEl) whereEl.textContent = whereText;
+}
+
+async function loadBkkLiveStrip() {
+  const dot = document.querySelector(".atlas-bkk-live-dot");
+  const freshness = document.getElementById("atlas-bkk-live-freshness");
+  try {
+    const res = await fetch("/api/water/bkk/kpi", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const kpi = await res.json();
+    if (!kpi || kpi.tool !== "bkk-water-kpi") throw new Error("bad payload");
+
+    const rain = kpi.rain || {};
+    for (const key of ["1d", "3d", "7d"]) {
+      const card = key === "1d" ? "rain1d" : key === "3d" ? "rain3d" : "rain7d";
+      const slice = rain[key] || {};
+      const mm = slice.mm == null ? "—" : Number(slice.mm).toFixed(1);
+      const where = slice.station
+        ? `${slice.station.name}${slice.station.amphoe ? " · " + slice.station.amphoe : ""}`
+        : "—";
+      setBkkCardText(card, mm, where, bkkLiveSeverity(slice.mm));
+    }
+    const temp = kpi.temperature;
+    if (temp) {
+      document.getElementById("bkk-card-temp-max").textContent = Number(temp.max_c).toFixed(1);
+      document.getElementById("bkk-card-temp-min").textContent = Number(temp.min_c).toFixed(1);
+      document.getElementById("bkk-card-temp-where").textContent = temp.station || "—";
+    }
+
+    // Freshness — how old is the upstream payload?
+    const fetched = new Date(kpi.fetchedAt);
+    const ageMin = Math.round((Date.now() - fetched.getTime()) / 60000);
+    let freshnessText;
+    if (ageMin < 1) freshnessText = "live · <1 min";
+    else if (ageMin < 60) freshnessText = `live · ${ageMin} min`;
+    else freshnessText = `live · ${Math.round(ageMin / 60)} h`;
+    if (freshness) freshness.textContent = freshnessText;
+    if (dot) {
+      dot.classList.remove("is-stale", "is-down");
+      if (ageMin > 60) dot.classList.add("is-stale");
+    }
+  } catch (error) {
+    if (dot) {
+      dot.classList.remove("is-stale");
+      dot.classList.add("is-down");
+    }
+    if (freshness) freshness.textContent = "upstream unavailable";
+    // Mark every card as error
+    for (const id of ["rain1d", "rain3d", "rain7d", "temp"]) {
+      const card = document.querySelector(`.atlas-bkk-card[data-card="${id}"]`);
+      if (card) card.classList.add("is-error");
+    }
+  }
+}
+
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
@@ -4763,6 +4846,12 @@ async function init() {
   renderQuickJump(state.areas);
   wireAboutDrawer();
   document.getElementById("atlas-share").addEventListener("click", copyDeepLink);
+
+  // Kick off the BKK provincial live strip — runs in the background and
+  // refreshes every 5 minutes (matching the upstream cache TTL). Stolen
+  // from bangkok.thaiwater.net/dashboard's 5-card top pattern.
+  loadBkkLiveStrip();
+  setInterval(loadBkkLiveStrip, 5 * 60 * 1000);
 
   const initialId = parseHashId();
   const initialArea = initialId ? state.areas.find((a) => a.id === initialId) : state.areas[0];

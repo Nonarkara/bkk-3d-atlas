@@ -42,6 +42,78 @@
       </nav>
     </header>
 
+    <!-- Bangkok provincial live strip — ThaiWater provincial dashboard
+         5-card pattern (24h / 3d / 7d rain + temp + freshness). Renders from
+         /api/water/bkk/kpi which proxies HII ThaiWater v3 with a 5-min
+         cache. Auto-refreshes; degrades to "unavailable" if the upstream
+         is down. -->
+    <section
+      id="atlas-bkk-live"
+      class="atlas-bkk-live"
+      aria-label="Bangkok provincial water live"
+    >
+      <div class="atlas-bkk-live-head">
+        <span class="atlas-eyebrow atlas-eyebrow-bkk">
+          BKK provincial live · ศูนย์ข้อมูลน้ำระดับจังหวัด
+        </span>
+        <span class="atlas-bkk-live-meta" id="atlas-bkk-live-meta">
+          <span class="atlas-bkk-live-dot" aria-hidden="true"></span>
+          <span id="atlas-bkk-live-freshness">loading…</span>
+        </span>
+      </div>
+      <div class="atlas-bkk-live-grid" id="atlas-bkk-live-grid">
+        <article class="atlas-bkk-card" data-card="rain1d">
+          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 24 ชม.</p>
+          <p class="atlas-bkk-card-value" id="bkk-card-rain1d-value">—</p>
+          <p class="atlas-bkk-card-unit">มม.</p>
+          <p class="atlas-bkk-card-where">
+            <span class="atlas-bkk-card-place" id="bkk-card-rain1d-where">—</span>
+          </p>
+        </article>
+        <article class="atlas-bkk-card" data-card="rain3d">
+          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 3 วัน</p>
+          <p class="atlas-bkk-card-value" id="bkk-card-rain3d-value">—</p>
+          <p class="atlas-bkk-card-unit">มม.</p>
+          <p class="atlas-bkk-card-where">
+            <span class="atlas-bkk-card-place" id="bkk-card-rain3d-where">—</span>
+          </p>
+        </article>
+        <article class="atlas-bkk-card" data-card="rain7d">
+          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 7 วัน</p>
+          <p class="atlas-bkk-card-value" id="bkk-card-rain7d-value">—</p>
+          <p class="atlas-bkk-card-unit">มม.</p>
+          <p class="atlas-bkk-card-where">
+            <span class="atlas-bkk-card-place" id="bkk-card-rain7d-where">—</span>
+          </p>
+        </article>
+        <article class="atlas-bkk-card" data-card="temp">
+          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">อุณหภูมิ สูงสุด / ต่ำสุด</p>
+          <p class="atlas-bkk-card-value">
+            <span id="bkk-card-temp-max">—</span><span class="atlas-bkk-card-temp-sep">°</span><span class="atlas-bkk-card-temp-sep"> / </span><span id="bkk-card-temp-min">—</span><span class="atlas-bkk-card-temp-sep">°</span>
+          </p>
+          <p class="atlas-bkk-card-unit">เซลเซียส</p>
+          <p class="atlas-bkk-card-where">
+            <span class="atlas-bkk-card-place" id="bkk-card-temp-where">—</span>
+          </p>
+        </article>
+        <article class="atlas-bkk-card atlas-bkk-card-meta" data-card="meta">
+          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">แหล่งข้อมูล</p>
+          <p class="atlas-bkk-card-value atlas-bkk-card-source-name">ThaiWater v3</p>
+          <p class="atlas-bkk-card-unit">HII · สสน.</p>
+          <p class="atlas-bkk-card-where">
+            <span class="atlas-bkk-card-place">
+              <a
+                href="https://bangkok.thaiwater.net/dashboard"
+                target="_blank"
+                rel="noreferrer"
+                class="atlas-bkk-card-link"
+              >bangkok.thaiwater.net ↗</a>
+            </span>
+          </p>
+        </article>
+      </div>
+    </section>
+
     <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok"></div>
 
     <aside class="atlas-panel" aria-live="polite">
