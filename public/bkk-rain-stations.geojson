@@ -1,0 +1,4266 @@
+{
+  "type": "FeatureCollection",
+  "name": "bkk-rain-stations",
+  "version": "2026-09-16",
+  "description": "Bangkok rain gauge network — 133 stations from the Hydro-Informatics Institute (HII) via api-v3.thaiwater.net. Live rain_24h and rain_1h readings, geocoded to the station lat/lon. Steals the BKK provincial station list that powers bangkok.thaiwater.net/dashboard.",
+  "attribution": "Data: Hydro-Informatics Institute (สสน.) / ThaiWater v3 API · Royal Irrigation Department · Department of Drainage, Bangkok (BMA). Endpoint: api-v3.thaiwater.net/api/v1/thaiwater30/provinces/rain24",
+  "featureCount": 133,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.52382,
+          13.73067
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528738",
+        "station_id": 528738,
+        "station_oldcode": "RF.BRK.01",
+        "name": "สนข.บางรัก",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางรัก",
+        "amphoe_en": "Bang Rak District",
+        "tumbon": "สี่พระยา",
+        "tumbon_en": "Si Phraya",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 72.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.48558,
+          13.72497
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528767",
+        "station_id": 528767,
+        "station_oldcode": "RF.TBR.01",
+        "name": "สนข.ธนบุรี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ธนบุรี",
+        "amphoe_en": "Thon Buri District",
+        "tumbon": "บางยี่เรือ",
+        "tumbon_en": "Bang Yi Ruea",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 71.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.79228,
+          13.92046
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528830",
+        "station_id": 528830,
+        "station_oldcode": "RF.KSW.03",
+        "name": "จุดวัด ค.เก้า-วัดศรีสุขฯ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองสามวา",
+        "amphoe_en": "Khlong Sam Wa District",
+        "tumbon": "สามวาตะวันออก",
+        "tumbon_en": "Sam Wa Tawan Ok",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 70.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.54287,
+          13.78003
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528745",
+        "station_id": 528745,
+        "station_oldcode": "RF.PYT.01",
+        "name": "สนข.พญาไท",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พญาไท",
+        "amphoe_en": "Phaya Thai District",
+        "tumbon": "สามเสนใน",
+        "tumbon_en": "Sam Sen Nai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 68.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.57498,
+          13.80967
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528746",
+        "station_id": 528746,
+        "station_oldcode": "RF.CTC.01",
+        "name": "บ่อสูบศาลอาญารัชดา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จตุจักร",
+        "amphoe_en": "Chatuchak District",
+        "tumbon": "จอมพล",
+        "tumbon_en": "Chomphon",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 68.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.6609,
+          13.89531
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528749",
+        "station_id": 528749,
+        "station_oldcode": "RF.SMI.01",
+        "name": "สนข.สายไหม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สายไหม",
+        "amphoe_en": "Sai Mai District",
+        "tumbon": "ออเงิน",
+        "tumbon_en": "O Ngoen",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 67.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58933,
+          13.79432
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528801",
+        "station_id": 528801,
+        "station_oldcode": "RF.WTL.02",
+        "name": "ปตร.คลองลาดพร้าว",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "วังทองหลาง",
+        "amphoe_en": "Wang Thonglang District",
+        "tumbon": "วังทองหลาง",
+        "tumbon_en": "Wang Thong Lang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 65.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.53618,
+          13.74807
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528828",
+        "station_id": 528828,
+        "station_oldcode": "RF.PTW.02",
+        "name": "ปตร.คลองอรชร",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ปทุมวัน",
+        "amphoe_en": "Pathum Wan District",
+        "tumbon": "ปทุมวัน",
+        "tumbon_en": "Pathum Wan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 65.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5096,
+          13.73664
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528737",
+        "station_id": 528737,
+        "station_oldcode": "RF.SPW.01",
+        "name": "ท่าน้ำสวัสดี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สัมพันธวงศ์",
+        "amphoe_en": "Samphanthawong District",
+        "tumbon": "สัมพันธวงศ์",
+        "tumbon_en": "Samphanthawong",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 62.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.55452,
+          13.76902
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528789",
+        "station_id": 528789,
+        "station_oldcode": "RF.DDG.02",
+        "name": "ศูนย์ฯ (ดินแดง)",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ดินแดง",
+        "amphoe_en": "Din Daeng District",
+        "tumbon": "ดินแดง",
+        "tumbon_en": "Din Daeng",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 62.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.54839,
+          13.75665
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528786",
+        "station_id": 528786,
+        "station_oldcode": "RF.RTW.03",
+        "name": "จุดวัดบึงมักกะสัน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ราชเทวี",
+        "amphoe_en": "Ratchathewi District",
+        "tumbon": "มักกะสัน",
+        "tumbon_en": "Makkasan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 59.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.51397,
+          13.73042
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528809",
+        "station_id": 528809,
+        "station_oldcode": "RF.BRK.02",
+        "name": "ส.กรุงเกษม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางรัก",
+        "amphoe_en": "Bang Rak District",
+        "tumbon": "บางรัก",
+        "tumbon_en": "Bang Rak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 59.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58746,
+          13.85402
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-1",
+        "station_id": 1,
+        "station_oldcode": "BKK021",
+        "name": "คลองลาดพร้าว วัดบางบัว",
+        "name_en": "Klong Ladprao Bang Bua Temple",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "บางเขน",
+        "amphoe_en": "Bang Khen District",
+        "tumbon": "อนุสาวรีย์",
+        "tumbon_en": "Anusawari",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 58.8,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.51304,
+          13.75826
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528736",
+        "station_id": 528736,
+        "station_oldcode": "RF.PPS.01",
+        "name": "สนข.ป้อมปราบฯ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ป้อมปราบศัตรูพ่าย",
+        "amphoe_en": "Pom Prap Sattru Phai District",
+        "tumbon": "วัดโสมนัส",
+        "tumbon_en": "Wat Sommanat",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 58.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.57906,
+          13.77678
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528751",
+        "station_id": 528751,
+        "station_oldcode": "RF.HKG.01",
+        "name": "สนข.ห้วยขวาง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ห้วยขวาง",
+        "amphoe_en": "Huai Khwang District",
+        "tumbon": "ห้วยขวาง",
+        "tumbon_en": "Huai Khwang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 58.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.68741,
+          13.92126
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528791",
+        "station_id": 528791,
+        "station_oldcode": "RF.SMI.03",
+        "name": "ปตร.พระยาสุเรนทร์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สายไหม",
+        "amphoe_en": "Sai Mai District",
+        "tumbon": "สายไหม",
+        "tumbon_en": "Sai Mai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 58.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.72909,
+          13.85954
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528792",
+        "station_id": 528792,
+        "station_oldcode": "RF.KSW.02",
+        "name": "ปตร.คลองสามวา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองสามวา",
+        "amphoe_en": "Khlong Sam Wa District",
+        "tumbon": "บางขัน",
+        "tumbon_en": "Bang Khan",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 57.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49646,
+          13.7067
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528848",
+        "station_id": 528848,
+        "station_oldcode": "RF.TBR.02",
+        "name": "ส.คลองสำเหร่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ธนบุรี",
+        "amphoe_en": "Thon Buri District",
+        "tumbon": "สำเหร่",
+        "tumbon_en": "Samre",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 56.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.53405,
+          13.75917
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528753",
+        "station_id": 528753,
+        "station_oldcode": "RF.RTW.01",
+        "name": "สนข.ราชเทวี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ราชเทวี",
+        "amphoe_en": "Ratchathewi District",
+        "tumbon": "ทุ่งพญาไท",
+        "tumbon_en": "Thung Phaya Thai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 56.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49737,
+          13.70692
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528858",
+        "station_id": 528858,
+        "station_oldcode": "RF.KSN.02",
+        "name": "ส.คลองบางไส้ไก่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ธนบุรี",
+        "amphoe_en": "Thon Buri District",
+        "tumbon": "สำเหร่",
+        "tumbon_en": "Samre",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 56.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50947,
+          13.73044
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528768",
+        "station_id": 528768,
+        "station_oldcode": "RF.KSN.01",
+        "name": "สนข.คลองสาน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองสาน",
+        "amphoe_en": "Khlong San District",
+        "tumbon": "คลองสาน",
+        "tumbon_en": "Khlong San",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 55.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.66131,
+          13.83637
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528795",
+        "station_id": 528795,
+        "station_oldcode": "RF.KNY.02",
+        "name": "จุดวัด ค.ลำชะล่า-ถ.นวมินทร์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คันนายาว",
+        "amphoe_en": "Khan Na Yao District",
+        "tumbon": "คันนายาว",
+        "tumbon_en": "Khan Na Yao",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 53.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.48758,
+          13.6949
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528850",
+        "station_id": 528850,
+        "station_oldcode": "RF.TBR.03",
+        "name": "ส.ดาวคะนอง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ราษฎร์บูรณะ",
+        "amphoe_en": "Rat Burana District",
+        "tumbon": "บางปะกอก",
+        "tumbon_en": "Bang Pakok",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 52.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58682,
+          13.85796
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528793",
+        "station_id": 528793,
+        "station_oldcode": "RF.BKA.02",
+        "name": "จุดวัด ค.บางบัว",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จตุจักร",
+        "amphoe_en": "Chatuchak District",
+        "tumbon": "เสนานิคม",
+        "tumbon_en": "Sena Nikhom",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 52.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.63952,
+          13.93183
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-8",
+        "station_id": 8,
+        "station_oldcode": "BKK020",
+        "name": "คลองลาดพร้าว ปากคลอง2สายใต้",
+        "name_en": "Klong Ladprao Klong 2 Sai Tai",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "ลาดพร้าว",
+        "amphoe_en": "Lat Phrao District",
+        "tumbon": "ลาดพร้าว",
+        "tumbon_en": "Lat Phrao",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 49.6,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.57893,
+          13.88748
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528747",
+        "station_id": 528747,
+        "station_oldcode": "RF.LSI.01",
+        "name": "สนข.หลักสี่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หลักสี่",
+        "amphoe_en": "Lak Si District",
+        "tumbon": "ทุ่งสองห้อง",
+        "tumbon_en": "Thung Song Hong",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 48.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50229,
+          13.69311
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528740",
+        "station_id": 528740,
+        "station_oldcode": "RF.BKL.01",
+        "name": "สนข.บางคอแหลม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางคอแหลม",
+        "amphoe_en": "Bang Kho Laem District",
+        "tumbon": "บางคอแหลม",
+        "tumbon_en": "Bang Kho Laem",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 48.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.57558,
+          13.85604
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-1129393",
+        "station_id": 1129393,
+        "station_oldcode": "HII001",
+        "name": "อาคารเลขที่ ๙๐๑",
+        "name_en": "Hydro-Informatics Institute (Public Organization)",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "จตุจักร",
+        "amphoe_en": "Chatuchak District",
+        "tumbon": "ลาดยาว",
+        "tumbon_en": "Lat Yao",
+        "basin": "Not specify",
+        "rain_24h_mm": 47.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.56383,
+          13.8921
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528783",
+        "station_id": 528783,
+        "station_oldcode": "RF.LSI.03",
+        "name": "จุดวัดศูนย์ราชการ-ถ.แจ้งวัฒนะ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หลักสี่",
+        "amphoe_en": "Lak Si District",
+        "tumbon": "ทุ่งสองห้อง",
+        "tumbon_en": "Thung Song Hong",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 47.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5011,
+          13.77191
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528804",
+        "station_id": 528804,
+        "station_oldcode": "RF.PNK.02",
+        "name": "ส.เทเวศร์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระนคร",
+        "amphoe_en": "Phra Nakhon District",
+        "tumbon": "วัดสามพระยา",
+        "tumbon_en": "Wat Sam Phraya",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 47.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.59643,
+          13.87349
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528750",
+        "station_id": 528750,
+        "station_oldcode": "RF.BKA.01",
+        "name": "สนข.บางเขน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางเขน",
+        "amphoe_en": "Bang Khen District",
+        "tumbon": "อนุสาวรีย์",
+        "tumbon_en": "Anusawari",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 44.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.54175,
+          13.83978
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528785",
+        "station_id": 528785,
+        "station_oldcode": "RF.CTC.03",
+        "name": "จุดวัด ถ.เทศบาลสงเคราะห์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จตุจักร",
+        "amphoe_en": "Chatuchak District",
+        "tumbon": "ลาดยาว",
+        "tumbon_en": "Lat Yao",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 44.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.60746,
+          13.80353
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528754",
+        "station_id": 528754,
+        "station_oldcode": "RF.LPW.01",
+        "name": "สนข.ลาดพร้าว",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ลาดพร้าว",
+        "amphoe_en": "Lat Phrao District",
+        "tumbon": "ลาดพร้าว",
+        "tumbon_en": "Lat Phrao",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 43.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.59492,
+          13.91053
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528748",
+        "station_id": 528748,
+        "station_oldcode": "RF.DMG.01",
+        "name": "สนข.ดอนเมือง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ดอนเมือง",
+        "amphoe_en": "Don Mueang District",
+        "tumbon": "สีกัน",
+        "tumbon_en": "Si Kan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 42.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.51496,
+          13.71839
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528812",
+        "station_id": 528812,
+        "station_oldcode": "RF.STN.02",
+        "name": "ส.คลองสาทร",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สาทร",
+        "amphoe_en": "Sathon District",
+        "tumbon": "ยานนาวา",
+        "tumbon_en": "Yan Nawa",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 42.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.62661,
+          13.93786
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528784",
+        "station_id": 528784,
+        "station_oldcode": "RF.SMI.04",
+        "name": "จุดวัด ซ.แอนเน็กซ์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สายไหม",
+        "amphoe_en": "Sai Mai District",
+        "tumbon": "สายไหม",
+        "tumbon_en": "Sai Mai",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 41.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49872,
+          13.7649
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528735",
+        "station_id": 528735,
+        "station_oldcode": "RF.PNK.01",
+        "name": "สนข.พระนคร",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระนคร",
+        "amphoe_en": "Phra Nakhon District",
+        "tumbon": "วัดสามพระยา",
+        "tumbon_en": "Wat Sam Phraya",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 41.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.63438,
+          13.92245
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-11",
+        "station_id": 11,
+        "station_oldcode": "BKK001",
+        "name": "คลองลาดพร้าว ท้ายปตร.คลอง2",
+        "name_en": "Krung Thep 1",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "สายไหม",
+        "amphoe_en": "Sai Mai District",
+        "tumbon": "สายไหม",
+        "tumbon_en": "Sai Mai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 41.4,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50825,
+          13.78483
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528802",
+        "station_id": 528802,
+        "station_oldcode": "RF.DST.02",
+        "name": "ส.สามเสน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ดุสิต",
+        "amphoe_en": "Dusit District",
+        "tumbon": "ถนนนครไชยศรี",
+        "tumbon_en": "Thanon Nakhon Chaisi",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 41.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.562164,
+          13.74325
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-852087",
+        "station_id": 852087,
+        "station_oldcode": "AIT001",
+        "name": "อโศก",
+        "name_en": "Asok",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "วัฒนา",
+        "amphoe_en": "Vadhana District",
+        "tumbon": "คลองเตยเหนือ",
+        "tumbon_en": "Khlong Toei Nuea",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 40.4,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.61601,
+          13.76131
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-2",
+        "station_id": 2,
+        "station_oldcode": "BKK008",
+        "name": "คลองแสนแสบ บางกะปิ",
+        "name_en": "Krung Thep 8",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "บางกะปิ",
+        "amphoe_en": "Bang Kapi District",
+        "tumbon": "หัวหมาก",
+        "tumbon_en": "Hua Mak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 40.2,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49454,
+          13.74228
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-1095668",
+        "station_id": 1095668,
+        "station_oldcode": "RF.PNK.03",
+        "name": "ปากคลองตลาด",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระนคร",
+        "amphoe_en": "Phra Nakhon District",
+        "tumbon": "พระบรมมหาราชวัง",
+        "tumbon_en": "Phraborom Maharatchawang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 39.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.51848,
+          13.80023
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528799",
+        "station_id": 528799,
+        "station_oldcode": "RF.BSU.03",
+        "name": "ส.คลองบางซื่อ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ดุสิต",
+        "amphoe_en": "Dusit District",
+        "tumbon": "ถนนนครไชยศรี",
+        "tumbon_en": "Thanon Nakhon Chaisi",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 39.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.39465,
+          13.60381
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528856",
+        "station_id": 528856,
+        "station_oldcode": "RF.BKT.03",
+        "name": "ส.คลองระหาญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "แสมดำ",
+        "tumbon_en": "Samae Dam",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 38.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.605,
+          13.91917
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-3712",
+        "station_id": 3712,
+        "station_oldcode": "48456",
+        "name": "สนามบินดอนเมือง",
+        "name_en": "DON MUANG AIRPORT",
+        "agency": "Thai Meteorological Department",
+        "agency_th": "กรมอุตุนิยมวิทยา ",
+        "amphoe": "ดอนเมือง",
+        "amphoe_en": "Don Mueang District",
+        "tumbon": "สีกัน",
+        "tumbon_en": "Si Kan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 37.6,
+        "rain_1h_mm": null,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50586,
+          13.68207
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528775",
+        "station_id": 528775,
+        "station_oldcode": "RF.RBN.01",
+        "name": "สนข.ราษฎร์บูรณะ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ราษฎร์บูรณะ",
+        "amphoe_en": "Rat Burana District",
+        "tumbon": "ราษฎร์บูรณะ",
+        "tumbon_en": "Rat Burana",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 37.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.52641,
+          13.70821
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528739",
+        "station_id": 528739,
+        "station_oldcode": "RF.STN.01",
+        "name": "สนข.สาทร",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สาทร",
+        "amphoe_en": "Sathon District",
+        "tumbon": "ทุ่งวัดดอน",
+        "tumbon_en": "Thung Wat Don",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 37.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.63447,
+          13.92314
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528790",
+        "station_id": 528790,
+        "station_oldcode": "RF.SMI.02",
+        "name": "ปตร.คลองสองสายใต้",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สายไหม",
+        "amphoe_en": "Sai Mai District",
+        "tumbon": "สายไหม",
+        "tumbon_en": "Sai Mai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 36.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.61525,
+          13.7616
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528803",
+        "station_id": 528803,
+        "station_oldcode": "RF.WTL.03",
+        "name": "ส.คลองเจ้าคุณสิงห์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "วังทองหลาง",
+        "amphoe_en": "Wang Thonglang District",
+        "tumbon": "วังทองหลาง",
+        "tumbon_en": "Wang Thong Lang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 36.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.70424,
+          13.8599
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528755",
+        "station_id": 528755,
+        "station_oldcode": "RF.KSW.01",
+        "name": "สนข.คลองสามวา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองสามวา",
+        "amphoe_en": "Khlong Sam Wa District",
+        "tumbon": "บางขัน",
+        "tumbon_en": "Bang Khan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 36.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.60553,
+          13.76435
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528752",
+        "station_id": 528752,
+        "station_oldcode": "RF.WTL.01",
+        "name": "สนข.วังทองหลาง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "วังทองหลาง",
+        "amphoe_en": "Wang Thonglang District",
+        "tumbon": "วังทองหลาง",
+        "tumbon_en": "Wang Thong Lang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 35.5,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.48427,
+          13.67744
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528774",
+        "station_id": 528774,
+        "station_oldcode": "RF.JTG.01",
+        "name": "สนข.จอมทอง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จอมทอง",
+        "amphoe_en": "Chom Thong District",
+        "tumbon": "บางมด",
+        "tumbon_en": "Bang Mot",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 35.0,
+        "rain_1h_mm": 0.0,
+        "severity": "heavy",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.48531,
+          13.74714
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-598414",
+        "station_id": 598414,
+        "station_oldcode": "RF.BKN.02",
+        "name": "ส.คลองมอญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางกอกใหญ่",
+        "amphoe_en": "Bangkok Yai District",
+        "tumbon": "วัดอรุณ",
+        "tumbon_en": "Wat Arun",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 34.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.47622,
+          13.72332
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528770",
+        "station_id": 528770,
+        "station_oldcode": "RF.BKY.01",
+        "name": "สนข.บางกอกใหญ่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางกอกใหญ่",
+        "amphoe_en": "Bangkok Yai District",
+        "tumbon": "วัดท่าพระ",
+        "tumbon_en": "Wat Tha Phra",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 33.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.53723,
+          13.80973
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528744",
+        "station_id": 528744,
+        "station_oldcode": "RF.BSU.01",
+        "name": "สนข.บางซื่อ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางซื่อ",
+        "amphoe_en": "Bang Sue District",
+        "tumbon": "บางซื่อ",
+        "tumbon_en": "Bang Sue",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 33.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.43531,
+          13.66083
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528780",
+        "station_id": 528780,
+        "station_oldcode": "RF.BKT.01",
+        "name": "สนข.บางขุนเทียน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "แสมดำ",
+        "tumbon_en": "Samae Dam",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 33.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.44615,
+          13.67325
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528852",
+        "station_id": 528852,
+        "station_oldcode": "RF.JTG.03",
+        "name": "ส.คลองสี่บาท",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "แสมดำ",
+        "tumbon_en": "Samae Dam",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 31.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.56,
+          13.72639
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-3711",
+        "station_id": 3711,
+        "station_oldcode": "48455",
+        "name": "กรุงเทพมหานคร",
+        "name_en": "BANGKOK METROPOLIS",
+        "agency": "Thai Meteorological Department",
+        "agency_th": "กรมอุตุนิยมวิทยา ",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองเตย",
+        "tumbon_en": "Khlong Toei",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 31.1,
+        "rain_1h_mm": null,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.45653,
+          13.77663
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528772",
+        "station_id": 528772,
+        "station_oldcode": "RF.TLC.01",
+        "name": "สนข.ตลิ่งชัน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ตลิ่งชัน",
+        "amphoe_en": "Taling Chan District",
+        "tumbon": "คลองชักพระ",
+        "tumbon_en": "Khlong Chak Phra",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 28.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.46863,
+          13.72204
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528846",
+        "station_id": 528846,
+        "station_oldcode": "RF.PSC.04",
+        "name": "ส.คลองภาษีเจริญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ภาษีเจริญ",
+        "amphoe_en": "Phasi Charoen District",
+        "tumbon": "ปากคลองภาษีเจริญ",
+        "tumbon_en": "Pak Khlong Phasi Charoen",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 28.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.43696,
+          13.71441
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528773",
+        "station_id": 528773,
+        "station_oldcode": "RF.PSC.01",
+        "name": "สนข.ภาษีเจริญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ภาษีเจริญ",
+        "amphoe_en": "Phasi Charoen District",
+        "tumbon": "บางหว้า",
+        "tumbon_en": "Bang Wa",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 28.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.465,
+          13.77892
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528842",
+        "station_id": 528842,
+        "station_oldcode": "RF.TLC.03",
+        "name": "ส.คลองชักพระ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ตลิ่งชัน",
+        "amphoe_en": "Taling Chan District",
+        "tumbon": "คลองชักพระ",
+        "tumbon_en": "Khlong Chak Phra",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 27.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.46491,
+          13.70123
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528849",
+        "station_id": 528849,
+        "station_oldcode": "RF.JTG.02",
+        "name": "จุดวัด ค.สนามชัย-ค.บางขุนเทียน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จอมทอง",
+        "amphoe_en": "Chom Thong District",
+        "tumbon": "บางขุนเทียน",
+        "tumbon_en": "Bang Khun Thian",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 27.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50479,
+          13.79429
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528771",
+        "station_id": 528771,
+        "station_oldcode": "RF.BPD.01",
+        "name": "สนข.บางพลัด",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางพลัด",
+        "amphoe_en": "Bang Phlat District",
+        "tumbon": "บางอ้อ",
+        "tumbon_en": "Bang O",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 27.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.56745,
+          13.73159
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528829",
+        "station_id": 528829,
+        "station_oldcode": "RF.KTY.05",
+        "name": "จุดวัดสวนเบญจสิริ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองตัน",
+        "tumbon_en": "Khlong Tan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 26.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.51643,
+          13.68653
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528818",
+        "station_id": 528818,
+        "station_oldcode": "RF.BKL.02",
+        "name": "ส.วัดไทร",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางคอแหลม",
+        "amphoe_en": "Bang Kho Laem District",
+        "tumbon": "บางโคล่",
+        "tumbon_en": "Bang Khlo",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 26.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.64773,
+          13.76528
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528806",
+        "station_id": 528806,
+        "station_oldcode": "RF.BKP.02",
+        "name": "จุดวัด ค.แสนแสบ-เขตบางกะปิ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางกะปิ",
+        "amphoe_en": "Bang Kapi District",
+        "tumbon": "หัวหมาก",
+        "tumbon_en": "Hua Mak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 25.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.45954,
+          13.74357
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528860",
+        "station_id": 528860,
+        "station_oldcode": "RF.PSC.05",
+        "name": "จุดวัด ค.บางเชือกหนัง-วัดปากน้ำฝั่งใต้",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ภาษีเจริญ",
+        "amphoe_en": "Phasi Charoen District",
+        "tumbon": "บางแวก",
+        "tumbon_en": "Bang Waek",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 24.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.41311,
+          13.607
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528855",
+        "station_id": 528855,
+        "station_oldcode": "RF.BKT.02",
+        "name": "ส.คลองเลนเปน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "แสมดำ",
+        "tumbon_en": "Samae Dam",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 24.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5964,
+          13.7411
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528808",
+        "station_id": 528808,
+        "station_oldcode": "RF.WTN.02",
+        "name": "ส.แสนแสบ-คลองตัน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "วัฒนา",
+        "amphoe_en": "Vadhana District",
+        "tumbon": "คลองตันเหนือ",
+        "tumbon_en": "Khlong Tan Nuea",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 24.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.37676,
+          13.72167
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528758",
+        "station_id": 528758,
+        "station_oldcode": "RF.BKE.04",
+        "name": "หมู่บ้านเศรษฐกิจ ซอย 26",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "บางแคเหนือ",
+        "tumbon_en": "Bang Khae Nuea",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 24.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.43863,
+          13.79965
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-5",
+        "station_id": 5,
+        "station_oldcode": "BKK003",
+        "name": "คลองมหาสวัสดิ บางกรวย-สวนผัก",
+        "name_en": "Krung Thep 3",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "ตลิ่งชัน",
+        "amphoe_en": "Taling Chan District",
+        "tumbon": "ตลิ่งชัน",
+        "tumbon_en": "Taling Chan",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 23.2,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.46806,
+          13.77078
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528769",
+        "station_id": 528769,
+        "station_oldcode": "RF.BKN.01",
+        "name": "สนข.บางกอกน้อย",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางกอกน้อย",
+        "amphoe_en": "Bangkok Noi District",
+        "tumbon": "ศิริราช",
+        "tumbon_en": "Sirirat",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 23.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.66949,
+          13.7855
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528762",
+        "station_id": 528762,
+        "station_oldcode": "RF.BKM.01",
+        "name": "สนข.บึงกุ่ม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บึงกุ่ม",
+        "amphoe_en": "Bueng Kum District",
+        "tumbon": "คลองกุ่ม",
+        "tumbon_en": "Khlong Kum",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 23.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.70451,
+          13.79734
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528800",
+        "station_id": 528800,
+        "station_oldcode": "RF.SPS.02",
+        "name": "ปตร.คลองแสนแสบ-บางชัน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สะพานสูง",
+        "amphoe_en": "Saphan Sung District",
+        "tumbon": "สะพานสูง",
+        "tumbon_en": "Saphan Sung",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 23.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.73122,
+          13.8136
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528756",
+        "station_id": 528756,
+        "station_oldcode": "RF.MBR.01",
+        "name": "สนข.มีนบุรี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "มีนบุรี",
+        "amphoe_en": "Min Buri District",
+        "tumbon": "มีนบุรี",
+        "tumbon_en": "Min Buri",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 21.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5992,
+          13.74842
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528807",
+        "station_id": 528807,
+        "station_oldcode": "RF.HKG.02",
+        "name": "ส.สามเสน-ค.แสนแสบ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ห้วยขวาง",
+        "amphoe_en": "Huai Khwang District",
+        "tumbon": "บางกะปิ",
+        "tumbon_en": "Bang Kapi",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 21.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.42622,
+          13.70754
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528847",
+        "station_id": 528847,
+        "station_oldcode": "RF.BKE.02",
+        "name": "ค.ราชมนตรี-ภาษีเจริญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "บางแค",
+        "tumbon_en": "Bang Khae",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 21.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.68545,
+          13.76881
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528759",
+        "station_id": 528759,
+        "station_oldcode": "RF.SPS.01",
+        "name": "สนข.สะพานสูง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สะพานสูง",
+        "amphoe_en": "Saphan Sung District",
+        "tumbon": "สะพานสูง",
+        "tumbon_en": "Saphan Sung",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 20.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.39555,
+          13.71471
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528787",
+        "station_id": 528787,
+        "station_oldcode": "RF.BKE.03",
+        "name": "ส.คลองบางจาก",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "บางแคเหนือ",
+        "tumbon_en": "Bang Khae Nuea",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 19.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.38097,
+          13.69168
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528851",
+        "station_id": 528851,
+        "station_oldcode": "RF.NKM.02",
+        "name": "จุดวัด ค.ทวีฯ-ค.ภาษีฯ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองแขม",
+        "amphoe_en": "Nong Khaem District",
+        "tumbon": "หนองแขม",
+        "tumbon_en": "Nong Khaem",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 19.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.86244,
+          13.91368
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528831",
+        "station_id": 528831,
+        "station_oldcode": "RF.NJK.03",
+        "name": "จุดวัด ค.สิบสอง-ถ.ประชาสำราญ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองจอก",
+        "amphoe_en": "Nong Chok District",
+        "tumbon": "คลองสิบสอง",
+        "tumbon_en": "Khlong Sip Song",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 18.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.40919,
+          13.69622
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528778",
+        "station_id": 528778,
+        "station_oldcode": "RF.BKE.01",
+        "name": "สนข.บางแค",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "บางแค",
+        "tumbon_en": "Bang Khae",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 18.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.74717,
+          13.8212
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528796",
+        "station_id": 528796,
+        "station_oldcode": "RF.MBR.02",
+        "name": "ปตร.ประชาร่วมใจ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "มีนบุรี",
+        "amphoe_en": "Min Buri District",
+        "tumbon": "แสนแสบ",
+        "tumbon_en": "Saen Saep",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 18.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.86754,
+          13.85859
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528832",
+        "station_id": 528832,
+        "station_oldcode": "RF.NJK.04",
+        "name": "ปตร.คลองสิบสาม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองจอก",
+        "amphoe_en": "Nong Chok District",
+        "tumbon": "หนองจอก",
+        "tumbon_en": "Nong Chok",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 18.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.44763,
+          13.63802
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528864",
+        "station_id": 528864,
+        "station_oldcode": "RF.BKT.05",
+        "name": "ส.คลองสนามชัย",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "ท่าข้าม",
+        "tumbon_en": "Tha Kham",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 18.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.38127,
+          13.69158
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-10",
+        "station_id": 10,
+        "station_oldcode": "BKK005",
+        "name": "คลองภาษีเจริญ เพชรเกษม69",
+        "name_en": "Krung Thep 5",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "หลักสอง",
+        "tumbon_en": "Lak Song",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 18.4,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5105,
+          13.81729
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528797",
+        "station_id": 528797,
+        "station_oldcode": "RF.BSU.02",
+        "name": "ส.คลองบางเขนใหม่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางซื่อ",
+        "amphoe_en": "Bang Sue District",
+        "tumbon": "บางซื่อ",
+        "tumbon_en": "Bang Sue",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 18.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.41609,
+          13.79974
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528841",
+        "station_id": 528841,
+        "station_oldcode": "RF.TLC.02",
+        "name": "ปตร.คลองบัว-ทางรถไฟ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ตลิ่งชัน",
+        "amphoe_en": "Taling Chan District",
+        "tumbon": "ฉิมพลี",
+        "tumbon_en": "Chimphli",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 17.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.55457,
+          13.7087
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528814",
+        "station_id": 528814,
+        "station_oldcode": "RF.KTY.02",
+        "name": "ส.พระราม 4",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองเตย",
+        "tumbon_en": "Khlong Toei",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 17.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.4394,
+          13.62782
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528857",
+        "station_id": 528857,
+        "station_oldcode": "RF.BKT.04",
+        "name": "ส.คลองราชมนตรี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางขุนเทียน",
+        "amphoe_en": "Bang Khun Thian District",
+        "tumbon": "แสมดำ",
+        "tumbon_en": "Samae Dam",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 17.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.54874,
+          13.69493
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528824",
+        "station_id": 528824,
+        "station_oldcode": "RF.YNW.02",
+        "name": "ส.คลองช่องนนทรี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ยานนาวา",
+        "amphoe_en": "Yan Nawa District",
+        "tumbon": "ช่องนนทรี",
+        "tumbon_en": "Chong Nonsi",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 17.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.60611,
+          13.66639
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-3709",
+        "station_id": 3709,
+        "station_oldcode": "48453",
+        "name": "กรุงเทพฯ บางนา สกษ.",
+        "name_en": "BANG NA AGROMET.",
+        "agency": "Thai Meteorological Department",
+        "agency_th": "กรมอุตุนิยมวิทยา ",
+        "amphoe": "บางนา",
+        "amphoe_en": "Bang Na District",
+        "tumbon": "บางนา",
+        "tumbon_en": "Bang Na",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 16.0,
+        "rain_1h_mm": null,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 10:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.87292,
+          13.85516
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528823",
+        "station_id": 528823,
+        "station_oldcode": "RF.NJK.02",
+        "name": "ปตร.คลองแสนแสบ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองจอก",
+        "amphoe_en": "Nong Chok District",
+        "tumbon": "หนองจอก",
+        "tumbon_en": "Nong Chok",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 15.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1507",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.60197,
+          13.70233
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528765",
+        "station_id": 528765,
+        "station_oldcode": "RF.PKN.01",
+        "name": "สนข.พระโขนง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระโขนง",
+        "amphoe_en": "Phra Khanong District",
+        "tumbon": "บางจาก",
+        "tumbon_en": "Bang Chak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 15.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.65154,
+          13.73043
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528761",
+        "station_id": 528761,
+        "station_oldcode": "RF.SLG.01",
+        "name": "สนข.สวนหลวง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สวนหลวง",
+        "amphoe_en": "Suan Luang District",
+        "tumbon": "สวนหลวง",
+        "tumbon_en": "Suan Luang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 15.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.6415,
+          13.71545
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528813",
+        "station_id": 528813,
+        "station_oldcode": "RF.SLG.02",
+        "name": "จุดวัด ค.ประเวศฯ-วัดขจรศิริ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "สวนหลวง",
+        "amphoe_en": "Suan Luang District",
+        "tumbon": "สวนหลวง",
+        "tumbon_en": "Suan Luang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 15.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.42765,
+          13.74223
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528844",
+        "station_id": 528844,
+        "station_oldcode": "RF.PSC.03",
+        "name": "จุดวัด ค.บางเชือกหนัง-ถ.พุทธมณฑลสาย 1",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ภาษีเจริญ",
+        "amphoe_en": "Phasi Charoen District",
+        "tumbon": "คลองขวาง",
+        "tumbon_en": "Khlong Khwang",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 14.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.74482,
+          13.79988
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528798",
+        "station_id": 528798,
+        "station_oldcode": "RF.MBR.03",
+        "name": "ปตร.บึงขวาง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "มีนบุรี",
+        "amphoe_en": "Min Buri District",
+        "tumbon": "แสนแสบ",
+        "tumbon_en": "Saen Saep",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 14.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.54222,
+          13.69627
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528741",
+        "station_id": 528741,
+        "station_oldcode": "RF.YNW.01",
+        "name": "สนข.ยานนาวา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ยานนาวา",
+        "amphoe_en": "Yan Nawa District",
+        "tumbon": "ช่องนนทรี",
+        "tumbon_en": "Chong Nonsi",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 14.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58363,
+          13.70791
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528764",
+        "station_id": 528764,
+        "station_oldcode": "RF.KTY.01",
+        "name": "สนข.คลองเตย",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองเตย",
+        "tumbon_en": "Khlong Toei",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 14.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.34931,
+          13.70574
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528781",
+        "station_id": 528781,
+        "station_oldcode": "RF.NKM.01",
+        "name": "สนข.หนองแขม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองแขม",
+        "amphoe_en": "Nong Khaem District",
+        "tumbon": "หนองค้างพลู",
+        "tumbon_en": "Nong Khang Phlu",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 14.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.83524,
+          13.79205
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528836",
+        "station_id": 528836,
+        "station_oldcode": "RF.NJK.06",
+        "name": "จุดวัด ค.ลำผักชี-รร.ลำผักชี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองจอก",
+        "amphoe_en": "Nong Chok District",
+        "tumbon": "ลำผักชี",
+        "tumbon_en": "Lam Phak Chi",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 14.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.80361,
+          13.8515
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-1092544",
+        "station_id": 1092544,
+        "station_oldcode": "RF.NJK.07",
+        "name": "จุดวัด ค.แสนแสบ-วัดทรัพย์ฯ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "มีนบุรี",
+        "amphoe_en": "Min Buri District",
+        "tumbon": "แสนแสบ",
+        "tumbon_en": "Saen Saep",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 13.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.56805,
+          13.70694
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-3710",
+        "station_id": 3710,
+        "station_oldcode": "48454",
+        "name": "กรุงเทพฯ ท่าเรือคลองเตย",
+        "name_en": "BANGKOK PORT (KLONG TOEI)",
+        "agency": "Thai Meteorological Department",
+        "agency_th": "กรมอุตุนิยมวิทยา ",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองเตย",
+        "tumbon_en": "Khlong Toei",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 13.3,
+        "rain_1h_mm": null,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 10:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58752,
+          13.70628
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528816",
+        "station_id": 528816,
+        "station_oldcode": "RF.KTY.04",
+        "name": "ส.คลองเตย",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "คลองเตย",
+        "tumbon_en": "Khlong Toei",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 13.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.35324,
+          13.77281
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528777",
+        "station_id": 528777,
+        "station_oldcode": "RF.TWW.01",
+        "name": "สนข.ทวีวัฒนา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ทวีวัฒนา",
+        "amphoe_en": "Thawi Watthana District",
+        "tumbon": "ทวีวัฒนา",
+        "tumbon_en": "Thawi Watthana",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 13.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.3707,
+          13.80244
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528859",
+        "station_id": 528859,
+        "station_oldcode": "RF.TWW.03",
+        "name": "ปตร.คลองขุนศรีฯ-ค.มหาสวัสดิ์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ทวีวัฒนา",
+        "amphoe_en": "Thawi Watthana District",
+        "tumbon": "ศาลาธรรมสพน์",
+        "tumbon_en": "Sala Thammasop",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 12.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.86259,
+          13.85584
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528757",
+        "station_id": 528757,
+        "station_oldcode": "RF.NJK.01",
+        "name": "สนข.หนองจอก",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "หนองจอก",
+        "amphoe_en": "Nong Chok District",
+        "tumbon": "กระทุ่มราย",
+        "tumbon_en": "Krathum Rai",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 12.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.59542,
+          13.70857
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528815",
+        "station_id": 528815,
+        "station_oldcode": "RF.KTY.03",
+        "name": "ส.พระโขนง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "คลองเตย",
+        "amphoe_en": "Khlong Toei District",
+        "tumbon": "พระโขนง",
+        "tumbon_en": "Phra Khanong",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 11.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58757,
+          13.67493
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528820",
+        "station_id": 528820,
+        "station_oldcode": "RF.BNA.02",
+        "name": "ส.บางนา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางนา",
+        "amphoe_en": "Bang Na District",
+        "tumbon": "บางนา",
+        "tumbon_en": "Bang Na",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 11.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.36884,
+          13.63392
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528779",
+        "station_id": 528779,
+        "station_oldcode": "RF.BBN.01",
+        "name": "สนข.บางบอน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางบอน",
+        "amphoe_en": "Bang Bon District",
+        "tumbon": "บางบอน",
+        "tumbon_en": "Bang Bon",
+        "basin": "Tha Chin Basin",
+        "rain_24h_mm": 10.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1302",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.59254,
+          13.68212
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528819",
+        "station_id": 528819,
+        "station_oldcode": "RF.PKN.03",
+        "name": "ส.บางอ้อ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระโขนง",
+        "amphoe_en": "Phra Khanong District",
+        "tumbon": "บางจาก",
+        "tumbon_en": "Bang Chak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 10.5,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.68957,
+          13.7241
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528811",
+        "station_id": 528811,
+        "station_oldcode": "RF.PWT.02",
+        "name": "ปตร.วัดกระทุ่มฯ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ประเวศ",
+        "amphoe_en": "Prawet District",
+        "tumbon": "ประเวศ",
+        "tumbon_en": "Prawet",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 10.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.59068,
+          13.6891
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528825",
+        "station_id": 528825,
+        "station_oldcode": "RF.PKN.04",
+        "name": "ส.บางจาก",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระโขนง",
+        "amphoe_en": "Phra Khanong District",
+        "tumbon": "บางจาก",
+        "tumbon_en": "Bang Chak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 10.0,
+        "rain_1h_mm": 0.0,
+        "severity": "moderate",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.58991,
+          13.69223
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528817",
+        "station_id": 528817,
+        "station_oldcode": "RF.PKN.02",
+        "name": "ส.คลองเจ็ก",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "พระโขนง",
+        "amphoe_en": "Phra Khanong District",
+        "tumbon": "บางจาก",
+        "tumbon_en": "Bang Chak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 9.5,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.37952,
+          13.64255
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528863",
+        "station_id": 528863,
+        "station_oldcode": "RF.BBN.02",
+        "name": "จุดวัด ค.บางบอน-ค.สะแกงาม",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางบอน",
+        "amphoe_en": "Bang Bon District",
+        "tumbon": "บางบอน",
+        "tumbon_en": "Bang Bon",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 9.5,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.35351,
+          13.75037
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528861",
+        "station_id": 528861,
+        "station_oldcode": "RF.TWW.04",
+        "name": "จุดวัด ค.ทวีฯ-ค.บางเชือกหนัง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางแค",
+        "amphoe_en": "Bang Khae District",
+        "tumbon": "บางไผ่",
+        "tumbon_en": "Bang Phai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 7.5,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.65375,
+          13.69529
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528839",
+        "station_id": 528839,
+        "station_oldcode": "RF.PWT.03",
+        "name": "จุดวัดบึงหนองบอน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ประเวศ",
+        "amphoe_en": "Prawet District",
+        "tumbon": "หนองบอน",
+        "tumbon_en": "Nong Bon",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 6.0,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.69472,
+          13.71701
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528760",
+        "station_id": 528760,
+        "station_oldcode": "RF.PWT.01",
+        "name": "สนข.ประเวศ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ประเวศ",
+        "amphoe_en": "Prawet District",
+        "tumbon": "ประเวศ",
+        "tumbon_en": "Prawet",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 6.0,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50878,
+          13.61135
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528776",
+        "station_id": 528776,
+        "station_oldcode": "RF.TKU.01",
+        "name": "สนข.ทุ่งครุ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ทุ่งครุ",
+        "amphoe_en": "Thung Khru District",
+        "tumbon": "ทุ่งครุ",
+        "tumbon_en": "Thung Khru",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 3.5,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.50218,
+          13.63494
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528854",
+        "station_id": 528854,
+        "station_oldcode": "RF.TKU.02",
+        "name": "ปตร.คลองรางจาก-ถ.ประชาอุทิศ",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ทุ่งครุ",
+        "amphoe_en": "Thung Khru District",
+        "tumbon": "ทุ่งครุ",
+        "tumbon_en": "Thung Khru",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 3.0,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.74979,
+          13.72386
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528810",
+        "station_id": 528810,
+        "station_oldcode": "RF.LKB.02",
+        "name": "ปตร.คลองประเวศฯ-ลาดกระบัง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ลาดกระบัง",
+        "amphoe_en": "Lat Krabang District",
+        "tumbon": "ลาดกระบัง",
+        "tumbon_en": "Lat Krabang",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 2.0,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.79468,
+          13.7407
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-3",
+        "station_id": 3,
+        "station_oldcode": "BKK009",
+        "name": "คลองลำปลาทิว ลาดกระบัง",
+        "name_en": "Krung Thep 9",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "ลาดกระบัง",
+        "amphoe_en": "Lat Krabang District",
+        "tumbon": "ลาดกระบัง",
+        "tumbon_en": "Lat Krabang",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 1.2,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.85106,
+          13.70097
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528838",
+        "station_id": 528838,
+        "station_oldcode": "RF.LKB.04",
+        "name": "จุดวัด ค.ประเวศฯ-ถ.ร่วมพัฒนา",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ลาดกระบัง",
+        "amphoe_en": "Lat Krabang District",
+        "tumbon": "ขุมทอง",
+        "tumbon_en": "Khum Thong",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 1.0,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.78407,
+          13.72398
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528837",
+        "station_id": 528837,
+        "station_oldcode": "RF.LKB.03",
+        "name": "ค.ประเวศฯ-รพ.ลาดกระบัง",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ลาดกระบัง",
+        "amphoe_en": "Lat Krabang District",
+        "tumbon": "ลาดกระบัง",
+        "tumbon_en": "Lat Krabang",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 0.5,
+        "rain_1h_mm": 0.0,
+        "severity": "light",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.63942,
+          13.66106
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528821",
+        "station_id": 528821,
+        "station_oldcode": "RF.BNA.03",
+        "name": "จุดวัด ค.บางนา-ถ.ศรีนครินทร์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางนา",
+        "amphoe_en": "Bang Na District",
+        "tumbon": "บางนา",
+        "tumbon_en": "Bang Na",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5222,
+          13.74493
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528742",
+        "station_id": 528742,
+        "station_oldcode": "RF.PTW.01",
+        "name": "สนข.ปทุมวัน",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "ปทุมวัน",
+        "amphoe_en": "Pathum Wan District",
+        "tumbon": "วังใหม่",
+        "tumbon_en": "Wang Mai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.78827,
+          13.80045
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528835",
+        "station_id": 528835,
+        "station_oldcode": "RF.MBR.05",
+        "name": "จุดวัด ค.บึงใหญ่-วัดทองสัมฤทธิ์",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "มีนบุรี",
+        "amphoe_en": "Min Buri District",
+        "tumbon": "แสนแสบ",
+        "tumbon_en": "Saen Saep",
+        "basin": "Bang Pakong Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1510",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.53908,
+          13.785535
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-2072",
+        "station_id": 2072,
+        "station_oldcode": "STN1064",
+        "name": "กรมทรัพยากรน้ำ",
+        "name_en": "",
+        "agency": "Department of Water Resources",
+        "agency_th": "กรมทรัพยากรน้ำ",
+        "amphoe": "พญาไท",
+        "amphoe_en": "Phaya Thai District",
+        "tumbon": "สามเสนใน",
+        "tumbon_en": "Sam Sen Nai",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 12:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49277,
+          13.700301
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-4",
+        "station_id": 4,
+        "station_oldcode": "CPY015",
+        "name": "สะพานกรุงเทพ",
+        "name_en": "Chao Phraya 15",
+        "agency": "Hydro – Informatics Institute (Public Organization)",
+        "agency_th": "สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน)",
+        "amphoe": "ธนบุรี",
+        "amphoe_en": "Thon Buri District",
+        "tumbon": "ดาวคะนอง",
+        "tumbon_en": "Dao Khanong",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.49012,
+          13.74022
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528845",
+        "station_id": 528845,
+        "station_oldcode": "RF.BKY.02",
+        "name": "ส.คลองบางกอกใหญ่",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "บางกอกใหญ่",
+        "amphoe_en": "Bangkok Yai District",
+        "tumbon": "วัดอรุณ",
+        "tumbon_en": "Wat Arun",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.55723,
+          13.83022
+        ]
+      },
+      "properties": {
+        "id": "bkk-rain-528827",
+        "station_id": 528827,
+        "station_oldcode": "RF.CTC.02",
+        "name": "ส.รัชดา-วิภาวดี",
+        "name_en": "",
+        "agency": "Department of Bangkok",
+        "agency_th": "สำนักการระบายน้ำ กรุงเทพมหานคร",
+        "amphoe": "จตุจักร",
+        "amphoe_en": "Chatuchak District",
+        "tumbon": "จตุจักร",
+        "tumbon_en": "Chatuchak",
+        "basin": "Chao Phraya Basin",
+        "rain_24h_mm": 0.0,
+        "rain_1h_mm": 0.0,
+        "severity": "none",
+        "observed_at": "2026-09-16 13:00",
+        "station_type": "rainfall_24h",
+        "sub_basin_id": "1002",
+        "warning_zone": "06",
+        "source": "ThaiWater v3 API · provinces/rain24?province_code=10"
+      }
+    }
+  ]
+}

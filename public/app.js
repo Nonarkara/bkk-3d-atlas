@@ -558,6 +558,40 @@ const FLOOD_SENSOR_LAYER = "bkkx-flood-sensor-dots";
 const FLOOD_SENSOR_HALO_LAYER = "bkkx-flood-sensor-halo";
 const FLOOD_SENSOR_LIVE_URL = "/api/flood-sensors";
 
+// Bangkok provincial rain gauge network — 133 stations from ThaiWater v3
+// (provinces/rain24?province_code=10). Steals the BKK provincial gauge list
+// that powers bangkok.thaiwater.net/dashboard. Static asset for now; the
+// upstream feed is fetched by scripts/build-bkk-rain-stations.py and the
+// resulting geojson ships in /public.
+const RAIN_STATION_SOURCE = "bkkx-bkk-rain-stations";
+const RAIN_STATION_LAYER = "bkkx-bkk-rain-stations-dots";
+const RAIN_STATION_HALO_LAYER = "bkkx-bkk-rain-stations-halo";
+const RAIN_STATION_URL = "/bkk-rain-stations.geojson";
+
+// Rain severity colors — match the ThaiWater dashboard gradient so the
+// two visualizations speak the same language. Tuned to be readable on
+// a dark satellite base + the #11120f halo from flood sensors.
+const RAIN_STATION_COLOR = [
+  "match", ["get", "severity"],
+  "none",        "#7d8a9a",   // grey — no rain
+  "light",       "#7eb6ff",   // pale blue — <10mm/24h
+  "moderate",    "#facc15",   // yellow — 10–35mm/24h
+  "heavy",       "#f97316",   // orange — 35–90mm/24h
+  "very-heavy",  "#dc2626",   // red — ≥90mm/24h
+  "#7d8a9a",
+];
+// Linear gradient fallback: also paint from the absolute mm value so a
+// future field-only refresh (no `severity` string) still colors right.
+const RAIN_STATION_COLOR_BY_MM = [
+  "interpolate", ["linear"], ["coalesce", ["to-number", ["get", "rain_24h_mm"]], 0],
+  0,    "#7d8a9a",
+  5,    "#7eb6ff",
+  10,   "#7eb6ff",
+  35,   "#facc15",
+  90,   "#f97316",
+  200,  "#dc2626",
+];
+
 const ROAD_FILTERS = {
   motorway: ["==", "class", "motorway"],
   major: ["in", "class", "trunk", "primary", "secondary"],
@@ -583,6 +617,7 @@ const state = {
   cctvPopup: null,
   cctvHls: null,
   floodSensorPopup: null,
+  rainStationPopup: null,
   liveCamPopup: null,
   landPricePopup: null,
   civicPoiPopup: null,
@@ -633,6 +668,8 @@ const LAYER_STACK = [
   FLOOD_LINE,
   FLOOD_SENSOR_HALO_LAYER,
   FLOOD_SENSOR_LAYER,
+  RAIN_STATION_HALO_LAYER,
+  RAIN_STATION_LAYER,
   HEAT_LAYER,
   HEAT_CIRCLE_LAYER,
   AQI_LAYER,
@@ -1064,6 +1101,26 @@ const LAYERS = [
       { color: "#00933C", label: "normal" },
       { color: "#E86A10", label: "high" },
       { color: "#A51931", label: "overflowing" },
+    ],
+  },
+  {
+    id: "bkk-rain",
+    name: "BKK rain gauges",
+    description: "ThaiWater · 133 Bangkok gauges · 24h mm",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [RAIN_STATION_HALO_LAYER, RAIN_STATION_LAYER],
+    install: async (map) => { await installRainStations(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeRainStationPopup();
+      setLayersVisible(map, [RAIN_STATION_HALO_LAYER, RAIN_STATION_LAYER], false);
+    },
+    legend: [
+      { color: "#7d8a9a", label: "0 mm / 24h" },
+      { color: "#7eb6ff", label: "light (0–10 mm)" },
+      { color: "#facc15", label: "moderate (10–35 mm)" },
+      { color: "#f97316", label: "heavy (35–90 mm)" },
+      { color: "#dc2626", label: "very heavy (≥90 mm)" },
     ],
   },
   {
@@ -3333,6 +3390,139 @@ function wireFloodSensorInteractions(map) {
   });
   map.on("mouseenter", FLOOD_SENSOR_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
   map.on("mouseleave", FLOOD_SENSOR_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BKK provincial rain stations — 133 ThaiWater v3 gauges
+// (provinces/rain24?province_code=10). Static asset served from
+// /bkk-rain-stations.geojson; rebuilt by scripts/build-bkk-rain-stations.py.
+// Color is driven by the `severity` property when present, falls back
+// to a linear mm gradient so a future refresh without severity still
+// paints correctly.
+// ─────────────────────────────────────────────────────────────────
+
+function closeRainStationPopup() {
+  if (state.rainStationPopup) {
+    try { state.rainStationPopup.remove(); } catch {}
+    state.rainStationPopup = null;
+  }
+}
+
+function openRainStationPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeRainStationPopup();
+  const mm = p.rain_24h_mm != null ? Number(p.rain_24h_mm).toFixed(1) : "—";
+  const mm1 = p.rain_1h_mm != null ? Number(p.rain_1h_mm).toFixed(1) : null;
+  const sevLabel = {
+    none: "no rain",
+    light: "light",
+    moderate: "moderate",
+    heavy: "heavy",
+    "very-heavy": "very heavy",
+    unknown: "unknown",
+  }[p.severity] || "unknown";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">BKK rain gauge · ${escapeHtml(sevLabel)}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name || "Rain station")}</strong>
+      <p class="atlas-cctv-status">24h · <strong>${escapeHtml(mm)} mm</strong>${
+        mm1 != null ? " · 1h " + escapeHtml(mm1) + " mm" : ""
+      }</p>
+      <p class="atlas-cctv-status">${escapeHtml(p.amphoe || "")}${
+        p.tumbon ? " · " + escapeHtml(p.tumbon) : ""
+      }</p>
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.agency || "HII")}</span>
+        <span>${escapeHtml(p.observed_at || "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "300px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.rainStationPopup = popup;
+}
+
+function wireRainStationInteractions(map) {
+  if (map.__bkkxRainStationWired) return;
+  map.__bkkxRainStationWired = true;
+  map.on("click", RAIN_STATION_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openRainStationPopup(map, feature);
+  });
+  map.on("mouseenter", RAIN_STATION_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", RAIN_STATION_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installRainStations(map) {
+  if (map.getLayer(RAIN_STATION_LAYER)) {
+    setLayersVisible(map, [RAIN_STATION_HALO_LAYER, RAIN_STATION_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(RAIN_STATION_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("bkk-rain", "unavailable · rain-station file failed");
+    return;
+  }
+  if (!map.getSource(RAIN_STATION_SOURCE)) {
+    try {
+      map.addSource(RAIN_STATION_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK rain stations source failed:", error);
+      setLayerStatus("bkk-rain", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(RAIN_STATION_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    map.addLayer({
+      id: RAIN_STATION_HALO_LAYER,
+      type: "circle",
+      source: RAIN_STATION_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 9, 13, 14, 16, 18],
+        "circle-color": RAIN_STATION_COLOR,
+        "circle-opacity": 0.22,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: RAIN_STATION_LAYER,
+      type: "circle",
+      source: RAIN_STATION_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.5, 13, 5, 16, 7],
+        "circle-color": RAIN_STATION_COLOR,
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.2,
+        "circle-opacity": 0.95,
+      },
+    });
+    wireRainStationInteractions(map);
+    setLayerStatus(
+      "bkk-rain",
+      `ThaiWater v3 · ${geojson.featureCount ?? geojson.features.length} BKK gauges · 24h mm`,
+    );
+  } catch (error) {
+    console.warn("BKK rain stations layer failed:", error);
+    setLayerStatus("bkk-rain", "unavailable · layer failed");
+  }
 }
 
 async function installFloodSensors(map) {
