@@ -43,6 +43,20 @@ const CCTV_CACHE_TTL_SECONDS = 300;
 const RISK_CACHE_TTL_SECONDS = 3600;
 const FLOOD_SENSOR_CACHE_TTL_SECONDS = 300;
 
+// Bangkok provincial water feeds — HII ThaiWater v3 (api-v3.thaiwater.net).
+// province_code=10 is Bangkok. The /api/water/bkk/* route family proxies
+// these so the atlas, war room, and any future page can consume the same
+// upstream under one Cache-Control contract. Stolen from
+// bangkok.thaiwater.net/dashboard.
+const THAIWATER_V3 = "https://api-v3.thaiwater.net/api/v1/thaiwater30";
+const BKK_RAIN24_URL = `${THAIWATER_V3}/provinces/rain24?include_zero=1&province_code=10`;
+const BKK_RAIN1D_URL = `${THAIWATER_V3}/provinces/rain1d?province_code=10`;
+const BKK_RAIN3D_URL = `${THAIWATER_V3}/provinces/rain3d?province_code=10`;
+const BKK_RAIN7D_URL = `${THAIWATER_V3}/provinces/rain7d?province_code=10`;
+const BKK_TEMP_URL = `${THAIWATER_V3}/provinces/temperature_maxmin_thisweek?province_code=10`;
+const BKK_RADAR_URL = `${THAIWATER_V3}/provinces/radar?province_code=10`;
+const BKK_WATER_CACHE_TTL_SECONDS = 300;
+
 /** HII situation_level → label/color. 1 critically-low ... 5 overflowing. */
 const FLOOD_LEVEL_INFO: Record<number, { label: string; color: string }> = {
   1: { label: "critically low", color: "#B7AFA3" },
@@ -579,6 +593,212 @@ async function proxyFloodSensors(_request: Request, _env: Env): Promise<Response
       { status: 502 },
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BKK provincial rain gauge network (HII/ThaiWater v3)
+// Steals the gauge list that powers bangkok.thaiwater.net/dashboard
+// so the atlas, war room, and any future page can render it under one
+// Cache-Control contract. Province code 10 = Bangkok.
+// ─────────────────────────────────────────────────────────────────
+
+type BkkRainStation = {
+  id: number;
+  rain_24h: number | null;
+  rain_1h: number | null;
+  rainfall_datetime: string;
+  station_type: string;
+  agency: { agency_name?: { en?: string; th?: string }; agency_shortname?: { en?: string; th?: string } };
+  geocode: {
+    warning_zone?: string;
+    area_code?: string;
+    area_name?: { en?: string; th?: string };
+    amphoe_name?: { en?: string; th?: string };
+    tumbon_name?: { en?: string; th?: string };
+    province_code?: string;
+    province_name?: { en?: string; th?: string };
+  };
+  station: {
+    id: number;
+    tele_station_name?: { th?: string; en?: string };
+    tele_station_lat: number;
+    tele_station_long: number;
+    tele_station_oldcode?: string;
+    sub_basin_id?: string | number;
+  };
+  basin?: { basin_code?: number; basin_name?: { en?: string; th?: string } };
+};
+
+function severityOf(mm: number | null | undefined): string {
+  if (mm == null) return "unknown";
+  if (mm === 0) return "none";
+  if (mm < 10) return "light";
+  if (mm < 35) return "moderate";
+  if (mm < 90) return "heavy";
+  return "very-heavy";
+}
+
+function bkkRainStationsToGeoJson(rows: BkkRainStation[]) {
+  const features = [];
+  for (const r of rows) {
+    const st = r.station || ({} as BkkRainStation["station"]);
+    const geo = r.geocode || ({} as BkkRainStation["geocode"]);
+    const ag = r.agency || {};
+    const ag_name = ag.agency_name || {};
+    const ag_short = ag.agency_shortname || {};
+    const lat = Number(st.tele_station_lat);
+    const lng = Number(st.tele_station_long);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const stName = st.tele_station_name || {};
+    const rain24 = r.rain_24h == null ? null : Number(r.rain_24h);
+    const rain1 = r.rain_1h == null ? null : Number(r.rain_1h);
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Number(lng.toFixed(6)), Number(lat.toFixed(6))] },
+      properties: {
+        id: `bkk-rain-${st.id ?? r.id}`,
+        station_id: st.id,
+        station_oldcode: st.tele_station_oldcode,
+        name: stName.th || stName.en || "(unnamed)",
+        name_en: stName.en || "",
+        agency: ag_name.en || ag_short.en || "HII",
+        agency_th: ag_name.th || "",
+        amphoe: geo.amphoe_name?.th || "",
+        amphoe_en: geo.amphoe_name?.en || "",
+        tumbon: geo.tumbon_name?.th || "",
+        tumbon_en: geo.tumbon_name?.en || "",
+        basin: r.basin?.basin_name?.en || r.basin?.basin_name?.th || "",
+        rain_24h_mm: rain24,
+        rain_1h_mm: rain1,
+        severity: severityOf(rain24),
+        observed_at: r.rainfall_datetime,
+        station_type: r.station_type,
+        sub_basin_id: st.sub_basin_id,
+        warning_zone: geo.warning_zone,
+        source: "ThaiWater v3 API · provinces/rain24?province_code=10",
+      },
+    });
+  }
+  return {
+    type: "FeatureCollection",
+    name: "bkk-rain-stations",
+    featureCount: features.length,
+    attribution:
+      "Data: Hydro-Informatics Institute (สสน.) / ThaiWater v3 API · " +
+      "Royal Irrigation Department · Department of Drainage, Bangkok (BMA).",
+    features,
+  };
+}
+
+async function fetchThaiwaterJson(url: string): Promise<{ ok: true; data: any } | { ok: false; status: number; message: string }> {
+  try {
+    const upstream = await fetch(url, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    });
+    if (!upstream.ok) {
+      return { ok: false, status: upstream.status, message: `ThaiWater returned ${upstream.status}.` };
+    }
+    return { ok: true, data: await upstream.json() };
+  } catch (err) {
+    return { ok: false, status: 502, message: String(err) };
+  }
+}
+
+async function proxyBkkRainStations(_request: Request): Promise<Response> {
+  const fetched = await fetchThaiwaterJson(BKK_RAIN24_URL);
+  if (!fetched.ok) {
+    return jsonResponse({ error: "bkk_rain_upstream_error", ...fetched }, { status: fetched.status });
+  }
+  const rows = fetched.data?.data;
+  if (!Array.isArray(rows)) {
+    return jsonResponse({ error: "bkk_rain_bad_payload", message: "ThaiWater did not return rain24.data." }, { status: 502 });
+  }
+  const geojson = bkkRainStationsToGeoJson(rows);
+  return new Response(JSON.stringify(geojson), {
+    status: 200,
+    headers: {
+      "content-type": "application/geo+json; charset=utf-8",
+      "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "ThaiWater v3 · provinces/rain24?province_code=10",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// Derived top KPIs — the same 5-card strip the ThaiWater dashboard
+// shows at the top of bangkok.thaiwater.net/dashboard:
+//   24h rain | 3-day rain | 7-day rain | temp high / temp low
+// Returns the single worst station per period as the "where" attribution
+// the dashboard prints under each value.
+async function proxyBkkRainKpi(_request: Request): Promise<Response> {
+  const [rain1dRes, rain3dRes, rain7dRes, tempRes] = await Promise.all([
+    fetchThaiwaterJson(BKK_RAIN1D_URL),
+    fetchThaiwaterJson(BKK_RAIN3D_URL),
+    fetchThaiwaterJson(BKK_RAIN7D_URL),
+    fetchThaiwaterJson(BKK_TEMP_URL),
+  ]);
+
+  const fail = (name: string, res: { status: number; message: string }) => ({
+    name, ...res,
+  });
+  if (!rain1dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain1d", rain1dRes) }, { status: rain1dRes.status });
+  if (!rain3dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain3d", rain3dRes) }, { status: rain3dRes.status });
+  if (!rain7dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain7d", rain7dRes) }, { status: rain7dRes.status });
+  if (!tempRes.ok)  return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("temperature", tempRes) }, { status: tempRes.status });
+
+  const pickWorst = (rows: any[]): { mm: number | null; station?: { name: string; amphoe: string; lat: number; lng: number } } => {
+    let worst: { mm: number | null; station?: any } = { mm: null };
+    for (const r of rows || []) {
+      const mm = Number(r.rain_1d ?? r.rain_3d ?? r.rain_7d ?? null);
+      if (worst.mm == null || (Number.isFinite(mm) && mm > worst.mm)) {
+        worst = {
+          mm: Number.isFinite(mm) ? mm : worst.mm,
+          station: r.station && r.geocode
+            ? {
+                name: r.station.tele_station_name?.th || r.station.tele_station_name?.en || "(unnamed)",
+                amphoe: r.geocode.amphoe_name?.th || "",
+                lat: r.station.tele_station_lat,
+                lng: r.station.tele_station_long,
+              }
+            : worst.station,
+        };
+      }
+    }
+    return worst;
+  };
+
+  const tempRow = Array.isArray(tempRes.data?.data) && tempRes.data.data[0];
+  const temp = tempRow
+    ? {
+        max_c: Number(tempRow.max_temperature),
+        min_c: Number(tempRow.min_temperature),
+        station: tempRow.station?.tele_station_name?.th || tempRow.station?.tele_station_name?.en || "",
+        start_date: tempRow.start_date,
+      }
+    : null;
+
+  const body = {
+    tool: "bkk-water-kpi",
+    version: 1,
+    fetchedAt: new Date().toISOString(),
+    province: { code: 10, name_en: "Bangkok", name_th: "กรุงเทพมหานคร" },
+    rain: {
+      "1d": pickWorst(rain1dRes.data?.data || []),
+      "3d": pickWorst(rain3dRes.data?.data || []),
+      "7d": pickWorst(rain7dRes.data?.data || []),
+    },
+    temperature: temp,
+    attribution: "ThaiWater v3 API · provinces/rain{1,3,7}d + temperature_maxmin_thisweek · province_code=10",
+  };
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "ThaiWater v3 · BKK provincial KPI strip",
+      "access-control-allow-origin": "*",
+    },
+  });
 }
 
 const CIVIC_POI_CATEGORIES = new Set(["school", "sportsground", "carpark", "museum", "waterway"]);
@@ -2030,6 +2250,8 @@ function apiCatalog(request: Request): Response {
         { path: "/api/traffic", method: "GET", description: "Live iTIC/Longdo expressway traffic GeoJSON (proxied).", cacheSeconds: TRAFFIC_CACHE_TTL_SECONDS },
         { path: "/api/cctv", method: "GET", description: "Public iTIC/Longdo road cameras for Bangkok metro (HLS/JPEG).", cacheSeconds: CCTV_CACHE_TTL_SECONDS },
         { path: "/api/flood-sensors", method: "GET", description: "HII/ThaiWater water-level gauges in Bangkok metro.", cacheSeconds: FLOOD_SENSOR_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/rain-stations", method: "GET", description: "ThaiWater v3 Bangkok provincial rain gauge network (133 stations with rain_24h + rain_1h).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/kpi", method: "GET", description: "BKK provincial top KPIs (24h/3d/7d rain, today/tomorrow/day-after forecast, temperature, worst station).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -2077,6 +2299,12 @@ export default {
     }
     if (url.pathname === "/api/flood-sensors") {
       return proxyFloodSensors(request, env);
+    }
+    if (url.pathname === "/api/water/bkk/rain-stations") {
+      return proxyBkkRainStations(request);
+    }
+    if (url.pathname === "/api/water/bkk/kpi") {
+      return proxyBkkRainKpi(request);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);
