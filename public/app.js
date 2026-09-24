@@ -81,6 +81,13 @@ const MIN_HEIGHT_GET = [
   ["max", 0, MIN_HEIGHT_RAW],
 ];
 
+const HEIGHT_SOURCE_LABELS = {
+  osm_tag: "OSM height tag",
+  osm_levels: "OSM levels × 3 m",
+  gba_cal: "GBA model, ICESat-2 calibrated",
+  gba: "GBA model",
+};
+
 const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
 const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
 
@@ -4254,6 +4261,11 @@ function buildingRowsFromFeature(feature) {
     ["Height", height != null ? `${height} m` : "—"],
     ["Base", minH != null && Number(minH) > 0 ? `${minH} m` : "0 m"],
   );
+  // GBA fusion bake (scripts/gba-buildings-to-pmtiles.py) says where the
+  // height came from; a modelled height should never read as surveyed.
+  const heightSrc = HEIGHT_SOURCE_LABELS[p.height_src];
+  if (heightSrc) rows.push(["Height from", heightSrc]);
+  if (p.gba_height != null && p.height_src !== "gba") rows.push(["GBA raw", `${p.gba_height} m`]);
   if (osmId != null) rows.push(["OSM id", String(osmId)]);
   return rows;
 }

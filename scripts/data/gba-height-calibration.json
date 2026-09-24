@@ -1,0 +1,17 @@
+{
+  "name": "gba-bkk-icesat2-provisional",
+  "status": "provisional",
+  "source": "GlobalBuildingAtlas LoD1 vs ICESat-2 ATL03 roof-minus-ground, 3,817 Bangkok buildings, Nov 2018 - Apr 2026 (published bin means, Thai post, 2026)",
+  "method": "classical calibration: invert E[GBA | true] so the corrected city keeps the real spread of heights (right for a skyline). Per-building estimates for H/W or SVF want inverse regression E[true | GBA] instead, which needs the matched pairs, not bin means.",
+  "assumption": "The published bins are keyed on ICESat-2 height; bin midpoints stand in for the unpublished true means except the top bin (126 m measured). Refit from the matched pairs before treating any single corrected height as a measurement.",
+  "identity_below_m": 10,
+  "points_gba_to_true": [
+    [10.0, 10.0],
+    [12.9, 18.0],
+    [25.0, 36.0],
+    [41.5, 70.0],
+    [52.5, 126.0]
+  ],
+  "above_last_point_slope": 1.0,
+  "max_height_m": 350
+}

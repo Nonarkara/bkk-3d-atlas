@@ -287,6 +287,30 @@ npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles \
 
 The `scripts/generate-3d-tiles.sh` wrapper runs all four stages.
 
+### GlobalBuildingAtlas upgrade (2.19 M footprints, calibrated heights)
+
+`scripts/gba-buildings-to-pmtiles.py` is a drop-in replacement for the OSM
+bake above. It uses the same `buildings` layer and `render_height` field, so
+the viewer needs no change. It reads the GBA LoD1 GeoParquet tile over HTTP
+Range with DuckDB, taking only the Bangkok bbox (~5 min, no 1.58 GB download).
+It undoes GBA's squeeze toward mid-height with the ICESat-2 calibration table
+in `scripts/data/gba-height-calibration.json`. Then it lets surveyed OSM
+heights win (`height` tag > `building:levels` × 3 > calibrated GBA). Each
+feature carries `height_src` + `gba_height`, and the inspect panel shows both.
+
+```sh
+python3 scripts/gba-buildings-to-pmtiles.py --self-test          # offline
+python3 scripts/gba-buildings-to-pmtiles.py --gba-url "$GBA_URL" --describe
+python3 scripts/gba-buildings-to-pmtiles.py --gba-url "$GBA_URL" --osm out/osm.geojson --stats
+python3 scripts/gba-buildings-to-pmtiles.py --gba-url "$GBA_URL" --osm out/osm.geojson \
+  --output out/bkk-gba.geojsonl
+```
+
+The calibration is **provisional**. It comes from published bin means, not
+the 3,817 matched ICESat-2 pairs. Treat it as right for the skyline, not as a
+per-building measurement. The full tippecanoe → R2 recipe is in the script's
+docstring.
+
 ## Layer registry
 
 Layers are declared in a single `LAYERS` array at the top of

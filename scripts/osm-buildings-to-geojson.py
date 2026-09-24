@@ -69,14 +69,20 @@ def parse_height(value: str | None) -> float | None:
         return None
 
 
-def estimate_height(tags: dict[str, str]) -> tuple[float, float]:
-    """Return (height, base_height) in metres."""
+def estimate_height(tags: dict[str, str]) -> tuple[float, float, str]:
+    """Return (height, base_height, height_src) in metres.
+
+    height_src is "tag", "levels" or "default" so a later fusion step
+    (scripts/gba-buildings-to-pmtiles.py) can tell a surveyed height
+    from the 9 m guess.
+    """
     h = parse_height(tags.get("height"))
+    src = "tag"
     if h is None:
         levels = parse_levels(tags.get("building:levels") or tags.get("levels"))
-        h = levels if levels is not None else 9.0
+        h, src = (levels, "levels") if levels is not None else (9.0, "default")
     base = parse_height(tags.get("min_height")) or 0.0
-    return h, base
+    return h, base, src
 
 
 def fetch_overpass(bbox: tuple[float, float, float, float], *, retries: int = 3) -> dict[str, Any]:
@@ -158,7 +164,7 @@ def overpass_to_features(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
 
 def to_geojson_feature(element: dict[str, Any]) -> dict[str, Any]:
     tags = element.get("tags", {})
-    height, base = estimate_height(tags)
+    height, base, height_src = estimate_height(tags)
     if "polygon" in element:
         ring = element["polygon"]
         polygon = [ring + [ring[0]]]
@@ -170,6 +176,7 @@ def to_geojson_feature(element: dict[str, Any]) -> dict[str, Any]:
         "id": f"bkk-building-{element.get('id', 0)}",
         "height": height,
         "base_height": base,
+        "height_src": height_src,
     }
     if "name" in tags and tags["name"]:
         properties["name"] = tags["name"]
