@@ -7,7 +7,9 @@
 //   (2) serves /bkk-buildings.pmtiles from R2 with HTTP Range passthrough
 //   (3) serves /api/risk flood × PM2.5 civic score
 //   (4) serves /api/cctv — public iTIC/Longdo traffic cameras (Bangkok metro)
-//   (5) serves /api/flood-sensors — HII/ThaiWater water-level gauges (Bangkok metro)
+//   (5) relays FloodDash (flood.nonarkara.org) — /api/flood/bkk verdict,
+//       gauges, waterway status, DDS road reports; /api/flood-sensors is
+//       its gauge layer. Refreshed by the cron into D1 (src/flooddash.ts)
 //   (6) serves /api/civic-pois(/analysis) from CIVIC_DB (D1) — schools,
 //       sports grounds, car parks, museums, waterway landmarks ingested
 //       from data.go.th / data.bangkok.go.th by scripts/ingest-bma-open-data.py
@@ -17,6 +19,15 @@
 // Range requests — every GET returns the full 17 MB. The pmtiles
 // client lib streams by issuing Range requests for the directory and
 // individual tiles, so we proxy through R2 which supports Range natively.
+
+import {
+  floodBkkResponse,
+  floodSensorsResponse,
+  liveAt,
+  loadFloodState,
+  refreshFloodDash,
+  type RefreshDeps,
+} from "./flooddash";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -37,11 +48,11 @@ const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
 
 const LONGDO_TRAFFIC_FEED = "https://traffic.longdo.com/api/feed/itsth";
 const LONGDO_CCTV_FEED = "https://camera.longdo.com/feed/?command=json";
-const THAIWATER_LEVEL_FEED = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load";
 const TRAFFIC_CACHE_TTL_SECONDS = 90;
 const CCTV_CACHE_TTL_SECONDS = 300;
-const RISK_CACHE_TTL_SECONDS = 3600;
-const FLOOD_SENSOR_CACHE_TTL_SECONDS = 300;
+// Short: /api/risk now carries FloodDash's live reading, which moves every ~10 min.
+const RISK_CACHE_TTL_SECONDS = 300;
+const FLOOD_SENSOR_CACHE_TTL_SECONDS = 60;
 
 // Bangkok provincial water feeds — HII ThaiWater v3 (api-v3.thaiwater.net).
 // province_code=10 is Bangkok. The /api/water/bkk/* route family proxies
@@ -57,38 +68,12 @@ const BKK_TEMP_URL = `${THAIWATER_V3}/provinces/temperature_maxmin_thisweek?prov
 const BKK_RADAR_URL = `${THAIWATER_V3}/provinces/radar?province_code=10`;
 const BKK_WATER_CACHE_TTL_SECONDS = 300;
 
-/** HII situation_level → label/color. 1 critically-low ... 5 overflowing. */
-const FLOOD_LEVEL_INFO: Record<number, { label: string; color: string }> = {
-  1: { label: "critically low", color: "#B7AFA3" },
-  2: { label: "low", color: "#948C7F" },
-  3: { label: "normal", color: "#00933C" },
-  4: { label: "high", color: "#E86A10" },
-  5: { label: "overflowing", color: "#A51931" },
-};
-
 /** Bangkok + immediate metro ring used for CCTV filtering. */
 const CCTV_BBOX = {
   minLat: 13.4,
   maxLat: 14.2,
   minLon: 100.2,
   maxLon: 101.1,
-};
-
-type ThaiWaterStation = {
-  waterlevel_datetime?: string;
-  waterlevel_msl?: string | number;
-  storage_percent?: string | number;
-  situation_level?: number | null;
-  basin?: { basin_name?: { th?: string; en?: string } };
-  station?: {
-    id?: number;
-    tele_station_name?: { th?: string; en?: string };
-    tele_station_lat?: number;
-    tele_station_long?: number;
-    min_bank?: number;
-    ground_level?: number;
-  };
-  geocode?: { area_name?: { th?: string; en?: string }; amphoe_name?: { th?: string; en?: string } };
 };
 
 type LongdoCamera = {
@@ -350,10 +335,13 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const pm25Override = Number.parseFloat(url.searchParams.get("pm25") ?? "");
 
-  const [floodCollection, pm25Live] = await Promise.all([
+  const [floodCollection, pm25Live, floodState, districts] = await Promise.all([
     loadFloodCollection(env, request),
     Number.isFinite(pm25Override) ? Promise.resolve(pm25Override) : fetchPointPm25(lat, lng),
+    loadFloodState(env, () => floodDeps(env, request)).catch(() => null),
+    getDistrictsGeoJson(env, request).catch(() => null),
   ]);
+  const district = districts ? findDistrictForPoint(districts, lng, lat) : { id: null, name: null };
 
   const flood = floodCollection
     ? floodHit(floodCollection, lng, lat)
@@ -383,6 +371,9 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
         pm25: pm25 ?? null,
         aqiFactor: Math.round(aqiFactor * 100) / 100,
       },
+      // The live answer. `score` above is the schematic envelope × PM2.5
+      // composite; FloodDash's verdict is the one a person acts on.
+      live: liveAt(floodState, lng, lat, district),
       disclaimer:
         floodCollection?.disclaimer ??
         "Schematic civic score (flood × PM2.5) — not for insurance underwriting or official planning.",
@@ -502,92 +493,6 @@ async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
     return jsonResponse(
       {
         error: "cctv_fetch_failed",
-        message: String(error),
-      },
-      { status: 502 },
-    );
-  }
-}
-
-function waterStationsToGeoJson(rows: ThaiWaterStation[]) {
-  const features = [];
-  for (const row of rows) {
-    const station = row.station;
-    const lat = station?.tele_station_lat;
-    const lon = station?.tele_station_long;
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    if (!inCctvBbox(lat as number, lon as number)) continue;
-    const level = typeof row.situation_level === "number" ? row.situation_level : null;
-    const info = level != null ? FLOOD_LEVEL_INFO[level] : null;
-    const name = station?.tele_station_name;
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [lon, lat] },
-      properties: {
-        id: station?.id ?? `${lat},${lon}`,
-        name: name?.en || name?.th || "Water level station",
-        level,
-        levelLabel: info?.label ?? "unknown",
-        levelColor: info?.color ?? "#6b7280",
-        waterlevelMsl: row.waterlevel_msl != null ? Number(row.waterlevel_msl) : null,
-        storagePercent: row.storage_percent != null ? Number(row.storage_percent) : null,
-        minBank: station?.min_bank ?? null,
-        basin: row.basin?.basin_name?.en || row.basin?.basin_name?.th || null,
-        district: row.geocode?.amphoe_name?.en || row.geocode?.amphoe_name?.th || null,
-        observedAt: row.waterlevel_datetime ?? null,
-      },
-    });
-  }
-  return {
-    type: "FeatureCollection",
-    name: "bkk-flood-sensors",
-    source: THAIWATER_LEVEL_FEED,
-    attribution: "Hydro-Informatics Institute (HII) / ThaiWater · public telemetry",
-    disclaimer:
-      "Real-time water-level gauges, not a flood forecast. situation_level is HII's own bank-relative scale (1 critically low – 5 overflowing).",
-    bbox: CCTV_BBOX,
-    count: features.length,
-    features,
-  };
-}
-
-async function proxyFloodSensors(_request: Request, _env: Env): Promise<Response> {
-  try {
-    const upstream = await fetch(THAIWATER_LEVEL_FEED, {
-      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
-    });
-    if (!upstream.ok) {
-      return jsonResponse(
-        {
-          error: "flood_sensor_upstream_error",
-          status: upstream.status,
-          message: `ThaiWater feed returned ${upstream.status}.`,
-        },
-        { status: 502 },
-      );
-    }
-    const payload = (await upstream.json()) as { waterlevel_data?: { data?: ThaiWaterStation[] } };
-    const rows = payload?.waterlevel_data?.data;
-    if (!Array.isArray(rows)) {
-      return jsonResponse(
-        { error: "flood_sensor_bad_payload", message: "ThaiWater feed did not return waterlevel_data.data." },
-        { status: 502 },
-      );
-    }
-    const geojson = waterStationsToGeoJson(rows);
-    return new Response(JSON.stringify(geojson), {
-      status: 200,
-      headers: {
-        "content-type": "application/geo+json; charset=utf-8",
-        "cache-control": `public, max-age=${FLOOD_SENSOR_CACHE_TTL_SECONDS}`,
-        "x-bkkx-source": "HII/ThaiWater water-level feed",
-        "access-control-allow-origin": "*",
-      },
-    });
-  } catch (error) {
-    return jsonResponse(
-      {
-        error: "flood_sensor_fetch_failed",
         message: String(error),
       },
       { status: 502 },
@@ -1677,6 +1582,15 @@ async function getAreas(env: Env, request: Request) {
   return areasCache;
 }
 
+const KHLONGS_ASSET = "/bkk-khlongs.geojson";
+let khlongsCache: AtlasFeatureCollection | null = null;
+
+/** Districts (to place DDS road reports) and waterways (to snap gauges). */
+async function floodDeps(env: Env, request: Request): Promise<RefreshDeps> {
+  if (!khlongsCache) khlongsCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, KHLONGS_ASSET);
+  return { districts: await getDistrictsGeoJson(env, request), khlongs: khlongsCache } as RefreshDeps;
+}
+
 async function getDistrictsGeoJson(env: Env, request: Request) {
   if (!districtsCache) {
     districtsCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_DISTRICTS_ASSET);
@@ -2249,7 +2163,8 @@ function apiCatalog(request: Request): Response {
         { path: "/api", method: "GET", description: "This catalog." },
         { path: "/api/traffic", method: "GET", description: "Live iTIC/Longdo expressway traffic GeoJSON (proxied).", cacheSeconds: TRAFFIC_CACHE_TTL_SECONDS },
         { path: "/api/cctv", method: "GET", description: "Public iTIC/Longdo road cameras for Bangkok metro (HLS/JPEG).", cacheSeconds: CCTV_CACHE_TTL_SECONDS },
-        { path: "/api/flood-sensors", method: "GET", description: "HII/ThaiWater water-level gauges in Bangkok metro.", cacheSeconds: FLOOD_SENSOR_CACHE_TTL_SECONDS },
+        { path: "/api/flood-sensors", method: "GET", description: "Water-level gauges in the Bangkok metro, each judged by FloodDash (band, action, freshness).", cacheSeconds: FLOOD_SENSOR_CACHE_TTL_SECONDS },
+        { path: "/api/flood/bkk", method: "GET", description: "FloodDash relay for Bangkok: city verdict, judged gauges, waterway status, BMA DDS canal gates and road reports. Not an official warning — DDPM 1784.", cacheSeconds: 60 },
         { path: "/api/water/bkk/rain-stations", method: "GET", description: "ThaiWater v3 Bangkok provincial rain gauge network (133 stations with rain_24h + rain_1h).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/kpi", method: "GET", description: "BKK provincial top KPIs (24h/3d/7d rain, today/tomorrow/day-after forecast, temperature, worst station).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
@@ -2298,7 +2213,10 @@ export default {
       return proxyCctv(request, env);
     }
     if (url.pathname === "/api/flood-sensors") {
-      return proxyFloodSensors(request, env);
+      return floodSensorsResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
+    }
+    if (url.pathname === "/api/flood/bkk") {
+      return floodBkkResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
     }
     if (url.pathname === "/api/water/bkk/rain-stations") {
       return proxyBkkRainStations(request);
@@ -2373,6 +2291,12 @@ export default {
           console.log("news-events cron ingest", JSON.stringify(news));
         } catch (error) {
           console.warn("city-events cron ingest failed:", String(error));
+        }
+        try {
+          const state = await refreshFloodDash(env, await floodDeps(env, new Request("https://atlas.nonarkara.org/")));
+          console.log("flooddash relay", state?.fetchedAt ?? "no state", JSON.stringify(state?.parts ?? null));
+        } catch (error) {
+          console.warn("flooddash relay failed:", String(error));
         }
       })(),
     );

@@ -1590,3 +1590,192 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   opacity: 0.5;
 }
 .atlas-bkk-card.is-error { opacity: 0.5; }
+
+/* ── FloodDash relay ─────────────────────────────────────────────────
+   Verdict row in the live strip, "Water now" panel, gauge popup.
+   FloodDash's words, the atlas's hairlines. Colour only where the water
+   earns it: safe/watch stay quiet, prepare/danger carry the band tone. */
+
+.atlas-flood-verdict {
+  --tone: var(--muted);
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 10px 0 10px 12px;
+  border-left: 3px solid var(--tone);
+  border-bottom: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
+}
+.atlas-flood-verdict[data-level="prepare"] { --tone: #E8A317; }
+.atlas-flood-verdict[data-level="danger"]  { --tone: #C8102E; background: rgba(200, 16, 46, 0.10); }
+.atlas-flood-verdict[data-level="none"]    { --tone: #6b6d63; }
+.atlas-flood-verdict.is-stale              { background: transparent; }
+.atlas-flood-verdict p { margin: 0; }
+.atlas-flood-verdict-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.atlas-flood-verdict-level {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+.atlas-flood-verdict[data-level="danger"] .atlas-flood-verdict-level { color: #ff8a8a; }
+.atlas-flood-verdict-head {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--paper);
+}
+.atlas-flood-verdict-reason { font-size: 12px; line-height: 1.5; color: var(--paper); max-width: 72ch; }
+.atlas-flood-verdict-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.atlas-flood-verdict-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.atlas-flood-verdict-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--tone);
+  border-radius: 0;
+  background: transparent;
+  color: var(--paper);
+  font: 700 12px/1 var(--font-body);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  cursor: pointer;
+}
+.atlas-flood-verdict-btn:hover,
+.atlas-flood-verdict-btn:focus-visible { border-color: var(--signal); color: var(--signal); }
+.atlas-flood-verdict-btn:active { transform: scale(0.97); }
+
+/* Water now panel */
+.atlas-water {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.atlas-water summary {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.atlas-water summary::-webkit-details-marker { display: none; }
+.atlas-water summary .atlas-data-heading { margin: 4px 0 0; }
+.atlas-water summary .atlas-data-heading::after { content: " +"; color: var(--muted); }
+.atlas-water details[open] summary .atlas-data-heading::after { content: " −"; }
+.atlas-water-key {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.atlas-water-key strong { color: var(--paper); }
+.atlas-water-list { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 0; }
+.atlas-water-row {
+  --band: var(--muted);
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  color: var(--paper);
+  font: 12px/1.5 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.atlas-water-row:hover strong, .atlas-water-row:focus-visible strong { color: var(--signal); }
+.atlas-water-row .atlas-gauge-swatch { margin-top: 4px; }
+.atlas-water-row-main { display: grid; gap: 2px; min-width: 0; }
+.atlas-water-row-main strong { font-size: 10px; letter-spacing: 0.1em; color: var(--band); }
+.atlas-water-row-main small, .atlas-water-road small { color: var(--muted); font-size: 10px; }
+.atlas-water-road {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.atlas-water-road-n { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+.atlas-water-road[data-status="warning"] .atlas-water-road-n { color: #E8A317; }
+.atlas-water-road[data-status="critical"] .atlas-water-road-n { color: #ff8a8a; }
+.atlas-water-empty { padding: 8px 0; color: var(--muted); font-size: 12px; }
+.atlas-water-note { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.atlas-water-duty { margin-top: 12px; color: var(--paper); }
+.atlas-water-duty a { color: var(--signal); }
+
+/* Gauge popup + shared swatch */
+.atlas-gauge-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--band, var(--muted));
+  flex: none;
+}
+.atlas-gauge-band {
+  --band: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--paper);
+}
+.atlas-gauge-band.is-silent .atlas-gauge-swatch { background: transparent; box-shadow: inset 0 0 0 1.5px #c8c9c0; }
+.atlas-gauge-action { margin: 0; font-size: 12px; line-height: 1.5; color: var(--paper); }
+.atlas-gauge-duty {
+  margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+@media (min-width: 900px) {
+  .atlas-flood-verdict { grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; }
+  .atlas-flood-verdict > p { grid-column: 1; }
+  .atlas-flood-verdict-actions { grid-column: 2; grid-row: 1 / span 4; align-self: center; margin: 0; }
+}
+
+/* The live strip had no grid area, so it auto-placed into an extra row of
+   the fixed 100dvh page and squeezed the map — to 0 px on phones. Desktop:
+   it sits under the map, beside the panel. ≤1000 px: the page scrolls like
+   a document — map first, then the strip, then the panel. */
+.atlas-page {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "header header" "map panel" "live panel";
+}
+.atlas-bkk-live { grid-area: live; min-width: 0; }
+@media (max-width: 1000px) {
+  .atlas-page {
+    position: static;
+    height: auto;
+    max-height: none;
+    min-height: 100dvh;
+    grid-template-rows: auto 62dvh auto auto;
+    grid-template-areas: "header" "map" "live" "panel";
+  }
+  .atlas-panel { max-height: none; overflow: visible; }
+}

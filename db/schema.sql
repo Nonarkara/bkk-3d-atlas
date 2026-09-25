@@ -122,3 +122,14 @@ CREATE TABLE IF NOT EXISTS news_events (
 
 CREATE INDEX IF NOT EXISTS idx_news_events_seen ON news_events(first_seen_at);
 CREATE INDEX IF NOT EXISTS idx_news_events_venue ON news_events(venue_name);
+
+-- Last good FloodDash relay (src/flooddash.ts). One row per area; the cron
+-- replaces it every ~10 min. fetched_at is when the payload was last good;
+-- attempted_at/error record the most recent try, even a failed one.
+CREATE TABLE IF NOT EXISTS flood_state (
+  key          TEXT PRIMARY KEY,
+  payload      TEXT NOT NULL,
+  fetched_at   TEXT NOT NULL,
+  attempted_at TEXT NOT NULL,
+  error        TEXT
+);

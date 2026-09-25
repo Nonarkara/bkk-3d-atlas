@@ -61,6 +61,21 @@
           <span id="atlas-bkk-live-freshness">loading…</span>
         </span>
       </div>
+      <!-- FloodDash's verdict for Bangkok, relayed by /api/flood/bkk. Its
+           words are shown as given; colour appears only at prepare/danger. -->
+      <div class="atlas-flood-verdict" id="atlas-flood-verdict" data-level="loading" hidden>
+        <p class="atlas-flood-verdict-line">
+          <span class="atlas-flood-verdict-level" id="atlas-flood-verdict-level">—</span>
+          <span class="atlas-flood-verdict-head" id="atlas-flood-verdict-head"></span>
+        </p>
+        <p class="atlas-flood-verdict-reason" id="atlas-flood-verdict-reason" hidden></p>
+        <p class="atlas-flood-verdict-reason" id="atlas-flood-verdict-reason-th" lang="th" hidden></p>
+        <p class="atlas-flood-verdict-meta" id="atlas-flood-verdict-meta"></p>
+        <div class="atlas-flood-verdict-actions">
+          <button type="button" class="atlas-flood-verdict-btn" id="atlas-flood-verdict-show">Show the water</button>
+          <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
+        </div>
+      </div>
       <div class="atlas-bkk-live-grid" id="atlas-bkk-live-grid">
         <article class="atlas-bkk-card" data-card="rain1d">
           <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 24 ชม.</p>
@@ -125,6 +140,28 @@
         </button>
       </div>
 
+      <section class="atlas-water" id="atlas-water" hidden>
+        <details id="atlas-water-details">
+          <summary>
+            <span class="atlas-eyebrow">Water now · FloodDash</span>
+            <span class="atlas-data-heading">How Bangkok's water is moving</span>
+          </summary>
+          <ul class="atlas-water-key">
+            <li><strong>Line width</strong> — how far the waterway runs: the Chao Phraya, then the long khlongs like Saen Saep and Prem Prachakon, then local canals.</li>
+            <li><strong>Moving dashes</strong> — the normal drainage direction. Tidal reaches and pumped canals can run the other way.</li>
+            <li><strong>Colour</strong> — what the nearest gauge says, carried 1.5 km along the same waterway (straight-line). Blue means no gauge concern there, or no gauge at all.</li>
+          </ul>
+          <p class="atlas-eyebrow atlas-eyebrow-sub">Gauges at prepare or worse</p>
+          <ul class="atlas-water-list" id="atlas-water-gauges"></ul>
+          <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-roads-head">Roads reported flooded · BMA DDS</p>
+          <ul class="atlas-water-list" id="atlas-water-roads"></ul>
+          <p class="atlas-water-note">DDS road reports carry no coordinates, so they are listed by district, not placed on the map. "Clearance not recorded" does not mean still flooded.</p>
+          <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-gates-head">Canal gates · BMA DDS bulletin</p>
+          <ul class="atlas-water-list" id="atlas-water-gates"></ul>
+          <p class="atlas-water-note atlas-water-duty">FloodDash prioritises open data; it does not issue warnings. DDPM, BMA and TMD do. DDPM hotline <a href="tel:1784">1784</a>.</p>
+        </details>
+      </section>
+
       <section class="atlas-quick" id="atlas-areas">
         <p class="atlas-eyebrow">Quick jump</p>
         <h2 class="atlas-quick-heading">16 key areas</h2>
@@ -135,7 +172,7 @@
         <p class="atlas-eyebrow">Inspect</p>
         <h2 class="atlas-data-heading">Click any building</h2>
         <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
-          Tap the map for OSM height/type and flood-envelope risk.
+          Tap the map for OSM height/type, the nearest live gauge and DDS road reports.
         </p>
         <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
           <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
@@ -244,10 +281,11 @@
               <input type="checkbox" id="toggle-khlongs" checked />
               <span class="atlas-layer-name">
                 <strong>Canals &amp; rivers</strong>
-                <small>Chao Phraya + 3,026 khlongs</small>
+                <small>Width by reach · dashes flow downstream</small>
               </span>
               <span class="atlas-layer-state" id="toggle-khlongs-state" aria-live="polite">on</span>
             </label>
+            <div class="atlas-legend" id="legend-khlongs" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -339,12 +377,12 @@
           </li>
           <li>
             <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-flood-sensors" />
+              <input type="checkbox" id="toggle-flood-sensors" checked />
               <span class="atlas-layer-name">
                 <strong>Flood sensors</strong>
-                <small id="toggle-flood-sensors-detail">HII/ThaiWater · water level gauges</small>
+                <small id="toggle-flood-sensors-detail">FloodDash · judged water-level gauges</small>
               </span>
-              <span class="atlas-layer-state" id="toggle-flood-sensors-state" aria-live="polite">off</span>
+              <span class="atlas-layer-state" id="toggle-flood-sensors-state" aria-live="polite">on</span>
             </label>
             <div class="atlas-legend" id="legend-flood-sensors" hidden></div>
           </li>

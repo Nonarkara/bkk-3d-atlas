@@ -367,6 +367,7 @@ const KHLONG_SOURCE = "bkkx-khlongs";
 const KHLONG_RIVER_LAYER = "bkkx-khlongs-river";
 const KHLONG_CANAL_LAYER = "bkkx-khlongs-canal";
 const KHLONG_DATA_URL = "/bkk-khlongs.geojson";
+const KHLONG_FLOW_LAYER = "bkkx-khlongs-flow";
 
 // Bangkok's 50 khet, OSM relation 92277's admin_level=6 members.
 const DISTRICT_SOURCE = "bkkx-districts";
@@ -479,14 +480,64 @@ const CIVIC_DENSITY_FILL_COLOR = [
   60, "#c9ff38",
 ];
 
-const KHLONG_RIVER_WIDTH = [
-  "interpolate", ["linear"], ["zoom"],
-  9, 1.6, 12, 3.0, 14, 4.0, 16, 5.0,
+// Waterway network. OSM's `width` is a type default, not a measurement, so
+// importance comes from how far a named waterway runs across the metro
+// (tierWaterways): 4 Chao Phraya · 3 ≥20 km (Saen Saep, Prem Prachakon…)
+// · 2 ≥7 km · 1 other named khlong · 0 unnamed ditch (close zoom only).
+const WATERWAY_CALM = "#3FA7E0";
+const byTier = (t4, t3, t2, t1, t0) => ["match", ["get", "tier"], 4, t4, 3, t3, 2, t2, 1, t1, t0];
+const judged = ["!=", ["feature-state", "band"], null];
+// A judged stretch also swells, so heat reads by weight as well as colour.
+const swell = (tiers) => ["*", ["case", judged, 1.7, 1], tiers];
+const WATERWAY_WIDTH = [
+  "interpolate", ["exponential", 1.6], ["zoom"],
+  10, swell(byTier(3.6, 2.2, 1.4, 0.8, 0.5)),
+  13, swell(byTier(9, 5, 3.2, 1.8, 1)),
+  16, swell(byTier(18, 9, 6, 3.4, 2)),
 ];
-const KHLONG_CANAL_WIDTH = [
+const WATERWAY_OPACITY = [
   "interpolate", ["linear"], ["zoom"],
-  11, 0.6, 13, 1.0, 15, 1.4, 17, 1.8,
+  10, ["case", judged, 1, byTier(0.95, 0.9, 0.8, 0.5, 0)],
+  13, ["case", judged, 1, byTier(0.9, 0.9, 0.85, 0.75, 0.45)],
+  15, ["case", judged, 1, 0.85],
 ];
+const FLOW_WIDTH = [
+  "interpolate", ["exponential", 1.6], ["zoom"],
+  10, byTier(1.4, 0.9, 0.6, 0.4, 0),
+  13, byTier(3.2, 1.8, 1.3, 0.8, 0),
+  16, byTier(6, 3.4, 2.4, 1.4, 0),
+];
+// Mapbox's "animate a line" dash cycle: each step slides the dash forward
+// along the line's own direction — in OSM, the direction water drains.
+const FLOW_DASH_STEPS = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+];
+
+// FloodDash gauge bands (server/indicator.js), mirrored from src/flooddash.ts.
+// Blue while calm; the tone heats only where a judged gauge says so.
+const FLOOD_BAND_COLOR = {
+  "no-signal": "#6b6d63",
+  untrusted: "#8a8c80",
+  safe: WATERWAY_CALM,
+  watch: "#E8C547",
+  prepare: "#E8A317",
+  evacuate: "#E86A10",
+  "overflow-imminent": "#DB3A1F",
+  "observed-overflow": "#C8102E",
+};
+const WATERWAY_COLOR = [
+  "match", ["to-string", ["coalesce", ["feature-state", "band"], "calm"]],
+  "watch", FLOOD_BAND_COLOR.watch,
+  "prepare", FLOOD_BAND_COLOR.prepare,
+  "evacuate", FLOOD_BAND_COLOR.evacuate,
+  "overflow-imminent", FLOOD_BAND_COLOR["overflow-imminent"],
+  "observed-overflow", FLOOD_BAND_COLOR["observed-overflow"],
+  WATERWAY_CALM,
+];
+const FLOOD_BKK_URL = "/api/flood/bkk";
+const FLOOD_REFRESH_MS = 5 * 60_000;
+const FLOOD_DUTY = "Not an official warning · DDPM 1784";
 
 // Air quality (Open-Meteo Air Quality API, free, no key). Grid
 // resolution is ~5km; we sample 8×8 = 64 points across the Bangkok
@@ -550,9 +601,9 @@ const FLOOD_FILL_COLOR = [
   "#3b82f6",
 ];
 
-// Live HII/ThaiWater water-level gauges — see /api/flood-sensors
-// (src/index.ts). Circle color comes straight from the feature's
-// `levelColor` property, set server-side from HII's situation_level.
+// Water-level gauges as judged by FloodDash — see /api/flood-sensors
+// (src/flooddash.ts). `levelColor` is FloodDash's band colour; `silent`
+// gauges draw hollow (no data is not an all-clear), `dim` ones are stale.
 const FLOOD_SENSOR_SOURCE = "bkkx-flood-sensors";
 const FLOOD_SENSOR_LAYER = "bkkx-flood-sensor-dots";
 const FLOOD_SENSOR_HALO_LAYER = "bkkx-flood-sensor-halo";
@@ -617,6 +668,8 @@ const state = {
   cctvPopup: null,
   cctvHls: null,
   floodSensorPopup: null,
+  flood: null, // FloodDash relay payload (/api/flood/bkk)
+  flowTimer: null,
   rainStationPopup: null,
   liveCamPopup: null,
   landPricePopup: null,
@@ -659,6 +712,7 @@ const LAYER_STACK = [
   DISTRICT_LAYER,
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
+  KHLONG_FLOW_LAYER,
   RAIL_LAYER,
   WATER_TRANSIT_ROUTE_LAYER,
   WATER_TRANSIT_FERRY_LAYER,
@@ -980,9 +1034,17 @@ const LAYERS = [
     description: "Chao Phraya + 3,026 khlongs",
     defaultOn: true,
     softUninstall: true,
-    layers: [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER],
+    layers: [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER],
     install: async (map) => { await loadKhlongData(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER], false),
+    uninstall: (map) => setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER], false),
+    legend: [
+      { color: WATERWAY_CALM, label: "no gauge concern nearby" },
+      { color: FLOOD_BAND_COLOR.watch, label: "watch" },
+      { color: FLOOD_BAND_COLOR.prepare, label: "prepare" },
+      { color: FLOOD_BAND_COLOR.evacuate, label: "near bank" },
+      { color: FLOOD_BAND_COLOR["overflow-imminent"], label: "may overtop" },
+      { color: FLOOD_BAND_COLOR["observed-overflow"], label: "observed overflow" },
+    ],
   },
   {
     id: "terrain",
@@ -1086,8 +1148,8 @@ const LAYERS = [
   {
     id: "flood-sensors",
     name: "Flood sensors",
-    description: "HII/ThaiWater · water level gauges",
-    defaultOn: false,
+    description: "FloodDash · judged water-level gauges",
+    defaultOn: true,
     softUninstall: true,
     layers: [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER],
     install: async (map) => { await installFloodSensors(map); ensureStackOrder(map); },
@@ -1096,11 +1158,13 @@ const LAYERS = [
       setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], false);
     },
     legend: [
-      { color: "#B7AFA3", label: "critically low" },
-      { color: "#948C7F", label: "low" },
-      { color: "#00933C", label: "normal" },
-      { color: "#E86A10", label: "high" },
-      { color: "#A51931", label: "overflowing" },
+      { color: FLOOD_BAND_COLOR.safe, label: "safe" },
+      { color: FLOOD_BAND_COLOR.watch, label: "watch" },
+      { color: FLOOD_BAND_COLOR.prepare, label: "prepare" },
+      { color: FLOOD_BAND_COLOR.evacuate, label: "near bank" },
+      { color: FLOOD_BAND_COLOR["overflow-imminent"], label: "may overtop" },
+      { color: FLOOD_BAND_COLOR["observed-overflow"], label: "observed overflow" },
+      { color: FLOOD_BAND_COLOR["no-signal"], label: "hollow = silent gauge, no data" },
     ],
   },
   {
@@ -3345,24 +3409,68 @@ function closeFloodSensorPopup() {
   }
 }
 
+/** "13 min" · "2.5 h" · "11 days" — age in words a person reads at a glance. */
+function ageWords(min) {
+  if (min == null || !Number.isFinite(min)) return "unknown age";
+  if (min < 90) return `${Math.max(0, Math.round(min))} min`;
+  if (min < 48 * 60) return `${(min / 60).toFixed(min < 600 ? 1 : 0)} h`;
+  return `${Math.round(min / 1440)} days`;
+}
+
+/** Minutes since an ISO time, or null. */
+function minutesSince(iso) {
+  const t = Date.parse(iso ?? "");
+  return Number.isFinite(t) ? (Date.now() - t) / 60000 : null;
+}
+
 function openFloodSensorPopup(map, feature) {
   if (!feature?.geometry?.coordinates) return;
   const p = feature.properties || {};
   const [lng, lat] = feature.geometry.coordinates;
   closeFloodSensorPopup();
-  const wl = p.waterlevelMsl != null ? `${Number(p.waterlevelMsl).toFixed(2)} m MSL` : "—";
-  const bank = p.minBank != null ? `${Number(p.minBank).toFixed(2)} m bank level` : null;
-  const storage = p.storagePercent != null ? `${Number(p.storagePercent).toFixed(0)}% of bank capacity` : null;
+  // FloodDash measured the age when the atlas last relayed it; add the time since.
+  const relayAge = minutesSince(state.flood?.fetchedAt) ?? 0;
+  const age = p.ageMin != null && p.ageMin !== "null" ? Number(p.ageMin) + relayAge : null;
+  const silent = p.silent === true || p.silent === "true";
+  const color = p.levelColor || FLOOD_BAND_COLOR["no-signal"];
+  const num = (v) => (v == null || v === "null" || v === "" ? null : Number(v));
+  const wl = num(p.waterlevelMsl);
+  const bank = num(p.minBank);
+  const free = num(p.freeboardM);
+  const rise = num(p.riseMH);
+  const levelLine = wl == null
+    ? "No water level reported"
+    : `Water ${wl.toFixed(2)} m MSL${bank != null ? ` · bank ${bank.toFixed(2)} m` : ""}`;
+  const freeLine = free == null
+    ? ""
+    : free < 0
+      ? `${Math.abs(free).toFixed(2)} m over the bank`
+      : `${free.toFixed(2)} m below the bank`;
+  const riseLine = rise == null || silent ? "" : `${rise >= 0 ? "rising" : "falling"} ${Math.abs(rise * 100).toFixed(1)} cm/h`;
+  const fresh = silent
+    ? `Silent for ${ageWords(age)}${p.lastBandEn && p.lastBandEn !== "null" ? ` — last said ${p.lastBandEn}` : ""}`
+    : p.confidence === "stale"
+      ? `Last reading ${ageWords(age)} ago — stale`
+      : `Read ${ageWords(age)} ago`;
   const html = `
-    <div class="atlas-cctv-card">
-      <p class="atlas-cctv-kicker">Flood sensor · ${escapeHtml(p.levelLabel || "unknown")}</p>
+    <div class="atlas-cctv-card atlas-gauge-card">
+      <p class="atlas-cctv-kicker">Water gauge · FloodDash</p>
       <strong class="atlas-cctv-title">${escapeHtml(p.name || "Water level station")}</strong>
-      <p class="atlas-cctv-status">${escapeHtml(wl)}${bank ? " · " + escapeHtml(bank) : ""}</p>
-      ${storage ? `<p class="atlas-cctv-status">${escapeHtml(storage)}</p>` : ""}
+      ${p.nameTh && p.nameTh !== p.name ? `<p class="atlas-cctv-status">${escapeHtml(p.nameTh)}</p>` : ""}
+      <p class="atlas-gauge-band${silent ? " is-silent" : ""}" style="--band:${escapeHtml(color)}">
+        <span class="atlas-gauge-swatch" aria-hidden="true"></span>
+        <span>${escapeHtml(p.bandEn || "NO DATA")}${p.bandTh ? ` · ${escapeHtml(p.bandTh)}` : ""}</span>
+      </p>
+      <p class="atlas-gauge-action">${escapeHtml(p.action || "")}</p>
+      ${p.actionTh ? `<p class="atlas-gauge-action" lang="th">${escapeHtml(p.actionTh)}</p>` : ""}
+      <p class="atlas-cctv-status">${escapeHtml(levelLine)}</p>
+      ${freeLine || riseLine ? `<p class="atlas-cctv-status">${escapeHtml([freeLine, riseLine].filter(Boolean).join(" · "))}</p>` : ""}
+      <p class="atlas-cctv-status">${escapeHtml(fresh)}</p>
       <div class="atlas-cctv-actions">
-        <span>${escapeHtml(p.basin || p.district || "")}</span>
-        <span>${escapeHtml(p.observedAt || "")}</span>
+        <span>${escapeHtml(p.waterwayName || p.river || p.basin || "")}</span>
+        <span>${escapeHtml(p.agency || "")}</span>
       </div>
+      <p class="atlas-gauge-duty">${escapeHtml(FLOOD_DUTY)}</p>
     </div>
   `;
   const popup = new maplibregl.Popup({
@@ -3533,7 +3641,7 @@ async function installFloodSensors(map) {
   }
   const geojson = await fetchJson(FLOOD_SENSOR_LIVE_URL);
   if (!geojson?.features?.length) {
-    setLayerStatus("flood-sensors", "unavailable · ThaiWater feed failed");
+    setLayerStatus("flood-sensors", "unavailable · no FloodDash reading — not an all-clear");
     return;
   }
   if (!map.getSource(FLOOD_SENSOR_SOURCE)) {
@@ -3547,6 +3655,8 @@ async function installFloodSensors(map) {
   } else {
     try { map.getSource(FLOOD_SENSOR_SOURCE).setData(geojson); } catch {}
   }
+  const silent = ["==", ["get", "silent"], true];
+  const dim = ["==", ["get", "dim"], true];
   try {
     map.addLayer({
       id: FLOOD_SENSOR_HALO_LAYER,
@@ -3554,9 +3664,10 @@ async function installFloodSensors(map) {
       source: FLOOD_SENSOR_SOURCE,
       minzoom: 9,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 9, 13, 15, 16, 20],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 10, 13, 18, 16, 24],
         "circle-color": ["get", "levelColor"],
-        "circle-opacity": 0.2,
+        // Only prepare and worse get a halo — the eye goes where the water is.
+        "circle-opacity": ["case", [">=", ["get", "rank"], 3], ["case", dim, 0.14, 0.28], 0],
         "circle-stroke-width": 0,
       },
     });
@@ -3565,16 +3676,23 @@ async function installFloodSensors(map) {
       type: "circle",
       source: FLOOD_SENSOR_SOURCE,
       minzoom: 9,
+      layout: { "circle-sort-key": ["get", "rank"] },
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6, 16, 8],
-        "circle-color": ["get", "levelColor"],
-        "circle-stroke-color": "#11120f",
-        "circle-stroke-width": 1.2,
-        "circle-opacity": 0.95,
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, ["case", [">=", ["get", "rank"], 4], 5.5, 4], 13, ["case", [">=", ["get", "rank"], 4], 8, 6], 16, ["case", [">=", ["get", "rank"], 4], 10, 8]],
+        "circle-color": ["case", silent, "rgba(0,0,0,0)", ["get", "levelColor"]],
+        "circle-stroke-color": ["case", silent, "#c8c9c0", "#11120f"],
+        "circle-stroke-width": ["case", silent, 1.6, 1.2],
+        "circle-opacity": ["case", dim, 0.55, 0.95],
+        "circle-stroke-opacity": ["case", dim, 0.55, 1],
       },
     });
     wireFloodSensorInteractions(map);
-    setLayerStatus("flood-sensors", `HII/ThaiWater · ${geojson.count ?? geojson.features.length} live gauges`);
+    const reporting = geojson.reporting ?? geojson.features.length;
+    const silentCount = geojson.features.length - reporting;
+    setLayerStatus(
+      "flood-sensors",
+      `FloodDash · ${reporting} reporting${silentCount ? ` · ${silentCount} silent` : ""} · ${ageWords(geojson.ageMin)} ago`,
+    );
   } catch (error) {
     console.warn("Flood sensor layer failed:", error);
     setLayerStatus("flood-sensors", "unavailable · layer failed");
@@ -4165,41 +4283,90 @@ function wireWaterTransitInteractions(map) {
   }
 }
 
+/** Rank each segment by how far its named waterway runs (see WATERWAY_WIDTH). */
+function tierWaterways(geojson) {
+  const unnamed = (n) => !n || n.startsWith("unnamed");
+  const km = new Map();
+  for (const f of geojson.features) {
+    const n = f.properties.nameTh;
+    if (!unnamed(n)) km.set(n, (km.get(n) || 0) + (f.properties.lengthKm || 0));
+  }
+  for (const f of geojson.features) {
+    const n = f.properties.nameTh;
+    const total = unnamed(n) ? null : km.get(n);
+    f.properties.tier = n === "แม่น้ำเจ้าพระยา" ? 4 : total == null ? 0 : total >= 20 ? 3 : total >= 7 ? 2 : 1;
+  }
+}
+
 async function loadKhlongData(map) {
   if (map.getLayer(KHLONG_RIVER_LAYER) || map.getLayer(KHLONG_CANAL_LAYER)) {
-    setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER], true);
+    setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER], true);
     return;
   }
   const geojson = await fetchJson(KHLONG_DATA_URL);
   if (!geojson) return;
+  tierWaterways(geojson);
   try {
     if (!map.getSource(KHLONG_SOURCE)) {
-      map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson });
+      // promoteId lets FloodDash's per-segment status land as feature-state.
+      map.addSource(KHLONG_SOURCE, { type: "geojson", data: geojson, promoteId: "id" });
     }
-    if (!map.getLayer(KHLONG_RIVER_LAYER)) {
+    const paint = { "line-color": WATERWAY_COLOR, "line-width": WATERWAY_WIDTH, "line-opacity": WATERWAY_OPACITY };
+    for (const [id, waterway] of [[KHLONG_RIVER_LAYER, "river"], [KHLONG_CANAL_LAYER, "canal"]]) {
+      if (map.getLayer(id)) continue;
       map.addLayer({
-        id: KHLONG_RIVER_LAYER,
+        id,
         type: "line",
         source: KHLONG_SOURCE,
         minzoom: 9,
-        filter: ["==", ["get", "waterway"], "river"],
+        filter: ["==", ["get", "waterway"], waterway],
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#3FA7E0", "line-width": KHLONG_RIVER_WIDTH, "line-opacity": 0.85 },
+        paint,
       });
     }
-    if (!map.getLayer(KHLONG_CANAL_LAYER)) {
+    if (!map.getLayer(KHLONG_FLOW_LAYER)) {
       map.addLayer({
-        id: KHLONG_CANAL_LAYER,
+        id: KHLONG_FLOW_LAYER,
         type: "line",
         source: KHLONG_SOURCE,
-        minzoom: 11,
-        filter: ["==", ["get", "waterway"], "canal"],
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#2C7FB8", "line-width": KHLONG_CANAL_WIDTH, "line-opacity": 0.7 },
+        minzoom: 10,
+        filter: [">=", ["get", "tier"], 1],
+        layout: { "line-join": "round", "line-cap": "butt" },
+        paint: {
+          "line-color": "#EAF7FF",
+          "line-width": FLOW_WIDTH,
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.35, 13, 0.7],
+          "line-dasharray": FLOW_DASH_STEPS[0],
+        },
       });
     }
+    applyWaterwayStatus(map);
+    startWaterFlow(map);
   } catch (error) {
     console.warn("Khlong layer failed:", error);
+  }
+}
+
+/** Slide the flow dashes downstream. Paused while hidden; still for reduced motion. */
+function startWaterFlow(map) {
+  if (state.flowTimer) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  let step = 0;
+  state.flowTimer = setInterval(() => {
+    if (document.hidden || !map.getLayer(KHLONG_FLOW_LAYER)) return;
+    if (map.getLayoutProperty(KHLONG_FLOW_LAYER, "visibility") === "none") return;
+    step = (step + 1) % FLOW_DASH_STEPS.length;
+    map.setPaintProperty(KHLONG_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
+  }, 90);
+}
+
+/** Colour each waterway segment with the band of the gauge that judged it. */
+function applyWaterwayStatus(map) {
+  if (!map?.getSource(KHLONG_SOURCE) || !state.flood?.waterways) return;
+  map.removeFeatureState({ source: KHLONG_SOURCE });
+  for (const [id, w] of Object.entries(state.flood.waterways)) {
+    if (w.band === "safe") continue;
+    map.setFeatureState({ source: KHLONG_SOURCE, id }, { band: w.band });
   }
 }
 
@@ -4312,9 +4479,11 @@ async function runInspect(map, event) {
     floodHitAt(lng, lat),
     fetchRisk(lng.toFixed(5), lat.toFixed(5)),
   ]);
-  fillInspectDl(floodEl, floodRiskRows(flood, risk, feature));
+  fillInspectDl(floodEl, [...liveFloodRows(risk?.live), ...floodRiskRows(flood, risk, feature)]);
   if (noteEl) {
-    noteEl.textContent = "Flood envelopes are schematic civic demos — not official DDPM/BMA maps.";
+    noteEl.textContent = risk?.live
+      ? `Live rows: FloodDash — ${FLOOD_DUTY}. Schematic rows are civic demos, not official DDPM/BMA maps.`
+      : "No live FloodDash reading here — not an all-clear. Schematic rows are civic demos, not official DDPM/BMA maps.";
   }
 
   const section = document.getElementById("atlas-inspect");
@@ -4381,12 +4550,30 @@ function buildRiskPayload(lng, lat, flood, pm25 = null) {
   };
 }
 
+/** Rows from FloodDash's live answer for this point (/api/risk → live). */
+function liveFloodRows(live) {
+  if (!live) return [];
+  const rows = [];
+  if (live.city) rows.push(["Bangkok now", `${FLOOD_LEVEL_WORD[live.city.level] || live.city.level} · ${live.city.headEn}`]);
+  const g = live.nearestGauge;
+  rows.push(["Nearest gauge", g
+    ? `${g.bandEn} · ${g.name} · ${g.distanceKm} km${g.confidence === "stale" ? " · stale" : ""}`
+    : "none reporting within 15 km"]);
+  if (live.district) {
+    const r = live.roadReports;
+    rows.push([`Roads · ${live.district}`, r
+      ? `${r.reports} DDS report${r.reports > 1 ? "s" : ""}${r.maxDepthCm != null ? `, to ${r.maxDepthCm} cm` : ""}`
+      : "none reported in DDS"]);
+  }
+  return rows;
+}
+
 function floodRiskRows(flood, risk, buildingFeature) {
   const height = buildingFeature?.properties?.render_height
     ?? buildingFeature?.properties?.height
     ?? null;
   const rows = [
-    ["Inside envelope", flood?.inside ? "Yes" : "No"],
+    ["Schematic envelope", flood?.inside ? "inside" : "outside"],
   ];
   if (flood?.inside && flood.top) {
     rows.push(["Corridor", String(flood.top.name ?? flood.top.id ?? "—")]);
@@ -4394,7 +4581,7 @@ function floodRiskRows(flood, risk, buildingFeature) {
     if (flood.top.depthHintM != null) rows.push(["Depth hint", `${flood.top.depthHintM} m`]);
   }
   if (risk?.score != null) {
-    rows.push(["Risk score", `${risk.score} · ${risk.band ?? "—"}`]);
+    rows.push(["Schematic score", `${risk.score} · ${risk.band ?? "—"}`]);
   }
   if (risk?.factors?.pm25 != null) {
     rows.push(["PM2.5", `${risk.factors.pm25} µg/m³`]);
@@ -4631,15 +4818,27 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
-      flood: { buildings: true, rail: true, "water-transit": true, traffic: false, cctv: false, khlongs: true, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: true, terrain: true, night: false },
-      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: false, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
+      city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
+      // Flood watch: satellite + the living waterway network + judged gauges.
+      // The schematic envelope stays off — it is not today's water.
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;
     applyNightMode(map);
+    // Water reads only when the buildings step back to monochrome.
+    const colorToggle = document.getElementById("toggle-building-color");
+    if (colorToggle && colorToggle.checked === (preset === "flood")) {
+      colorToggle.checked = preset !== "flood";
+      colorToggle.dispatchEvent(new Event("change"));
+    }
+    // …and the signal-green motorways, which otherwise read as water.
+    if (map.getLayer("bkkx-roads-motorway")) {
+      map.setPaintProperty("bkkx-roads-motorway", "line-opacity", preset === "flood" ? 0.25 : 1);
+    }
     if (wants.buildings) await setLayerToggle(map, "buildings", true);
     for (const [id, on] of Object.entries(wants)) {
       if (id === "buildings" || id === "night") continue;
@@ -4839,6 +5038,143 @@ async function loadBkkLiveStrip() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// FloodDash relay — the city verdict, the "Water now" panel and the
+// waterway colours all read /api/flood/bkk (src/flooddash.ts). FloodDash's
+// words are shown as given; the atlas adds only placement and age.
+// ─────────────────────────────────────────────────────────────────
+
+const FLOOD_LEVEL_WORD = { safe: "Safe", watch: "Watch", prepare: "Prepare", danger: "Danger" };
+
+async function loadFloodRelay() {
+  let payload = null;
+  try {
+    const res = await fetch(FLOOD_BKK_URL, { cache: "no-store" });
+    if (res.ok) payload = await res.json();
+  } catch { /* rendered as unavailable below */ }
+  if (payload?.tool === "flood-bkk") state.flood = payload;
+  renderFloodVerdict(payload?.tool === "flood-bkk" ? payload : state.flood);
+  renderWaterPanel(state.flood);
+  applyWaterwayStatus(state.map);
+  // Keep the gauge layer on the same reading as the verdict.
+  const src = state.map?.getSource(FLOOD_SENSOR_SOURCE);
+  if (src && payload?.tool === "flood-bkk") {
+    const data = await fetchJson(FLOOD_SENSOR_LIVE_URL);
+    if (data?.features) src.setData(data);
+  }
+}
+
+function renderFloodVerdict(flood) {
+  const root = document.getElementById("atlas-flood-verdict");
+  if (!root) return;
+  root.hidden = false;
+  const set = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = text || "";
+      el.hidden = !text;
+    }
+  };
+  const v = flood?.verdict;
+  if (!v) {
+    root.dataset.level = "none";
+    set("atlas-flood-verdict-level", "No reading");
+    set("atlas-flood-verdict-head", "FloodDash has not reached the atlas yet — this is not an all-clear.");
+    set("atlas-flood-verdict-reason", "");
+    set("atlas-flood-verdict-reason-th", "");
+    set("atlas-flood-verdict-meta", FLOOD_DUTY);
+    return;
+  }
+  const age = minutesSince(flood.fetchedAt);
+  const stale = age == null || age > 30;
+  root.dataset.level = v.level;
+  root.classList.toggle("is-stale", stale);
+  set("atlas-flood-verdict-level", FLOOD_LEVEL_WORD[v.level] || v.level);
+  set("atlas-flood-verdict-head", `${v.headEn} · ${v.headTh}`);
+  set("atlas-flood-verdict-reason", v.reasonEn);
+  set("atlas-flood-verdict-reason-th", v.reasonTh);
+  const facts = [];
+  if (v.stationsL5) facts.push(`${v.stationsL5} gauge${v.stationsL5 > 1 ? "s" : ""} overflowing`);
+  if (v.stationsL4) facts.push(`${v.stationsL4} at high water`);
+  if (v.rain24hMm != null) facts.push(`worst 24 h rain ${Math.round(v.rain24hMm)} mm`);
+  if (v.etaHours != null) facts.push(`bank may be reached in ~${v.etaHours} h at this rise`);
+  facts.push(stale ? `last FloodDash reading ${ageWords(age)} ago` : `FloodDash · ${ageWords(age)} ago`);
+  facts.push(FLOOD_DUTY);
+  set("atlas-flood-verdict-meta", facts.join(" · "));
+}
+
+function renderWaterPanel(flood) {
+  const root = document.getElementById("atlas-water");
+  if (!root || !flood) return;
+  root.hidden = false;
+  const serious = flood.verdict && (flood.verdict.level === "prepare" || flood.verdict.level === "danger");
+  const details = document.getElementById("atlas-water-details");
+  if (details && serious && !details.dataset.touched) details.open = true;
+
+  const gaugesEl = document.getElementById("atlas-water-gauges");
+  if (gaugesEl) {
+    const relayAge = minutesSince(flood.fetchedAt) ?? 0;
+    const top = flood.gauges.filter((g) => (FLOOD_RANK[g.band] ?? 0) >= 3);
+    gaugesEl.innerHTML = top.length
+      ? top.map((g) => `
+        <li>
+          <button type="button" class="atlas-water-row" data-lng="${g.lng}" data-lat="${g.lat}" style="--band:${FLOOD_BAND_COLOR[g.band] || FLOOD_BAND_COLOR["no-signal"]}">
+            <span class="atlas-gauge-swatch" aria-hidden="true"></span>
+            <span class="atlas-water-row-main">
+              <strong>${escapeHtml(g.bandEn)}</strong> ${escapeHtml(g.name)}
+              <small>${escapeHtml(g.waterwayName || g.river || "")}${g.confidence === "stale" ? ` · stale, ${ageWords((g.ageMin ?? 0) + relayAge)} old` : ""}</small>
+            </span>
+          </button>
+        </li>`).join("")
+      : `<li class="atlas-water-empty">No gauge at prepare or worse. Gauges cover the waterways, not every street.</li>`;
+  }
+
+  const roadsEl = document.getElementById("atlas-water-roads");
+  if (roadsEl) {
+    const r = flood.roads;
+    const head = document.getElementById("atlas-water-roads-head");
+    if (head) head.textContent = `Roads reported flooded · BMA DDS${r.days?.length ? ` · ${r.days.join(", ")}` : ""}${r.stale ? " · stale" : ""}`;
+    roadsEl.innerHTML = r.byDistrict.length
+      ? r.byDistrict.map((d) => `
+        <li class="atlas-water-road">
+          <span>${escapeHtml(d.nameEn)} <small lang="th">${escapeHtml(d.nameTh)}</small></span>
+          <span class="atlas-water-road-n">${d.reports} report${d.reports > 1 ? "s" : ""}${d.maxDepthCm != null ? ` · to ${d.maxDepthCm} cm` : ""}${d.clearanceUnrecorded ? ` · ${d.clearanceUnrecorded} clearance not recorded` : ""}</span>
+        </li>`).join("")
+      : `<li class="atlas-water-empty">No road reports in DDS for these days.</li>`;
+  }
+
+  const gatesEl = document.getElementById("atlas-water-gates");
+  if (gatesEl) {
+    const c = flood.canals;
+    const head = document.getElementById("atlas-water-gates-head");
+    if (head) head.textContent = `Canal gates · BMA DDS bulletin${c.date ? ` · ${c.date}` : ""}${c.stale ? " · stale" : ""}`;
+    gatesEl.innerHTML = c.stations.map((g) => `
+      <li class="atlas-water-road" data-status="${escapeHtml(g.status)}">
+        <span lang="th">${escapeHtml(g.name)}</span>
+        <span class="atlas-water-road-n">${g.levelMsl != null ? `${g.levelMsl.toFixed(2)} m` : "—"}${g.marginM != null ? ` · ${g.marginM >= 0 ? `${g.marginM.toFixed(2)} m under` : `${Math.abs(g.marginM).toFixed(2)} m over`} critical` : ""} · <span lang="th">${escapeHtml(g.statusTh)}</span></span>
+      </li>`).join("");
+  }
+}
+
+// Same order as src/flooddash.ts BAND_RANK.
+const FLOOD_RANK = { "no-signal": 0, untrusted: 0, safe: 1, watch: 2, prepare: 3, evacuate: 4, "overflow-imminent": 5, "observed-overflow": 6 };
+
+function wireWaterPanel() {
+  const details = document.getElementById("atlas-water-details");
+  details?.addEventListener("toggle", () => { details.dataset.touched = "1"; });
+  document.getElementById("atlas-water-gauges")?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-lng]");
+    if (!btn || !state.map) return;
+    state.map.flyTo({ center: [Number(btn.dataset.lng), Number(btn.dataset.lat)], zoom: 15, pitch: 50, essential: true });
+  });
+  document.getElementById("atlas-flood-verdict-show")?.addEventListener("click", () => {
+    document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
+    // Plan view of the whole network — the drainage map, read from above.
+    state.map?.flyTo({ center: [100.56, 13.78], zoom: 11.2, pitch: 0, bearing: 0, essential: true });
+    document.getElementById("atlas-water")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
@@ -4852,6 +5188,9 @@ async function init() {
   // from bangkok.thaiwater.net/dashboard's 5-card top pattern.
   loadBkkLiveStrip();
   setInterval(loadBkkLiveStrip, 5 * 60 * 1000);
+  wireWaterPanel();
+  loadFloodRelay();
+  setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
 
   const initialId = parseHashId();
   const initialArea = initialId ? state.areas.find((a) => a.id === initialId) : state.areas[0];
