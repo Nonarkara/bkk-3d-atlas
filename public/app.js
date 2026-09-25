@@ -1036,7 +1036,10 @@ const LAYERS = [
     softUninstall: true,
     layers: [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER],
     install: async (map) => { await loadKhlongData(map); ensureStackOrder(map); },
-    uninstall: (map) => setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER], false),
+    uninstall: (map) => {
+      stopWaterFlow();
+      setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER], false);
+    },
     legend: [
       { color: WATERWAY_CALM, label: "no gauge concern nearby" },
       { color: FLOOD_BAND_COLOR.watch, label: "watch" },
@@ -4301,6 +4304,7 @@ function tierWaterways(geojson) {
 async function loadKhlongData(map) {
   if (map.getLayer(KHLONG_RIVER_LAYER) || map.getLayer(KHLONG_CANAL_LAYER)) {
     setLayersVisible(map, [KHLONG_RIVER_LAYER, KHLONG_CANAL_LAYER, KHLONG_FLOW_LAYER], true);
+    startWaterFlow(map);
     return;
   }
   const geojson = await fetchJson(KHLONG_DATA_URL);
@@ -4347,16 +4351,25 @@ async function loadKhlongData(map) {
   }
 }
 
+function stopWaterFlow() {
+  if (state.flowTimer) {
+    clearInterval(state.flowTimer);
+    state.flowTimer = null;
+  }
+}
+
 /** Slide the flow dashes downstream. Paused while hidden; still for reduced motion. */
 function startWaterFlow(map) {
   if (state.flowTimer) return;
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const targetMap = map || state.map;
+  if (!targetMap) return;
   let step = 0;
   state.flowTimer = setInterval(() => {
-    if (document.hidden || !map.getLayer(KHLONG_FLOW_LAYER)) return;
-    if (map.getLayoutProperty(KHLONG_FLOW_LAYER, "visibility") === "none") return;
+    if (document.hidden || !targetMap.getLayer(KHLONG_FLOW_LAYER)) return;
+    if (targetMap.getLayoutProperty(KHLONG_FLOW_LAYER, "visibility") === "none") return;
     step = (step + 1) % FLOW_DASH_STEPS.length;
-    map.setPaintProperty(KHLONG_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
+    targetMap.setPaintProperty(KHLONG_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
   }, 90);
 }
 
@@ -5350,6 +5363,14 @@ async function init() {
   window.addEventListener("hashchange", () => {
     const id = parseHashId();
     if (id && id !== state.activeId) flyToArea(id, { updateHash: false });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      stopWaterFlow();
+    } else if (state.map && state.map.getLayer(KHLONG_FLOW_LAYER) && state.map.getLayoutProperty(KHLONG_FLOW_LAYER, "visibility") !== "none") {
+      startWaterFlow(state.map);
+    }
   });
 }
 

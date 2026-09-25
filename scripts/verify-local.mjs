@@ -48,6 +48,7 @@ mustExist("public/index.html");
 mustExist("public/app.js");
 mustExist("public/style.css");
 mustExist("src/index.ts");
+mustExist("src/flooddash.ts");
 mustExist("wrangler.toml");
 mustExist("public/labs/paper/index.html");
 
@@ -183,6 +184,8 @@ if (existsSync(join(root, "public/bkk-canals.geojson"))) {
 const html = readFileSync(join(root, "public/index.html"), "utf8");
 if (!html.includes('id="atlas-about"')) fail("index.html missing About drawer #atlas-about");
 else ok("index.html has About drawer");
+if (!html.includes('id="atlas-pane-research"')) fail("index.html missing Research tab #atlas-pane-research");
+else ok("index.html has Research tab in About drawer");
 if (!html.includes("data-about-open")) fail("index.html missing About open triggers");
 else ok("index.html has About open triggers");
 if (html.includes('id="atlas-labs"')) fail("Labs manifesto still in operate panel (should live in About)");
@@ -358,6 +361,8 @@ else ok("db/schema.sql present");
   else ok("db/schema.sql declares city_events (merged in 2026-08-09 audit)");
   if (!schema.includes("CREATE TABLE IF NOT EXISTS news_events")) fail("db/schema.sql missing news_events — fresh deploy would have no Buzz layer");
   else ok("db/schema.sql declares news_events (merged in 2026-08-11 audit)");
+  if (!schema.includes("CREATE TABLE IF NOT EXISTS flood_state")) fail("db/schema.sql missing flood_state — fresh deploy would have no flood relay table");
+  else ok("db/schema.sql declares flood_state (merged in 2026-08-15 flooddash relay)");
 }
 const wt = readFileSync(join(root, "wrangler.toml"), "utf8");
 if (!wt.includes("[triggers]") || !wt.includes("crons")) fail("wrangler.toml missing cron trigger for event ingest");
@@ -378,6 +383,8 @@ for (const path of ATLAS_PATHS) {
   if (!worker.includes(`"${path}"`)) fail(`Worker missing AI-readable mirror route ${path}`);
   else ok(`Worker exposes ${path}`);
 }
+if (!worker.includes('"/api/flood/bkk"')) fail("Worker missing FloodDash relay route /api/flood/bkk");
+else ok("Worker exposes /api/flood/bkk");
 if (!worker.includes("ATLAS_WATER_TRANSIT_ASSET") || !worker.includes("waterRoutes") || !worker.includes("piers")) {
   fail("Worker transit endpoint missing water routes or piers");
 } else {

@@ -218,10 +218,30 @@ function pointToLineM(lng: number, lat: number, coords: number[][]): number {
   return best;
 }
 
-type Waterway = { id: string; nameTh: string; coords: number[][] };
+type Waterway = {
+  id: string;
+  nameTh: string;
+  coords: number[][];
+  minLng: number;
+  maxLng: number;
+  minLat: number;
+  maxLat: number;
+};
 
 function isUnnamed(name: string) {
   return !name || name.startsWith("unnamed");
+}
+
+/** Fast bounding-box check before geodesic distance calculation.
+ *  Uses 100,000m/degree as a conservative lower-bound divisor for Bangkok latitude. */
+function nearBbox(w: Waterway, lng: number, lat: number, maxM: number): boolean {
+  const deg = maxM / 100_000;
+  return (
+    lng >= w.minLng - deg &&
+    lng <= w.maxLng + deg &&
+    lat >= w.minLat - deg &&
+    lat <= w.maxLat + deg
+  );
 }
 
 /** Snap each reporting gauge to the waterway it sits on, then heat every
@@ -241,12 +261,14 @@ function joinWaterways(gauges: Gauge[], waterways: Waterway[]): FloodState["wate
     let pick: { w: Waterway; d: number } | null = null;
     if (g.river) {
       for (const w of byName.get(g.river) ?? []) {
+        if (!nearBbox(w, g.lng, g.lat, SNAP_SAME_NAME_M)) continue;
         const d = pointToLineM(g.lng, g.lat, w.coords);
         if (d <= SNAP_SAME_NAME_M && (!pick || d < pick.d)) pick = { w, d };
       }
     }
     if (!pick) {
       for (const w of waterways) {
+        if (!nearBbox(w, g.lng, g.lat, SNAP_ANY_M)) continue;
         const d = pointToLineM(g.lng, g.lat, w.coords);
         if (d <= SNAP_ANY_M && (!pick || d < pick.d)) pick = { w, d };
       }
@@ -260,7 +282,9 @@ function joinWaterways(gauges: Gauge[], waterways: Waterway[]): FloodState["wate
     const rank = BAND_RANK[g.band] ?? 0;
     const reach = isUnnamed(pick.w.nameTh)
       ? [pick.w]
-      : (byName.get(pick.w.nameTh) ?? []).filter((w) => pointToLineM(g.lng, g.lat, w.coords) <= REACH_M);
+      : (byName.get(pick.w.nameTh) ?? []).filter(
+          (w) => nearBbox(w, g.lng, g.lat, REACH_M) && pointToLineM(g.lng, g.lat, w.coords) <= REACH_M,
+        );
     for (const w of reach) {
       const prev = status[w.id];
       if (!prev || rank > prev.rank) {
@@ -446,7 +470,26 @@ export async function refreshFloodDash(
     for (const f of deps.khlongs?.features ?? []) {
       if (f.geometry?.type !== "LineString") continue;
       const p = f.properties ?? {};
-      waterways.push({ id: String(p.id), nameTh: String(p.nameTh ?? p.name ?? ""), coords: f.geometry.coordinates as number[][] });
+      const coords = f.geometry.coordinates as number[][];
+      let minLng = Infinity;
+      let maxLng = -Infinity;
+      let minLat = Infinity;
+      let maxLat = -Infinity;
+      for (const pt of coords) {
+        if (pt[0] < minLng) minLng = pt[0];
+        if (pt[0] > maxLng) maxLng = pt[0];
+        if (pt[1] < minLat) minLat = pt[1];
+        if (pt[1] > maxLat) maxLat = pt[1];
+      }
+      waterways.push({
+        id: String(p.id),
+        nameTh: String(p.nameTh ?? p.name ?? ""),
+        coords,
+        minLng,
+        maxLng,
+        minLat,
+        maxLat,
+      });
     }
     state.waterways = waterways.length ? joinWaterways(state.gauges, waterways) : {};
   }

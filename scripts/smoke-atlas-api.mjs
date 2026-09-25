@@ -185,6 +185,8 @@ async function checkScoreboard() {
   assert(body.feeds.newsEvents.endpoint === "/api/news-events", `newsEvents.endpoint=${body.feeds.newsEvents.endpoint}`);
   assert(body.feeds.landmarks, "scoreboard missing landmarks feed (heritage landmarks added 2026-08-10)");
   assert(body.feeds.landmarks.endpoint === "/bkk-landmarks.geojson", `landmarks.endpoint=${body.feeds.landmarks.endpoint}`);
+  assert(body.feeds.floodBkk, "scoreboard missing floodBkk feed (FloodDash relay added 2026-08-15)");
+  assert(body.feeds.floodBkk.endpoint === "/api/flood/bkk", `floodBkk.endpoint=${body.feeds.floodBkk.endpoint}`);
   // The Fine Arts Department register (571 monuments) is the bkk site's
   // /heritage page — not this GeoJSON. Lock the honest source string so
   // a future agent can't re-lie the scoreboard into claiming FAD ownership.
@@ -254,6 +256,17 @@ async function checkFloodSensors() {
   const colored = body.features.filter((f) => f.properties?.levelColor).length;
   assert(colored > 0, "no features have levelColor");
   logOk("GET /api/flood-sensors", ms, `count=${body.count ?? body.features.length} with-levelColor=${colored}`);
+}
+
+async function checkFloodBkk() {
+  const { ok, status, body, ms } = await fetchJson("/api/flood/bkk");
+  if (!ok || status !== 200) return logFail("GET /api/flood/bkk", `status=${status}`);
+  assert(body.tool === "flood-bkk", `tool=${body.tool}`);
+  assert(typeof body.cityVerdict === "string", "missing cityVerdict");
+  assert(Array.isArray(body.gauges), "gauges not an array");
+  assert(typeof body.waterways === "object" && body.waterways !== null, "waterways not an object");
+  assert(body.disclaimer && typeof body.disclaimer.hotline === "string", "missing disclaimer hotline");
+  logOk("GET /api/flood/bkk", ms, `verdict=${body.cityVerdict} gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
 }
 
 async function checkCivicPois() {
@@ -354,6 +367,7 @@ async function main() {
   await checkRisk();
   await checkCctv();
   await checkFloodSensors();
+  await checkFloodBkk();
   await checkCivicPois();
   await checkCityEvents();
   await checkNewsEvents();
