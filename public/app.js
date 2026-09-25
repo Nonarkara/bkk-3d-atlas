@@ -4895,22 +4895,54 @@ function wireAboutDrawer() {
 
   const isOpen = () => !root.hasAttribute("hidden");
 
+  // Two tabs share the sheet: #about and #research.
+  const PANES = ["about", "research"];
+  const PANE_HEAD = {
+    about: ["About", "My city, not theirs"],
+    research: ["Research", "How it’s built, and how sure it is"],
+  };
+  let pane = "about";
+  const isPaneHash = () => PANES.includes(window.location.hash.slice(1));
+
   const setHashAbout = (open) => {
     const url = new URL(window.location.href);
     if (open) {
-      if (url.hash !== "#about") {
-        url.hash = "about";
+      if (url.hash !== `#${pane}`) {
+        url.hash = pane;
         history.replaceState(null, "", url.toString());
       }
       return;
     }
-    if (url.hash === "#about") {
+    if (isPaneHash()) {
       url.hash = "";
       history.replaceState(null, "", url.pathname + url.search);
     }
   };
 
-  const openAbout = () => {
+  const showPane = (next) => {
+    pane = PANES.includes(next) ? next : "about";
+    sheet.dataset.pane = pane;
+    const head = PANE_HEAD[pane];
+    const eyebrow = document.getElementById("atlas-about-eyebrow");
+    const title = document.getElementById("atlas-about-title");
+    if (eyebrow) eyebrow.textContent = head[0];
+    if (title) title.textContent = head[1];
+    root.querySelectorAll("[data-about-tab]").forEach((tab) => {
+      tab.setAttribute("aria-selected", String(tab.dataset.aboutTab === pane));
+    });
+    PANES.forEach((id) => {
+      const el = document.getElementById(`atlas-pane-${id}`);
+      if (el) el.hidden = id !== pane;
+    });
+    if (isOpen()) setHashAbout(true);
+  };
+
+  root.querySelectorAll("[data-about-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => showPane(tab.dataset.aboutTab));
+  });
+
+  const openAbout = (which = "about") => {
+    showPane(which);
     if (isOpen()) return;
     lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     root.hidden = false;
@@ -4930,7 +4962,7 @@ function wireAboutDrawer() {
   document.querySelectorAll("[data-about-open]").forEach((el) => {
     el.addEventListener("click", (event) => {
       event.preventDefault();
-      openAbout();
+      openAbout(el.dataset.aboutOpen || "about");
     });
   });
   document.querySelectorAll("[data-about-close]").forEach((el) => {
@@ -4961,10 +4993,10 @@ function wireAboutDrawer() {
     });
   });
 
-  if (window.location.hash === "#about") openAbout();
+  if (isPaneHash()) openAbout(window.location.hash.slice(1));
   window.addEventListener("hashchange", () => {
-    if (window.location.hash === "#about") openAbout();
-    else if (isOpen() && window.location.hash !== "#about") closeAbout();
+    if (isPaneHash()) openAbout(window.location.hash.slice(1));
+    else if (isOpen()) closeAbout();
   });
 }
 
@@ -5117,6 +5149,14 @@ function renderFloodVerdict(flood) {
 }
 
 function renderWaterPanel(flood) {
+  const liveLine = document.getElementById("atlas-research-live");
+  if (liveLine && flood) {
+    const silent = flood.gauges.filter((g) => !FLOOD_RANK[g.band]).length;
+    liveLine.textContent =
+      `Right now: ${flood.gauges.length} gauges in the metro box, ${flood.gauges.length - silent} reporting, ` +
+      `${silent} silent or untrusted; ${Object.keys(flood.waterways).length} waterway segments judged; ` +
+      `FloodDash reading ${ageWords(minutesSince(flood.fetchedAt))} old.`;
+  }
   const root = document.getElementById("atlas-water");
   if (!root || !flood) return;
   root.hidden = false;

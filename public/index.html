@@ -159,6 +159,7 @@
           <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-gates-head">Canal gates · BMA DDS bulletin</p>
           <ul class="atlas-water-list" id="atlas-water-gates"></ul>
           <p class="atlas-water-note atlas-water-duty">FloodDash prioritises open data; it does not issue warnings. DDPM, BMA and TMD do. DDPM hotline <a href="tel:1784">1784</a>.</p>
+          <button type="button" class="atlas-water-method" data-about-open="research">Method, limits and build log →</button>
         </details>
       </section>
 
@@ -502,13 +503,18 @@
         tabindex="-1"
       >
         <header class="atlas-about-head">
-          <p class="atlas-eyebrow">About</p>
+          <p class="atlas-eyebrow" id="atlas-about-eyebrow">About</p>
           <h2 id="atlas-about-title">My city, not theirs</h2>
           <button type="button" class="atlas-about-close" data-about-close aria-label="Close about">
             Close
           </button>
+          <div class="atlas-about-tabs" role="tablist" aria-label="About or research">
+            <button type="button" role="tab" id="atlas-tab-about" class="atlas-about-tab" data-about-tab="about" aria-controls="atlas-pane-about" aria-selected="true">About</button>
+            <button type="button" role="tab" id="atlas-tab-research" class="atlas-about-tab" data-about-tab="research" aria-controls="atlas-pane-research" aria-selected="false">Research</button>
+          </div>
         </header>
 
+        <div class="atlas-about-pane" id="atlas-pane-about" role="tabpanel" aria-labelledby="atlas-tab-about">
         <nav class="atlas-about-toc" aria-label="About sections">
           <a href="#about-who">Who</a>
           <a href="#about-thesis">Thesis</a>
@@ -598,8 +604,8 @@
               <li>
                 <strong>Live inputs.</strong>
                 iTIC/Longdo traffic + CCTV, RainViewer radar, Open-Meteo
-                wind/heat/AQI, HII/ThaiWater flood gauges — honest about what is
-                live vs schematic.
+                wind/heat/AQI, water gauges judged by FloodDash — honest about
+                what is live vs schematic.
               </li>
               <li>
                 <strong>Reuse.</strong>
@@ -644,8 +650,10 @@
                 Real Treasury road-level analysis as a choropleth — not a fake heat paint.
               </li>
               <li>
-                <strong>Flood sensors + rain radar.</strong>
-                HII/ThaiWater gauges and animated RainViewer frames over the silhouette.
+                <strong>Waterways, gauges + rain radar.</strong>
+                Every canal sized by reach and flowing downstream, coloured where a
+                FloodDash-judged gauge is worried; animated RainViewer frames over
+                the silhouette. Method on the <a href="#research" data-about-open="research">Research</a> tab.
               </li>
               <li>
                 <strong>Current wind field.</strong>
@@ -807,6 +815,242 @@
               <a href="https://atlas.nonarkara.org" target="_blank" rel="noreferrer">atlas.nonarkara.org</a>.
             </p>
           </section>
+        </div>
+        </div>
+
+        <div class="atlas-about-pane" id="atlas-pane-research" role="tabpanel" aria-labelledby="atlas-tab-research" hidden>
+        <nav class="atlas-about-toc" aria-label="Research sections">
+          <a href="#research-question">Question</a>
+          <a href="#research-flooddash">FloodDash</a>
+          <a href="#research-record">Record</a>
+          <a href="#research-relay">Relay</a>
+          <a href="#research-method">Method</a>
+          <a href="#research-limits">Limits</a>
+          <a href="#research-build">Build log</a>
+          <a href="#research-next">Next</a>
+          <a href="#research-credits">Credits</a>
+        </nav>
+
+        <div class="atlas-about-body">
+          <section class="atlas-about-section" id="research-question">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">The question</p>
+            <h3>A diagram nobody could read</h3>
+            <p>
+              The BMA Drainage and Sewerage Department publishes a
+              water-management schematic of the city —
+              <span lang="th">แผนผังบริหารจัดการน้ำ กรุงเทพมหานคร</span> — at
+              <a href="https://weather.bangkok.go.th/KlongMap" target="_blank" rel="noreferrer">weather.bangkok.go.th/KlongMap</a>.
+              It is the picture that gets pointed at in flood briefings. It is
+              also a diagram: canals as straight strokes, no ground under them,
+              no scale, nothing that says which way the water drains or where
+              it is high right now.
+            </p>
+            <p>
+              The atlas already had the city in 3D over satellite imagery and
+              4,063 waterway segments from OpenStreetMap. The question for the
+              water layer was plain: can one map show where Bangkok's water
+              runs, which way it drains, and where a gauge says it is high —
+              without claiming more than the data knows?
+            </p>
+          </section>
+
+          <section class="atlas-about-section" id="research-flooddash">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">FloodDash</p>
+            <h3>What it is, what it is not</h3>
+            <p>
+              <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a>
+              is the atlas's twin for water: a real-time, openly sourced flood
+              watch for every Thai province, run under the Smart City Thailand
+              Office (depa). It streams about 17 public pipelines — HII, RID,
+              PCD, NOAA, Copernicus, Open-Meteo, NASA GPM, GISTDA, TMD, iTIC,
+              CheckFlood CCTV, news — judges every gauge into a band, and
+              every province into safe, watch, prepare or danger. Watch-score
+              weights: water 40 · rain 25 · forecast 15 · wetness 10 · rise 10.
+            </p>
+            <p>Its own definition, word for word:</p>
+            <blockquote class="atlas-research-quote">
+              <p>Useful as a 24-hour-ahead watch and a municipal action board. Not a flood clock.</p>
+              <p>We cannot say “this village floods at 14:32.” No DEM/HAND. No street inundation. No village ETA. Silence is not all-clear. No nationwide EVACUATE from a heuristic. Orders stay with ปภ. / อปท. 1784.</p>
+              <p>When the data is thin, the useful sentence is the refusal. Do not inflate the claim.</p>
+              <cite>FloodDash · About · What this is, what it is not</cite>
+            </blockquote>
+          </section>
+
+          <section class="atlas-about-section" id="research-record">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">The measured record</p>
+            <h3>Three floods in four, about half a day ahead</h3>
+            <dl class="atlas-research-stats">
+              <div><dt>Recall</dt><dd>74.2%</dd></div>
+              <div><dt>Precision</dt><dd>3.8%</dd></div>
+              <div><dt>Median lead</dt><dd>19.7 h</dd></div>
+              <div><dt>Recall, observed rain removed</dt><dd>73%</dd></div>
+            </dl>
+            <p class="atlas-research-caption">
+              FloodDash's 40-day prediction ledger · 76 truth gauges · window
+              ending 9 Sep 2026 · lead q25 12 h, q75 35.7 h.
+            </p>
+            <blockquote class="atlas-research-quote">
+              <p>89 genuine over-bank events, 89 warned ahead, 31 missed — 74.2% recall but only 3.8% precision, because 2,241 alerts did not flood. […] A watch board that catches three floods in four about half a day ahead — not an alarm that is almost always right.</p>
+              <p>Forecast rain is biased +5.3 mm (MAE 7.7 mm across 3,744 pairs) — rain forecast ranks risk, never triggers a warning. […] Silent or flatlined gauges are the real blind spots: silence is not an all-clear.</p>
+              <cite>FloodDash · About · What the collected data says</cite>
+            </blockquote>
+            <p>
+              The atlas inherits that character. A red canal means a gauge on
+              it is worried — often rightly, sometimes not. It never means the
+              street beside it is under water.
+            </p>
+          </section>
+
+          <section class="atlas-about-section" id="research-relay">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">How the atlas reads it</p>
+            <h3>A relay, not a second opinion</h3>
+            <ul class="atlas-about-stack">
+              <li>
+                <strong>Pull.</strong>
+                The Worker's cron reads FloodDash's keyless
+                <code>/api/twin</code>, <code>/api/snapshot</code> and
+                <code>/api/dds/briefing</code> about every 10 minutes.
+                Visitors never touch FloodDash; they read the copy in D1.
+              </li>
+              <li>
+                <strong>Keep.</strong>
+                Each of the three reads fails on its own and keeps its last
+                good copy. A failed refresh never blanks the map, and the age
+                of what you see is always printed.
+              </li>
+              <li>
+                <strong>Pass through.</strong>
+                Band names, actions and the Bangkok verdict are FloodDash's own
+                words, in English and Thai. The atlas adds placement and age.
+                It never adds a verdict.
+              </li>
+              <li>
+                <strong>Why.</strong>
+                On 25 Sep 2026, with Bangkok at danger, ThaiWater answered the
+                atlas's shared Cloudflare egress with HTTP 429 and the old
+                gauge layer went blank. FloodDash already ingests that feed
+                once, politely, from one machine.
+              </li>
+              <li>
+                <strong>The rule it keeps.</strong>
+                A fresh FloodDash reading, or the last good one with its age.
+                Never blank while a copy exists, never an unlabelled age, never
+                a verdict FloodDash did not give. <code>scripts/check-flooddash.ts</code>
+                asserts this against live FloodDash.
+              </li>
+              <li>
+                <strong>Open.</strong>
+                <a href="/api/flood/bkk" target="_blank" rel="noreferrer">/api/flood/bkk</a> ·
+                <a href="/api/flood-sensors" target="_blank" rel="noreferrer">/api/flood-sensors</a> ·
+                the <code>live</code> block in <a href="/api/risk?lng=100.5875&amp;lat=13.8540" target="_blank" rel="noreferrer">/api/risk</a>.
+              </li>
+            </ul>
+          </section>
+
+          <section class="atlas-about-section" id="research-method">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Method</p>
+            <h3>Width, motion, colour</h3>
+            <ol class="atlas-labs-list">
+              <li>
+                <strong>Width is reach.</strong>
+                OSM's width tag here is a type default, not a measurement. So
+                every segment takes the rank of its named waterway by total
+                length across the metro: the Chao Phraya (102 segments, 108 km);
+                20 km and longer (124 segments — Saen Saep 47 km, Prem
+                Prachakon 40, Samrong 40); 7–20 km (387); other named khlongs
+                (1,672); unnamed ditches (1,778, drawn only close in). 819 named
+                waterways, about 4,000 km in all.
+              </li>
+              <li>
+                <strong>Motion is drawing direction.</strong>
+                OSM draws waterways in the direction they flow, and the dashes
+                slide that way. 95 of 102 Chao Phraya segments run southward
+                end to end; the other seven sit on meanders. Tidal reaches and
+                pumped canals can run backwards, so the dashes show nominal
+                drainage, not a measured current. Still, for reduced motion.
+              </li>
+              <li>
+                <strong>Colour is the nearest judged gauge.</strong>
+                Each gauge snaps to its own named waterway within 1 km, or to
+                any waterway within 300 m. Segments of that waterway within
+                1.5 km, straight-line, take its band; the most severe gauge
+                wins; judged stretches swell. Silent and untrusted gauges colour
+                nothing. Blue means no gauge concern — or no gauge at all.
+              </li>
+            </ol>
+            <p class="atlas-research-live" id="atlas-research-live">Waiting for the first FloodDash reading…</p>
+          </section>
+
+          <section class="atlas-about-section" id="research-limits">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Limits</p>
+            <h3>What this map cannot tell you</h3>
+            <ul class="atlas-about-stack">
+              <li><strong>Not inundation.</strong> A coloured canal says a gauge on it is near or over its bank. It does not say which streets are wet.</li>
+              <li><strong>Not hydraulic.</strong> The 1.5 km reach is a display rule, measured in a straight line — not a flow model.</li>
+              <li><strong>Thin coverage.</strong> A few dozen gauges watch about 4,000 km of waterway. Most canals have none; blue there means unknown, not safe.</li>
+              <li><strong>Roads without places.</strong> BMA DDS road reports carry no coordinates, so they stay a list by district. “Clearance not recorded” is not “still flooded”.</li>
+              <li><strong>May, never will.</strong> No ETA the engine does not trust. No data is not an all-clear.</li>
+              <li><strong>Not a warning.</strong> DDPM, BMA and TMD issue warnings. DDPM hotline <a href="tel:1784">1784</a>.</li>
+            </ul>
+          </section>
+
+          <section class="atlas-about-section" id="research-build">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Build log</p>
+            <h3>Seven weeks, one laptop, in the open</h3>
+            <ol class="atlas-research-log">
+              <li><time datetime="2026-08-04">4 Aug</time><span>Day one. A Worker on atlas.nonarkara.org; 432,077 OSM buildings as PMTiles streamed from R2 with Range passthrough; live iTIC traffic; rail and 4,063 waterways.</span></li>
+              <li><time datetime="2026-08-05">5 Aug</time><span>CCTV, animated rain radar, the first gauge layer straight from ThaiWater, civic open data in D1. A land-price layer shipped and came out the same day — there was no real geometry behind it — and returned only as a Treasury road-level choropleth.</span></li>
+              <li><time datetime="2026-08-06">6–8 Aug</time><span>About drawer, deploy-on-main CI, a clean console, the <code>/api/atlas</code> mirror for agents.</span></li>
+              <li><time datetime="2026-08-09">9–11 Aug</time><span>Live incidents, geolocated news, Old Town heights from monument silhouettes.</span></li>
+              <li><time datetime="2026-08-17">17–18 Aug</time><span>NASA aerosol, the wind field, boats and piers; the map stopped painting into a corner.</span></li>
+              <li><time datetime="2026-09-02">2–5 Sep</time><span>100 curated landmarks. The unverified icons were quarantined, not shipped.</span></li>
+              <li><time datetime="2026-09-16">16 Sep</time><span>Bangkok's 133 provincial rain gauges and the live strip.</span></li>
+              <li><time datetime="2026-09-25">25 Sep</time><span>The FloodDash relay and this waterway network. The same day: the live strip had been squeezing the phone map to zero height — fixed.</span></li>
+            </ol>
+            <p>
+              The pattern that repeats: ship the layer, then take out whatever
+              cannot be sourced. The two removals — land price and the
+              unverified icons — did as much for the map as any addition.
+              Full history on
+              <a href="https://github.com/Nonarkara/bkk-3d-atlas/commits/main" target="_blank" rel="noreferrer">GitHub</a>.
+            </p>
+          </section>
+
+          <section class="atlas-about-section" id="research-next">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Still building</p>
+            <h3>Open questions</h3>
+            <ol class="atlas-labs-list">
+              <li><strong>Hydraulic reach.</strong> Replace the straight-line 1.5 km with distance along the connected network, weighted downstream.</li>
+              <li><strong>Gates and pumps.</strong> DDS publishes gate levels as a bulletin with no coordinates. Placing them needs a source, not a guess.</li>
+              <li><strong>Water on land.</strong> GISTDA's satellite flood extent as the first layer that shows water outside the channels.</li>
+              <li><strong>Check the colours against the ground.</strong> Compare judged stretches with DDS road reports, district by district, across the season.</li>
+              <li><strong>Official extents.</strong> Retire the schematic envelope the day DDPM or BMA publish theirs as open GeoJSON.</li>
+            </ol>
+            <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
+              <span class="atlas-paper-btn-eyebrow">Research paper</span>
+              <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
+            </a>
+          </section>
+
+          <section class="atlas-about-section" id="research-credits">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Credits</p>
+            <h3>Where the water comes from</h3>
+            <p>
+              <strong>Judgement.</strong> FloodDash (flood.nonarkara.org), from
+              HII/ThaiWater, RID and MRC telemetry. <strong>Gates and road
+              reports.</strong> BMA Drainage and Sewerage Department (DDS),
+              relayed by FloodDash. <strong>Waterways.</strong> © OpenStreetMap
+              contributors, ODbL 1.0. <strong>Imagery.</strong> © Esri, Maxar,
+              Earthstar Geographics.
+            </p>
+            <p>
+              FloodDash thanks Dr Preesan Rakwatin (depa) for guidance and for
+              the remote-sensing flood work behind its connected-waterways and
+              satellite-extent roadmap, and GISTDA for access to its data. That
+              roadmap is this layer's roadmap too.
+            </p>
+          </section>
+        </div>
         </div>
       </div>
     </div>

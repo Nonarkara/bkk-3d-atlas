@@ -1779,3 +1779,140 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   }
   .atlas-panel { max-height: none; overflow: visible; }
 }
+
+/* ── About / Research tabs ──────────────────────────────────────────
+   Two panes share the drawer. Research reads long, so the sheet widens
+   for it on desktop; on phones both are full width anyway. */
+.atlas-about-sheet { transition: width 200ms ease-out; }
+.atlas-about-sheet[data-pane="research"] { width: min(720px, 100vw); }
+.atlas-about-tabs {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0;
+  margin: 10px 0 -15px;
+}
+.atlas-about-tab {
+  min-height: 44px;
+  padding: 0 16px 0 0;
+  margin-right: 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 800 11px/1 var(--font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.atlas-about-tab:hover,
+.atlas-about-tab:focus-visible { color: var(--paper); }
+.atlas-about-tab[aria-selected="true"] { color: var(--signal); border-bottom-color: var(--signal); }
+.atlas-about-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.atlas-about-pane[hidden] { display: none; }
+
+/* Research pane pieces */
+.atlas-research-quote {
+  margin: 4px 0 14px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--signal);
+}
+.atlas-about-section .atlas-research-quote p { color: var(--paper); margin-bottom: 8px; }
+.atlas-research-quote cite {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.atlas-research-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 4px 0 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+@media (min-width: 640px) {
+  .atlas-research-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.atlas-research-stats > div {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+.atlas-research-stats dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.atlas-research-stats dd {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+}
+.atlas-about-section .atlas-research-caption,
+.atlas-about-section .atlas-research-live {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.atlas-about-section .atlas-research-live {
+  padding: 10px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--paper);
+}
+.atlas-research-log {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.atlas-research-log li {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d2d4ca;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.atlas-research-log time {
+  color: var(--signal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding-top: 3px;
+}
+.atlas-research-log code,
+.atlas-about-stack code { font-size: 12px; }
+.atlas-water-method {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--signal);
+  font: 700 12px/1 var(--font-body);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.atlas-water-method:hover,
+.atlas-water-method:focus-visible { color: var(--paper); }
+/* Numbers share one baseline even when a label wraps. */
+.atlas-research-stats > div { display: flex; flex-direction: column; justify-content: space-between; }
