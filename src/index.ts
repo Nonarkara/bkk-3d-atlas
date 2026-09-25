@@ -2138,22 +2138,44 @@ async function atlasScoreboard(request: Request, env: Env): Promise<Response> {
           // that put it there, so the layer is auditable row by row.
         },
         landmarks: {
-          // Honest inventory: 73 fine-arts heritage masses + curated
-          // Bangkok skyline icons with cited heights and verified pins.
-          // The Fine Arts Department register (571 monuments) lives on
+          // Honest inventory: 73 Rattanakosin heritage masses + curated
+          // Bangkok skyline icons with cited heights and verified pins +
+          // hand-curated civic/market/shrine silhouettes (post 2026-09-26
+          // audit pass restored 15 valid quarantined entries). The Fine
+          // Arts Department register (571 monuments) lives on
           // bkk.nonarkara.org/heritage — it is not this GeoJSON.
-          source: "OSM footprints + schematic heritage heights + curated skyline icons",
+          source: "OSM footprints + schematic heritage heights + curated skyline icons + civic silhouettes",
           endpoint: "/bkk-landmarks.geojson",
           count: landmarksCount,
+          quarantineCount: await loadLandmarksCountFromAsset(env, request, "/bkk-landmarks-quarantine.geojson"),
           // Rendered as 3D fill-extrusions with the buildings stack
           // (Victory Monument 50 m shaft, MahaNakhon 314 m, Baiyoke II 304 m).
           // Not a separate toggle — always on with buildings.
+        },
+        bkkRainStations: {
+          source: "ThaiWater v3 API · provinces/rain24?province_code=10 (BKK provincial gauge network)",
+          endpoint: "/bkk-rain-stations.geojson",
+          proxy: "/api/water/bkk/rain-stations",
+          count: await loadLandmarksCountFromAsset(env, request, "/bkk-rain-stations.geojson"),
+          cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS,
         },
       },
       copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
     },
     { headers: { "cache-control": "public, max-age=60" } },
   );
+}
+
+async function loadLandmarksCountFromAsset(env: Env, request: Request, assetPath: string): Promise<number> {
+  try {
+    const url = new URL(assetPath, request.url);
+    const res = await env.ASSETS.fetch(new Request(url.toString(), request));
+    if (!res.ok) return 0;
+    const body = (await res.json()) as { features?: unknown[] };
+    return Array.isArray(body?.features) ? body.features.length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 function apiCatalog(request: Request): Response {

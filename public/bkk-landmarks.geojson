@@ -4764,7 +4764,7 @@
         "kind": "tower",
         "height": 304,
         "base_height": 0,
-        "source": "Baiyoke Tower II · 304m roof · 85 floors · Pratunam · 1997"
+        "source": "Baiyoke Sky Hotel (Tower II) · 304m roof · 88 floors · Pratunam · 1997 · tallest in Thailand 1997-2018"
       }
     },
     {
@@ -4836,7 +4836,7 @@
         "kind": "tower",
         "height": 151,
         "base_height": 0,
-        "source": "Baiyoke Tower I · 151m · 43 floors · Pratunam · 1987 (tallest in Thailand 1987-1993)"
+        "source": "Baiyoke Tower I · 151m · 43 floors · Pratunam · 1987 · tallest in Thailand 1987-1993"
       }
     },
     {
@@ -4896,7 +4896,7 @@
         "kind": "tower",
         "height": 247,
         "base_height": 0,
-        "source": "State Tower · 247m · 68 floors · golden dome · Silom · 2001"
+        "source": "State Tower · 247m · 49 floors · golden dome · Silom · 2001"
       }
     },
     {
@@ -4974,9 +4974,9 @@
         "name": "เอ็มไพร์ ทาวเวอร์",
         "name_en": "Empire Tower",
         "kind": "tower",
-        "height": 227,
+        "height": 150,
         "base_height": 0,
-        "source": "Empire Tower · 227m · 58 floors · South Sathorn · 1999"
+        "source": "Empire Tower · 150m · 4 towers (Tower 1/3 tallest at 35 floors each) · South Sathorn · 1988/1998"
       }
     },
     {
@@ -6560,9 +6560,9 @@
         "name": "สาทร ยูนีค ทาวเวอร์ (ตึกร้าง 1997)",
         "name_en": "Sathorn Unique (the Ghost Tower)",
         "kind": "tower",
-        "height": 185,
+        "height": 137,
         "base_height": 0,
-        "source": "Sathorn Unique · 185m planned · 49 floors · construction halted in 1997 Asian financial crisis; never completed"
+        "source": "Sathorn Unique · 137m (49 floors built before construction halted in 1997) · Bangkok's 'Ghost Tower' · never completed"
       }
     },
     {
@@ -6642,6 +6642,594 @@
         "base_height": 0,
         "source": "Chamchuri Square · 130m · 40 floors · Sam Yan · 2008"
       }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5135,
+              13.7235
+            ],
+            [
+              100.5145,
+              13.7235
+            ],
+            [
+              100.5145,
+              13.7245
+            ],
+            [
+              100.5135,
+              13.7245
+            ],
+            [
+              100.5135,
+              13.7235
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-mandarin-oriental",
+        "name": "โรงแรมแมนดาริน โอเรียนเต็ล",
+        "name_en": "Mandarin Oriental Bangkok (Riverside Tower)",
+        "kind": "hotel",
+        "height": 150,
+        "base_height": 0,
+        "source": "Mandarin Oriental Bangkok · 150m Riverside Tower (1976) · Authors' Wing (1876, ~5 storeys) is the low-rise heritage portion · Soi Charoenkrung 48"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5095,
+              13.723
+            ],
+            [
+              100.5105,
+              13.723
+            ],
+            [
+              100.5105,
+              13.7238
+            ],
+            [
+              100.5095,
+              13.7238
+            ],
+            [
+              100.5095,
+              13.723
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-peninsula",
+        "name": "โรงแรมเพนนินซูลา",
+        "name_en": "The Peninsula Bangkok",
+        "kind": "hotel",
+        "height": 235,
+        "base_height": 0,
+        "source": "The Peninsula Bangkok main tower · 235m · 39 floors · Charoenkrung 370 · Bangkok Noi · 1998 (CTBUH verified)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5131,
+              13.7203
+            ],
+            [
+              100.5143,
+              13.7203
+            ],
+            [
+              100.5143,
+              13.7213
+            ],
+            [
+              100.5131,
+              13.7213
+            ],
+            [
+              100.5131,
+              13.7203
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-shangri-la",
+        "name": "โรงแรมแชงกรี-ลา กรุงเทพ",
+        "name_en": "Shangri-La Hotel, Bangkok",
+        "kind": "hotel",
+        "height": 150,
+        "base_height": 0,
+        "source": "Shangri-La Hotel Bangkok · 150m · 25-floor main tower · 89 Soi Wat Suan Plu · Bangrak · 1986"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5678,
+              13.73045
+            ],
+            [
+              100.5685,
+              13.73045
+            ],
+            [
+              100.5685,
+              13.73115
+            ],
+            [
+              100.5678,
+              13.73115
+            ],
+            [
+              100.5678,
+              13.73045
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-rama-ix-tower",
+        "name": "อาคาร พระราม 9",
+        "name_en": "Rama IX Tower",
+        "kind": "tower",
+        "height": 270,
+        "base_height": 0,
+        "source": "Rama IX Tower · 270m · 67 floors · Ratchadaphisek Rd · Huai Khwang · 1997 (NOT the cancelled Rama IX Super Tower project)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5125,
+              13.7185
+            ],
+            [
+              100.5135,
+              13.7185
+            ],
+            [
+              100.5135,
+              13.7193
+            ],
+            [
+              100.5125,
+              13.7193
+            ],
+            [
+              100.5125,
+              13.7185
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-chatrium-residence",
+        "name": "โรงแรมแชทรีม เรสซิเดนซ์ สาทร",
+        "name_en": "Chatrium Residence Sathon Bangkok",
+        "kind": "hotel",
+        "height": 165,
+        "base_height": 0,
+        "source": "Chatrium Residence Sathon · 165m · 32 floors · riverside · 291 Soi Narathiwat 17 · 2012"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5284,
+              13.7244
+            ],
+            [
+              100.5293,
+              13.7244
+            ],
+            [
+              100.5293,
+              13.725
+            ],
+            [
+              100.5284,
+              13.725
+            ],
+            [
+              100.5284,
+              13.7244
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-saladaeng-one",
+        "name": "เดอะ สาละแดง วัน",
+        "name_en": "The Saladaeng One (One City)",
+        "kind": "tower",
+        "height": 195,
+        "base_height": 0,
+        "source": "The Saladaeng One (One City) · 195m · 54 floors · twin towers · Saladaeng Rd · Silom · 2024"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5395,
+              13.7392
+            ],
+            [
+              100.5406,
+              13.7392
+            ],
+            [
+              100.5406,
+              13.74
+            ],
+            [
+              100.5395,
+              13.74
+            ],
+            [
+              100.5395,
+              13.7392
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-four-seasons",
+        "name": "โรงแรมโฟร์ซีซั่นส์ กรุงเทพ",
+        "name_en": "Four Seasons Hotel Bangkok",
+        "kind": "hotel",
+        "height": 130,
+        "base_height": 0,
+        "source": "Four Seasons Hotel Bangkok · 130m · 32 floors · 155 Ratchadamri · Pathum Wan · 2010"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4854,
+              13.7554
+            ],
+            [
+              100.4858,
+              13.7554
+            ],
+            [
+              100.4858,
+              13.7558
+            ],
+            [
+              100.4854,
+              13.7558
+            ],
+            [
+              100.4854,
+              13.7554
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-rakhang",
+        "name": "วัดราชบพิธสถิตมหาสีมาราม",
+        "name_en": "Wat Rakhang (Bell-Tower silhouette)",
+        "kind": "civic",
+        "height": 14,
+        "base_height": 0,
+        "source": "Wat Rakhang bell-tower silhouette · 14m · Thonburi (across river from Grand Palace) · bell-trumpet era 19c (the chedi silhouette is on the heritage-detail layer)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4966,
+              13.7576
+            ],
+            [
+              100.4969,
+              13.7576
+            ],
+            [
+              100.4969,
+              13.7579
+            ],
+            [
+              100.4966,
+              13.7579
+            ],
+            [
+              100.4966,
+              13.7576
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-bowonniwet",
+        "name": "วัดบวรมงคล",
+        "name_en": "Wat Bowonniwet (Phra Ubosot silhouette)",
+        "kind": "civic",
+        "height": 14,
+        "base_height": 0,
+        "source": "Wat Bowonniwet Vihara · 14m Phra Ubosot silhouette · royal temple · Phra Nakhon · 1820s (the main chedi is on the heritage-detail layer at 30m)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.4992,
+              13.7555
+            ],
+            [
+              100.4995,
+              13.7555
+            ],
+            [
+              100.4995,
+              13.7558
+            ],
+            [
+              100.4992,
+              13.7558
+            ],
+            [
+              100.4992,
+              13.7555
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-ratchabophit",
+        "name": "วัดราชบพิธ",
+        "name_en": "Wat Ratchabophit (Phra Chedi silhouette)",
+        "kind": "civic",
+        "height": 14,
+        "base_height": 0,
+        "source": "Wat Ratchabophit Phra Chedi silhouette · 14m · Ayutthaya-meets-Gothic design · 19c (the 28m main chedi is on the heritage-detail layer)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5013,
+              13.7512
+            ],
+            [
+              100.5016,
+              13.7512
+            ],
+            [
+              100.5016,
+              13.7515
+            ],
+            [
+              100.5013,
+              13.7515
+            ],
+            [
+              100.5013,
+              13.7512
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-suthat",
+        "name": "วัดสุทัศนเทพวราราม",
+        "name_en": "Wat Suthat (Phra Ubosot silhouette)",
+        "kind": "civic",
+        "height": 14,
+        "base_height": 0,
+        "source": "Wat Suthat Thepwararam Phra Ubosot silhouette · 14m · first-class royal temple · 19c (the 32m main chedi is on the heritage-detail layer)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5017,
+              13.7546
+            ],
+            [
+              100.502,
+              13.7546
+            ],
+            [
+              100.502,
+              13.7549
+            ],
+            [
+              100.5017,
+              13.7549
+            ],
+            [
+              100.5017,
+              13.7546
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-wat-ratchanatdaram",
+        "name": "วัดราชนัดดา (โลหะปราสาท)",
+        "name_en": "Wat Ratchanatdaram (Loha Prasat silhouette)",
+        "kind": "civic",
+        "height": 36,
+        "base_height": 0,
+        "source": "Loha Prasat (Metal Castle) silhouette · 36m · 5-tier · only one of its kind in the world · 1846 (the full tiered structure is on the heritage-detail layer)"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.539,
+              13.7474
+            ],
+            [
+              100.5392,
+              13.7474
+            ],
+            [
+              100.5392,
+              13.7476
+            ],
+            [
+              100.539,
+              13.7476
+            ],
+            [
+              100.539,
+              13.7474
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-erawan-shrine",
+        "name": "ศาลพระพรหมเอราวัณ",
+        "name_en": "Erawan Shrine (Phra Phrom)",
+        "kind": "civic",
+        "height": 12,
+        "base_height": 0,
+        "source": "Erawan Shrine · 12m · 4-faced Phra Phrom · Ratchaprasong intersection · Pathum Wan · 1956"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5349,
+              13.7293
+            ],
+            [
+              100.5351,
+              13.7293
+            ],
+            [
+              100.5351,
+              13.7296
+            ],
+            [
+              100.5349,
+              13.7296
+            ],
+            [
+              100.5349,
+              13.7293
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-sri-maha-mariamman",
+        "name": "วัดศรีมหามารีอาม",
+        "name_en": "Sri Maha Mariamman Temple",
+        "kind": "civic",
+        "height": 25,
+        "base_height": 0,
+        "source": "Sri Maha Mariamman · 25m colorful gopuram (Hindu) · 2 Silom Rd · 1879 · tallest Hindu gopuram in Bangkok"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.5335,
+              13.7575
+            ],
+            [
+              100.5345,
+              13.7575
+            ],
+            [
+              100.5345,
+              13.7582
+            ],
+            [
+              100.5335,
+              13.7582
+            ],
+            [
+              100.5335,
+              13.7575
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "icon-bobae",
+        "name": "ตลาดบ๊อบเบ",
+        "name_en": "Bobae Market",
+        "kind": "mall",
+        "height": 14,
+        "base_height": 0,
+        "source": "Bobae Market · 14m · 3 floors · 24-hour wholesale · Ratchathewi (BKK government clothing warehouse)"
+      }
     }
-  ]
+  ],
+  "featureCount": 115,
+  "version": "2026-09-26",
+  "description": "Curated landmark extrusions: 73 heritage landmarks (Rattanakosin + Old Town), 27 verified skyline icons (CTBUH + official specs), and 14 hand-curated civic/market/shrine silhouettes (2026-09-26 audit pass restored the valid quarantined entries with corrected Thai names, heights and source citations). Pair with bkk-heritage-detail.geojson for the chedi / ubosot / viharn silhouettes inside the Old Town. Quarantined entries with future-research notes live in bkk-landmarks-quarantine.geojson."
 }

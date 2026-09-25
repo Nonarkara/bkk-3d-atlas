@@ -200,6 +200,10 @@ async function checkScoreboard() {
     typeof body.feeds.landmarks.count === "number" && body.feeds.landmarks.count >= 90,
     `landmarks.count must be a positive number reflecting actual features; got ${body.feeds.landmarks.count}`,
   );
+  assert(
+    body.feeds.bkkRainStations && body.feeds.bkkRainStations.endpoint === "/bkk-rain-stations.geojson" && body.feeds.bkkRainStations.count >= 130,
+    `bkkRainStations must surface ≥130 stations; got ${body.feeds.bkkRainStations?.count}`,
+  );
   logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m · newsEvents=${body.feeds.newsEvents.windowDays}d · landmarks=${body.feeds.landmarks.count}`);
 }
 
