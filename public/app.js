@@ -4683,6 +4683,15 @@ function showLayerLegend(map, layer, legendEl) {
   });
 }
 
+/** A slow install (live fetch) can finish after a preset switched the layer
+ *  off. The later answer wins: hide what the install just added. */
+function settleIfSwitchedOff(map, layer, toggle) {
+  if (toggle.checked) return false;
+  try { layer.uninstall(map); } catch {}
+  if (layer.layers.length > 0) setLayersVisible(map, layer.layers, false);
+  return true;
+}
+
 function wireLayerToggles(map) {
   for (const layer of LAYERS) {
     const toggle = document.getElementById(`toggle-${layer.id}`);
@@ -4696,6 +4705,7 @@ function wireLayerToggles(map) {
       state.layerOn[layer.id] = on;
       if (on) {
         try { await layer.install(map); } catch (error) { console.warn(`${layer.id} install failed:`, error); }
+        if (settleIfSwitchedOff(map, layer, toggle)) return;
         if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
         showLayerLegend(map, layer, legendEl);
       } else {
@@ -4795,6 +4805,7 @@ async function setLayerToggle(map, layerId, on) {
 
   if (on) {
     try { await layer.install(map); } catch (error) { console.warn(`${layerId} install failed:`, error); }
+    if (settleIfSwitchedOff(map, layer, toggle)) return;
     if (layer.layers.length > 0) setLayersVisible(map, layer.layers, true);
     showLayerLegend(map, layer, legendEl);
   } else {
@@ -4847,6 +4858,8 @@ function wireStackPresets(map) {
     ensureStackOrder(map);
     updateStackChips();
   });
+  state.presetsWired = true;
+  if (state.pendingFloodWatch) showTheWater();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -5168,11 +5181,20 @@ function wireWaterPanel() {
     state.map.flyTo({ center: [Number(btn.dataset.lng), Number(btn.dataset.lat)], zoom: 15, pitch: 50, essential: true });
   });
   document.getElementById("atlas-flood-verdict-show")?.addEventListener("click", () => {
-    document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
-    // Plan view of the whole network — the drainage map, read from above.
-    state.map?.flyTo({ center: [100.56, 13.78], zoom: 11.2, pitch: 0, bearing: 0, essential: true });
-    document.getElementById("atlas-water")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Tapped before the map finished loading: wireStackPresets runs it later.
+    if (!state.presetsWired) {
+      state.pendingFloodWatch = true;
+      return;
+    }
+    showTheWater();
   });
+}
+
+function showTheWater() {
+  document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
+  // Plan view of the whole network — the drainage map, read from above.
+  state.map?.flyTo({ center: [100.56, 13.78], zoom: 11.2, pitch: 0, bearing: 0, essential: true });
+  document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function init() {
