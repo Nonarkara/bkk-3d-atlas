@@ -262,11 +262,12 @@ async function checkFloodBkk() {
   const { ok, status, body, ms } = await fetchJson("/api/flood/bkk");
   if (!ok || status !== 200) return logFail("GET /api/flood/bkk", `status=${status}`);
   assert(body.tool === "flood-bkk", `tool=${body.tool}`);
-  assert(typeof body.cityVerdict === "string", "missing cityVerdict");
+  assert(typeof body.verdict === "object" && body.verdict !== null, "missing verdict object");
+  assert(typeof body.verdict.level === "string", "missing verdict.level");
   assert(Array.isArray(body.gauges), "gauges not an array");
   assert(typeof body.waterways === "object" && body.waterways !== null, "waterways not an object");
-  assert(body.disclaimer && typeof body.disclaimer.hotline === "string", "missing disclaimer hotline");
-  logOk("GET /api/flood/bkk", ms, `verdict=${body.cityVerdict} gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
+  assert(typeof body.hotline === "string", "missing hotline");
+  logOk("GET /api/flood/bkk", ms, `verdict=${body.verdict.level} (${body.verdict.score}/100) gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
 }
 
 async function checkCivicPois() {
