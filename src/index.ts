@@ -767,22 +767,22 @@ function severityRank(b: string | undefined | null): number {
   return r[b ?? ""] ?? 0;
 }
 
-async function proxyBkkIncidents(request: Request, env: Env): Promise<Response> {
-  // Fetch all three sources in parallel — they're already CORS-open and
-  // cached upstream. Failures on individual sources fall back to whatever
-  // landed; the endpoint never 502s on a partial failure.
-  const [cityRes, newsRes, floodBkkRes, sensorsRes] = await Promise.allSettled([
-    fetch(`${new URL(request.url).origin}/api/city-events`, { cf: { cacheTtl: 60 } } as any),
-    fetch(`${new URL(request.url).origin}/api/news-events`, { cf: { cacheTtl: 60 } } as any),
-    fetch(`${new URL(request.url).origin}/api/flood/bkk`, { cf: { cacheTtl: 60 } } as any),
-    fetch(`${new URL(request.url).origin}/api/flood-sensors`, { cf: { cacheTtl: 60 } } as any),
+async function proxyBkkIncidents(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  // Calls the upstream functions directly instead of self-fetching
+  // (Worker → Worker self-fetch isn't reliable without a SELF binding).
+  // Failures on individual sources fall back to whatever landed; the
+  // endpoint never 502s on a partial failure.
+  const [cityRes, newsRes, floodState] = await Promise.allSettled([
+    listCityEvents(request, env),
+    listNewsEvents(request, env, ctx),
+    loadFloodState(env, () => floodDeps(env, request)),
   ]);
 
   const features: Array<{ type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: Record<string, unknown> }> = [];
   const sourceCounts: Record<string, number> = { city: 0, news: 0, dds: 0, sensor: 0 };
 
   // --- Source 1: city-events filtered to flood/roadclosed/rain/trafficjam ---
-  if (cityRes.status === "fulfilled" && cityRes.value.ok) {
+  if (cityRes.status === "fulfilled") {
     try {
       const data = await cityRes.value.json() as { features?: any[] };
       for (const f of data.features ?? []) {
@@ -815,7 +815,7 @@ async function proxyBkkIncidents(request: Request, env: Env): Promise<Response> 
   }
 
   // --- Source 2: news-events (any Bangkok venue mention — weight by mentions) ---
-  if (newsRes.status === "fulfilled" && newsRes.value.ok) {
+  if (newsRes.status === "fulfilled") {
     try {
       const data = await newsRes.value.json() as { features?: any[] };
       for (const f of data.features ?? []) {
@@ -846,73 +846,70 @@ async function proxyBkkIncidents(request: Request, env: Env): Promise<Response> 
   }
 
   // --- Source 3: BMA DDS road reports by district (centroid join) ---
-  if (floodBkkRes.status === "fulfilled" && floodBkkRes.value.ok) {
+  if (floodState.status === "fulfilled" && floodState.value) {
     try {
-      const floodData = await floodBkkRes.value.json() as { roads?: { byDistrict?: any[] } };
-      // Load district polygons once for the centroid join
-      let districtsByName: Map<string, [number, number]> | null = null;
-      const districtUrl = new URL("/bkk-districts.geojson", request.url);
-      try {
-        const districtsRes = await env.ASSETS.fetch(new Request(districtUrl.toString(), request));
-        if (districtsRes.ok) {
-          const dGeo = await districtsRes.json() as { features?: any[] };
-          districtsByName = new Map();
-          for (const f of dGeo.features ?? []) {
-            const p = f?.properties ?? {};
-            const nameEn = String(p.name_en ?? "").trim();
-            if (!nameEn) continue;
-            // Compute the centroid from the first polygon ring
-            const ring = (f.geometry?.coordinates?.[0]) as number[][] | undefined;
-            if (Array.isArray(ring) && ring.length > 0) {
-              let sx = 0, sy = 0, n = 0;
-              for (const [lng, lat] of ring) {
-                if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+      const roads = floodState.value.roads;
+      if (roads?.byDistrict?.length) {
+        // Load district polygons once for the centroid join
+        const districtsByName: Map<string, [number, number]> = new Map();
+        try {
+          const districtUrl = new URL("/bkk-districts.geojson", request.url);
+          const districtsRes = await env.ASSETS.fetch(new Request(districtUrl.toString(), request));
+          if (districtsRes.ok) {
+            const dGeo = await districtsRes.json() as { features?: any[] };
+            for (const f of dGeo.features ?? []) {
+              const p = f?.properties ?? {};
+              const nameEn = String(p.name_en ?? "").trim();
+              if (!nameEn) continue;
+              const ring = (f.geometry?.coordinates?.[0]) as number[][] | undefined;
+              if (Array.isArray(ring) && ring.length > 0) {
+                let sx = 0, sy = 0, n = 0;
+                for (const [lng, lat] of ring) {
+                  if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+                }
+                if (n > 0) districtsByName.set(nameEn, [sy / n, sx / n]);
               }
-              if (n > 0) districtsByName.set(nameEn, [sy / n, sx / n]);
             }
           }
-        }
-      } catch { /* ignore district load */ }
+        } catch { /* ignore district load */ }
 
-      for (const r of floodData.roads?.byDistrict ?? []) {
-        const nameEn = String(r.nameEn ?? "").trim();
-        const reports = Number(r.reports ?? 0);
-        if (!nameEn || reports === 0) continue;
-        let centroid = districtsByName?.get(nameEn);
-        // Fallback centroid — Bangkok center if name lookup fails
-        if (!centroid) centroid = [13.7563, 100.5018];
-        const [lat, lng] = centroid;
-        if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
-        const weight = INCIDENT_WEIGHTS.dds_road * Math.min(reports / 5, 1.0);
-        features.push({
-          type: "Feature",
-          geometry: { type: "Point", coordinates: [lng, lat] },
-          properties: {
-            source: "dds",
-            kind: "dds_road",
-            weight,
-            title: nameEn,
-            reports,
-            max_depth_cm: r.maxDepthCm ?? null,
-            unrecorded: r.clearanceUnrecorded ?? null,
-            district_id: r.districtId ?? null,
-            latest_flooded_at: r.latestFloodedAt ?? null,
-          },
-        });
-        sourceCounts.dds++;
+        for (const r of roads.byDistrict) {
+          const nameEn = String(r.nameEn ?? "").trim();
+          const reports = Number(r.reports ?? 0);
+          if (!nameEn || reports === 0) continue;
+          let centroid = districtsByName.get(nameEn);
+          if (!centroid) centroid = [13.7563, 100.5018];
+          const [lat, lng] = centroid;
+          if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
+          const weight = INCIDENT_WEIGHTS.dds_road * Math.min(reports / 5, 1.0);
+          features.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [lng, lat] },
+            properties: {
+              source: "dds",
+              kind: "dds_road",
+              weight,
+              title: nameEn,
+              reports,
+              max_depth_cm: r.maxDepthCm ?? null,
+              unrecorded: r.clearanceUnrecorded ?? null,
+              district_id: r.districtId ?? null,
+              latest_flooded_at: r.latestFloodedAt ?? null,
+            },
+          });
+          sourceCounts.dds++;
+        }
       }
     } catch { /* ignore */ }
   }
 
   // --- Source 4: flood sensors in prepare/evacuate bands (only the loudest) ---
-  if (sensorsRes.status === "fulfilled" && sensorsRes.value.ok) {
+  if (floodState.status === "fulfilled" && floodState.value) {
     try {
-      const data = await sensorsRes.value.json() as { features?: any[] };
-      for (const f of data.features ?? []) {
-        const p = f?.properties ?? {};
-        const ll = lonLatFromGeom(f.geometry);
+      for (const g of floodState.value.gauges ?? []) {
+        const ll: [number, number] | null = (g.lng != null && g.lat != null) ? [g.lng, g.lat] : null;
         if (!ll) continue;
-        const band = String(p.band ?? "");
+        const band = String(g.band ?? "");
         if (!["prepare", "evacuate", "overflow-imminent", "observed-overflow"].includes(band)) continue;
         if (!pointInBbox(ll[0], ll[1], BKK_INCIDENT_HALO_BBOX)) continue;
         const weight = INCIDENT_WEIGHTS.sensor_band * (severityRank(band) / 4);
@@ -923,11 +920,11 @@ async function proxyBkkIncidents(request: Request, env: Env): Promise<Response> 
             source: "flood-sensors",
             kind: "sensor_band",
             weight,
-            title: p.name ?? null,
+            title: g.name ?? null,
             band,
-            band_label_en: p.bandEn ?? null,
-            waterlevel_msl: p.waterlevelMsl ?? null,
-            freeboard_m: p.freeboardM ?? null,
+            band_label_en: g.bandEn ?? null,
+            waterlevel_msl: g.waterlevelMsl ?? null,
+            freeboard_m: g.freeboardM ?? null,
           },
         });
         sourceCounts.sensor++;
@@ -2502,7 +2499,7 @@ export default {
       return proxyBkkRainKpi(request);
     }
     if (url.pathname === "/api/water/bkk/incidents") {
-      return proxyBkkIncidents(request, env);
+      return proxyBkkIncidents(request, env, ctx);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);
