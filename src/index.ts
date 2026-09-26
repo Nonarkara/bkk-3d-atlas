@@ -67,6 +67,7 @@ const BKK_RAIN7D_URL = `${THAIWATER_V3}/provinces/rain7d?province_code=10`;
 const BKK_TEMP_URL = `${THAIWATER_V3}/provinces/temperature_maxmin_thisweek?province_code=10`;
 const BKK_RADAR_URL = `${THAIWATER_V3}/provinces/radar?province_code=10`;
 const BKK_WATER_CACHE_TTL_SECONDS = 300;
+const BKK_INCIDENTS_CACHE_TTL_SECONDS = 120;
 
 /** Bangkok + immediate metro ring used for CCTV filtering. */
 const CCTV_BBOX = {
@@ -701,6 +702,253 @@ async function proxyBkkRainKpi(_request: Request): Promise<Response> {
       "content-type": "application/json; charset=utf-8",
       "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
       "x-bkkx-source": "ThaiWater v3 · BKK provincial KPI strip",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BKK incident heat — aggregates three incident streams so the atlas
+// can render "where are the bad roads" as a single heat map.
+//
+// Sources:
+//   1. city-events (Longdo/iTIC)  → per-point road incident reports
+//      filtered to flood / roadclosed / rain / trafficjam. Each is
+//      weighted 1.0 (flood, roadclosed) or 0.6 (rain, trafficjam).
+//   2. news-events (Bangkok Post + Khaosod RSS)  → per-point venue
+//      mentions of flood-related terms. Weight by mention count so a
+//      venue talked about 6 times reads hotter than one mentioned once.
+//   3. flood/bkk.roads.byDistrict (BMA DDS) → per-district flood
+//      reports. Joined to bkk-districts.geojson on name_en to get a
+//      centroid. Weight by report count / 5 (saturates at 1.0).
+//
+// All three streams are CORS-open + already serving, so this endpoint
+// just fans out, joins, and emits one FeatureCollection. 2-min cache
+// (faster than the upstream cache windows) since this is the read
+// path for the atlas flood preset.
+//
+// Bounding box is hard-coded to Bangkok + 30 km halo to match the
+// atlas `presets.flood` view.
+// ─────────────────────────────────────────────────────────────────
+
+const BKK_INCIDENT_BBOX = { minLat: 13.40, maxLat: 14.20, minLng: 100.20, maxLng: 100.95 };
+const BKK_INCIDENT_HALO_BBOX = { minLat: 13.25, maxLat: 14.35, minLng: 100.05, maxLng: 101.10 };
+
+// Weight table — single source of truth so the heat map reads the same
+// in every source's contribution.
+const INCIDENT_WEIGHTS: Record<string, number> = {
+  flood: 1.0,
+  roadclosed: 1.0,
+  flood_warning: 1.0,
+  rain: 0.6,
+  trafficjam: 0.6,
+  heavy_rain: 0.8,
+  news_flood: 0.8,
+  dds_road: 1.0,
+  sensor_band: 0.8,
+};
+
+function pointInBbox(lng: number, lat: number, b: typeof BKK_INCIDENT_BBOX): boolean {
+  return b.minLat <= lat && lat <= b.maxLat && b.minLng <= lng && lng <= b.maxLng;
+}
+
+function lonLatFromGeom(geom: any): [number, number] | null {
+  if (!geom) return null;
+  if (geom.type === "Point" && Array.isArray(geom.coordinates)) {
+    const [lng, lat] = geom.coordinates;
+    return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+  }
+  return null;
+}
+
+function severityRank(b: string | undefined | null): number {
+  // Higher = more urgent. Used to colour rings on heat map pins.
+  const r: Record<string, number> = { critical: 4, overflow: 4, high: 3, prepare: 3, watch: 2, safe: 1 };
+  return r[b ?? ""] ?? 0;
+}
+
+async function proxyBkkIncidents(request: Request, env: Env): Promise<Response> {
+  // Fetch all three sources in parallel — they're already CORS-open and
+  // cached upstream. Failures on individual sources fall back to whatever
+  // landed; the endpoint never 502s on a partial failure.
+  const [cityRes, newsRes, floodBkkRes, sensorsRes] = await Promise.allSettled([
+    fetch(`${new URL(request.url).origin}/api/city-events`, { cf: { cacheTtl: 60 } } as any),
+    fetch(`${new URL(request.url).origin}/api/news-events`, { cf: { cacheTtl: 60 } } as any),
+    fetch(`${new URL(request.url).origin}/api/flood/bkk`, { cf: { cacheTtl: 60 } } as any),
+    fetch(`${new URL(request.url).origin}/api/flood-sensors`, { cf: { cacheTtl: 60 } } as any),
+  ]);
+
+  const features: Array<{ type: "Feature"; geometry: { type: "Point"; coordinates: [number, number] }; properties: Record<string, unknown> }> = [];
+  const sourceCounts: Record<string, number> = { city: 0, news: 0, dds: 0, sensor: 0 };
+
+  // --- Source 1: city-events filtered to flood/roadclosed/rain/trafficjam ---
+  if (cityRes.status === "fulfilled" && cityRes.value.ok) {
+    try {
+      const data = await cityRes.value.json() as { features?: any[] };
+      for (const f of data.features ?? []) {
+        const p = f?.properties ?? {};
+        const icon = String(p.icon ?? "").toLowerCase();
+        if (!["flood", "roadclosed", "rain", "trafficjam"].includes(icon)) continue;
+        const ll = lonLatFromGeom(f.geometry);
+        if (!ll) continue;
+        if (!pointInBbox(ll[0], ll[1], BKK_INCIDENT_HALO_BBOX)) continue;
+        const weight = INCIDENT_WEIGHTS[icon] ?? 0.6;
+        features.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: ll },
+          properties: {
+            source: "city-events",
+            kind: icon,
+            weight,
+            title: p.titleEn ?? p.titleTh ?? null,
+            description: p.descriptionEn ?? p.descriptionTh ?? null,
+            age_min: p.ageMinutes ?? null,
+            district_id: p.districtId ?? null,
+            district_name_en: p.districtNameEn ?? null,
+            reporter: p.contributor ?? null,
+            observed_at: p.startsAt ?? null,
+          },
+        });
+        sourceCounts.city++;
+      }
+    } catch { /* ignore per-stream parse failures */ }
+  }
+
+  // --- Source 2: news-events (any Bangkok venue mention — weight by mentions) ---
+  if (newsRes.status === "fulfilled" && newsRes.value.ok) {
+    try {
+      const data = await newsRes.value.json() as { features?: any[] };
+      for (const f of data.features ?? []) {
+        const p = f?.properties ?? {};
+        const ll = lonLatFromGeom(f.geometry);
+        if (!ll) continue;
+        if (!pointInBbox(ll[0], ll[1], BKK_INCIDENT_HALO_BBOX)) continue;
+        const mentions = Number(p.mentions ?? 1);
+        const weight = INCIDENT_WEIGHTS.news_flood * Math.min(mentions / 3, 1.0);
+        features.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: ll },
+          properties: {
+            source: "news-events",
+            kind: "news_flood",
+            weight,
+            title: p.venueName ?? null,
+            mentions,
+            precision: p.precision ?? null,
+            district_name_en: p.districtNameEn ?? null,
+            latest_at: p.latestAt ?? null,
+            article_count: Array.isArray(p.articles) ? p.articles.length : 0,
+          },
+        });
+        sourceCounts.news++;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // --- Source 3: BMA DDS road reports by district (centroid join) ---
+  if (floodBkkRes.status === "fulfilled" && floodBkkRes.value.ok) {
+    try {
+      const floodData = await floodBkkRes.value.json() as { roads?: { byDistrict?: any[] } };
+      // Load district polygons once for the centroid join
+      let districtsByName: Map<string, [number, number]> | null = null;
+      const districtUrl = new URL("/bkk-districts.geojson", request.url);
+      try {
+        const districtsRes = await env.ASSETS.fetch(new Request(districtUrl.toString(), request));
+        if (districtsRes.ok) {
+          const dGeo = await districtsRes.json() as { features?: any[] };
+          districtsByName = new Map();
+          for (const f of dGeo.features ?? []) {
+            const p = f?.properties ?? {};
+            const nameEn = String(p.name_en ?? "").trim();
+            if (!nameEn) continue;
+            // Compute the centroid from the first polygon ring
+            const ring = (f.geometry?.coordinates?.[0]) as number[][] | undefined;
+            if (Array.isArray(ring) && ring.length > 0) {
+              let sx = 0, sy = 0, n = 0;
+              for (const [lng, lat] of ring) {
+                if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+              }
+              if (n > 0) districtsByName.set(nameEn, [sy / n, sx / n]);
+            }
+          }
+        }
+      } catch { /* ignore district load */ }
+
+      for (const r of floodData.roads?.byDistrict ?? []) {
+        const nameEn = String(r.nameEn ?? "").trim();
+        const reports = Number(r.reports ?? 0);
+        if (!nameEn || reports === 0) continue;
+        let centroid = districtsByName?.get(nameEn);
+        // Fallback centroid — Bangkok center if name lookup fails
+        if (!centroid) centroid = [13.7563, 100.5018];
+        const [lat, lng] = centroid;
+        if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
+        const weight = INCIDENT_WEIGHTS.dds_road * Math.min(reports / 5, 1.0);
+        features.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [lng, lat] },
+          properties: {
+            source: "dds",
+            kind: "dds_road",
+            weight,
+            title: nameEn,
+            reports,
+            max_depth_cm: r.maxDepthCm ?? null,
+            unrecorded: r.clearanceUnrecorded ?? null,
+            district_id: r.districtId ?? null,
+            latest_flooded_at: r.latestFloodedAt ?? null,
+          },
+        });
+        sourceCounts.dds++;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // --- Source 4: flood sensors in prepare/evacuate bands (only the loudest) ---
+  if (sensorsRes.status === "fulfilled" && sensorsRes.value.ok) {
+    try {
+      const data = await sensorsRes.value.json() as { features?: any[] };
+      for (const f of data.features ?? []) {
+        const p = f?.properties ?? {};
+        const ll = lonLatFromGeom(f.geometry);
+        if (!ll) continue;
+        const band = String(p.band ?? "");
+        if (!["prepare", "evacuate", "overflow-imminent", "observed-overflow"].includes(band)) continue;
+        if (!pointInBbox(ll[0], ll[1], BKK_INCIDENT_HALO_BBOX)) continue;
+        const weight = INCIDENT_WEIGHTS.sensor_band * (severityRank(band) / 4);
+        features.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: ll },
+          properties: {
+            source: "flood-sensors",
+            kind: "sensor_band",
+            weight,
+            title: p.name ?? null,
+            band,
+            band_label_en: p.bandEn ?? null,
+            waterlevel_msl: p.waterlevelMsl ?? null,
+            freeboard_m: p.freeboardM ?? null,
+          },
+        });
+        sourceCounts.sensor++;
+      }
+    } catch { /* ignore */ }
+  }
+
+  return new Response(JSON.stringify({
+    tool: "bkk-incidents",
+    version: 1,
+    fetchedAt: new Date().toISOString(),
+    bbox: BKK_INCIDENT_HALO_BBOX,
+    counts: { total: features.length, bySource: sourceCounts },
+    attribution: "Longdo/iTIC live incident feed · Bangkok Post + Khaosod RSS · BMA DDS road reports (via FloodDash relay)",
+    features,
+  }), {
+    status: 200,
+    headers: {
+      "content-type": "application/geo+json; charset=utf-8",
+      "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "city-events + news-events + BMA DDS road reports + flood-sensors (incident heat)",
       "access-control-allow-origin": "*",
     },
   });
@@ -2195,6 +2443,7 @@ function apiCatalog(request: Request): Response {
         { path: "/api/flood/bkk", method: "GET", description: "FloodDash relay for Bangkok: city verdict, judged gauges, waterway status, BMA DDS canal gates and road reports. Not an official warning — DDPM 1784.", cacheSeconds: 60 },
         { path: "/api/water/bkk/rain-stations", method: "GET", description: "ThaiWater v3 Bangkok provincial rain gauge network (133 stations with rain_24h + rain_1h).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/kpi", method: "GET", description: "BKK provincial top KPIs (24h/3d/7d rain, today/tomorrow/day-after forecast, temperature, worst station).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/incidents", method: "GET", description: "BKK incident heat — city-events + news-events + BMA DDS road reports + flood-sensors in prepare/evacuate bands, aggregated for flood-preset heat map.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -2251,6 +2500,9 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/kpi") {
       return proxyBkkRainKpi(request);
+    }
+    if (url.pathname === "/api/water/bkk/incidents") {
+      return proxyBkkIncidents(request, env);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);
