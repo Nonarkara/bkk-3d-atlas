@@ -619,6 +619,18 @@ const RAIN_STATION_LAYER = "bkkx-bkk-rain-stations-dots";
 const RAIN_STATION_HALO_LAYER = "bkkx-bkk-rain-stations-halo";
 const RAIN_STATION_URL = "/bkk-rain-stations.geojson";
 
+// Bangkok incident heat — aggregated from city-events (Longdo/iTIC),
+// news-events (Bangkok Post + Khaosod), BMA DDS road reports, and
+// flood-sensors in prepare/evacuate bands. The /api/water/bkk/incidents
+// route does the join + weight calculation; this layer paints the
+// resulting points as a MapLibre heatmap so the atlas flood edition
+// can answer "where are the bad roads right now" without camera colors.
+const INCIDENT_SOURCE = "bkkx-bkk-incidents";
+const INCIDENT_HEAT_LAYER = "bkkx-bkk-incident-heat";
+const INCIDENT_DOT_LAYER = "bkkx-bkk-incident-dots";
+const INCIDENTS_URL = "/api/water/bkk/incidents";
+const INCIDENT_HEAT_MAX_ZOOM = 14;  // beyond this, switch to dots
+
 // Rain severity colors — match the ThaiWater dashboard gradient so the
 // two visualizations speak the same language. Tuned to be readable on
 // a dark satellite base + the #11120f halo from flood sensors.
@@ -671,6 +683,7 @@ const state = {
   flood: null, // FloodDash relay payload (/api/flood/bkk)
   flowTimer: null,
   rainStationPopup: null,
+  incidentPopup: null,
   liveCamPopup: null,
   landPricePopup: null,
   civicPoiPopup: null,
@@ -736,6 +749,8 @@ const LAYER_STACK = [
   CCTV_LAYER,
   LIVE_CAM_HALO_LAYER,
   LIVE_CAM_LAYER,
+  INCIDENT_HEAT_LAYER,
+  INCIDENT_DOT_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
   NEWS_EVENT_GLOW_LAYER,
@@ -1188,6 +1203,25 @@ const LAYERS = [
       { color: "#facc15", label: "moderate (10–35 mm)" },
       { color: "#f97316", label: "heavy (35–90 mm)" },
       { color: "#dc2626", label: "very heavy (≥90 mm)" },
+    ],
+  },
+  {
+    id: "flood-incidents",
+    name: "Flood incident heat",
+    description: "Longdo/iTIC · Bangkok Post · BMA DDS · flood gauges",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [INCIDENT_HEAT_LAYER, INCIDENT_DOT_LAYER],
+    install: async (map) => { await installIncidents(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeIncidentPopup();
+      setLayersVisible(map, [INCIDENT_HEAT_LAYER, INCIDENT_DOT_LAYER], false);
+    },
+    legend: [
+      { color: "#7eb6ff", label: "low density (citizen reports)" },
+      { color: "#facc15", label: "medium (BMA road reports)" },
+      { color: "#f97316", label: "high (city-event flood / roadclosed)" },
+      { color: "#dc2626", label: "extreme (gauge in prepare+ / overflow)" },
     ],
   },
   {
@@ -3636,6 +3670,168 @@ async function installRainStations(map) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Flood incident heat — MapLibre heatmap painted from /api/water/bkk/incidents
+// (city-events + news-events + BMA DDS road reports + flood-sensors in
+// prepare/evacuate bands). The endpoint returns each point with a `weight`
+// property in [0, ~1.2]; the heatmap-renderer expression uses that.
+// Beyond zoom 14, we fade the heatmap and switch to discrete dots so
+// individual reports become clickable.
+// ─────────────────────────────────────────────────────────────────
+
+function closeIncidentPopup() {
+  if (state.incidentPopup) {
+    try { state.incidentPopup.remove(); } catch {}
+    state.incidentPopup = null;
+  }
+}
+
+function openIncidentPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeIncidentPopup();
+  const sevBadge = {
+    flood: "#dc2626",
+    roadclosed: "#dc2626",
+    rain: "#7eb6ff",
+    trafficjam: "#facc15",
+    news_flood: "#facc15",
+    dds_road: "#f97316",
+    sensor_band: "#dc2626",
+  }[p.kind] || "#facc15";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker" style="color:${sevBadge}">${escapeHtml(String(p.source ?? "").toUpperCase())} · ${escapeHtml(p.kind ?? "")}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.title ?? p.venueName ?? "Incident")}</strong>
+      <p class="atlas-cctv-status">weight ${Number(p.weight ?? 0).toFixed(2)} ${
+        p.mentions ? "· " + escapeHtml(String(p.mentions)) + " mentions" : ""
+      } ${
+        p.reports ? "· " + escapeHtml(String(p.reports)) + " reports" : ""
+      }</p>
+      ${
+        p.max_depth_cm ? `<p class="atlas-cctv-status">max depth ${escapeHtml(String(p.max_depth_cm))} cm</p>` : ""
+      }
+      ${
+        p.band_label_en ? `<p class="atlas-cctv-status">band: ${escapeHtml(p.band_label_en)}</p>` : ""
+      }
+      ${
+        p.district_name_en ? `<p class="atlas-cctv-status">${escapeHtml(p.district_name_en)}</p>` : ""
+      }
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.reporter ?? "")}</span>
+        <span>${escapeHtml(p.observed_at ?? p.latest_at ?? p.latest_flooded_at ?? "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.incidentPopup = popup;
+}
+
+function wireIncidentInteractions(map) {
+  if (map.__bkkxIncidentWired) return;
+  map.__bkkxIncidentWired = true;
+  map.on("click", INCIDENT_DOT_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openIncidentPopup(map, feature);
+  });
+  map.on("mouseenter", INCIDENT_DOT_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", INCIDENT_DOT_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installIncidents(map) {
+  if (map.getLayer(INCIDENT_HEAT_LAYER)) {
+    setLayersVisible(map, [INCIDENT_HEAT_LAYER, INCIDENT_DOT_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(INCIDENTS_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("flood-incidents", "unavailable · incident feed returned 0");
+    return;
+  }
+  if (!map.getSource(INCIDENT_SOURCE)) {
+    try {
+      map.addSource(INCIDENT_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK incidents source failed:", error);
+      setLayerStatus("flood-incidents", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(INCIDENT_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    map.addLayer({
+      id: INCIDENT_HEAT_LAYER,
+      type: "heatmap",
+      source: INCIDENT_SOURCE,
+      maxzoom: INCIDENT_HEAT_MAX_ZOOM,
+      paint: {
+        "heatmap-weight": ["coalesce", ["to-number", ["get", "weight"]], 0],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 9, 0.6, 13, 1.4],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 9, 12, 13, 28, 14, 60],
+        "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0.75, 14, 0.0],
+        // Yellow (low density, citizen reports) → orange (medium, BMA) → red (high, gauges)
+        "heatmap-color": [
+          "interpolate", ["linear"], ["heatmap-density"],
+          0.00, "rgba(0,0,0,0)",
+          0.15, "rgba(126,182,255,0.55)",
+          0.35, "rgba(250,204,21,0.75)",
+          0.60, "rgba(249,115,22,0.85)",
+          1.00, "rgba(220,38,38,0.92)",
+        ],
+      },
+    });
+    map.addLayer({
+      id: INCIDENT_DOT_LAYER,
+      type: "circle",
+      source: INCIDENT_SOURCE,
+      minzoom: INCIDENT_HEAT_MAX_ZOOM,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 4, 17, 9],
+        "circle-color": [
+          "match", ["get", "kind"],
+          "flood", "#dc2626",
+          "roadclosed", "#dc2626",
+          "sensor_band", "#dc2626",
+          "dds_road", "#f97316",
+          "news_flood", "#facc15",
+          "rain", "#7eb6ff",
+          "trafficjam", "#facc15",
+          "#facc15",
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1,
+        "circle-opacity": 0.95,
+      },
+    });
+    wireIncidentInteractions(map);
+    const counts = geojson.counts ?? {};
+    const total = counts.total ?? geojson.features.length;
+    const bySource = counts.bySource ?? {};
+    setLayerStatus(
+      "flood-incidents",
+      `ThaiWater/FloodDash/BMA DDS · ${total} incidents (city ${bySource.city ?? 0} · news ${bySource.news ?? 0} · dds ${bySource.dds ?? 0} · gauge ${bySource.sensor ?? 0})`,
+    );
+  } catch (error) {
+    console.warn("BKK incidents layer failed:", error);
+    setLayerStatus("flood-incidents", "unavailable · layer failed");
+  }
+}
+
 async function installFloodSensors(map) {
   if (map.getLayer(FLOOD_SENSOR_LAYER)) {
     setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], true);
@@ -4845,9 +5041,10 @@ function wireStackPresets(map) {
       city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
-      // Flood watch: satellite + the living waterway network + judged gauges.
+      // Flood watch: satellite + the living waterway network + judged gauges +
+      // the incident heat map (city-events + news + BMA DDS + flood-sensors).
       // The schematic envelope stays off — it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-incidents": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
