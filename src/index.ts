@@ -762,8 +762,16 @@ function lonLatFromGeom(geom: any): [number, number] | null {
 }
 
 function severityRank(b: string | undefined | null): number {
-  // Higher = more urgent. Used to colour rings on heat map pins.
-  const r: Record<string, number> = { critical: 4, overflow: 4, high: 3, prepare: 3, watch: 2, safe: 1 };
+  // Higher = more urgent. Matches FloodDash band names verbatim
+  // (server/indicator.js). Higher-rank bands paint hotter on the heat.
+  const r: Record<string, number> = {
+    safe: 1,
+    watch: 2,
+    prepare: 3,
+    evacuate: 4,
+    "overflow-imminent": 5,
+    "observed-overflow": 6,
+  };
   return r[b ?? ""] ?? 0;
 }
 
