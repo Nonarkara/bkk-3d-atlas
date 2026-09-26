@@ -153,11 +153,19 @@
           </ul>
           <p class="atlas-eyebrow atlas-eyebrow-sub">Gauges at prepare or worse</p>
           <ul class="atlas-water-list" id="atlas-water-gauges"></ul>
-          <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-roads-head">Roads reported flooded · BMA DDS</p>
-          <ul class="atlas-water-list" id="atlas-water-roads"></ul>
-          <p class="atlas-water-note">DDS road reports carry no coordinates, so they are listed by district, not placed on the map. "Clearance not recorded" does not mean still flooded.</p>
-          <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-gates-head">Canal gates · BMA DDS bulletin</p>
-          <ul class="atlas-water-list" id="atlas-water-gates"></ul>
+          <details class="atlas-water-subdetails">
+            <summary>
+              <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-roads-head">Roads reported flooded · BMA DDS</p>
+            </summary>
+            <ul class="atlas-water-list" id="atlas-water-roads"></ul>
+            <p class="atlas-water-note">DDS road reports carry no coordinates, so they are listed by district, not placed on the map. "Clearance not recorded" does not mean still flooded.</p>
+          </details>
+          <details class="atlas-water-subdetails">
+            <summary>
+              <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-gates-head">Canal gates · BMA DDS bulletin</p>
+            </summary>
+            <ul class="atlas-water-list" id="atlas-water-gates"></ul>
+          </details>
           <p class="atlas-water-note atlas-water-duty">FloodDash prioritises open data; it does not issue warnings. DDPM, BMA and TMD do. DDPM hotline <a href="tel:1784">1784</a>.</p>
           <button type="button" class="atlas-water-method" data-about-open="research">Method, limits and build log →</button>
         </details>

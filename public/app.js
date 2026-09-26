@@ -5444,6 +5444,19 @@ function showTheWater() {
   document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
   // Plan view of the whole network — the drainage map, read from above.
   state.map?.flyTo({ center: [100.56, 13.78], zoom: 11.2, pitch: 0, bearing: 0, essential: true });
+  // Make the heat map the headline view — fit to the Bangkok bbox
+  // (≈30 km halo) so the densest spots sit in the centre of frame.
+  state.map?.once("moveend", () => {
+    const halo = { minLng: 100.05, minLat: 13.25, maxLng: 101.10, maxLat: 14.35 };
+    state.map?.fitBounds([[halo.minLng, halo.minLat], [halo.maxLng, halo.maxLat]], {
+      padding: 40, duration: 0,
+    });
+  });
+  // Reveal the Water now panel if folded.
+  const waterPanel = document.getElementById("atlas-water");
+  if (waterPanel?.hidden) waterPanel.hidden = false;
+  const waterDetails = document.getElementById("atlas-water-details");
+  if (waterDetails && !waterDetails.open) waterDetails.open = true;
   document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 

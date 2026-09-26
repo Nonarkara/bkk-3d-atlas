@@ -1723,6 +1723,33 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-water-duty { margin-top: 12px; color: var(--paper); }
 .atlas-water-duty a { color: var(--signal); }
 
+/* Nested collapsible sub-sections inside the Water now panel.
+   These list read-only DDS bullets (no clickable rows) so the user
+   can fold them out of the way. The summary only carries the heading
+   text — the disclosure marker is rendered via ::after on the heading. */
+.atlas-water-subdetails {
+  border-top: 1px solid var(--rule);
+  margin-top: 10px;
+  padding-top: 8px;
+}
+.atlas-water-subdetails summary {
+  list-style: none;
+  cursor: pointer;
+  display: block;
+  padding: 4px 0;
+}
+.atlas-water-subdetails summary::-webkit-details-marker { display: none; }
+.atlas-water-subdetails summary p { margin: 0; display: inline; font-weight: 600; }
+.atlas-water-subdetails summary p::after {
+  content: " +";
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 6px;
+}
+.atlas-water-subdetails[open] summary p::after { content: " −"; }
+.atlas-water-subdetails ul { margin-top: 6px; }
+.atlas-water-subdetails p.atlas-water-note { display: block; }
+
 /* Gauge popup + shared swatch */
 .atlas-gauge-swatch {
   display: inline-block;
