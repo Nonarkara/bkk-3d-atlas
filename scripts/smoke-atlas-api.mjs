@@ -351,7 +351,9 @@ async function checkBkkEmergencyPoints() {
   for (const f of body.features) {
     const p = f.properties || {};
     assert(["confirmed", "sensor", "reported"].includes(p.tier), `unknown tier '${p.tier}' on ${p.name}`);
-    assert(["high", "watch", "low"].includes(p.band), `unknown band '${p.band}' on ${p.name}`);
+    // band can be high / elevated / watch / low — the FloodDash ladder.
+    // (saw "elevated" on Bang Phli on 2026-09-27; missed it first time round.)
+    assert(["high", "elevated", "watch", "low"].includes(p.band), `unknown band '${p.band}' on ${p.name}`);
     assert(Array.isArray(p.news) && p.news.length <= 3, `news[] length=${p.news?.length} on ${p.name}`);
     for (const n of p.news ?? []) {
       assert(typeof n.title === "string" && n.title.length > 0, `empty news title on ${p.name}`);
