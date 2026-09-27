@@ -703,6 +703,9 @@ const state = {
   cctvHls: null,
   floodSensorPopup: null,
   flood: null, // FloodDash relay payload (/api/flood/bkk)
+  cctvGeojson: null, // last CCTV FeatureCollection (live or sample)
+  roadsFloodedGeojson: null, // last /api/water/bkk/roads-flooded FeatureCollection
+  floodCamJoin: null, // { byCam: Map<camId,road>, byRoad: Map<roadId,cam> } — CCTV↔flooded-road spatial join (Haversine ≤ 800 m, active roads only)
   flowTimer: null,
   rainStationPopup: null,
   incidentPopup: null,
@@ -4073,6 +4076,23 @@ function openRoadsFloodedPopup(map, feature) {
   const length = p.length_m != null ? `${p.length_m} m` : "—";
   const lanes = p.lanes || "—";
   const clearedAt = p.cleared_at ? `cleared ${escapeHtml(p.cleared_at)}` : "";
+
+  // CCTV ↔ flooded-road join — steal from JK World (2026-09-27): if a
+  // public CCTV sits within ~800 m of this road's anchor, surface a
+  // "Live view" link. Clicking it flies the camera to the camera and
+  // opens its popup (which then shows the live stream + this same
+  // flood banner). The join is asymmetric — the camera popup also
+  // reads this entry back — so once you know a road has a camera
+  // you can navigate either direction.
+  const roadKey = p.id ?? `${p.district}/${p.name}`;
+  const camEntry = state.floodCamJoin?.byRoad?.get(roadKey) || null;
+  const liveLink = camEntry
+    ? `<button type="button" class="atlas-cctv-live-link" data-cam-id="${escapeHtml(camEntry.camId || "")}">
+        <span aria-hidden="true">📹</span> Live view · ${escapeHtml(camEntry.distM)} m · ${escapeHtml((camEntry.camId || "iTIC").toString().slice(0, 24))}
+        <small>opens camera on map</small>
+      </button>`
+    : "";
+
   const html = `
     <div class="atlas-cctv-card">
       <p class="atlas-cctv-kicker" style="color:${sevColor}">BMA DDS · ROAD REPORT</p>
@@ -4080,6 +4100,7 @@ function openRoadsFloodedPopup(map, feature) {
       <p class="atlas-cctv-status" lang="th">${escapeHtml(p.district || "")} · ${escapeHtml(p.location || "")}</p>
       <p class="atlas-cctv-status">depth <strong>${depth}</strong> · length ${length} · ${escapeHtml(lanes)}</p>
       <p class="atlas-cctv-status">status: <strong>${escapeHtml(p.status || p.severity || "—")}</strong></p>
+      ${liveLink}
       <div class="atlas-cctv-actions">
         <span>${escapeHtml(p.flooded_at || "")}</span>
         <span>${clearedAt}</span>
@@ -4098,6 +4119,46 @@ function openRoadsFloodedPopup(map, feature) {
     .setHTML(html)
     .addTo(map);
   state.roadsFloodedPopup = popup;
+
+  // Wire the live-view link after the popup is in the DOM. The link
+  // flies to the camera, ensures the CCTV layer is on, waits for the
+  // layer to finish installing (sample + live), then opens the CCTV
+  // popup at the camera. The CCTV popup re-renders with the flood
+  // banner because the join is already cached.
+  if (camEntry) {
+    const linkEl = popup.getElement()?.querySelector(".atlas-cctv-live-link");
+    if (linkEl) {
+      linkEl.addEventListener("click", async () => {
+        await flyToCctvFromRoad(map, camEntry.camId);
+      }, { once: true });
+    }
+  }
+}
+
+async function flyToCctvFromRoad(map, camId) {
+  if (!map || !camId) return;
+  // Ensure the CCTV layer is on (the user might be on the roads-flooded
+  // layer only). loadCctvData installs + caches state.cctvGeojson and
+  // recomputes the join — the CCTV popup then sees the flood banner.
+  if (!state.layerOn.cctv) {
+    await setLayerToggle(map, "cctv", true);
+  }
+  // Give the (re)install one tick to finish before we search the
+  // geojson. setLayerToggle already awaited install, but defensive
+  // belt-and-braces in case the live fallback is still pending.
+  let tries = 0;
+  while ((!state.cctvGeojson?.features?.length || !state.cctvGeojson.features.find((f) => f.properties?.id === camId)) && tries < 12) {
+    await new Promise((r) => setTimeout(r, 150));
+    tries++;
+  }
+  const feat = state.cctvGeojson?.features?.find((f) => f.properties?.id === camId);
+  if (!feat) return;
+  // Close the road popup and fly to the camera.
+  closeRoadsFloodedPopup();
+  map.flyTo({ center: feat.geometry.coordinates, zoom: 15, pitch: 55, essential: true });
+  // Wait for flyTo's moveend so the popup anchors correctly on the
+  // freshly settled camera.
+  map.once("moveend", () => openCctvPopup(map, feat));
 }
 
 function wireRoadsFloodedInteractions(map) {
@@ -4124,6 +4185,8 @@ async function installRoadsFlooded(map) {
     setLayerStatus("roads-flooded", "unavailable · DDS road feed empty — not an all-clear");
     return;
   }
+  state.roadsFloodedGeojson = geojson;
+  computeFloodCamJoin();
   if (!map.getSource(ROADS_FLOODED_SOURCE)) {
     try {
       map.addSource(ROADS_FLOODED_SOURCE, { type: "geojson", data: geojson });
@@ -4252,6 +4315,106 @@ function wireEmergencyInteractions(map) {
   });
   map.on("mouseenter", EMERGENCY_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
   map.on("mouseleave", EMERGENCY_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CCTV ↔ flooded-road spatial join (2026-09-27) — stolen from JK
+// World (world.tehx.dyndns.info), which pairs each BMA DDS flooded
+// road card with the nearest live CCTV snapshot. The atlas has both
+// pieces — 84 iTIC/Longdo cameras and 66 DDS dated reports — but the
+// two layers never spoke. This join fixes that.
+//
+// Honest limits baked into the design:
+//   - DDS road reports carry no per-point coords. The Worker anchors
+//     them by road name first, then district centroid as a fallback.
+//     Roads that fell back to the centroid will sit far from any
+//     camera, so the join silently skips them — the camera list
+//     stays short and trustworthy.
+//   - Only "active" roads participate (severity ≠ cleared). Cleared
+//     reports would mislead a reader into thinking the camera is
+//     showing floodwater from yesterday's drain.
+//   - 800 m Haversine cutoff: enough to catch a camera pointed at
+//     the road, not enough to claim a relationship that doesn't
+//     exist on the ground.
+//
+// Both directions are cached on state.floodCamJoin so popups read
+// O(1).
+// ─────────────────────────────────────────────────────────────────
+
+const FLOOD_CAM_JOIN_MAX_M = 800;
+const FLOOD_CAM_JOIN_MAX_M_BBOX_BIAS = 1500; // generous when both anchor near district centroid
+
+function haversineMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const lat1 = toRad(a[1]);
+  const lat2 = toRad(b[1]);
+  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+}
+
+function computeFloodCamJoin() {
+  const byCam = new Map();
+  const byRoad = new Map();
+  const roads = state.roadsFloodedGeojson?.features;
+  const cams = state.cctvGeojson?.features;
+  if (!Array.isArray(roads) || !Array.isArray(cams) || !roads.length || !cams.length) {
+    state.floodCamJoin = { byCam, byRoad, count: 0 };
+    return;
+  }
+  // Index active roads once (severity ≠ cleared). A road is "active"
+  // when BMA DDS has no cleared_at timestamp; cleared reports would
+  // misrepresent what's on the live stream right now.
+  const activeRoads = roads.filter((f) => {
+    const p = f.properties || {};
+    return p.status !== "reported-cleared" && p.severity !== "cleared";
+  });
+  if (!activeRoads.length) {
+    state.floodCamJoin = { byCam, byRoad, count: 0 };
+    return;
+  }
+  let joinCount = 0;
+  for (const cam of cams) {
+    const camLngLat = cam.geometry?.coordinates;
+    if (!Array.isArray(camLngLat)) continue;
+    let best = null;
+    for (const road of activeRoads) {
+      const roadLngLat = road.geometry?.coordinates;
+      if (!Array.isArray(roadLngLat)) continue;
+      const dist = haversineMeters(camLngLat, roadLngLat);
+      if (dist > FLOOD_CAM_JOIN_MAX_M && dist > FLOOD_CAM_JOIN_MAX_M_BBOX_BIAS) continue;
+      if (!best || dist < best.dist) {
+        best = { road, dist };
+      }
+    }
+    if (best) {
+      const camId = cam.properties?.id;
+      const roadProps = best.road.properties || {};
+      const entry = {
+        camId,
+        roadId: best.road.properties?.id ?? null,
+        roadName: roadProps.name || roadProps.road || "ถนน",
+        district: roadProps.district || "",
+        depthCm: roadProps.depth_cm ?? null,
+        status: roadProps.status || "",
+        severity: roadProps.severity || "",
+        floodedAt: roadProps.flooded_at || null,
+        distM: Math.round(best.dist),
+      };
+      if (camId) byCam.set(camId, entry);
+      // If the same road happens to match multiple cameras, keep the
+      // closest camera as the canonical "live view" link.
+      const roadKey = best.road.properties?.id ?? `${roadProps.district}/${roadProps.name}`;
+      const existing = byRoad.get(roadKey);
+      if (!existing || entry.distM < existing.distM) {
+        byRoad.set(roadKey, { ...entry, roadKey });
+      }
+      joinCount++;
+    }
+  }
+  state.floodCamJoin = { byCam, byRoad, count: joinCount };
 }
 
 async function installEmergency(map) {
@@ -4511,6 +4674,7 @@ function setCctvSourceBadge(source, count) {
 }
 
 function addCctvLayer(map, geojson) {
+  state.cctvGeojson = geojson;
   if (map.getSource(CCTV_SOURCE)) {
     map.getSource(CCTV_SOURCE).setData(geojson);
     setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER], true);
@@ -4568,14 +4732,18 @@ async function loadCctvData(map, { preferLive = false } = {}) {
     source = "sample";
   }
   if (!geojson) return;
+  state.cctvGeojson = geojson;
   addCctvLayer(map, geojson);
   setCctvSourceBadge(source, geojson.features?.length ?? geojson.count);
   wireCctvInteractions(map);
+  computeFloodCamJoin();
   if (preferLive && source === "sample") {
     fetchLiveCctv().then((live) => {
       if (live && map.getSource(CCTV_SOURCE)) {
+        state.cctvGeojson = live;
         addCctvLayer(map, live);
         setCctvSourceBadge("live", live.features?.length ?? live.count);
+        computeFloodCamJoin();
       }
     });
   }
@@ -4625,10 +4793,28 @@ function openCctvPopup(map, feature) {
 
   closeCctvPopup();
 
+  // CCTV ↔ flooded-road spatial join (2026-09-27): if this camera sits
+  // within ~800 m of an active BMA DDS flooded road, surface that fact
+  // right at the top of the popup. A person watching the live stream
+  // needs to know "this is what flooding looks like" without leaving
+  // the player. Stolen from JK World's flood page, where every road
+  // card carries its nearest camera thumbnail.
+  const floodEntry = state.floodCamJoin?.byCam?.get(props.id) || null;
+  const floodBanner = floodEntry
+    ? `<div class="atlas-cctv-flood-banner" data-severity="${escapeHtml(floodEntry.severity || "unknown")}">
+        <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD NEARBY · ${Math.round(floodEntry.distM)} m</span>
+        <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(floodEntry.roadName)}</strong>
+        <span class="atlas-cctv-flood-meta">
+          ${escapeHtml(floodEntry.district || "")}${floodEntry.depthCm != null ? ` · depth ${floodEntry.depthCm} cm` : ""}${floodEntry.floodedAt ? ` · since ${escapeHtml(floodEntry.floodedAt)}` : ""}
+        </span>
+      </div>`
+    : "";
+
   const html = `
     <div class="atlas-cctv-card">
       <p class="atlas-cctv-kicker">Traffic CCTV · ${escapeHtml(org)}</p>
       <strong class="atlas-cctv-title">${escapeHtml(title)}</strong>
+      ${floodBanner}
       <video class="atlas-cctv-video" playsinline muted autoplay controls></video>
       <p class="atlas-cctv-status">Connecting live stream…</p>
       <div class="atlas-cctv-actions">

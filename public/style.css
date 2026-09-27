@@ -954,6 +954,84 @@ body.is-night .atlas-header {
   font-weight: 700;
 }
 
+/* CCTV ↔ flooded-road cross-reference (2026-09-27).
+   - atlas-cctv-flood-banner sits at the top of the CCTV popup when
+     the camera sits within ~800 m of an active BMA DDS flooded road.
+     It tells the viewer "this stream is the road BMA says is flooded".
+   - atlas-cctv-live-link sits at the bottom of the roads-flooded popup
+     when the road has a nearby CCTV. Click → fly to the camera + open
+     its popup. Same banner is then visible at the top of the CCTV
+     popup, closing the loop both directions.
+   Atlas aesthetic: sharp edges, signal yellow accent, no gradients. */
+.atlas-cctv-flood-banner {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--rule, rgba(255,255,255,0.16));
+  border-bottom: 1px solid var(--rule, rgba(255,255,255,0.16));
+  background: rgba(220, 38, 38, 0.08);
+}
+.atlas-cctv-flood-kicker {
+  margin: 0;
+  color: #ff8a8a;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.atlas-cctv-flood-road {
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+.atlas-cctv-flood-meta {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.02em;
+}
+/* Mirror the road severity palette so a viewer reading the popup
+   gets the same ladder as the legend. */
+.atlas-cctv-flood-banner[data-severity="severe"] .atlas-cctv-flood-kicker { color: #ff8a8a; }
+.atlas-cctv-flood-banner[data-severity="moderate"] .atlas-cctv-flood-kicker { color: #fb923c; }
+.atlas-cctv-flood-banner[data-severity="shallow"] .atlas-cctv-flood-kicker { color: #facc15; }
+.atlas-cctv-flood-banner[data-severity="severe"] { background: rgba(220, 38, 38, 0.10); }
+.atlas-cctv-flood-banner[data-severity="moderate"] { background: rgba(249, 115, 22, 0.08); }
+.atlas-cctv-flood-banner[data-severity="shallow"] { background: rgba(250, 204, 21, 0.08); }
+
+.atlas-cctv-live-link {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: var(--signal, #c9ff38);
+  color: #11120f;
+  border: 0;
+  border-radius: 0;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+}
+.atlas-cctv-live-link:hover { background: #d6ff5e; }
+.atlas-cctv-live-link:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: -2px;
+}
+.atlas-cctv-live-link small {
+  display: block;
+  color: rgba(17, 18, 15, 0.65);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .atlas-landprice-card {
   width: min(360px, 82vw);
   padding: 12px 12px 10px;
