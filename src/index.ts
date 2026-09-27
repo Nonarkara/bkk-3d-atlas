@@ -23,6 +23,7 @@
 import {
   floodBkkResponse,
   floodSensorsResponse,
+  FLOODDASH_ORIGIN,
   liveAt,
   loadFloodState,
   refreshFloodDash,
@@ -954,6 +955,333 @@ async function proxyBkkIncidents(request: Request, env: Env, ctx: ExecutionConte
       "content-type": "application/geo+json; charset=utf-8",
       "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
       "x-bkkx-source": "city-events + news-events + BMA DDS road reports + flood-sensors (incident heat)",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BKK flood prevention infrastructure — three new endpoints that
+// surface the data inside FloodDash the atlas can act on:
+//
+//   /api/water/bkk/canal-gates      — BMA Drainage bulletin: 10 canal-gate
+//     stations with current water level vs critical level. Points are
+//     anchored at the gate name's centroid match (best-effort geocoded
+//     against the existing bkk-khlongs.geojson + bkk-districts.geojson)
+//     so the map can mark "the canal gate that is critical right now".
+//
+//   /api/water/bkk/roads-flooded   — BMA DDS dated road reports for
+//     Bangkok: 66 road segments with depth, lanes, floodedAt /
+//     clearedAt / status. District-anchored since the DDS feed does
+//     not yet carry road coordinates.
+//
+//   /api/water/bkk/emergency-points — FloodDash confirmed emergency
+//     points filtered to the Bangkok + 30 km halo. Each point carries
+//     lat/lng + impact area + news count + max depth.
+//
+// All three are CORS-open, 5-min cache, with attribution.
+// ─────────────────────────────────────────────────────────────────
+
+// Lightweight Thai-name → coordinates anchor built from the khlongs
+// and districts GeoJSON. Cached at module level. Used to place canal
+// gates + flooded roads on the map even though the upstream feeds
+// carry no coordinates.
+let bkkAnchorCache: { khlongs: Map<string, [number, number]>; districts: Map<string, [number, number]>; builtAt: number } | null = null;
+const BKK_ANCHOR_TTL_MS = 6 * 60 * 60 * 1000;
+
+async function buildBkkAnchor(env: Env, request: Request): Promise<NonNullable<typeof bkkAnchorCache>> {
+  if (bkkAnchorCache && Date.now() - bkkAnchorCache.builtAt < BKK_ANCHOR_TTL_MS) {
+    return bkkAnchorCache;
+  }
+  const khlongs: Map<string, [number, number]> = new Map();
+  const districts: Map<string, [number, number]> = new Map();
+  try {
+    const khlongsUrl = new URL("/bkk-khlongs.geojson", request.url);
+    const kRes = await env.ASSETS.fetch(new Request(khlongsUrl.toString(), request));
+    if (kRes.ok) {
+      const k = await kRes.json() as { features?: any[] };
+      for (const f of k.features ?? []) {
+        const name = String(f.properties?.name ?? "").trim();
+        if (!name) continue;
+        const geom = f.geometry;
+        let centroid: [number, number] | null = null;
+        if (geom?.type === "LineString" && Array.isArray(geom.coordinates)) {
+          let sx = 0, sy = 0, n = 0;
+          for (const [lng, lat] of geom.coordinates) {
+            if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+          }
+          if (n > 0) centroid = [sy / n, sx / n];
+        } else if (geom?.type === "MultiLineString") {
+          let sx = 0, sy = 0, n = 0;
+          for (const line of geom.coordinates) for (const [lng, lat] of line) {
+            if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+          }
+          if (n > 0) centroid = [sy / n, sx / n];
+        }
+        if (centroid) khlongs.set(name.toLowerCase(), centroid);
+        // Also key by a stripped name (drop "คลอง" prefix, drop dashes, drop spaces)
+        const stripped = name.replace(/^คลอง\s*/, "").replace(/[\s\-_]/g, "").toLowerCase();
+        if (centroid && stripped && !khlongs.has(stripped)) khlongs.set(stripped, centroid);
+      }
+    }
+  } catch { /* ignore */ }
+  try {
+    const distUrl = new URL("/bkk-districts.geojson", request.url);
+    const dRes = await env.ASSETS.fetch(new Request(distUrl.toString(), request));
+    if (dRes.ok) {
+      const d = await dRes.json() as { features?: any[] };
+      for (const f of d.features ?? []) {
+        const name = String(f.properties?.name_en ?? f.properties?.name_th ?? "").trim();
+        if (!name) continue;
+        const ring = (f.geometry?.coordinates?.[0]) as number[][] | undefined;
+        if (Array.isArray(ring) && ring.length > 0) {
+          let sx = 0, sy = 0, n = 0;
+          for (const [lng, lat] of ring) {
+            if (Number.isFinite(lng) && Number.isFinite(lat)) { sx += lng; sy += lat; n++; }
+          }
+          if (n > 0) districts.set(name.toLowerCase(), [sy / n, sx / n]);
+          // also by Thai
+          const nameTh = String(f.properties?.name_th ?? "").trim();
+          if (nameTh) districts.set(nameTh.toLowerCase(), [sy / n, sx / n]);
+          const stripped = nameTh.replace(/^เขต/, "").trim();
+          if (stripped) districts.set(stripped.toLowerCase(), [sy / n, sx / n]);
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  bkkAnchorCache = { khlongs, districts, builtAt: Date.now() };
+  return bkkAnchorCache;
+}
+
+function pickAnchor(anchors: NonNullable<typeof bkkAnchorCache>, districtTh: string, nameTh: string): [number, number] | null {
+  // Priority 1: khlongs name match (most precise for canal gates)
+  if (nameTh) {
+    const k1 = anchors.khlongs.get(nameTh.toLowerCase());
+    if (k1) return k1;
+    const stripped = nameTh.replace(/^ปตร\.?คลอง\s*/, "").replace(/^คลอง\s*/, "").trim();
+    const k2 = anchors.khlongs.get(stripped.toLowerCase());
+    if (k2) return k2;
+    const k3 = anchors.khlongs.get(stripped.replace(/[\s\-_]/g, "").toLowerCase());
+    if (k3) return k3;
+  }
+  // Priority 2: district centroid
+  if (districtTh) {
+    const d1 = anchors.districts.get(districtTh.toLowerCase());
+    if (d1) return d1;
+    const stripped = districtTh.replace(/^เขต/, "").trim();
+    const d2 = anchors.districts.get(stripped.toLowerCase());
+    if (d2) return d2;
+  }
+  return null;
+}
+
+async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "bkk_canal_gates_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { bulletin?: { stations?: any[]; date?: string; stale?: boolean; fetchedAt?: string; source?: string } };
+  const stations = data.bulletin?.stations ?? [];
+  const anchors = await buildBkkAnchor(env, request);
+
+  const features = [];
+  for (const s of stations) {
+    const name = String(s.name ?? "").trim();
+    const level = Number(s.levelMsl);
+    const critical = Number(s.criticalMsl);
+    const yesterdayMax = Number(s.yesterdayMaxMsl);
+    const status = String(s.statusTh ?? "");
+    const side = String(s.side ?? "");
+    let ll: [number, number] | null = pickAnchor(anchors, name, name);
+    if (!ll) continue;  // skip stations we can't anchor
+    const ratio = Number.isFinite(level) && Number.isFinite(critical) && critical > 0 ? level / critical : 0;
+    let severity: string;
+    let weight: number;
+    if (status.includes("วิกฤติ")) { severity = "critical"; weight = 1.0; }
+    else if (status.includes("เตือนภัย")) { severity = "warning"; weight = 0.7; }
+    else { severity = "normal"; weight = 0.2; }
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
+      properties: {
+        source: "bma-dds-bulletin",
+        kind: "canal-gate",
+        name,
+        side,
+        level_msl: Number.isFinite(level) ? level : null,
+        critical_msl: Number.isFinite(critical) ? critical : null,
+        yesterday_max_msl: Number.isFinite(yesterdayMax) ? yesterdayMax : null,
+        ratio: Number.isFinite(ratio) ? Number(ratio.toFixed(2)) : null,
+        status_th: status,
+        severity,
+        weight,
+        observed_at: s.observedAt ?? null,
+      },
+    });
+  }
+
+  return jsonResponse({
+    tool: "bkk-canal-gates",
+    version: 1,
+    fetchedAt: data.bulletin?.fetchedAt ?? null,
+    bulletin_date: data.bulletin?.date ?? null,
+    stale: data.bulletin?.stale ?? false,
+    counts: { total: features.length, critical: features.filter(f => f.properties.severity === "critical").length, warning: features.filter(f => f.properties.severity === "warning").length, normal: features.filter(f => f.properties.severity === "normal").length },
+    attribution: "BMA Drainage bulletin via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
+    features,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "BMA Drainage bulletin · canal-gate water levels",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+async function proxyBkkRoadsFlooded(request: Request, env: Env): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "bkk_roads_flooded_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { roads?: { records?: any[]; days?: string[]; stale?: boolean; fetchedAt?: string; source?: string } };
+  const records = data.roads?.records ?? [];
+  const anchors = await buildBkkAnchor(env, request);
+
+  const features = [];
+  for (const r of records) {
+    const district = String(r.district ?? "").trim();
+    const road = String(r.road ?? "").trim();
+    const location = String(r.location ?? "").trim();
+    const depthCm = Number(r.depthCm);
+    const lengthM = Number(r.lengthM);
+    const floodedAt = r.floodedAt ?? null;
+    const clearedAt = r.clearedAt ?? null;
+    const status = String(r.status ?? "");
+    const lanes = String(r.lanes ?? "");
+    const id = String(r.id ?? `${district}/${road}/${floodedAt}`);
+
+    let ll = pickAnchor(anchors, district, road);
+    // District fallback if road-name lookup didn't match
+    if (!ll) ll = pickAnchor(anchors, district, district);
+    if (!ll) continue;
+
+    let severity: string;
+    let weight: number;
+    if (status === "reported-cleared") { severity = "cleared"; weight = 0.15; }
+    else if (status === "clearance-unrecorded") { severity = "unknown"; weight = 0.55; }
+    else if (Number.isFinite(depthCm)) {
+      if (depthCm >= 30) { severity = "severe"; weight = 1.0; }
+      else if (depthCm >= 15) { severity = "moderate"; weight = 0.75; }
+      else { severity = "shallow"; weight = 0.45; }
+    } else {
+      severity = "unknown"; weight = 0.4;
+    }
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
+      properties: {
+        source: "bma-dds-roads",
+        kind: "road-flooded",
+        name: road,
+        district,
+        location,
+        depth_cm: Number.isFinite(depthCm) ? depthCm : null,
+        length_m: Number.isFinite(lengthM) ? lengthM : null,
+        lanes,
+        status,
+        severity,
+        weight,
+        flooded_at: floodedAt,
+        cleared_at: clearedAt,
+        date: r.date ?? null,
+        id,
+      },
+    });
+  }
+
+  return jsonResponse({
+    tool: "bkk-roads-flooded",
+    version: 1,
+    fetchedAt: data.roads?.fetchedAt ?? null,
+    days: data.roads?.days ?? [],
+    stale: data.roads?.stale ?? false,
+    counts: {
+      total: features.length,
+      byStatus: features.reduce((acc: Record<string, number>, f) => {
+        const s = f.properties.status;
+        acc[s] = (acc[s] ?? 0) + 1;
+        return acc;
+      }, {}),
+      bySeverity: features.reduce((acc: Record<string, number>, f) => {
+        const s = f.properties.severity;
+        acc[s] = (acc[s] ?? 0) + 1;
+        return acc;
+      }, {}),
+    },
+    attribution: "BMA DDS dated road reports via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
+    features,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "BMA DDS · dated road reports (district-anchored)",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "bkk_emergency_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { emergency?: { points?: any[]; generated_at?: string; window_hours?: number } };
+  const points = data.emergency?.points ?? [];
+  const features = [];
+  for (const p of points) {
+    const lat = Number(p.lat);
+    const lng = Number(p.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
+    const score = Number(p.score);
+    const depth = Number(p.depth_cm);
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: {
+        source: "flooddash-emergency",
+        kind: "emergency",
+        name: p.area_en ?? p.area_th ?? p.place_en ?? p.place_th ?? "Emergency",
+        province: p.province_en ?? p.province_th ?? null,
+        score: Number.isFinite(score) ? score : null,
+        band: p.band ?? null,
+        severity: p.severity ?? null,
+        tier: p.tier ?? null,
+        depth_cm: Number.isFinite(depth) ? depth : null,
+        news_count: p.news_count ?? null,
+        latest_at: p.latest_at ?? null,
+        impacts: Array.isArray(p.impacts) ? p.impacts : [],
+        news: Array.isArray(p.news) ? p.news.slice(0, 3).map((n: any) => ({ title: n.title, link: n.link, source: n.source })) : [],
+      },
+    });
+  }
+  return jsonResponse({
+    tool: "bkk-emergency-points",
+    version: 1,
+    fetchedAt: data.emergency?.generated_at ?? null,
+    window_hours: data.emergency?.window_hours ?? null,
+    counts: { total: features.length },
+    attribution: "FloodDash emergency aggregator (flood.nonarkara.org) · news-anchored flood-affected locations",
+    features,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "FloodDash confirmed emergency points · BKK + 30km halo",
       "access-control-allow-origin": "*",
     },
   });
@@ -2449,6 +2777,9 @@ function apiCatalog(request: Request): Response {
         { path: "/api/water/bkk/rain-stations", method: "GET", description: "ThaiWater v3 Bangkok provincial rain gauge network (133 stations with rain_24h + rain_1h).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/kpi", method: "GET", description: "BKK provincial top KPIs (24h/3d/7d rain, today/tomorrow/day-after forecast, temperature, worst station).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/incidents", method: "GET", description: "BKK incident heat — city-events + news-events + BMA DDS road reports + flood-sensors in prepare/evacuate bands, aggregated for flood-preset heat map.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/canal-gates", method: "GET", description: "BMA Drainage bulletin: 10 Bangkok canal-gate stations with current water level vs critical level.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/roads-flooded", method: "GET", description: "BMA DDS dated road reports for Bangkok: 66 road segments with depth, lanes, status (reported / cleared / unrecorded).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/emergency-points", method: "GET", description: "FloodDash confirmed emergency points for Bangkok + 30 km halo (news-anchored flood-affected locations with depth + impact).", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -2508,6 +2839,15 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/incidents") {
       return proxyBkkIncidents(request, env, ctx);
+    }
+    if (url.pathname === "/api/water/bkk/canal-gates") {
+      return proxyBkkCanalGates(request, env);
+    }
+    if (url.pathname === "/api/water/bkk/roads-flooded") {
+      return proxyBkkRoadsFlooded(request, env);
+    }
+    if (url.pathname === "/api/water/bkk/emergency-points") {
+      return proxyBkkEmergencyPoints(request, env);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);
