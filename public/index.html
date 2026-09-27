@@ -166,6 +166,13 @@
             </summary>
             <ul class="atlas-water-list" id="atlas-water-gates"></ul>
           </details>
+          <details class="atlas-water-subdetails">
+            <summary>
+              <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-emergency-head">Emergency points · FloodDash</p>
+            </summary>
+            <ul class="atlas-water-list" id="atlas-water-emergency"></ul>
+            <p class="atlas-water-note">BKK + 30 km halo. The first news headline that put the point on the map is shown so a reader can audit the source. Click a row to fly to it.</p>
+          </details>
           <p class="atlas-water-note atlas-water-duty">FloodDash prioritises open data; it does not issue warnings. DDPM, BMA and TMD do. DDPM hotline <a href="tel:1784">1784</a>.</p>
           <button type="button" class="atlas-water-method" data-about-open="research">Method, limits and build log →</button>
         </details>
@@ -394,6 +401,39 @@
               <span class="atlas-layer-state" id="toggle-flood-sensors-state" aria-live="polite">on</span>
             </label>
             <div class="atlas-legend" id="legend-flood-sensors" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-canal-gates" />
+              <span class="atlas-layer-name">
+                <strong>Canal gates</strong>
+                <small id="toggle-canal-gates-detail">BMA DDS bulletin · gate level vs critical</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-canal-gates-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-canal-gates" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-roads-flooded" />
+              <span class="atlas-layer-name">
+                <strong>Flooded roads (DDS)</strong>
+                <small id="toggle-roads-flooded-detail">BMA DDS dated road reports · district-anchored</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-roads-flooded-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-roads-flooded" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-emergency-points" />
+              <span class="atlas-layer-name">
+                <strong>Emergency points</strong>
+                <small id="toggle-emergency-points-detail">FloodDash · news-anchored · news headlines in popup</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-emergency-points-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-emergency-points" hidden></div>
           </li>
         </ul>
 

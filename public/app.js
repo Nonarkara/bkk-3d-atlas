@@ -631,6 +631,28 @@ const INCIDENT_DOT_LAYER = "bkkx-bkk-incident-dots";
 const INCIDENTS_URL = "/api/water/bkk/incidents";
 const INCIDENT_HEAT_MAX_ZOOM = 14;  // beyond this, switch to dots
 
+// Drainage infrastructure surfaces — pulled from FloodDash relays so the
+// atlas flood edition can answer "where are the bad roads right now"
+// through the city's own drainage network, not just camera colours.
+// Each layer is a circle/dot set: a halo for the worst band, a dot for
+// the clickable marker. The popup carries the upstream metric
+// (level vs critical for gates, depth/status for roads, news headlines
+// for emergency points).
+const CANAL_GATE_SOURCE = "bkkx-bkk-canal-gates";
+const CANAL_GATE_HALO_LAYER = "bkkx-bkk-canal-gate-halo";
+const CANAL_GATE_LAYER = "bkkx-bkk-canal-gate-dots";
+const CANAL_GATES_URL = "/api/water/bkk/canal-gates";
+
+const ROADS_FLOODED_SOURCE = "bkkx-bkk-roads-flooded";
+const ROADS_FLOODED_HALO_LAYER = "bkkx-bkk-roads-flooded-halo";
+const ROADS_FLOODED_LAYER = "bkkx-bkk-roads-flooded-dots";
+const ROADS_FLOODED_URL = "/api/water/bkk/roads-flooded";
+
+const EMERGENCY_SOURCE = "bkkx-bkk-emergency";
+const EMERGENCY_HALO_LAYER = "bkkx-bkk-emergency-halo";
+const EMERGENCY_LAYER = "bkkx-bkk-emergency-dots";
+const EMERGENCY_URL = "/api/water/bkk/emergency-points";
+
 // Rain severity colors — match the ThaiWater dashboard gradient so the
 // two visualizations speak the same language. Tuned to be readable on
 // a dark satellite base + the #11120f halo from flood sensors.
@@ -684,6 +706,9 @@ const state = {
   flowTimer: null,
   rainStationPopup: null,
   incidentPopup: null,
+  canalGatePopup: null,
+  roadsFloodedPopup: null,
+  emergencyPopup: null,
   liveCamPopup: null,
   landPricePopup: null,
   civicPoiPopup: null,
@@ -751,6 +776,12 @@ const LAYER_STACK = [
   LIVE_CAM_LAYER,
   INCIDENT_HEAT_LAYER,
   INCIDENT_DOT_LAYER,
+  CANAL_GATE_HALO_LAYER,
+  CANAL_GATE_LAYER,
+  ROADS_FLOODED_HALO_LAYER,
+  ROADS_FLOODED_LAYER,
+  EMERGENCY_HALO_LAYER,
+  EMERGENCY_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
   NEWS_EVENT_GLOW_LAYER,
@@ -1222,6 +1253,63 @@ const LAYERS = [
       { color: "#facc15", label: "medium (BMA road reports)" },
       { color: "#f97316", label: "high (city-event flood / roadclosed)" },
       { color: "#dc2626", label: "extreme (gauge in prepare+ / overflow)" },
+    ],
+  },
+  {
+    id: "canal-gates",
+    name: "Canal gates",
+    description: "BMA DDS bulletin · gate level vs critical",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CANAL_GATE_HALO_LAYER, CANAL_GATE_LAYER],
+    install: async (map) => { await installCanalGates(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeCanalGatePopup();
+      setLayersVisible(map, [CANAL_GATE_HALO_LAYER, CANAL_GATE_LAYER], false);
+    },
+    legend: [
+      { color: "#dc2626", label: "critical (วิกฤติ) · at/over bank" },
+      { color: "#f97316", label: "warning (เตือนภัย)" },
+      { color: "#facc15", label: "normal · within bounds" },
+      { color: "#11120f", label: "hollow = gate we couldn't anchor" },
+    ],
+  },
+  {
+    id: "roads-flooded",
+    name: "Flooded roads (DDS)",
+    description: "BMA DDS dated road reports · district-anchored",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [ROADS_FLOODED_HALO_LAYER, ROADS_FLOODED_LAYER],
+    install: async (map) => { await installRoadsFlooded(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeRoadsFloodedPopup();
+      setLayersVisible(map, [ROADS_FLOODED_HALO_LAYER, ROADS_FLOODED_LAYER], false);
+    },
+    legend: [
+      { color: "#dc2626", label: "severe · ≥30 cm depth" },
+      { color: "#f97316", label: "moderate · 15–30 cm" },
+      { color: "#facc15", label: "shallow · <15 cm" },
+      { color: "#7d8a9a", label: "clearance not recorded" },
+      { color: "#1a1c14", label: "dimmed · reported cleared" },
+    ],
+  },
+  {
+    id: "emergency-points",
+    name: "Emergency points",
+    description: "FloodDash · news-anchored · news headlines in popup",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [EMERGENCY_HALO_LAYER, EMERGENCY_LAYER],
+    install: async (map) => { await installEmergency(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeEmergencyPopup();
+      setLayersVisible(map, [EMERGENCY_HALO_LAYER, EMERGENCY_LAYER], false);
+    },
+    legend: [
+      { color: "#dc2626", label: "high (news + sensor) · confirmed" },
+      { color: "#f97316", label: "watch (sensor only or single mention)" },
+      { color: "#facc15", label: "reported · needs confirmation" },
     ],
   },
   {
@@ -3832,6 +3920,409 @@ async function installIncidents(map) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Drainage infrastructure surfaces — three sibling layers that share
+// the same install pattern (fetch /api/water/bkk/<x> → addSource → addLayer
+// → wire popup). Each popup exposes the upstream metric in plain Thai +
+// English so the atlas flood edition reads as the city's own briefing,
+// not a foreigner's chart.
+// ─────────────────────────────────────────────────────────────────
+
+function closeCanalGatePopup() {
+  if (state.canalGatePopup) {
+    try { state.canalGatePopup.remove(); } catch {}
+    state.canalGatePopup = null;
+  }
+}
+
+function openCanalGatePopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeCanalGatePopup();
+  const sevColor = p.severity === "critical" ? "#dc2626" : p.severity === "warning" ? "#f97316" : "#facc15";
+  const levelMsl = p.level_msl != null ? `${Number(p.level_msl).toFixed(2)} m MSL` : "—";
+  const criticalMsl = p.critical_msl != null ? `${Number(p.critical_msl).toFixed(2)} m MSL` : "—";
+  const yesterdayMax = p.yesterday_max_msl != null ? `${Number(p.yesterday_max_msl).toFixed(2)} m MSL` : "—";
+  const ratio = p.ratio != null ? `${Number(p.ratio).toFixed(2)}× critical` : "—";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker" style="color:${sevColor}">BMA DDS BULLETIN · CANAL GATE</p>
+      <strong class="atlas-cctv-title" lang="th">${escapeHtml(p.name || "")}</strong>
+      <p class="atlas-cctv-status">now <strong>${levelMsl}</strong> · critical ${criticalMsl}</p>
+      <p class="atlas-cctv-status">yesterday max ${yesterdayMax} · ${ratio}</p>
+      <p class="atlas-cctv-status" lang="th">${escapeHtml(p.status_th || p.severity || "")}</p>
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.side || "")}</span>
+        <span>${escapeHtml(p.observed_at || "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.canalGatePopup = popup;
+}
+
+function wireCanalGateInteractions(map) {
+  if (map.__bkkxCanalGateWired) return;
+  map.__bkkxCanalGateWired = true;
+  map.on("click", CANAL_GATE_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openCanalGatePopup(map, feature);
+  });
+  map.on("mouseenter", CANAL_GATE_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", CANAL_GATE_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installCanalGates(map) {
+  if (map.getLayer(CANAL_GATE_LAYER)) {
+    setLayersVisible(map, [CANAL_GATE_HALO_LAYER, CANAL_GATE_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(CANAL_GATES_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("canal-gates", "unavailable · DDS bulletin empty — not an all-clear");
+    return;
+  }
+  if (!map.getSource(CANAL_GATE_SOURCE)) {
+    try {
+      map.addSource(CANAL_GATE_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK canal-gates source failed:", error);
+      setLayerStatus("canal-gates", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(CANAL_GATE_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    map.addLayer({
+      id: CANAL_GATE_HALO_LAYER,
+      type: "circle",
+      source: CANAL_GATE_SOURCE,
+      minzoom: 9,
+      filter: ["==", ["get", "severity"], "critical"],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 12, 13, 20, 16, 26],
+        "circle-color": "#dc2626",
+        "circle-opacity": 0.28,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: CANAL_GATE_LAYER,
+      type: "circle",
+      source: CANAL_GATE_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6, 16, 9],
+        "circle-color": [
+          "match", ["get", "severity"],
+          "critical", "#dc2626",
+          "warning", "#f97316",
+          "normal", "#facc15",
+          "#facc15",
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.2,
+        "circle-opacity": 0.95,
+      },
+    });
+    wireCanalGateInteractions(map);
+    const counts = geojson.counts ?? {};
+    setLayerStatus(
+      "canal-gates",
+      `BMA DDS bulletin · ${counts.total ?? geojson.features.length} stations (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · normal ${counts.normal ?? 0})`,
+    );
+  } catch (error) {
+    console.warn("BKK canal-gates layer failed:", error);
+    setLayerStatus("canal-gates", "unavailable · layer failed");
+  }
+}
+
+function closeRoadsFloodedPopup() {
+  if (state.roadsFloodedPopup) {
+    try { state.roadsFloodedPopup.remove(); } catch {}
+    state.roadsFloodedPopup = null;
+  }
+}
+
+function openRoadsFloodedPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeRoadsFloodedPopup();
+  const sevColor = p.severity === "severe" ? "#dc2626"
+    : p.severity === "moderate" ? "#f97316"
+    : p.severity === "shallow" ? "#facc15"
+    : p.severity === "cleared" ? "#1a1c14"
+    : "#7d8a9a";
+  const depth = p.depth_cm != null ? `${p.depth_cm} cm` : "—";
+  const length = p.length_m != null ? `${p.length_m} m` : "—";
+  const lanes = p.lanes || "—";
+  const clearedAt = p.cleared_at ? `cleared ${escapeHtml(p.cleared_at)}` : "";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker" style="color:${sevColor}">BMA DDS · ROAD REPORT</p>
+      <strong class="atlas-cctv-title" lang="th">${escapeHtml(p.name || "")}</strong>
+      <p class="atlas-cctv-status" lang="th">${escapeHtml(p.district || "")} · ${escapeHtml(p.location || "")}</p>
+      <p class="atlas-cctv-status">depth <strong>${depth}</strong> · length ${length} · ${escapeHtml(lanes)}</p>
+      <p class="atlas-cctv-status">status: <strong>${escapeHtml(p.status || p.severity || "—")}</strong></p>
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.flooded_at || "")}</span>
+        <span>${clearedAt}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.roadsFloodedPopup = popup;
+}
+
+function wireRoadsFloodedInteractions(map) {
+  if (map.__bkkxRoadsFloodedWired) return;
+  map.__bkkxRoadsFloodedWired = true;
+  map.on("click", ROADS_FLOODED_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openRoadsFloodedPopup(map, feature);
+  });
+  map.on("mouseenter", ROADS_FLOODED_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", ROADS_FLOODED_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installRoadsFlooded(map) {
+  if (map.getLayer(ROADS_FLOODED_LAYER)) {
+    setLayersVisible(map, [ROADS_FLOODED_HALO_LAYER, ROADS_FLOODED_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(ROADS_FLOODED_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("roads-flooded", "unavailable · DDS road feed empty — not an all-clear");
+    return;
+  }
+  if (!map.getSource(ROADS_FLOODED_SOURCE)) {
+    try {
+      map.addSource(ROADS_FLOODED_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK roads-flooded source failed:", error);
+      setLayerStatus("roads-flooded", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(ROADS_FLOODED_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    // Halo: only the severe band (depth ≥ 30 cm) gets a halo so the eye
+    // goes where the water actually blocks traffic.
+    map.addLayer({
+      id: ROADS_FLOODED_HALO_LAYER,
+      type: "circle",
+      source: ROADS_FLOODED_SOURCE,
+      minzoom: 10,
+      filter: ["==", ["get", "severity"], "severe"],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 13, 14, 16, 20],
+        "circle-color": "#dc2626",
+        "circle-opacity": 0.26,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: ROADS_FLOODED_LAYER,
+      type: "circle",
+      source: ROADS_FLOODED_SOURCE,
+      minzoom: 10,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3.5, 13, 5, 16, 8],
+        "circle-color": [
+          "match", ["get", "severity"],
+          "severe", "#dc2626",
+          "moderate", "#f97316",
+          "shallow", "#facc15",
+          "cleared", "#7d8a9a",
+          "#7eb6ff", // unknown
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.1,
+        "circle-opacity": [
+          "match", ["get", "severity"],
+          "cleared", 0.45,
+          0.92,
+        ],
+      },
+    });
+    wireRoadsFloodedInteractions(map);
+    const counts = geojson.counts ?? {};
+    const total = counts.total ?? geojson.features.length;
+    const byStatus = counts.byStatus ?? {};
+    const bySev = counts.bySeverity ?? {};
+    setLayerStatus(
+      "roads-flooded",
+      `BMA DDS · ${total} road reports (severe ${bySev.severe ?? 0} · moderate ${bySev.moderate ?? 0} · shallow ${bySev.shallow ?? 0} · cleared ${byStatus["reported-cleared"] ?? 0})`,
+    );
+  } catch (error) {
+    console.warn("BKK roads-flooded layer failed:", error);
+    setLayerStatus("roads-flooded", "unavailable · layer failed");
+  }
+}
+
+function closeEmergencyPopup() {
+  if (state.emergencyPopup) {
+    try { state.emergencyPopup.remove(); } catch {}
+    state.emergencyPopup = null;
+  }
+}
+
+function openEmergencyPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeEmergencyPopup();
+  const sevColor = p.band === "high" ? "#dc2626"
+    : p.band === "watch" ? "#f97316"
+    : "#facc15";
+  const impacts = Array.isArray(p.impacts) ? p.impacts : [];
+  const impactsHtml = impacts.length
+    ? `<p class="atlas-cctv-status">Impacts: ${impacts.map((i) => `<span lang="th">${escapeHtml(i.th || "")}</span>${i.en ? ` (${escapeHtml(i.en)})` : ""}`).join(" · ")}</p>`
+    : "";
+  const news = Array.isArray(p.news) ? p.news : [];
+  const newsHtml = news.length
+    ? `<ul class="atlas-emergency-news">${news.map((n) => `<li><a href="${escapeHtml(n.link || "#")}" target="_blank" rel="noreferrer">${escapeHtml(n.title || "")}</a></li>`).join("")}</ul>`
+    : `<p class="atlas-cctv-status">No public news yet for this point.</p>`;
+  const tierLabel = p.tier === "confirmed" ? "confirmed" : p.tier === "sensor" ? "sensor only" : "reported";
+  const html = `
+    <div class="atlas-cctv-card atlas-emergency-card">
+      <p class="atlas-cctv-kicker" style="color:${sevColor}">FLOODDASH · EMERGENCY · ${escapeHtml(String(tierLabel).toUpperCase())}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name || "Emergency")}</strong>
+      <p class="atlas-cctv-status">${escapeHtml(p.province || "")}${p.depth_cm != null ? ` · depth ${p.depth_cm} cm` : ""} · score ${escapeHtml(String(p.score ?? "—"))} · ${escapeHtml(String(p.news_count ?? 0))} news</p>
+      ${impactsHtml}
+      <p class="atlas-eyebrow atlas-eyebrow-sub">News headlines</p>
+      ${newsHtml}
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.latest_at || "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "360px",
+    className: "atlas-cctv-popup atlas-emergency-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.emergencyPopup = popup;
+}
+
+function wireEmergencyInteractions(map) {
+  if (map.__bkkxEmergencyWired) return;
+  map.__bkkxEmergencyWired = true;
+  map.on("click", EMERGENCY_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openEmergencyPopup(map, feature);
+  });
+  map.on("mouseenter", EMERGENCY_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", EMERGENCY_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installEmergency(map) {
+  if (map.getLayer(EMERGENCY_LAYER)) {
+    setLayersVisible(map, [EMERGENCY_HALO_LAYER, EMERGENCY_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(EMERGENCY_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("emergency-points", "unavailable · no FloodDash emergency points — not an all-clear");
+    return;
+  }
+  if (!map.getSource(EMERGENCY_SOURCE)) {
+    try {
+      map.addSource(EMERGENCY_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK emergency-points source failed:", error);
+      setLayerStatus("emergency-points", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(EMERGENCY_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    // Halo: confirmed + high band only — those are the points a person
+    // on the ground must read.
+    map.addLayer({
+      id: EMERGENCY_HALO_LAYER,
+      type: "circle",
+      source: EMERGENCY_SOURCE,
+      minzoom: 8,
+      filter: ["all", ["==", ["get", "band"], "high"]],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 14, 12, 22, 15, 32],
+        "circle-color": "#dc2626",
+        "circle-opacity": 0.30,
+        "circle-stroke-width": 0,
+      },
+    });
+    map.addLayer({
+      id: EMERGENCY_LAYER,
+      type: "circle",
+      source: EMERGENCY_SOURCE,
+      minzoom: 8,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 5, 12, 8, 15, 12],
+        "circle-color": [
+          "match", ["get", "band"],
+          "high", "#dc2626",
+          "watch", "#f97316",
+          "#facc15", // reported or unknown
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.4,
+        "circle-opacity": ["match", ["get", "tier"], "reported", 0.78, 0.95],
+      },
+    });
+    wireEmergencyInteractions(map);
+    const counts = geojson.counts ?? {};
+    const total = counts.total ?? geojson.features.length;
+    setLayerStatus(
+      "emergency-points",
+      `FloodDash · ${total} emergency points (BKK + 30 km halo · confirmed + reported)`,
+    );
+  } catch (error) {
+    console.warn("BKK emergency-points layer failed:", error);
+    setLayerStatus("emergency-points", "unavailable · layer failed");
+  }
+}
+
 async function installFloodSensors(map) {
   if (map.getLayer(FLOOD_SENSOR_LAYER)) {
     setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], true);
@@ -5042,9 +5533,11 @@ function wireStackPresets(map) {
       rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
       // Flood watch: satellite + the living waterway network + judged gauges +
-      // the incident heat map (city-events + news + BMA DDS + flood-sensors).
-      // The schematic envelope stays off — it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-incidents": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      // the incident heat map (city-events + news + BMA DDS + flood-sensors) +
+      // the drainage infrastructure surfaces (canal gates, flooded roads,
+      // FloodDash emergency points). The schematic envelope stays off —
+      // it is not today's water.
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-incidents": true, "canal-gates": true, "roads-flooded": true, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
@@ -5417,6 +5910,62 @@ function renderWaterPanel(flood) {
         <span class="atlas-water-road-n">${g.levelMsl != null ? `${g.levelMsl.toFixed(2)} m` : "—"}${g.marginM != null ? ` · ${g.marginM >= 0 ? `${g.marginM.toFixed(2)} m under` : `${Math.abs(g.marginM).toFixed(2)} m over`} critical` : ""} · <span lang="th">${escapeHtml(g.statusTh)}</span></span>
       </li>`).join("");
   }
+
+  // Emergency points — fetched separately because they live on the
+  // FloodDash emergency feed, not the relay. Surface the headline so a
+  // person reading the panel can verify what the system is reacting to.
+  renderEmergencyPanel();
+}
+
+async function renderEmergencyPanel() {
+  const listEl = document.getElementById("atlas-water-emergency");
+  const headEl = document.getElementById("atlas-water-emergency-head");
+  if (!listEl) return;
+  let payload = null;
+  try {
+    const res = await fetch(EMERGENCY_URL, { cache: "no-store" });
+    if (res.ok) payload = await res.json();
+  } catch { /* rendered as unavailable below */ }
+  if (!payload || !Array.isArray(payload.features) || payload.features.length === 0) {
+    if (headEl) headEl.textContent = `Emergency points · FloodDash · unavailable`;
+    listEl.innerHTML = `<li class="atlas-water-empty">No FloodDash emergency points for BKK + 30 km halo right now.</li>`;
+    return;
+  }
+  // Pin the BKK-only entries to the top; halo entries below. Each row
+  // shows the headline that put the point on the map, so a reader can
+  // audit the source.
+  const bkkFeatures = payload.features.filter((f) => (f.properties?.province || "").toLowerCase().includes("bangkok"));
+  const haloFeatures = payload.features.filter((f) => !bkkFeatures.includes(f));
+  const ordered = [...bkkFeatures, ...haloFeatures];
+  if (headEl) {
+    headEl.textContent = `Emergency points · FloodDash · ${payload.counts?.total ?? payload.features.length} (BKK ${bkkFeatures.length} · 30 km halo ${haloFeatures.length})${payload.stale ? " · stale" : ""}`;
+  }
+  listEl.innerHTML = ordered.map((f) => {
+    const p = f.properties || {};
+    const tier = p.tier === "confirmed" ? "confirmed" : p.tier === "sensor" ? "sensor" : "reported";
+    const band = p.band === "high" ? "high" : p.band === "watch" ? "watch" : "low";
+    const impacts = Array.isArray(p.impacts) ? p.impacts : [];
+    const impactsLabel = impacts
+      .slice(0, 2)
+      .map((i) => `<span lang="th">${escapeHtml(i.th || "")}</span>`)
+      .join(" · ");
+    const firstNews = Array.isArray(p.news) && p.news.length > 0 ? p.news[0] : null;
+    const newsTitle = firstNews?.title || "";
+    const newsLink = firstNews?.link || "";
+    const newsCount = Number(p.news_count ?? (Array.isArray(p.news) ? p.news.length : 0));
+    return `
+      <li class="atlas-water-emergency" data-band="${escapeHtml(band)}" data-tier="${escapeHtml(tier)}">
+        <button type="button" class="atlas-water-row" data-lng="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}" style="--band:${band === "high" ? "#dc2626" : band === "watch" ? "#f97316" : "#facc15"}">
+          <span class="atlas-gauge-swatch" aria-hidden="true"></span>
+          <span class="atlas-water-row-main">
+            <strong>${escapeHtml(p.name || "Emergency")}</strong>
+            <small>${escapeHtml(p.province || "")}${p.depth_cm != null ? ` · ${p.depth_cm} cm` : ""} · ${tier} · ${newsCount} news</small>
+            ${impactsLabel ? `<small>${impactsLabel}</small>` : ""}
+            ${newsTitle ? `<small class="atlas-water-emergency-news">${newsLink ? `<a href="${escapeHtml(newsLink)}" target="_blank" rel="noreferrer">${escapeHtml(newsTitle)}</a>` : escapeHtml(newsTitle)}</small>` : ""}
+          </span>
+        </button>
+      </li>`;
+  }).join("");
 }
 
 // Same order as src/flooddash.ts BAND_RANK.

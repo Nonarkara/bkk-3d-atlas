@@ -1723,6 +1723,50 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-water-duty { margin-top: 12px; color: var(--paper); }
 .atlas-water-duty a { color: var(--signal); }
 
+/* Emergency rows — the FloodDash emergency feed is news-anchored, so each
+   row carries a headline link as its proof. The swatch mirrors the band
+   (high/watch/low) so the panel reads the same as the map layer. */
+.atlas-water-emergency {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0;
+}
+.atlas-water-emergency .atlas-water-row-main small { display: block; margin-top: 2px; }
+.atlas-water-emergency .atlas-water-row-main small.atlas-water-emergency-news {
+  color: var(--paper);
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.atlas-water-emergency .atlas-water-row-main small.atlas-water-emergency-news a {
+  color: var(--paper);
+  border-bottom: 1px solid rgba(201,255,56,0.45);
+}
+.atlas-water-emergency .atlas-water-row-main small.atlas-water-emergency-news a:hover { color: var(--signal); }
+.atlas-water-emergency[data-band="high"] .atlas-water-row-main strong { color: #ff8a8a; }
+.atlas-water-emergency[data-band="watch"] .atlas-water-row-main strong { color: #E8A317; }
+.atlas-water-emergency[data-tier="reported"] .atlas-water-row { opacity: 0.85; }
+
+/* Emergency popup — bigger than the CCTV card so a news headline can read.
+   Uses the shared atlas-cctv-card markup so the type, kicker, status and
+   actions stay consistent; .atlas-emergency-card only adds the news list. */
+.atlas-emergency-card .atlas-emergency-news {
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.atlas-emergency-card .atlas-emergency-news li { font-size: 11.5px; line-height: 1.4; }
+.atlas-emergency-card .atlas-emergency-news a {
+  color: var(--paper);
+  border-bottom: 1px solid rgba(255,255,255,0.4);
+}
+.atlas-emergency-card .atlas-emergency-news a:hover { color: #ff8a8a; }
+.atlas-emergency-popup .atlas-cctv-card { width: min(360px, 84vw); }
+
 /* Nested collapsible sub-sections inside the Water now panel.
    These list read-only DDS bullets (no clickable rows) so the user
    can fold them out of the way. The summary only carries the heading

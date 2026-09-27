@@ -274,6 +274,102 @@ async function checkFloodBkk() {
   logOk("GET /api/flood/bkk", ms, `verdict=${body.verdict.level} (${body.verdict.score}/100) gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
 }
 
+// BMA Drainage bulletin — the city's own gate telemetry, anchored to
+// the khlongs GeoJSON the Worker loads. The contract is:
+//   - 200, FeatureCollection
+//   - features (when present) have coordinates inside the Bangkok bbox
+//   - every feature carries severity ∈ {critical, warning, normal}
+// The endpoint returns 0 features when the bulletin is empty or stale;
+// that's not a fail, it's a signal — the canary is "endpoint reachable".
+async function checkBkkCanalGates() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/canal-gates");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/canal-gates", `status=${status}`);
+  assert(body.tool === "bkk-canal-gates", `tool=${body.tool}`);
+  assert(Array.isArray(body.features), "features not an array");
+  const BKK = { minLng: 100.2, maxLng: 101.1, minLat: 13.2, maxLat: 14.4 };
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(["critical", "warning", "normal"].includes(p.severity), `unknown severity '${p.severity}' on ${p.name}`);
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /canal-gates feature with non-finite coords", JSON.stringify(p));
+      return;
+    }
+    if (lng < BKK.minLng || lng > BKK.maxLng || lat < BKK.minLat || lat > BKK.maxLat) {
+      logFail("  /canal-gates feature outside Bangkok bbox", `(${lng},${lat}) ${p.name}`);
+      return;
+    }
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/canal-gates", ms, `bulletin=${body.bulletin_date ?? "?"} · ${c.total ?? body.features.length} stations (critical ${c.critical ?? 0} · warning ${c.warning ?? 0} · normal ${c.normal ?? 0})`);
+}
+
+// BMA DDS dated road reports — district-anchored because DDS publishes no
+// per-point coordinates. The contract:
+//   - 200, FeatureCollection
+//   - every feature has a name (road), district (Thai), status, severity
+//   - severity ∈ {severe, moderate, shallow, cleared, unknown}
+//   - coordinates land inside the Bangkok bbox
+async function checkBkkRoadsFlooded() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/roads-flooded");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/roads-flooded", `status=${status}`);
+  assert(body.tool === "bkk-roads-flooded", `tool=${body.tool}`);
+  assert(Array.isArray(body.features), "features not an array");
+  const BKK = { minLng: 100.2, maxLng: 101.1, minLat: 13.2, maxLat: 14.4 };
+  const allowed = new Set(["severe", "moderate", "shallow", "cleared", "unknown"]);
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(typeof p.name === "string" && p.name.length > 0, `missing name on ${JSON.stringify(p)}`);
+    assert(typeof p.district === "string" && p.district.length > 0, `missing district on ${p.name}`);
+    assert(allowed.has(p.severity), `unknown severity '${p.severity}' on ${p.name}`);
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /roads-flooded feature with non-finite coords", JSON.stringify(p));
+      return;
+    }
+    if (lng < BKK.minLng || lng > BKK.maxLng || lat < BKK.minLat || lat > BKK.maxLat) {
+      logFail("  /roads-flooded feature outside Bangkok bbox", `(${lng},${lat}) ${p.name}`);
+      return;
+    }
+  }
+  logOk("GET /api/water/bkk/roads-flooded", ms, `days=${(body.days ?? []).join(",")} · ${body.features.length} reports (severe ${body.counts?.bySeverity?.severe ?? 0} · moderate ${body.counts?.bySeverity?.moderate ?? 0} · cleared ${body.counts?.byStatus?.["reported-cleared"] ?? 0})`);
+}
+
+// FloodDash emergency points — the highest-stakes layer in the atlas
+// flood edition. Every point carries a tier (confirmed/sensor/reported)
+// and band (high/watch). News headlines (up to 3) anchor each pin back
+// to public reporting. The contract:
+//   - 200, FeatureCollection
+//   - coordinates inside the BKK + 30 km halo bbox
+//   - if news[] is non-empty, each entry has title + link
+async function checkBkkEmergencyPoints() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/emergency-points");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/emergency-points", `status=${status}`);
+  assert(body.tool === "bkk-emergency-points", `tool=${body.tool}`);
+  assert(Array.isArray(body.features), "features not an array");
+  const HALO = { minLng: 100.05, maxLng: 101.10, minLat: 13.25, maxLat: 14.35 };
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(["confirmed", "sensor", "reported"].includes(p.tier), `unknown tier '${p.tier}' on ${p.name}`);
+    assert(["high", "watch", "low"].includes(p.band), `unknown band '${p.band}' on ${p.name}`);
+    assert(Array.isArray(p.news) && p.news.length <= 3, `news[] length=${p.news?.length} on ${p.name}`);
+    for (const n of p.news ?? []) {
+      assert(typeof n.title === "string" && n.title.length > 0, `empty news title on ${p.name}`);
+      assert(typeof n.link === "string" && /^https?:\/\//.test(n.link), `invalid news link on ${p.name}: ${n.link}`);
+    }
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /emergency-points feature with non-finite coords", JSON.stringify(p));
+      return;
+    }
+    if (lng < HALO.minLng || lng > HALO.maxLng || lat < HALO.minLat || lat > HALO.maxLat) {
+      logFail("  /emergency-points feature outside BKK halo bbox", `(${lng},${lat}) ${p.name}`);
+      return;
+    }
+  }
+  logOk("GET /api/water/bkk/emergency-points", ms, `windowHours=${body.window_hours ?? "?"} · ${body.features.length} points (BKK + 30 km halo · confirmed + reported)`);
+}
+
 async function checkCivicPois() {
   const { ok, status, body, ms } = await fetchJson("/api/civic-pois");
   if (!ok || status !== 200) return logFail("GET /api/civic-pois", `status=${status}`);
@@ -373,6 +469,9 @@ async function main() {
   await checkCctv();
   await checkFloodSensors();
   await checkFloodBkk();
+  await checkBkkCanalGates();
+  await checkBkkRoadsFlooded();
+  await checkBkkEmergencyPoints();
   await checkCivicPois();
   await checkCityEvents();
   await checkNewsEvents();
