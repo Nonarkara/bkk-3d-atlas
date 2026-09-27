@@ -30,6 +30,8 @@ import {
   type RefreshDeps,
 } from "./flooddash";
 
+import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } from "./floodroads";
+
 export interface Env {
   ASSETS: Fetcher;
   BKK_TILES: R2Bucket;
@@ -810,11 +812,11 @@ async function proxyBkkIncidents(request: Request, env: Env, ctx: ExecutionConte
             kind: icon,
             weight,
             title: p.titleEn ?? p.titleTh ?? null,
-            description: p.descriptionEn ?? p.descriptionTh ?? null,
+            // Reporters' names ("Report by …") identify residents — cut, never forwarded.
+            description: String(p.descriptionEn ?? p.descriptionTh ?? "").split(/Report by|รายงานโดย/i)[0].trim() || null,
             age_min: p.ageMinutes ?? null,
             district_id: p.districtId ?? null,
             district_name_en: p.districtNameEn ?? null,
-            reporter: p.contributor ?? null,
             observed_at: p.startsAt ?? null,
           },
         });
@@ -1123,6 +1125,8 @@ async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response>
   }
 
   return jsonResponse({
+    // MapLibre rejects a source without it ("not a valid GeoJSON object").
+    type: "FeatureCollection",
     tool: "bkk-canal-gates",
     version: 1,
     fetchedAt: data.bulletin?.fetchedAt ?? null,
@@ -1204,6 +1208,7 @@ async function proxyBkkRoadsFlooded(request: Request, env: Env): Promise<Respons
   }
 
   return jsonResponse({
+    type: "FeatureCollection",
     tool: "bkk-roads-flooded",
     version: 1,
     fetchedAt: data.roads?.fetchedAt ?? null,
@@ -1271,6 +1276,7 @@ async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Resp
     });
   }
   return jsonResponse({
+    type: "FeatureCollection",
     tool: "bkk-emergency-points",
     version: 1,
     fetchedAt: data.emergency?.generated_at ?? null,
@@ -2172,6 +2178,26 @@ async function floodDeps(env: Env, request: Request): Promise<RefreshDeps> {
   return { districts: await getDistrictsGeoJson(env, request), khlongs: khlongsCache } as RefreshDeps;
 }
 
+/** Inputs for the flood-roads engine (src/floodroads.ts). */
+async function floodRoadDeps(env: Env, request: Request, ctx?: ExecutionContext): Promise<RoadDeps> {
+  const flood = await loadFloodState(env, () => floodDeps(env, request)).catch(() => null);
+  return {
+    flood,
+    districts: (await getDistrictsGeoJson(env, request)) as RoadDeps["districts"],
+    news: async () => {
+      const res = await listNewsEvents(request, env, ctx);
+      const data = (await res.json()) as { features?: { geometry?: { coordinates?: number[] }; properties?: Record<string, unknown> }[] };
+      return (data.features ?? []).flatMap((f) => {
+        const [lng, lat] = f.geometry?.coordinates ?? [];
+        const t = Date.parse(String(f.properties?.latestAt ?? ""));
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) return [];
+        const mentions = Number(f.properties?.mentions ?? 1);
+        return [{ lng, lat, t: Number.isFinite(t) ? t : Date.now(), weight: 0.3 * Math.min(mentions / 3, 1) }];
+      });
+    },
+  };
+}
+
 async function getDistrictsGeoJson(env: Env, request: Request) {
   if (!districtsCache) {
     districtsCache = await loadJsonAsset<AtlasFeatureCollection>(env, request, ATLAS_DISTRICTS_ASSET);
@@ -2828,6 +2854,12 @@ export default {
     if (url.pathname === "/api/flood-sensors") {
       return floodSensorsResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
     }
+    if (url.pathname === "/api/flood/roads") {
+      return floodRoadsResponse(await loadFloodRoads(env, () => floodRoadDeps(env, request, ctx)).catch((error) => {
+        console.warn("flood-roads load failed:", String(error));
+        return null;
+      }));
+    }
     if (url.pathname === "/api/flood/bkk") {
       return floodBkkResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
     }
@@ -2922,6 +2954,12 @@ export default {
           console.log("flooddash relay", state?.fetchedAt ?? "no state", JSON.stringify(state?.parts ?? null));
         } catch (error) {
           console.warn("flooddash relay failed:", String(error));
+        }
+        try {
+          const req = new Request("https://atlas.nonarkara.org/");
+          await refreshFloodRoads(env, await floodRoadDeps(env, req, ctx));
+        } catch (error) {
+          console.warn("flood-roads refresh failed:", String(error));
         }
       })(),
     );

@@ -151,6 +151,9 @@
             <li><strong>Moving dashes</strong> — the normal drainage direction. Tidal reaches and pumped canals can run the other way.</li>
             <li><strong>Colour</strong> — what the nearest gauge says, carried 1.5 km along the same waterway (straight-line). Blue means no gauge concern there, or no gauge at all.</li>
           </ul>
+          <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-streets-head">Streets with flood reports</p>
+          <ul class="atlas-water-list" id="atlas-water-streets"></ul>
+          <p class="atlas-water-note">Residents' reports (Traffy Fondue) and drivers' reports (iTIC) placed on the nearest road, lit about 100 m each way. Depth is the reporter's word, not a measurement. Unmarked streets are unknown, not dry. Method from FloodDash.</p>
           <p class="atlas-eyebrow atlas-eyebrow-sub">Gauges at prepare or worse</p>
           <ul class="atlas-water-list" id="atlas-water-gauges"></ul>
           <details class="atlas-water-subdetails">
@@ -401,6 +404,17 @@
               <span class="atlas-layer-state" id="toggle-flood-sensors-state" aria-live="polite">on</span>
             </label>
             <div class="atlas-legend" id="legend-flood-sensors" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-flood-roads" checked />
+              <span class="atlas-layer-name">
+                <strong>Flooded roads now</strong>
+                <small id="toggle-flood-roads-detail">Residents · iTIC · BMA DDS · gauges — on the street</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-flood-roads-state" aria-live="polite">on</span>
+            </label>
+            <div class="atlas-legend" id="legend-flood-roads" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -1025,6 +1039,19 @@
                 wins; judged stretches swell. Silent and untrusted gauges colour
                 nothing. Blue means no gauge concern — or no gauge at all.
               </li>
+              <li>
+                <strong>Flooded roads: every signal, on its street.</strong>
+                Residents' Traffy Fondue tickets, drivers' iTIC reports and BMA
+                DDS's flooded-road list are placed on the OpenStreetMap road
+                network (267,856 roads). A report snaps to the nearest road within
+                90 m (60 m for iTIC) and lights about 100 m of it each way; reports
+                on one road merge into a stretch. DDS gives only a road name and a
+                khet, so the named road inside that khet is lit and marked as such.
+                Gauges and geolocated news add to the heat, never to a road. Depth
+                is the reporter's own word — ankle, knee, waist — ported from
+                FloodDash's <code>streetReports.js</code>; no ticket text, name or
+                photo is kept, and heat is summed onto a ~220 m grid.
+              </li>
             </ol>
             <p class="atlas-research-live" id="atlas-research-live">Waiting for the first FloodDash reading…</p>
           </section>
@@ -1084,6 +1111,12 @@
             <p class="atlas-eyebrow atlas-eyebrow-sub">Credits</p>
             <h3>Where the water comes from</h3>
             <p>
+              <strong>Flooded roads.</strong> Method stolen from FloodDash:
+              <code>streetReports.js</code> (Traffy depth words) and
+              <code>streetFlood.js</code> (residents → DDS → gauge → risk spot, in
+              that order). Residents' reports: Traffy Fondue public API (NECTEC ×
+              BMA). Drivers' reports: iTIC / Longdo. Road network: OpenStreetMap
+              via Overpass, ODbL.
               <strong>Judgement.</strong> FloodDash (flood.nonarkara.org), from
               HII/ThaiWater, RID and MRC telemetry. <strong>Gates and road
               reports.</strong> BMA Drainage and Sewerage Department (DDS),

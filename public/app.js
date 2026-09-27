@@ -631,6 +631,34 @@ const INCIDENT_DOT_LAYER = "bkkx-bkk-incident-dots";
 const INCIDENTS_URL = "/api/water/bkk/incidents";
 const INCIDENT_HEAT_MAX_ZOOM = 14;  // beyond this, switch to dots
 
+// Flooded roads now — /api/flood/roads (src/floodroads.ts). Every public
+// flood signal put on the street it describes: residents (Traffy Fondue),
+// drivers (iTIC), officials (BMA DDS, matched by road name inside the khet)
+// and FloodDash gauges. Method stolen from FloodDash's streetReports.js /
+// streetFlood.js. A lit stretch = a report within ~100 m on that road.
+const FLOOD_ROADS_URL = "/api/flood/roads";
+const FLOOD_ROADS_SOURCE = "bkkx-flood-roads";
+const FLOOD_HEAT_SOURCE = "bkkx-flood-roads-heat";
+const FLOOD_HEAT_LAYER = "bkkx-flood-roads-heat";
+const FLOOD_RIPPLE_LAYER = "bkkx-flood-roads-ripple";
+const FLOOD_ROAD_CLOSED_LAYER = "bkkx-flood-roads-closed";
+const FLOOD_ROAD_LAYER = "bkkx-flood-roads-water";
+const FLOOD_ROAD_FLOW_LAYER = "bkkx-flood-roads-flow";
+const FLOOD_ROAD_LAYERS = [FLOOD_HEAT_LAYER, FLOOD_RIPPLE_LAYER, FLOOD_ROAD_CLOSED_LAYER, FLOOD_ROAD_LAYER, FLOOD_ROAD_FLOW_LAYER];
+// Reported depth (resident's body-reference word, or cm) → water tone.
+// Deeper reads darker and more violet; unknown depth reads as plain water.
+const FLOOD_DEPTH_COLOR = [
+  "match", ["get", "depth"],
+  1, "#8fe3ff", 2, "#8fe3ff",
+  3, "#45bdff",
+  4, "#1f86ff",
+  5, "#3a55ff",
+  6, "#6a3dff",
+  7, "#b026c9",
+  "#62c9ff",
+];
+const FLOOD_CLOSED_COLOR = "#C8102E";
+
 // Drainage infrastructure surfaces — pulled from FloodDash relays so the
 // atlas flood edition can answer "where are the bad roads right now"
 // through the city's own drainage network, not just camera colours.
@@ -779,6 +807,11 @@ const LAYER_STACK = [
   LIVE_CAM_LAYER,
   INCIDENT_HEAT_LAYER,
   INCIDENT_DOT_LAYER,
+  FLOOD_HEAT_LAYER,
+  FLOOD_RIPPLE_LAYER,
+  FLOOD_ROAD_CLOSED_LAYER,
+  FLOOD_ROAD_LAYER,
+  FLOOD_ROAD_FLOW_LAYER,
   CANAL_GATE_HALO_LAYER,
   CANAL_GATE_LAYER,
   ROADS_FLOODED_HALO_LAYER,
@@ -1237,6 +1270,29 @@ const LAYERS = [
       { color: "#facc15", label: "moderate (10–35 mm)" },
       { color: "#f97316", label: "heavy (35–90 mm)" },
       { color: "#dc2626", label: "very heavy (≥90 mm)" },
+    ],
+  },
+  {
+    id: "flood-roads",
+    name: "Flooded roads now",
+    description: "Residents · iTIC · BMA DDS · gauges — on the street",
+    defaultOn: true,
+    softUninstall: true,
+    layers: FLOOD_ROAD_LAYERS,
+    install: async (map) => { await installFloodRoads(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeFloodRoadPopup();
+      setLayersVisible(map, FLOOD_ROAD_LAYERS, false);
+    },
+    legend: [
+      { color: "#8fe3ff", label: "road surface · ankle" },
+      { color: "#45bdff", label: "shin" },
+      { color: "#1f86ff", label: "knee" },
+      { color: "#3a55ff", label: "thigh" },
+      { color: "#6a3dff", label: "waist" },
+      { color: "#b026c9", label: "chest" },
+      { color: "#62c9ff", label: "depth not given" },
+      { color: FLOOD_CLOSED_COLOR, label: "red casing = reported closed / impassable" },
     ],
   },
   {
@@ -3842,6 +3898,260 @@ function wireIncidentInteractions(map) {
   map.on("mouseleave", INCIDENT_DOT_LAYER, () => { map.getCanvas().style.cursor = ""; });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Flooded roads now — heat of every signal, the streets that carry reports
+// drawn as moving water, closures cased in red, fresh reports rippling.
+// ─────────────────────────────────────────────────────────────────
+
+function closeFloodRoadPopup() {
+  if (state.floodRoadPopup) {
+    try { state.floodRoadPopup.remove(); } catch {}
+    state.floodRoadPopup = null;
+  }
+}
+
+function floodRoadsAgeText(payload) {
+  const age = minutesSince(payload?.fetchedAt);
+  return age == null ? "age unknown" : `${ageWords(age)} ago`;
+}
+
+function openFloodRoadPopup(map, event) {
+  const f = event.features?.[0];
+  if (!f) return;
+  const p = f.properties || {};
+  const num = (v) => Number(v) || 0;
+  const bits = [];
+  if (num(p.traffy)) bits.push(`${num(p.traffy)} resident report${num(p.traffy) > 1 ? "s" : ""} (Traffy Fondue)`);
+  if (num(p.itic)) bits.push(`${num(p.itic)} road report${num(p.itic) > 1 ? "s" : ""} (iTIC)`);
+  if (num(p.dds)) bits.push(`named in BMA DDS's flooded-road list`);
+  const closed = p.closed === true || p.closed === "true";
+  const depth = p.depthEn && p.depthEn !== "null"
+    ? `Deepest reported: ${p.depthEn}${p.depthTh && p.depthTh !== "null" ? ` · ${p.depthTh}` : ""}`
+    : "Depth not given";
+  const latestAgo = minutesSince(p.latest);
+  const html = `
+    <div class="atlas-cctv-card atlas-gauge-card">
+      <p class="atlas-cctv-kicker">Flooded road · reported</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.road && p.road !== "null" ? p.road : "Unnamed road")}</strong>
+      ${closed ? `<p class="atlas-gauge-band" style="--band:${FLOOD_CLOSED_COLOR}"><span class="atlas-gauge-swatch" aria-hidden="true"></span><span>REPORTED CLOSED / IMPASSABLE</span></p>` : ""}
+      <p class="atlas-gauge-action">${escapeHtml(depth)}</p>
+      <p class="atlas-cctv-status">${escapeHtml(bits.join(" · "))}</p>
+      <p class="atlas-cctv-status">Latest ${latestAgo == null ? "time unknown" : `${ageWords(latestAgo)} ago`}</p>
+      <p class="atlas-cctv-status">${p.placed === "road-name"
+        ? "DDS gives a road name, not a place: the whole named road in this khet is marked."
+        : "Marked ~100 m either side of each report — not a surveyed flood extent."}</p>
+      <p class="atlas-gauge-duty">Depth is the reporter's word, not a measurement · ${escapeHtml(FLOOD_DUTY)}</p>
+    </div>`;
+  closeFloodRoadPopup();
+  state.floodRoadPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px", className: "atlas-cctv-popup", offset: 10 })
+    .setLngLat(event.lngLat)
+    .setHTML(html)
+    .addTo(map);
+}
+
+async function loadFloodRoadsPayload() {
+  const payload = await fetchJson(FLOOD_ROADS_URL);
+  if (payload?.tool === "flood-roads") state.floodRoads = payload;
+  return state.floodRoads;
+}
+
+async function installFloodRoads(map) {
+  const payload = await loadFloodRoadsPayload();
+  if (!payload) {
+    setLayerStatus("flood-roads", "unavailable · no reading yet — not an all-clear");
+    return;
+  }
+  for (const [id, data] of [[FLOOD_ROADS_SOURCE, payload.roads], [FLOOD_HEAT_SOURCE, payload.heat]]) {
+    const src = map.getSource(id);
+    if (src) src.setData(data);
+    else map.addSource(id, { type: "geojson", data });
+  }
+  if (!map.getLayer(FLOOD_HEAT_LAYER)) {
+    map.addLayer({
+      id: FLOOD_HEAT_LAYER,
+      type: "heatmap",
+      source: FLOOD_HEAT_SOURCE,
+      paint: {
+        // Weight grows fast then saturates: one fresh report shows, a street of them glows.
+        "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0, 0.1, 0.3, 0.5, 0.65, 1.5, 1],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 1.4, 14, 2.2],
+        "heatmap-radius": ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22, 13, 44, 16, 100],
+        "heatmap-color": [
+          "interpolate", ["linear"], ["heatmap-density"],
+          0, "rgba(0,0,0,0)",
+          0.1, "rgba(98,201,255,0.3)",
+          0.3, "rgba(56,160,255,0.52)",
+          0.55, "rgba(40,100,255,0.66)",
+          0.8, "rgba(106,61,255,0.76)",
+          1, "rgba(176,38,201,0.86)",
+        ],
+        "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.95, 15, 0.55, 17, 0.3],
+      },
+    });
+  }
+  if (!map.getLayer(FLOOD_RIPPLE_LAYER)) {
+    map.addLayer({
+      id: FLOOD_RIPPLE_LAYER,
+      type: "circle",
+      source: FLOOD_HEAT_SOURCE,
+      filter: ["==", ["get", "fresh"], true],
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-stroke-color": "#bfefff",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-opacity": 0,
+        "circle-pitch-alignment": "map",
+      },
+    });
+  }
+  // Zoom must stay the outermost input, so each variant is built whole.
+  const width = (k = 1, add = 0) => ["interpolate", ["exponential", 1.6], ["zoom"],
+    10, ["+", add, ["*", k, ["+", 2.4, ["*", 3, ["get", "score"]]]]],
+    14, ["+", add, ["*", k, ["+", 5, ["*", 6, ["get", "score"]]]]],
+    17, ["+", add, ["*", k, ["+", 8, ["*", 10, ["get", "score"]]]]]];
+  if (!map.getLayer(FLOOD_ROAD_CLOSED_LAYER)) {
+    map.addLayer({
+      id: FLOOD_ROAD_CLOSED_LAYER,
+      type: "line",
+      source: FLOOD_ROADS_SOURCE,
+      filter: ["==", ["get", "closed"], true],
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": FLOOD_CLOSED_COLOR, "line-width": width(1, 4), "line-opacity": 0.95 },
+    });
+  }
+  if (!map.getLayer(FLOOD_ROAD_LAYER)) {
+    map.addLayer({
+      id: FLOOD_ROAD_LAYER,
+      type: "line",
+      source: FLOOD_ROADS_SOURCE,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": FLOOD_DEPTH_COLOR,
+        "line-width": width(),
+        "line-opacity": ["interpolate", ["linear"], ["get", "score"], 0, 0.45, 0.6, 0.95],
+      },
+    });
+    map.on("click", FLOOD_ROAD_LAYER, (e) => { e.originalEvent?.stopPropagation?.(); openFloodRoadPopup(map, e); });
+    map.on("mouseenter", FLOOD_ROAD_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", FLOOD_ROAD_LAYER, () => { map.getCanvas().style.cursor = ""; });
+  }
+  if (!map.getLayer(FLOOD_ROAD_FLOW_LAYER)) {
+    map.addLayer({
+      id: FLOOD_ROAD_FLOW_LAYER,
+      type: "line",
+      source: FLOOD_ROADS_SOURCE,
+      layout: { "line-join": "round", "line-cap": "butt" },
+      paint: {
+        "line-color": "#e8fbff",
+        "line-width": width(0.45),
+        "line-opacity": 0.8,
+        "line-dasharray": FLOW_DASH_STEPS[0],
+      },
+    });
+  }
+  setLayersVisible(map, FLOOD_ROAD_LAYERS, true);
+  renderFloodStreets(payload);
+  const c = payload.counts;
+  setLayerStatus("flood-roads", `${c.stretches} road stretches · ${c.closed} closed · ${floodRoadsAgeText(payload)}`);
+  startFloodWaterMotion(map);
+}
+
+/** Water that moves: the heat breathes like water sloshing, dashes run along
+ *  flooded streets, fresh reports ripple. Illustrative motion — not a
+ *  measured current. Off for reduced motion and while the tab is hidden. */
+function startFloodWaterMotion(map) {
+  if (state.floodMotion || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  let last = 0;
+  let step = 0;
+  const tick = (now) => {
+    state.floodMotion = requestAnimationFrame(tick);
+    if (document.hidden || now - last < 70 || !map.getLayer(FLOOD_HEAT_LAYER)) return;
+    if (map.getLayoutProperty(FLOOD_HEAT_LAYER, "visibility") === "none") return;
+    last = now;
+    const slosh = Math.sin(now / 1400);
+    const drift = Math.sin(now / 2300 + 1.3);
+    map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-radius",
+      ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22 * (1 + 0.1 * slosh), 13, 44 * (1 + 0.12 * slosh), 16, 100 * (1 + 0.12 * slosh)]);
+    map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-intensity",
+      ["interpolate", ["linear"], ["zoom"], 10, 1.4 * (1 + 0.12 * drift), 14, 2.2 * (1 + 0.12 * drift)]);
+    step = (step + 1) % FLOW_DASH_STEPS.length;
+    map.setPaintProperty(FLOOD_ROAD_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
+    const phase = (now % 2600) / 2600;
+    map.setPaintProperty(FLOOD_RIPPLE_LAYER, "circle-radius", ["interpolate", ["linear"], ["zoom"], 10, 4 + phase * 14, 15, 8 + phase * 40]);
+    map.setPaintProperty(FLOOD_RIPPLE_LAYER, "circle-stroke-opacity", 0.85 * (1 - phase));
+  };
+  state.floodMotion = requestAnimationFrame(tick);
+}
+
+/** Fly to where the reported water is — the middle 80% of lit stretches. */
+function flyToFloodedRoads() {
+  const map = state.map;
+  if (!map) return;
+  const pts = [];
+  for (const f of state.floodRoads?.roads?.features ?? []) {
+    if ((f.properties?.score ?? 0) < 0.25) continue;
+    const c = f.geometry.coordinates;
+    pts.push(c[Math.floor(c.length / 2)]);
+  }
+  if (pts.length < 3) {
+    map.flyTo({ center: [100.6, 13.78], zoom: 11.6, pitch: 45, bearing: -12, essential: true });
+    return;
+  }
+  const q = (arr, t) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(t * (arr.length - 1))))];
+  const lngs = pts.map((p) => p[0]).sort((a, b) => a - b);
+  const lats = pts.map((p) => p[1]).sort((a, b) => a - b);
+  map.fitBounds([[q(lngs, 0.1), q(lats, 0.1)], [q(lngs, 0.9), q(lats, 0.9)]], {
+    padding: 50, pitch: 45, bearing: -12, maxZoom: 14, duration: 1600, essential: true,
+  });
+}
+
+/** "Streets with flood reports": named roads, most reported first. */
+function renderFloodStreets(payload) {
+  const list = document.getElementById("atlas-water-streets");
+  if (!list || !payload) return;
+  const byRoad = new Map();
+  for (const f of payload.roads?.features ?? []) {
+    const p = f.properties;
+    if (!p.road || p.placed === "road-name") continue;
+    const c = f.geometry.coordinates;
+    const e = byRoad.get(p.road) ?? { road: p.road, n: 0, depth: 0, depthEn: null, latest: 0, score: 0, at: c[Math.floor(c.length / 2)] };
+    e.n += p.n;
+    if (p.depth > e.depth) { e.depth = p.depth; e.depthEn = p.depthEn; }
+    e.latest = Math.max(e.latest, Date.parse(p.latest) || 0);
+    // score is already decayed by age, so the sum ranks what is wet now.
+    if (p.score > (e.best ?? 0)) { e.best = p.score; e.at = c[Math.floor(c.length / 2)]; }
+    e.score += p.score;
+    byRoad.set(p.road, e);
+  }
+  const top = [...byRoad.values()].sort((a, b) => b.score - a.score).slice(0, 10);
+  const head = document.getElementById("atlas-water-streets-head");
+  if (head) head.textContent = `Streets with flood reports · ${payload.counts.stretches} stretches · ${floodRoadsAgeText(payload)}`;
+  list.innerHTML = top.length
+    ? top.map((e) => `
+      <li>
+        <button type="button" class="atlas-water-row" data-lng="${e.at[0]}" data-lat="${e.at[1]}" style="--band:#45bdff">
+          <span class="atlas-gauge-swatch" aria-hidden="true"></span>
+          <span class="atlas-water-row-main">
+            <strong>${e.n} report${e.n > 1 ? "s" : ""}${e.depthEn ? ` · to ${escapeHtml(e.depthEn)}` : ""}</strong> ${escapeHtml(e.road)}
+            <small>latest ${ageWords(minutesSince(new Date(e.latest).toISOString()))} ago</small>
+          </span>
+        </button>
+      </li>`).join("")
+    : `<li class="atlas-water-empty">No street reports in the last 24 h — which is not the same as dry streets.</li>`;
+}
+
+async function refreshFloodRoadsLayer() {
+  const map = state.map;
+  if (!map?.getSource(FLOOD_ROADS_SOURCE)) return;
+  const payload = await loadFloodRoadsPayload();
+  if (!payload) return;
+  map.getSource(FLOOD_ROADS_SOURCE).setData(payload.roads);
+  map.getSource(FLOOD_HEAT_SOURCE)?.setData(payload.heat);
+  renderFloodStreets(payload);
+  setLayerStatus("flood-roads", `${payload.counts.stretches} road stretches · ${payload.counts.closed} closed · ${floodRoadsAgeText(payload)}`);
+}
+
 async function installIncidents(map) {
   if (map.getLayer(INCIDENT_HEAT_LAYER)) {
     setLayersVisible(map, [INCIDENT_HEAT_LAYER, INCIDENT_DOT_LAYER], true);
@@ -5482,6 +5792,7 @@ function pointLayersOwningClick(map, point) {
     LIVE_CAM_LAYER,
     CIVIC_POI_LAYER,
     FLOOD_SENSOR_LAYER,
+    FLOOD_ROAD_LAYER,
     WATER_TRANSIT_ROUTE_LAYER,
     WATER_TRANSIT_FERRY_LAYER,
     WATER_TRANSIT_PIER_LAYER,
@@ -5723,7 +6034,7 @@ function wireStackPresets(map) {
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-incidents": true, "canal-gates": true, "roads-flooded": true, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
@@ -6160,6 +6471,11 @@ const FLOOD_RANK = { "no-signal": 0, untrusted: 0, safe: 1, watch: 2, prepare: 3
 function wireWaterPanel() {
   const details = document.getElementById("atlas-water-details");
   details?.addEventListener("toggle", () => { details.dataset.touched = "1"; });
+  document.getElementById("atlas-water-streets")?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-lng]");
+    if (!btn || !state.map) return;
+    state.map.flyTo({ center: [Number(btn.dataset.lng), Number(btn.dataset.lat)], zoom: 16, pitch: 55, essential: true });
+  });
   document.getElementById("atlas-water-gauges")?.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-lng]");
     if (!btn || !state.map) return;
@@ -6177,16 +6493,9 @@ function wireWaterPanel() {
 
 function showTheWater() {
   document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
-  // Plan view of the whole network — the drainage map, read from above.
-  state.map?.flyTo({ center: [100.56, 13.78], zoom: 11.2, pitch: 0, bearing: 0, essential: true });
-  // Make the heat map the headline view — fit to the Bangkok bbox
-  // (≈30 km halo) so the densest spots sit in the centre of frame.
-  state.map?.once("moveend", () => {
-    const halo = { minLng: 100.05, minLat: 13.25, maxLng: 101.10, maxLat: 14.35 };
-    state.map?.fitBounds([[halo.minLng, halo.minLat], [halo.maxLng, halo.maxLat]], {
-      padding: 40, duration: 0,
-    });
-  });
+  // One camera move, to where the water is. (A second, instant fitBounds on
+  // moveend used to throw the view out to Chonburi — the "snap back".)
+  flyToFloodedRoads();
   // Reveal the Water now panel if folded.
   const waterPanel = document.getElementById("atlas-water");
   if (waterPanel?.hidden) waterPanel.hidden = false;
@@ -6211,6 +6520,7 @@ async function init() {
   wireWaterPanel();
   loadFloodRelay();
   setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
+  setInterval(refreshFloodRoadsLayer, 2 * 60_000);
 
   const initialId = parseHashId();
   const initialArea = initialId ? state.areas.find((a) => a.id === initialId) : state.areas[0];
@@ -6241,6 +6551,8 @@ async function init() {
   }
 
   state.map = map;
+  // ?debug exposes the live state for console inspection; nothing else reads it.
+  if (new URLSearchParams(location.search).has("debug")) window.__atlas = state;
 
   // The map container is a CSS-grid `1fr` row whose height depends on the
   // header's `auto` row, which depends on webfont metrics. If MapLibre reads
