@@ -2409,3 +2409,216 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   .atlas-page { grid-template-rows: auto minmax(55dvh, 1fr) auto; }
   .atlas-bkk-live { max-height: calc(45dvh - 64px); overflow-y: auto; overscroll-behavior: contain; }
 }
+
+/* ── Density pass (2026-09-28) ──────────────────────────────────────
+   The strip under the map and the side panel were reading like a
+   brochure: a banner three-quarters empty, a board that scrolled, a
+   panel of two-line cards. Console register: every row carries a
+   reading, one line where one line will do, explanation one tap away
+   (collapsible), never spent as permanent vertical space. */
+
+/* Verdict banner — two thin lines: [level · head · trend | chips | actions]
+   then the reason, clamped to one line with the full text in its title. */
+.atlas-bkk-live { padding: 6px clamp(12px, 1.6vw, 18px) 6px; }
+.atlas-bkk-live-head { margin: 0 0 4px; }
+.atlas-flood-verdict {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border-left-width: 3px;
+}
+.atlas-flood-verdict[data-level="danger"] { background: rgba(200, 16, 46, 0.07); }
+.atlas-flood-verdict[data-level="receding"] { --tone: #45bdff; background: rgba(69, 189, 255, 0.06); }
+.atlas-flood-verdict[data-level="receding"] .atlas-flood-verdict-level { color: #8fd3ff; }
+.atlas-flood-verdict-line { flex-wrap: nowrap; gap: 8px; min-width: 0; white-space: nowrap; }
+.atlas-flood-verdict-level { font-size: 11px; flex: none; }
+.atlas-flood-verdict-head { font-size: 14px; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.atlas-flood-verdict-trend { flex: none; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.atlas-flood-verdict-trend[data-trend="up"] { color: #ff8a8a; }
+.atlas-flood-verdict-trend[data-trend="down"] { color: #8fd3ff; }
+.atlas-flood-verdict-chips { display: flex; flex-wrap: nowrap; gap: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; min-width: 0;
+  mask-image: linear-gradient(90deg, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); }
+.atlas-vchip { flex: none; padding: 0 9px; border-left: 1px solid rgba(255, 255, 255, 0.14); font-size: 11px; line-height: 18px; color: var(--muted); white-space: nowrap; }
+.atlas-vchip:first-child { padding-left: 0; border-left: 0; }
+.atlas-vchip b { font-family: var(--font-mono); font-size: 12px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.atlas-vchip[data-tone="bad"] b { color: #ff8a8a; }
+.atlas-vchip[data-tone="warn"] b { color: #E8A317; }
+.atlas-vchip b.up { color: #ff8a8a; } .atlas-vchip b.down { color: #8fd3ff; }
+.atlas-flood-verdict-reasons { display: flex; gap: 10px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.atlas-flood-verdict-reasons > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.atlas-flood-verdict-reasons .atlas-flood-verdict-reason { font-size: 11.5px; line-height: 1.5; flex: 0 1 auto; }
+.atlas-flood-verdict-reasons .atlas-flood-verdict-meta { flex: 1 1 0; font-size: 10px; line-height: 17px; }
+.atlas-flood-verdict-btn { min-height: 30px; padding: 0 10px; font-size: 11px; white-space: nowrap; }
+.atlas-flood-verdict-actions { gap: 6px; margin: 0; flex-wrap: nowrap; }
+@media (min-width: 900px) {
+  .atlas-flood-verdict {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "line chips actions" "reasons reasons actions";
+    column-gap: 14px;
+    align-items: center;
+  }
+  .atlas-flood-verdict > p, .atlas-flood-verdict > ul { grid-column: auto; }
+  .atlas-flood-verdict-line { grid-area: line; max-width: 46vw; }
+  .atlas-flood-verdict-chips { grid-area: chips; }
+  .atlas-flood-verdict-reasons { grid-area: reasons; }
+  .atlas-flood-verdict-actions { grid-area: actions; grid-column: auto; grid-row: auto; }
+}
+@media (max-width: 899px) { .atlas-flood-verdict-chips { flex-wrap: wrap; row-gap: 2px; mask-image: none; -webkit-mask-image: none; } .atlas-flood-verdict-actions { flex-wrap: wrap; } }
+
+/* Situation board — one row of four instruments, no scrolling. */
+.atlas-sit {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.8fr);
+  grid-template-areas: "areas pulse rain act";
+}
+.atlas-sit-mod { padding: 6px 12px 4px; }
+.atlas-sit-areas { padding-left: 0; }
+.atlas-sit-act { border-top: 0; }
+.atlas-sit-head { flex-wrap: nowrap; margin-bottom: 4px; gap: 8px; position: relative; }
+.atlas-sit-head h3 { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.atlas-sit-meta { margin-left: auto; white-space: nowrap; }
+.atlas-sit-table th { padding-bottom: 3px; font-size: 9.5px; }
+.atlas-sit-table td { height: 22px; font-size: 11.5px; white-space: nowrap; }
+.atlas-sit-table td:first-child { max-width: 0; width: 44%; overflow: hidden; text-overflow: ellipsis; }
+.atlas-sit-big span { font-size: 24px; }
+.atlas-sit-big small { font-size: 10.5px; }
+.atlas-sit-delta { margin: 2px 0 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-sit-bars { height: 44px; }
+.atlas-sit-bars-rain { height: 34px; }
+.atlas-sit-axis { margin-top: 2px; font-size: 9.5px; }
+.atlas-sit-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 4px; }
+.atlas-sit-facts .atlas-bkk-card { padding: 3px 6px 2px 0 !important; border-bottom: 0; min-width: 0; }
+.atlas-sit-facts .atlas-bkk-card-label { font-size: 9px; letter-spacing: 0.06em; margin: 0; }
+.atlas-sit-facts .atlas-bkk-card-value { font-size: 15px; margin: 0; line-height: 1.15; white-space: nowrap; }
+.atlas-sit-facts .atlas-bkk-card-where { font-size: 9px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-sit-calls { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.atlas-sit-calls a { flex-direction: row; align-items: baseline; gap: 8px; min-height: 26px; padding: 3px 0; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); white-space: nowrap; overflow: hidden; }
+.atlas-sit-calls a:hover, .atlas-sit-calls a:focus-visible { border-color: rgba(255, 255, 255, 0.08); color: var(--signal); }
+.atlas-sit-calls strong { font-size: 14px; flex: none; min-width: 42px; }
+.atlas-sit-calls span { font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; }
+.atlas-sit-safety { margin: 4px 0 0; font-size: 10px; line-height: 1.35; color: var(--muted); }
+/* Explanations: one tap away, not a paragraph of permanent height. */
+.atlas-sit-info { flex: none; }
+.atlas-sit-info > summary { list-style: none; display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--muted); font: 700 10px/1 var(--font-mono); cursor: pointer; }
+.atlas-sit-info > summary::-webkit-details-marker { display: none; }
+.atlas-sit-info > summary:hover, .atlas-sit-info[open] > summary { border-color: var(--signal); color: var(--signal); }
+.atlas-sit-info > p { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 20; width: min(300px, 80vw); margin: 0; padding: 8px 10px;
+  background: #0d0e0b; border: 1px solid rgba(255, 255, 255, 0.22); font-size: 11px; line-height: 1.5; color: var(--paper); white-space: normal; }
+.atlas-sit-info a { color: var(--signal); }
+@media (min-width: 1001px) {
+  .atlas-bkk-live { max-height: none; overflow: visible; }
+}
+@media (max-width: 1180px) {
+  .atlas-sit { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "areas pulse" "rain act"; }
+  .atlas-sit-rain, .atlas-sit-act { border-top: 1px solid rgba(255, 255, 255, 0.10); }
+  .atlas-sit-rain { border-left: 0; padding-left: 0; }
+  .atlas-sit-pulse { border-top: 0; padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.10); }
+  .atlas-sit-act { padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.10); }
+}
+@media (max-width: 640px) {
+  .atlas-sit { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pulse" "areas" "rain" "act"; }
+  .atlas-sit-pulse, .atlas-sit-act { border-left: 0; padding-left: 0; }
+}
+
+/* Side panel — every section a fold with a one-line summary; lists one line per row. */
+.atlas-panel { gap: 0; padding: 10px 14px 14px; }
+.atlas-panel > section { padding: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.atlas-operate-bar { flex-direction: row; align-items: center; gap: 8px; padding: 0 0 8px; border-top: 0 !important; }
+.atlas-operate-bar > .atlas-eyebrow { margin: 0; flex: none; }
+.atlas-about-chip { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; min-width: 0; flex: 1; }
+.atlas-about-chip-title { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-fold-all { display: flex; flex: none; border: 1px solid rgba(255, 255, 255, 0.18); }
+.atlas-fold-all button { padding: 4px 7px; border: 0; background: transparent; color: var(--muted); font: 700 10px/1 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; }
+.atlas-fold-all button + button { border-left: 1px solid rgba(255, 255, 255, 0.18); }
+.atlas-fold-all button:hover, .atlas-fold-all button:focus-visible { color: var(--signal); }
+.atlas-fold > summary, .atlas-water > details > summary {
+  list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 9px 0; cursor: pointer; white-space: nowrap; min-width: 0;
+}
+.atlas-fold > summary::-webkit-details-marker { display: none; }
+.atlas-fold > summary .atlas-eyebrow, .atlas-water > details > summary .atlas-eyebrow { margin: 0; flex: none; }
+.atlas-fold-title, .atlas-water > details > summary .atlas-data-heading {
+  margin: 0; font: 800 14px/1.2 var(--font-display); letter-spacing: -0.02em; color: var(--paper); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1;
+}
+.atlas-fold > summary::after { content: "+"; margin-left: auto; color: var(--signal); font-weight: 800; }
+.atlas-fold[open] > summary::after { content: "−"; }
+.atlas-water summary .atlas-data-heading::after { content: none; }
+.atlas-water > details > summary::after { content: "+"; margin-left: auto; color: var(--signal); font-weight: 800; }
+.atlas-water > details[open] > summary::after { content: "−"; }
+.atlas-fold[open] { padding-bottom: 10px; }
+.atlas-water-subdetails { margin: 0; padding: 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.atlas-water-subdetails summary { padding: 6px 0; }
+.atlas-water-subdetails summary p { font-size: 10px; }
+.atlas-water-key li, .atlas-water-note { font-size: 11px; line-height: 1.45; }
+.atlas-rows1 { margin: 0 0 6px; padding: 0; list-style: none; }
+.atlas-rows1 li { margin: 0; }
+.atlas-row1 {
+  display: grid; grid-template-columns: 8px auto minmax(0, 1fr) auto auto; align-items: center; gap: 7px; width: 100%;
+  min-height: 24px; padding: 2px 4px 2px 0; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: transparent;
+  color: var(--paper); font-size: 12px; text-align: left; white-space: nowrap;
+}
+.atlas-row1:hover, .atlas-row1:focus-visible { background: rgba(201, 255, 56, 0.06); }
+.atlas-row1 .atlas-gauge-swatch { width: 8px; height: 8px; margin: 0; }
+.atlas-row1 .r-n { font: 700 11px/1 var(--font-mono); color: var(--band, var(--paper)); text-transform: uppercase; }
+.atlas-row1 .r-name { overflow: hidden; text-overflow: ellipsis; }
+.atlas-row1 .r-tag { font-size: 10.5px; color: var(--paper); opacity: 0.8; }
+.atlas-row1 .r-age { font: 10px/1 var(--font-mono); color: var(--muted); max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.atlas-area-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.atlas-area-btn { min-height: 30px; padding: 4px 6px; font-size: 11px; }
+.atlas-stack-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.atlas-stack-presets .atlas-preset-btn[data-preset="pulse"] { grid-column: auto; }
+.atlas-preset-btn { padding: 6px 8px; font-size: 10.5px; }
+.atlas-inspect-blurb { margin: 0 0 6px; font-size: 12px; }
+@media (hover: none), (pointer: coarse) {
+  .atlas-row1, .atlas-sit-calls a { min-height: 40px; }
+  .atlas-flood-verdict-btn { min-height: 44px; }
+}
+/* The reason line spans two columns; without containment its long text sizes
+   the first (auto) column and squeezes the chips to zero. */
+.atlas-flood-verdict-reasons { contain: inline-size; }
+.atlas-water-subdetails summary { min-height: 0; padding: 6px 0; line-height: 1.3; }
+.atlas-water-subdetails summary .atlas-eyebrow-sub { margin: 0; padding: 0; }
+.atlas-inspect-card[hidden] { display: none; }
+/* Breakpoints follow the strip's own width (the panel takes 360–420 px). */
+.atlas-bkk-live { container-type: inline-size; container-name: bkklive; }
+@container bkklive (max-width: 1320px) {
+  .atlas-flood-verdict { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "line actions" "chips chips" "reasons reasons"; }
+  .atlas-flood-verdict-line { max-width: none; }
+}
+@container bkklive (max-width: 1180px) {
+  .atlas-sit-head h3 span { display: none; }
+  .atlas-sit-facts .atlas-bkk-card-value { font-size: 13px; }
+  .atlas-sit-facts .atlas-bkk-card-value small { display: none; }
+  .atlas-sit-table th:nth-child(5), .atlas-sit-table td:nth-child(5) { display: none; }
+  .atlas-sit-mod { padding-left: 8px; padding-right: 8px; }
+}
+@container bkklive (max-width: 760px) {
+  .atlas-sit { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "areas pulse" "rain act"; }
+  .atlas-sit-rain, .atlas-sit-act { border-top: 1px solid rgba(255, 255, 255, 0.10); }
+  .atlas-sit-rain { border-left: 0; padding-left: 0; }
+}
+@media (max-width: 1180px) and (min-width: 901px) {
+  /* the old viewport rule is superseded by the container rules above */
+  .atlas-sit { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.8fr); grid-template-areas: "areas pulse rain act"; }
+  .atlas-sit-pulse, .atlas-sit-act { border-left: 1px solid rgba(255, 255, 255, 0.10); }
+  .atlas-sit-rain { border-left: 1px solid rgba(255, 255, 255, 0.10); padding-left: 8px; border-top: 0; }
+  .atlas-sit-act { border-top: 0; }
+}
+@container bkklive (max-width: 1000px) {
+  .atlas-sit { grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.85fr); }
+  .atlas-sit-table th:nth-child(4), .atlas-sit-table td:nth-child(4) { display: none; }
+  .atlas-sit-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .atlas-sit-facts .atlas-bkk-card-where, .atlas-sit-axis span:nth-child(2), .atlas-sit-safety { display: none; }
+  .atlas-sit-calls span { font-size: 9.5px; }
+  .atlas-sit-big small { display: none; }
+}
+@media (min-width: 1001px) and (max-height: 900px) {
+  .atlas-page { grid-template-rows: auto minmax(46dvh, 1fr) auto; }
+}
+@media (min-width: 1001px) {
+  /* Fallback only: on a very short screen the strip scrolls rather than clip. */
+  .atlas-bkk-live { max-height: calc(54dvh - 40px); overflow-y: auto; }
+}
+.atlas-flood-verdict-reasons #atlas-flood-verdict-reason { flex: 0 1 auto; max-width: 58%; }
+.atlas-flood-verdict-reasons #atlas-flood-verdict-reason-th { flex: 1 1 0; }
+.atlas-flood-verdict-reasons .atlas-flood-verdict-meta { flex: 0 0 auto; }

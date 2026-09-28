@@ -585,6 +585,9 @@ const WIND_API = "https://api.open-meteo.com/v1/forecast";
 const AEROSOL_SOURCE = "bkkx-aerosol";
 const AEROSOL_LAYER = "bkkx-aerosol-tiles";
 const AEROSOL_MAX_ZOOM = 7;
+const HIMAWARI_SOURCE = "bkkx-himawari";
+const HIMAWARI_LAYER = "bkkx-himawari-tiles";
+const HIMAWARI_GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/Himawari_AHI_Band13_Clean_Infrared/default";
 const AEROSOL_DATA_LAG_DAYS = 2;
 
 // Schematic flood envelopes (Labs sandbox). NOT official DDPM/BMA
@@ -797,6 +800,7 @@ const LAYER_STACK = [
   HEAT_CIRCLE_LAYER,
   AQI_LAYER,
   AQI_CIRCLE_LAYER,
+  HIMAWARI_LAYER,
   AEROSOL_LAYER,
   RAIN_LAYER,
   WIND_ORIGIN_LAYER,
@@ -868,6 +872,9 @@ function applyOverlayCompositing(map) {
   }
   if (map.getLayer(AEROSOL_LAYER)) {
     try { map.setPaintProperty(AEROSOL_LAYER, "raster-opacity", state.overlayOpacity); } catch {}
+  }
+  if (map.getLayer(HIMAWARI_LAYER)) {
+    try { map.setPaintProperty(HIMAWARI_LAYER, "raster-opacity", Math.min(0.85, state.overlayOpacity + 0.25)); } catch {}
   }
   if (map.getLayer(FLOOD_FILL)) {
     try { map.setPaintProperty(FLOOD_FILL, "fill-opacity", state.floodOpacity); } catch {}
@@ -981,6 +988,7 @@ function updateStackChips() {
     heat: "Heat",
     aqi: "AQI",
     aerosol: "Satellite AOD",
+    himawari: "Himawari IR",
     rain: "Rain",
     wind: "Wind",
   };
@@ -1000,7 +1008,7 @@ function updateStackChips() {
   for (const id of on) {
     const chip = document.createElement("span");
     chip.className = "atlas-stack-chip";
-    if (id === "rain" || id === "wind" || id === "aqi" || id === "aerosol" || id === "flood" || id === "heat") chip.classList.add("is-weather");
+    if (id === "rain" || id === "wind" || id === "aqi" || id === "aerosol" || id === "himawari" || id === "flood" || id === "heat") chip.classList.add("is-weather");
     chip.textContent = labels[id];
     el.appendChild(chip);
   }
@@ -1204,6 +1212,16 @@ const LAYERS = [
       stopRainLoop();
       setLayersVisible(map, [RAIN_LAYER], false);
     },
+  },
+  {
+    id: "himawari",
+    name: "Himawari-9 infrared",
+    description: "JMA via NASA GIBS · cloud tops every 10 min",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [HIMAWARI_LAYER],
+    install: async (map) => { await installHimawari(map); ensureStackOrder(map); },
+    uninstall: (map) => setLayersVisible(map, [HIMAWARI_LAYER], false),
   },
   {
     id: "aerosol",
@@ -2472,6 +2490,82 @@ function installAerosol(map) {
   } catch (error) {
     console.warn("Aerosol layer failed:", error);
     setLayerStatus("aerosol", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Himawari-9 band 13 clean infrared (JMA via NASA GIBS)
+// Cloud-top temperature, day and night, every 10 minutes: the spiral of a
+// tropical depression or low-pressure area over the Andaman Sea, the Gulf
+// or the South China Sea shows here hours before its rain reaches Bangkok.
+// GIBS publishes 30–50 min late, so probe back in 10-min steps (the CNX
+// pattern) for the newest frame that exists over Bangkok.
+// ─────────────────────────────────────────────────────────────────
+
+function gibsTime(stepsBack) {
+  const t = new Date(Date.now() - stepsBack * 10 * 60_000);
+  t.setUTCMinutes(Math.floor(t.getUTCMinutes() / 10) * 10, 0, 0);
+  return t.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function probeTile(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const done = (ok) => { clearTimeout(timer); resolve(ok); };
+    const timer = setTimeout(() => done(false), 6000);
+    img.crossOrigin = "anonymous";
+    img.onload = () => done(img.naturalWidth > 0);
+    img.onerror = () => done(false);
+    img.src = url;
+  });
+}
+
+async function resolveHimawariTime() {
+  // z6 tile over Bangkok (x 49, y 29), GIBS order {z}/{y}/{x}.
+  for (let back = 3; back <= 18; back++) {
+    const iso = gibsTime(back);
+    if (await probeTile(`${HIMAWARI_GIBS}/${iso}/GoogleMapsCompatible_Level6/6/29/49.png`)) return iso;
+  }
+  return null;
+}
+
+async function installHimawari(map) {
+  if (map.getLayer(HIMAWARI_LAYER) && state.himawariAt && Date.now() - state.himawariCheckedAt < 10 * 60_000) {
+    setLayersVisible(map, [HIMAWARI_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  setLayerStatus("himawari", "finding the newest frame…");
+  const iso = await resolveHimawariTime();
+  state.himawariCheckedAt = Date.now();
+  if (!iso) {
+    setLayerStatus("himawari", "unavailable · no Himawari frame in the last 3 h");
+    return;
+  }
+  state.himawariAt = iso;
+  const tiles = [`${HIMAWARI_GIBS}/${iso}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png`];
+  try {
+    if (map.getLayer(HIMAWARI_LAYER)) map.removeLayer(HIMAWARI_LAYER);
+    if (map.getSource(HIMAWARI_SOURCE)) map.removeSource(HIMAWARI_SOURCE);
+    map.addSource(HIMAWARI_SOURCE, {
+      type: "raster",
+      tiles,
+      tileSize: 256,
+      maxzoom: 6,
+      attribution: "Himawari-9 AHI band 13 © JMA · NASA EOSDIS GIBS",
+    });
+    map.addLayer({
+      id: HIMAWARI_LAYER,
+      type: "raster",
+      source: HIMAWARI_SOURCE,
+      paint: { "raster-opacity": Math.min(0.85, state.overlayOpacity + 0.25), "raster-fade-duration": 180 },
+    });
+    const local = new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+    setLayerStatus("himawari", `Himawari-9 IR · ${local} ICT (${ageWords(minutesSince(iso))} ago) · cold, bright tops = deep convection`);
+    applyOverlayCompositing(map);
+  } catch (error) {
+    console.warn("Himawari layer failed:", error);
+    setLayerStatus("himawari", "unavailable · layer failed");
   }
 }
 
@@ -3965,6 +4059,8 @@ async function loadFloodRoadsPayload() {
     state.floodRoads = payload;
     computeFloodCamJoin();
     renderSituation(payload);
+    renderVerdictChips();
+    renderFloodStreets(payload);
   }
   return state.floodRoads;
 }
@@ -4383,15 +4479,18 @@ function renderFloodStreets(payload) {
   const top = [...byRoad.values()].sort((a, b) => b.score - a.score).slice(0, 10);
   const head = document.getElementById("atlas-water-streets-head");
   if (head) head.textContent = `Streets with flood reports · ${payload.counts.stretches} stretches · ${floodRoadsAgeText(payload)}`;
+  // Twenty one-line rows cost what ten two-line rows did.
+  top.push(...[...byRoad.values()].sort((a, b) => b.score - a.score).slice(10, 20));
   list.innerHTML = top.length
     ? top.map((e) => `
       <li>
-        <button type="button" class="atlas-water-row" data-lng="${e.at[0]}" data-lat="${e.at[1]}" style="--band:#45bdff">
+        <button type="button" class="atlas-row1" data-lng="${e.at[0]}" data-lat="${e.at[1]}" style="--band:#45bdff"
+          title="${e.n} report${e.n > 1 ? "s" : ""}${e.depthEn ? `, deepest to ${escapeHtml(e.depthEn)}` : ""} · ${escapeHtml(e.road)} · latest ${ageWords(minutesSince(new Date(e.latest).toISOString()))} ago">
           <span class="atlas-gauge-swatch" aria-hidden="true"></span>
-          <span class="atlas-water-row-main">
-            <strong>${e.n} report${e.n > 1 ? "s" : ""}${e.depthEn ? ` · to ${escapeHtml(e.depthEn)}` : ""}</strong> ${escapeHtml(e.road)}
-            <small>latest ${ageWords(minutesSince(new Date(e.latest).toISOString()))} ago</small>
-          </span>
+          <b class="r-n">${e.n}</b>
+          <span class="r-name">${escapeHtml(e.road)}</span>
+          <span class="r-tag">${escapeHtml(e.depthEn ?? "")}</span>
+          <span class="r-age">${ageWords(minutesSince(new Date(e.latest).toISOString()))}</span>
         </button>
       </li>`).join("")
     : `<li class="atlas-water-empty">No street reports in the last 24 h — which is not the same as dry streets.</li>`;
@@ -6341,16 +6440,19 @@ function wireStackPresets(map) {
       el.classList.toggle("is-active", el === btn);
     });
     const wants = {
-      city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
+      city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, himawari: false, heat: false, flood: false, terrain: false, night: false },
+      rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, himawari: false, heat: false, flood: false, terrain: false, night: false },
+      aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, himawari: false, heat: false, flood: false, terrain: false, night: false },
       // Flood watch: satellite + the living waterway network + judged gauges +
       // the incident heat map (city-events + news + BMA DDS + flood-sensors) +
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, himawari: false, heat: false, flood: false, terrain: false, night: false },
+      // Storm watch: the region, not the street. Himawari cloud tops + the
+      // wind field + radar, camera pulled out so a depression's spiral fits.
+      storm: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: false, aerosol: false, himawari: true, heat: false, flood: false, terrain: false, night: false },
+      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, himawari: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;
@@ -6372,6 +6474,7 @@ function wireStackPresets(map) {
     }
     ensureStackOrder(map);
     updateStackChips();
+    if (preset === "storm") map.flyTo({ center: [102.5, 12.5], zoom: 4.6, pitch: 0, bearing: 0, essential: true });
   });
   state.presetsWired = true;
   if (state.pendingFloodWatch) showTheWater();
@@ -6579,7 +6682,7 @@ function renderSituation(payload) {
     // An older reading without district tallies: wait, never claim "no reports".
     body.innerHTML = `<tr><td colspan="5" class="atlas-sit-empty">Waiting for the next reading…</td></tr>`;
   } else if (body) {
-    const top = (payload.areas ?? []).filter((a) => a.n3h > 0).slice(0, 8);
+    const top = (payload.areas ?? []).filter((a) => a.n3h > 0).slice(0, 5);
     const rain = state.districtRain ?? new Map();
     body.innerHTML = top.length ? top.map((a, i) => {
       const r = rain.get(a.nameTh);
@@ -6729,6 +6832,7 @@ function renderFloodVerdict(flood) {
     if (el) {
       el.textContent = text || "";
       el.hidden = !text;
+      if (text) el.title = text; // the line is clamped; the full words stay one hover away
     }
   };
   const v = flood?.verdict;
@@ -6736,27 +6840,74 @@ function renderFloodVerdict(flood) {
     root.dataset.level = "none";
     set("atlas-flood-verdict-level", "No reading");
     set("atlas-flood-verdict-head", "FloodDash has not reached the atlas yet — this is not an all-clear.");
+    set("atlas-flood-verdict-trend", "");
     set("atlas-flood-verdict-reason", "");
     set("atlas-flood-verdict-reason-th", "");
     set("atlas-flood-verdict-meta", FLOOD_DUTY);
+    renderVerdictChips();
     return;
   }
   const age = minutesSince(flood.fetchedAt);
   const stale = age == null || age > 30;
-  root.dataset.level = v.level;
+  const tr = flood.trend ?? null;
+  // The flood has passed: FloodDash is back at safe/watch after a prepare/danger
+  // peak the relay itself recorded. Say so, instead of a bare "Safe".
+  const over = Boolean(tr?.over);
+  root.dataset.level = over ? "receding" : v.level;
   root.classList.toggle("is-stale", stale);
-  set("atlas-flood-verdict-level", FLOOD_LEVEL_WORD[v.level] || v.level);
-  set("atlas-flood-verdict-head", `${v.headEn} · ${v.headTh}`);
+  const peakWord = tr?.peak ? `${FLOOD_LEVEL_WORD[tr.peak.level] || tr.peak.level} ${ageWords(minutesSince(tr.peak.at))} ago` : "";
+  if (over) {
+    set("atlas-flood-verdict-level", "Receding · น้ำลด");
+    set("atlas-flood-verdict-head", `The flood is passing — peaked ${peakWord}, FloodDash now says ${FLOOD_LEVEL_WORD[v.level] || v.level}`);
+  } else {
+    set("atlas-flood-verdict-level", FLOOD_LEVEL_WORD[v.level] || v.level);
+    set("atlas-flood-verdict-head", `${v.headEn} · ${v.headTh}`);
+  }
+  const trendText = !tr ? "" : tr.receding && !over ? `▼ easing since peak (${peakWord})`
+    : tr.direction === "rising" ? "▲ rising" : tr.direction === "falling" ? "▼ falling" : tr.direction === "steady" ? "● steady" : "";
+  const trendEl = document.getElementById("atlas-flood-verdict-trend");
+  set("atlas-flood-verdict-trend", over ? "" : trendText);
+  if (trendEl) trendEl.dataset.trend = tr?.receding || tr?.direction === "falling" ? "down" : tr?.direction === "rising" ? "up" : "flat";
   set("atlas-flood-verdict-reason", v.reasonEn);
   set("atlas-flood-verdict-reason-th", v.reasonTh);
-  const facts = [];
-  if (v.stationsL5) facts.push(`${v.stationsL5} gauge${v.stationsL5 > 1 ? "s" : ""} overflowing`);
-  if (v.stationsL4) facts.push(`${v.stationsL4} at high water`);
-  if (v.rain24hMm != null) facts.push(`worst 24 h rain ${Math.round(v.rain24hMm)} mm`);
-  if (v.etaHours != null) facts.push(`bank may be reached in ~${v.etaHours} h at this rise`);
-  facts.push(stale ? `last FloodDash reading ${ageWords(age)} ago` : `FloodDash · ${ageWords(age)} ago`);
-  facts.push(FLOOD_DUTY);
-  set("atlas-flood-verdict-meta", facts.join(" · "));
+  set("atlas-flood-verdict-meta", `${stale ? `last FloodDash reading ${ageWords(age)} ago` : `FloodDash · ${ageWords(age)} ago`} · ${FLOOD_DUTY}`);
+  const show = document.getElementById("atlas-flood-verdict-show");
+  if (show) show.textContent = over ? "Show where it was" : "Show the water";
+  renderVerdictChips();
+}
+
+/** One line of numbers under the verdict: FloodDash, street reports, DDS,
+ *  gauges. Each chip names its source in the tooltip; zeros that matter stay. */
+function renderVerdictChips() {
+  const el = document.getElementById("atlas-flood-verdict-chips");
+  if (!el) return;
+  const f = state.flood, v = f?.verdict, tr = f?.trend, roads = state.floodRoads;
+  const chips = [];
+  const chip = (n, label, tone = "", title = "") => chips.push(`<li class="atlas-vchip" data-tone="${tone}" title="${escapeHtml(title)}"><b>${n}</b> ${escapeHtml(label)}</li>`);
+  if (v) {
+    chip(v.stationsL5 ?? 0, "overflowing", v.stationsL5 ? "bad" : "", "FloodDash · gauges over the bank");
+    chip(v.stationsL4 ?? 0, "at high water", v.stationsL4 ? "warn" : "", "FloodDash · gauges near the bank");
+  }
+  if (tr && tr.gaugesRising + tr.gaugesFalling + tr.gaugesSteady > 0) {
+    chips.push(`<li class="atlas-vchip" title="Reporting gauges by their own rise rate (±2 cm/h)"><b class="up">▲${tr.gaugesRising}</b> <b class="down">▼${tr.gaugesFalling}</b> gauges</li>`);
+  }
+  if (v?.rain24hMm != null) chip(`${Math.round(v.rain24hMm)} mm`, "worst 24 h rain", v.rain24hMm >= 90 ? "bad" : v.rain24hMm >= 35 ? "warn" : "", "FloodDash · wettest gauge, 24 h");
+  if (v?.rainAccelRatio != null && v.rainAccelRatio >= 1.2) chip(`×${v.rainAccelRatio.toFixed(1)}`, "rain accelerating", "warn", "FloodDash · recent rain rate vs the days before");
+  if (v?.satFloodRai) chip(Math.round(v.satFloodRai).toLocaleString("en-GB"), "rai flooded (satellite)", "warn", "FloodDash · GISTDA satellite flood extent");
+  const hourly = roads?.hourly ?? [];
+  if (hourly.length >= 3) {
+    const tot = hourly.map((h) => h.traffy + h.itic);
+    const last = tot[tot.length - 2], before = tot[tot.length - 3], d = last - before;
+    chips.push(`<li class="atlas-vchip" title="Traffy + iTIC flood reports, last full hour vs the hour before"><b>${last}</b> reports/h <b class="${d > 2 ? "up" : d < -2 ? "down" : ""}">${d > 0 ? "▲" : d < 0 ? "▼" : "●"}${Math.abs(d)}</b></li>`);
+  }
+  const areas = (roads?.areas ?? []).filter((a) => a.n3h > 0).length;
+  if (roads?.areas) chip(areas, "districts reporting", "", "Districts with Traffy/iTIC flood reports in the last 3 h");
+  if (roads?.counts?.stretches != null) chip(roads.counts.stretches.toLocaleString("en-GB"), "wet road stretches", "", "Road stretches lit by reports, last 24 h");
+  if (f?.roads?.records) chip(f.roads.records.length, "DDS road reports", "", `BMA DDS · ${f.roads.days?.join(", ") || ""}`);
+  const gates = (f?.canals?.stations ?? []).filter((g) => g.status === "critical" || g.status === "warning").length;
+  if (f?.canals?.stations?.length) chip(`${gates}/${f.canals.stations.length}`, "gates at warning+", gates ? "warn" : "", "BMA DDS canal gate bulletin");
+  if (v?.etaHours != null) chip(`~${v.etaHours} h`, "to bank at this rise", "bad", "FloodDash · trusted ETA only");
+  el.innerHTML = chips.join("");
 }
 
 function renderWaterPanel(flood) {
@@ -6779,15 +6930,18 @@ function renderWaterPanel(flood) {
   if (gaugesEl) {
     const relayAge = minutesSince(flood.fetchedAt) ?? 0;
     const top = flood.gauges.filter((g) => (FLOOD_RANK[g.band] ?? 0) >= 3);
+    const gh = document.getElementById("atlas-water-gauges-head");
+    if (gh) gh.textContent = `Gauges at prepare or worse · ${top.length} of ${flood.gauges.filter((g) => FLOOD_RANK[g.band]).length} reporting`;
     gaugesEl.innerHTML = top.length
       ? top.map((g) => `
         <li>
-          <button type="button" class="atlas-water-row" data-lng="${g.lng}" data-lat="${g.lat}" style="--band:${FLOOD_BAND_COLOR[g.band] || FLOOD_BAND_COLOR["no-signal"]}">
+          <button type="button" class="atlas-row1" data-lng="${g.lng}" data-lat="${g.lat}" style="--band:${FLOOD_BAND_COLOR[g.band] || FLOOD_BAND_COLOR["no-signal"]}"
+            title="${escapeHtml(g.bandEn)} · ${escapeHtml(g.name)} · ${escapeHtml(g.waterwayName || g.river || "")}${g.riseMH != null ? ` · ${g.riseMH >= 0 ? "+" : ""}${g.riseMH.toFixed(2)} m/h` : ""}${g.confidence === "stale" ? ` · stale, ${ageWords((g.ageMin ?? 0) + relayAge)} old` : ""}">
             <span class="atlas-gauge-swatch" aria-hidden="true"></span>
-            <span class="atlas-water-row-main">
-              <strong>${escapeHtml(g.bandEn)}</strong> ${escapeHtml(g.name)}
-              <small>${escapeHtml(g.waterwayName || g.river || "")}${g.confidence === "stale" ? ` · stale, ${ageWords((g.ageMin ?? 0) + relayAge)} old` : ""}</small>
-            </span>
+            <b class="r-n">${escapeHtml(g.bandEn)}</b>
+            <span class="r-name">${escapeHtml(g.name)}</span>
+            <span class="r-tag">${g.riseMH != null ? `${g.riseMH > 0.02 ? "▲" : g.riseMH < -0.02 ? "▼" : "●"} ${Math.abs(g.riseMH * 100).toFixed(0)} cm/h` : ""}</span>
+            <span class="r-age">${g.confidence === "stale" ? "stale" : escapeHtml(g.waterwayName || g.river || "")}</span>
           </button>
         </li>`).join("")
       : `<li class="atlas-water-empty">No gauge at prepare or worse. Gauges cover the waterways, not every street.</li>`;
@@ -6879,6 +7033,22 @@ async function renderEmergencyPanel() {
 // Same order as src/flooddash.ts BAND_RANK.
 const FLOOD_RANK = { "no-signal": 0, untrusted: 0, safe: 1, watch: 2, prepare: 3, evacuate: 4, "overflow-imminent": 5, "observed-overflow": 6 };
 
+/** Every sidebar section is a fold; the nav anchors open the one they point at. */
+function wireFolds() {
+  const folds = () => document.querySelectorAll(".atlas-panel details");
+  document.querySelector(".atlas-fold-all")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-fold]");
+    if (!b) return;
+    for (const d of folds()) d.open = b.dataset.fold === "open";
+  });
+  for (const a of document.querySelectorAll('.atlas-header-nav a[href^="#"]')) {
+    a.addEventListener("click", () => {
+      const d = document.querySelector(`${a.getAttribute("href")} > details`);
+      if (d) d.open = true;
+    });
+  }
+}
+
 function wireWaterPanel() {
   const details = document.getElementById("atlas-water-details");
   details?.addEventListener("toggle", () => { details.dataset.touched = "1"; });
@@ -6948,6 +7118,7 @@ async function init() {
   loadBkkLiveStrip();
   setInterval(loadBkkLiveStrip, 5 * 60 * 1000);
   wireWaterPanel();
+  wireFolds();
   loadFloodRelay();
   setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
   // The situation board needs the flood-roads reading even with the layer off.

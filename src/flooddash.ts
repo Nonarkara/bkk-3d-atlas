@@ -99,6 +99,8 @@ export type Gauge = {
   waterwayName: string | null;
 };
 
+export type HistoryEntry = { at: string; level: string; score: number; l5: number | null; l4: number | null; rain24hMm: number | null };
+
 export type FloodState = {
   schema: 1;
   fetchedAt: string;
@@ -117,7 +119,13 @@ export type FloodState = {
     wetness: string | null;
     etaHours: number | null;
     updated: string | null;
+    // FloodDash publishes these on /api/twin; the relay used to drop them.
+    rainAccelRatio: number | null;
+    satFloodRai: number | null;
   } | null;
+  /** The city verdict at each refresh, last 72 h, one entry per ≥ 20 min.
+   *  It is what lets the atlas say "receding" instead of only "safe". */
+  history?: HistoryEntry[];
   method: string | null;
   gauges: Gauge[];
   waterways: Record<string, { rank: number; band: string; gauge: string; confidence: string }>;
@@ -416,6 +424,7 @@ export async function refreshFloodDash(
     fetchedAt: now,
     flooddashVersion: old?.flooddashVersion ?? null,
     verdict: old?.verdict ?? null,
+    history: old?.history ?? [],
     method: old?.method ?? null,
     gauges: old?.gauges ?? [],
     waterways: old?.waterways ?? {},
@@ -455,7 +464,10 @@ export async function refreshFloodDash(
         // FloodDash gives an ETA only when its engine trusts it. null stays null.
         etaHours: num(bkk.eta_hours),
         updated: (t.updated as string) ?? null,
+        rainAccelRatio: num(bkk.rain_accel_ratio),
+        satFloodRai: num(bkk.sat_flood_rai),
       };
+      state.history = appendHistory(state.history ?? [], state.verdict, now);
     }
   }
 
@@ -590,6 +602,81 @@ export function ageMin(iso: string | null | undefined): number | null {
   return Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60_000)) : null;
 }
 
+/* ---------------------------------------------------------------- trend */
+
+const HISTORY_SPAN_MS = 72 * 3_600_000;
+const HISTORY_STEP_MS = 20 * 60_000;
+export const LEVEL_RANK: Record<string, number> = { safe: 0, watch: 1, prepare: 2, danger: 3 };
+
+/** Append the verdict, at most one entry per 20 min (the latest wins), keep 72 h. */
+export function appendHistory(history: HistoryEntry[], v: NonNullable<FloodState["verdict"]>, at: string): HistoryEntry[] {
+  const e: HistoryEntry = { at, level: v.level, score: v.score, l5: v.stationsL5, l4: v.stationsL4, rain24hMm: v.rain24hMm };
+  const t = Date.parse(at);
+  const out = history.filter((h) => t - Date.parse(h.at) <= HISTORY_SPAN_MS);
+  const last = out[out.length - 1];
+  if (last && t - Date.parse(last.at) < HISTORY_STEP_MS && LEVEL_RANK[last.level] === LEVEL_RANK[e.level]) out[out.length - 1] = e;
+  else out.push(e);
+  return out;
+}
+
+export type FloodTrend = {
+  direction: "rising" | "falling" | "steady" | "unknown";
+  /** A prepare/danger peak in the last 72 h, now lower or falling. */
+  receding: boolean;
+  /** Receding AND the city verdict is back at safe/watch: the flood has passed. */
+  over: boolean;
+  peak: { level: string; score: number; at: string } | null;
+  scoreNow: number | null;
+  score6hAgo: number | null;
+  gaugesRising: number;
+  gaugesFalling: number;
+  gaugesSteady: number;
+  historyHours: number;
+};
+
+/** Pure: the shape of the last 72 h, from the stored history and the gauges' own rise rates. */
+export function floodTrend(state: Pick<FloodState, "verdict" | "history" | "gauges">, now = Date.now()): FloodTrend {
+  const hist = (state.history ?? []).filter((h) => now - Date.parse(h.at) <= HISTORY_SPAN_MS);
+  const v = state.verdict;
+  let peak: HistoryEntry | null = null;
+  for (const h of hist) {
+    const r = LEVEL_RANK[h.level] ?? 0, pr = peak ? LEVEL_RANK[peak.level] ?? 0 : -1;
+    if (r > pr || (r === pr && h.score > (peak?.score ?? -Infinity))) peak = h;
+  }
+  let rising = 0, falling = 0, steady = 0;
+  for (const g of state.gauges ?? []) {
+    if (!BAND_RANK[g.band] || g.confidence === "stale" || g.riseMH == null) continue;
+    if (g.riseMH >= 0.02) rising++;
+    else if (g.riseMH <= -0.02) falling++;
+    else steady++;
+  }
+  // The entry nearest to six hours ago, if we have one within ±2 h.
+  let ago: HistoryEntry | null = null;
+  for (const h of hist) {
+    const d = Math.abs(now - 6 * 3_600_000 - Date.parse(h.at));
+    if (d <= 2 * 3_600_000 && (!ago || d < Math.abs(now - 6 * 3_600_000 - Date.parse(ago.at)))) ago = h;
+  }
+  const scoreNow = v?.score ?? null;
+  let direction: FloodTrend["direction"] = "unknown";
+  if (scoreNow != null && ago) direction = scoreNow - ago.score >= 5 ? "rising" : scoreNow - ago.score <= -5 ? "falling" : "steady";
+  else if (rising + falling >= 3) direction = falling >= 2 * Math.max(1, rising) ? "falling" : rising >= 2 * Math.max(1, falling) ? "rising" : "steady";
+  const peakRank = peak ? LEVEL_RANK[peak.level] ?? 0 : 0, nowRank = v ? LEVEL_RANK[v.level] ?? 0 : 0;
+  const receding = peakRank >= 2 && (nowRank < peakRank || direction === "falling");
+  const first = hist[0] ? Date.parse(hist[0].at) : now;
+  return {
+    direction,
+    receding,
+    over: receding && nowRank <= 1,
+    peak: peak ? { level: peak.level, score: peak.score, at: peak.at } : null,
+    scoreNow,
+    score6hAgo: ago?.score ?? null,
+    gaugesRising: rising,
+    gaugesFalling: falling,
+    gaugesSteady: steady,
+    historyHours: Math.round((now - first) / 3_600_000),
+  };
+}
+
 /* ------------------------------------------------------------ responses */
 
 const HEADERS = {
@@ -627,6 +714,7 @@ export function floodBkkResponse(state: FloodState | null): Response {
       bandColors: BAND_COLOR,
       reachM: REACH_M,
       ...state,
+      trend: floodTrend(state),
     }),
     { headers: { "content-type": "application/json; charset=utf-8", ...HEADERS } },
   );

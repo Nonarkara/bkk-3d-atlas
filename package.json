@@ -9,7 +9,7 @@
     "deploy": "wrangler deploy",
     "deploy:live": "bash scripts/deploy-live.sh",
     "typecheck": "tsc --noEmit",
-    "verify": "node scripts/verify-local.mjs",
+    "verify": "node scripts/verify-local.mjs && node scripts/check-flood-trend.ts",
     "smoke": "node scripts/smoke-atlas-api.mjs"
   },
   "devDependencies": {
