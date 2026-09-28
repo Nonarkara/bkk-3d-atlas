@@ -1282,16 +1282,15 @@ const LAYERS = [
     install: async (map) => { await installFloodRoads(map); ensureStackOrder(map); },
     uninstall: (map) => {
       closeFloodRoadPopup();
+      stopFloodWaterMotion();
+      stop72hSimulation();
       setLayersVisible(map, FLOOD_ROAD_LAYERS, false);
     },
     legend: [
-      { color: "#8fe3ff", label: "road surface · ankle" },
-      { color: "#45bdff", label: "shin" },
-      { color: "#1f86ff", label: "knee" },
-      { color: "#3a55ff", label: "thigh" },
-      { color: "#6a3dff", label: "waist" },
-      { color: "#b026c9", label: "chest" },
-      { color: "#62c9ff", label: "depth not given" },
+      { color: "#38bdf8", label: "water on road (scattered)" },
+      { color: "#facc15", label: "concentrated flood (alert)" },
+      { color: "#f97316", label: "deep water (knee to waist)" },
+      { color: "#dc2626", label: "crisis hotspot (chest / severe)" },
       { color: FLOOD_CLOSED_COLOR, label: "red casing = reported closed / impassable" },
     ],
   },
@@ -3987,20 +3986,20 @@ async function installFloodRoads(map) {
       type: "heatmap",
       source: FLOOD_HEAT_SOURCE,
       paint: {
-        // Weight grows fast then saturates: one fresh report shows, a street of them glows.
-        "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0, 0.1, 0.2, 0.6, 0.5, 2.5, 1],
-        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 0.7, 14, 1.3],
-        "heatmap-radius": ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22, 13, 44, 16, 100],
+        // Multi-tier crisis ramp: water-blue -> alert-amber -> warning-orange -> crisis-crimson -> white core
+        "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0, 0.1, 0.25, 0.5, 0.6, 2.0, 1],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 1.15, 14, 1.85],
+        "heatmap-radius": ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20, 13, 42, 16, 95],
         "heatmap-color": [
           "interpolate", ["linear"], ["heatmap-density"],
           0, "rgba(0,0,0,0)",
-          0.1, "rgba(98,201,255,0.3)",
-          0.3, "rgba(56,160,255,0.52)",
-          0.55, "rgba(40,100,255,0.66)",
-          0.8, "rgba(106,61,255,0.76)",
-          1, "rgba(176,38,201,0.86)",
+          0.12, "rgba(56,189,248,0.40)",  // water blue (scattered runoff)
+          0.32, "rgba(250,204,21,0.65)",  // alert amber (concentrated water)
+          0.58, "rgba(249,115,22,0.82)",  // warning orange (deep water)
+          0.80, "rgba(220,38,38,0.92)",   // crisis red (waist / chest)
+          1.0,  "rgba(255,245,245,0.98)", // hot danger core
         ],
-        "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.95, 15, 0.55, 17, 0.3],
+        "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.95, 15, 0.65, 17, 0.4],
       },
     });
   }
@@ -4070,6 +4069,14 @@ async function installFloodRoads(map) {
   const c = payload.counts;
   setLayerStatus("flood-roads", `${c.stretches} road stretches · ${c.closed} closed · ${floodRoadsAgeText(payload)}`);
   startFloodWaterMotion(map);
+  wireSimulationControls(map);
+}
+
+function stopFloodWaterMotion() {
+  if (state.floodMotion) {
+    cancelAnimationFrame(state.floodMotion);
+    state.floodMotion = null;
+  }
 }
 
 /** Water that moves: the heat breathes like water sloshing, dashes run along
@@ -4087,9 +4094,9 @@ function startFloodWaterMotion(map) {
     const slosh = Math.sin(now / 1400);
     const drift = Math.sin(now / 2300 + 1.3);
     map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-radius",
-      ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22 * (1 + 0.1 * slosh), 13, 44 * (1 + 0.12 * slosh), 16, 100 * (1 + 0.12 * slosh)]);
+      ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20 * (1 + 0.1 * slosh), 13, 42 * (1 + 0.12 * slosh), 16, 95 * (1 + 0.12 * slosh)]);
     map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-intensity",
-      ["interpolate", ["linear"], ["zoom"], 10, 0.7 * (1 + 0.12 * drift), 14, 1.3 * (1 + 0.12 * drift)]);
+      ["interpolate", ["linear"], ["zoom"], 10, 1.15 * (1 + 0.12 * drift), 14, 1.85 * (1 + 0.12 * drift)]);
     step = (step + 1) % FLOW_DASH_STEPS.length;
     map.setPaintProperty(FLOOD_ROAD_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
     const phase = (now % 2600) / 2600;
@@ -4118,6 +4125,240 @@ function flyToFloodedRoads() {
   const lats = pts.map((p) => p[1]).sort((a, b) => a - b);
   map.fitBounds([[q(lngs, 0.1), q(lats, 0.1)], [q(lngs, 0.9), q(lats, 0.9)]], {
     padding: 50, pitch: 45, bearing: -12, maxZoom: 14, duration: 1600, essential: true,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 72-Hour Flood Prediction Simulation (30-second run)
+// ─────────────────────────────────────────────────────────────────
+const SIM_DURATION_MS = 30_000;
+const SIM_HOURS = 72;
+
+const SIM_PHASES = [
+  {
+    fromH: 0,
+    toH: 14,
+    phase: "Phase 1 (0h–14h) · Convective rain pulses over Eastern Bangkok",
+    detail: "Open-Meteo & TMD models predict 45–65 mm convective bursts on saturated ground. Severe soi ponding in Bang Kapi, Saphan Sung, and Prawet.",
+    depth: "Up to chest-deep (80cm)",
+    roads: "1,775+ stretches active",
+    river: "+1.65m MSL (elevated)",
+    heatIntensity: 1.5,
+    heatRadius: 1.15,
+    camera: { center: [100.65, 13.76], zoom: 11.8, pitch: 45, bearing: -10 },
+  },
+  {
+    fromH: 14,
+    toH: 28,
+    phase: "Phase 2 (14h–28h) · Pak Nam high tide (+2.05m MSL) locks sluice gates",
+    detail: "Gulf of Thailand astronomical high tide surges into the Chao Phraya river mouth. Sluice gates close; canal gravity drainage halts, backing water into Saen Saep & Phra Khanong.",
+    depth: "Up to waist-deep (60cm)",
+    roads: "2,150+ stretches active",
+    river: "+2.05m MSL (HIGH TIDE PEAK)",
+    heatIntensity: 2.0,
+    heatRadius: 1.35,
+    camera: { center: [100.54, 13.72], zoom: 12.0, pitch: 48, bearing: 15 },
+  },
+  {
+    fromH: 28,
+    toH: 52,
+    phase: "Phase 3 (28h–52h) · Upstream flood crest (2,300 m³/s) arrives from Bang Sai",
+    detail: "HII C.29A flood wave travels down the Chao Phraya corridor. Riverside communities outside dykes in Dusit, Phra Nakhon, and Thonburi face river overflow.",
+    depth: "Riverside overtopping (>100cm)",
+    roads: "2,480+ stretches active",
+    river: "+2.18m MSL (RIVER CREST PEAK)",
+    heatIntensity: 2.3,
+    heatRadius: 1.5,
+    camera: { center: [100.49, 13.77], zoom: 12.2, pitch: 50, bearing: -25 },
+  },
+  {
+    fromH: 52,
+    toH: 72,
+    phase: "Phase 4 (52h–72h) · Saturated eastern polder depression ponding",
+    detail: "BMA drainage pump stations run at 100% capacity. Runoff pools in ground depressions (Srinakarin, Lat Krabang, Prawet); secondary sois remain waterlogged.",
+    depth: "Knee-to-waist (40–60cm)",
+    roads: "1,920+ stretches active",
+    river: "+1.75m MSL (slow drop)",
+    heatIntensity: 1.75,
+    heatRadius: 1.25,
+    camera: { center: [100.66, 13.74], zoom: 11.6, pitch: 42, bearing: 5 },
+  },
+];
+
+function updateSimHud(h, phase, progressPct) {
+  const hourEl = document.getElementById("atlas-sim-hour");
+  const dateEl = document.getElementById("atlas-sim-date");
+  const progEl = document.getElementById("atlas-sim-progress");
+  const phaseEl = document.getElementById("atlas-sim-phase");
+  const detailEl = document.getElementById("atlas-sim-detail");
+  const depthEl = document.getElementById("atlas-sim-metric-depth");
+  const roadsEl = document.getElementById("atlas-sim-metric-roads");
+  const riverEl = document.getElementById("atlas-sim-metric-river");
+
+  if (hourEl) hourEl.textContent = `+${Math.round(h)}h`;
+  if (dateEl) {
+    const future = new Date(Date.now() + h * 3600 * 1000);
+    dateEl.textContent = future.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+  if (progEl) progEl.style.width = `${Math.min(100, Math.max(0, progressPct * 100))}%`;
+  if (phaseEl) phaseEl.textContent = phase.phase;
+  if (detailEl) detailEl.textContent = phase.detail;
+  if (depthEl) depthEl.textContent = phase.depth;
+  if (roadsEl) roadsEl.textContent = phase.roads;
+  if (riverEl) riverEl.textContent = phase.river;
+}
+
+function start72hSimulation(map) {
+  if (!map) map = state.map;
+  if (!map) return;
+
+  // Ensure flood preset is active
+  if (!state.layerOn?.["flood-roads"]) {
+    document.querySelector('#atlas-stack-presets [data-preset="flood"]')?.click();
+  }
+  document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const hud = document.getElementById("atlas-sim-hud");
+  if (hud) hud.hidden = false;
+
+  const toggleBtn = document.getElementById("atlas-sim-toggle");
+  if (toggleBtn) toggleBtn.textContent = "Pause";
+
+  stop72hSimulation(false); // Clean up previous loop if running
+
+  state.simRunning = true;
+  state.simPaused = false;
+  state.simStartTime = performance.now();
+  state.simElapsedBeforePause = 0;
+
+  let lastCamIndex = -1;
+
+  const simTick = (now) => {
+    if (!state.simRunning) return;
+    if (state.simPaused) {
+      state.simFrame = requestAnimationFrame(simTick);
+      return;
+    }
+
+    const elapsed = state.simElapsedBeforePause + (now - state.simStartTime);
+    const progress = Math.min(1, elapsed / SIM_DURATION_MS);
+    const currentHour = progress * SIM_HOURS;
+    const phaseIndex = SIM_PHASES.findIndex((p) => currentHour >= p.fromH && currentHour <= p.toH);
+    const phase = SIM_PHASES[phaseIndex >= 0 ? phaseIndex : SIM_PHASES.length - 1];
+
+    updateSimHud(currentHour, phase, progress);
+
+    // Dynamic map modulation for crisis simulation
+    if (map.getLayer(FLOOD_HEAT_LAYER)) {
+      const pulse = Math.sin((now / 1000) * Math.PI);
+      const intensityMod = phase.heatIntensity * (1 + 0.12 * pulse);
+      const radiusMod = phase.heatRadius * (1 + 0.08 * pulse);
+
+      map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-intensity",
+        ["interpolate", ["linear"], ["zoom"], 10, 1.15 * intensityMod, 14, 1.85 * intensityMod]);
+      map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-radius",
+        ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20 * radiusMod, 13, 42 * radiusMod, 16, 95 * radiusMod]);
+    }
+
+    // Camera move on phase boundary (smooth glide)
+    if (phaseIndex !== lastCamIndex && phase.camera) {
+      lastCamIndex = phaseIndex;
+      map.flyTo({
+        center: phase.camera.center,
+        zoom: phase.camera.zoom,
+        pitch: phase.camera.pitch,
+        bearing: phase.camera.bearing,
+        duration: 3500,
+        essential: true,
+      });
+    }
+
+    if (progress >= 1) {
+      state.simRunning = false;
+      const toggle = document.getElementById("atlas-sim-toggle");
+      if (toggle) toggle.textContent = "Replay ▶";
+      const phaseEl = document.getElementById("atlas-sim-phase");
+      if (phaseEl) phaseEl.textContent = "72h Projection Cycle Complete";
+      return;
+    }
+
+    state.simFrame = requestAnimationFrame(simTick);
+  };
+
+  state.simFrame = requestAnimationFrame(simTick);
+}
+
+function pause72hSimulation() {
+  if (!state.simRunning) return;
+  state.simPaused = true;
+  state.simElapsedBeforePause += (performance.now() - state.simStartTime);
+  const toggleBtn = document.getElementById("atlas-sim-toggle");
+  if (toggleBtn) toggleBtn.textContent = "Resume ▶";
+}
+
+function resume72hSimulation() {
+  if (!state.simRunning) return;
+  state.simPaused = false;
+  state.simStartTime = performance.now();
+  const toggleBtn = document.getElementById("atlas-sim-toggle");
+  if (toggleBtn) toggleBtn.textContent = "Pause";
+}
+
+function toggle72hSimulation(map) {
+  if (!state.simRunning) {
+    start72hSimulation(map);
+  } else if (state.simPaused) {
+    resume72hSimulation();
+  } else {
+    pause72hSimulation();
+  }
+}
+
+function stop72hSimulation(hideHud = true) {
+  if (state.simFrame) {
+    cancelAnimationFrame(state.simFrame);
+    state.simFrame = null;
+  }
+  state.simRunning = false;
+  state.simPaused = false;
+  state.simElapsedBeforePause = 0;
+  if (hideHud) {
+    const hud = document.getElementById("atlas-sim-hud");
+    if (hud) hud.hidden = true;
+  }
+  // Restore normal live heat intensities
+  const map = state.map;
+  if (map && map.getLayer(FLOOD_HEAT_LAYER)) {
+    try {
+      map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-intensity",
+        ["interpolate", ["linear"], ["zoom"], 10, 1.15, 14, 1.85]);
+      map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-radius",
+        ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20, 13, 42, 16, 95]);
+    } catch {}
+  }
+}
+
+function wireSimulationControls(map) {
+  if (map.__bkkxSimWired) return;
+  map.__bkkxSimWired = true;
+
+  document.getElementById("atlas-flood-verdict-sim")?.addEventListener("click", () => {
+    start72hSimulation(map);
+  });
+  document.getElementById("atlas-sim-toggle")?.addEventListener("click", () => {
+    toggle72hSimulation(map);
+  });
+  document.getElementById("atlas-sim-close")?.addEventListener("click", () => {
+    stop72hSimulation(true);
+  });
+  document.getElementById("atlas-sim-progressbar")?.addEventListener("click", (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    state.simElapsedBeforePause = pct * SIM_DURATION_MS;
+    state.simStartTime = performance.now();
+    if (!state.simRunning) {
+      start72hSimulation(map);
+    }
   });
 }
 
@@ -6134,6 +6375,7 @@ function wireStackPresets(map) {
   });
   state.presetsWired = true;
   if (state.pendingFloodWatch) showTheWater();
+  if (state.pendingFloodSim) start72hSimulation(map);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -6669,6 +6911,13 @@ function wireWaterPanel() {
       return;
     }
     showTheWater();
+  });
+  document.getElementById("atlas-flood-verdict-sim")?.addEventListener("click", () => {
+    if (!state.presetsWired) {
+      state.pendingFloodSim = true;
+      return;
+    }
+    start72hSimulation(state.map);
   });
 }
 

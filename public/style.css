@@ -78,6 +78,26 @@ button { font: inherit; }
   backdrop-filter: blur(8px);
 }
 
+.atlas-brand {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.atlas-version {
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  line-height: 1.1;
+  user-select: none;
+}
 .wordmark {
   display: inline-flex;
   align-items: baseline;
@@ -1730,6 +1750,188 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-flood-verdict-btn:hover,
 .atlas-flood-verdict-btn:focus-visible { border-color: var(--signal); color: var(--signal); }
 .atlas-flood-verdict-btn:active { transform: scale(0.97); }
+
+.atlas-flood-sim-btn {
+  background: rgba(220, 38, 38, 0.16) !important;
+  border-color: rgba(220, 38, 38, 0.6) !important;
+  color: #fca5a5 !important;
+}
+.atlas-flood-sim-btn:hover,
+.atlas-flood-sim-btn:focus-visible {
+  background: rgba(220, 38, 38, 0.3) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}
+.atlas-sim-btn-icon {
+  margin-right: 5px;
+  color: #ef4444;
+}
+
+/* 72-Hour Flood Forecast Simulation HUD */
+.atlas-sim-hud {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  width: min(92%, 620px);
+  background: rgba(13, 14, 11, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.55);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  padding: 16px 20px;
+  color: var(--paper);
+  font-family: var(--font-body);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+.atlas-sim-hud[hidden] {
+  display: none !important;
+}
+.atlas-sim-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.atlas-sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #f87171;
+  text-transform: uppercase;
+}
+.atlas-sim-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 8px #dc2626;
+  animation: atlasSimPulse 1.2s ease-in-out infinite;
+}
+@keyframes atlasSimPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+.atlas-sim-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.atlas-sim-hour {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.04em;
+}
+.atlas-sim-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+.atlas-sim-actions {
+  display: flex;
+  gap: 8px;
+}
+.atlas-sim-toggle, .atlas-sim-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.atlas-sim-toggle:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.atlas-sim-close {
+  border-color: rgba(220, 38, 38, 0.5);
+  color: #fca5a5;
+}
+.atlas-sim-close:hover {
+  background: rgba(220, 38, 38, 0.35);
+  color: #fff;
+}
+.atlas-sim-progress-wrap {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  margin: 12px 0 22px;
+  cursor: pointer;
+}
+.atlas-sim-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8 0%, #facc15 35%, #f97316 65%, #dc2626 100%);
+  border-radius: 4px;
+  width: 0%;
+  transition: width 60ms linear;
+}
+.atlas-sim-ticks {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+  color: var(--muted);
+}
+.atlas-sim-narrative {
+  margin: 10px 0 12px;
+}
+.atlas-sim-phase {
+  font-weight: 800;
+  font-size: 13px;
+  color: #fef08a;
+  margin: 0 0 3px;
+}
+.atlas-sim-detail {
+  font-size: 12px;
+  color: #e5e7eb;
+  line-height: 1.45;
+  margin: 0;
+}
+.atlas-sim-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.atlas-sim-metric small {
+  display: block;
+  font-size: 9.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.atlas-sim-metric strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+@media (max-width: 640px) {
+  .atlas-sim-hud {
+    width: 95%;
+    padding: 12px 14px;
+    top: 10px;
+  }
+  .atlas-sim-metrics {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
 
 /* Water now panel */
 .atlas-water {

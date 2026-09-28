@@ -212,6 +212,12 @@ if (!existsSync(join(root, "public/about/dr-non-siam-square.jpg"))) {
 } else {
   ok("Siam Square photo file present in public/about/");
 }
+if (!html.includes('id="atlas-version"')) fail("index.html missing honest version badge #atlas-version");
+else ok("index.html has honest version badge #atlas-version");
+if (!html.includes('id="atlas-flood-verdict-sim"')) fail("index.html missing 72h simulation button #atlas-flood-verdict-sim");
+else ok("index.html has 72h simulation button #atlas-flood-verdict-sim");
+if (!html.includes('id="atlas-sim-hud"')) fail("index.html missing simulation HUD #atlas-sim-hud");
+else ok("index.html has simulation HUD #atlas-sim-hud");
 
 const app = readFileSync(join(root, "public/app.js"), "utf8");
 // Union of the urban-management tokens and the heritage tokens. Three
