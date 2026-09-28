@@ -6329,7 +6329,10 @@ function renderSituation(payload) {
   // Where it is worst.
   const body = document.getElementById("atlas-sit-areas");
   const meta = document.getElementById("atlas-sit-areas-meta");
-  if (body) {
+  if (body && !Array.isArray(payload.areas)) {
+    // An older reading without district tallies: wait, never claim "no reports".
+    body.innerHTML = `<tr><td colspan="5" class="atlas-sit-empty">Waiting for the next reading…</td></tr>`;
+  } else if (body) {
     const top = (payload.areas ?? []).filter((a) => a.n3h > 0).slice(0, 8);
     const rain = state.districtRain ?? new Map();
     body.innerHTML = top.length ? top.map((a, i) => {
