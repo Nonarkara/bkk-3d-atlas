@@ -3929,6 +3929,12 @@ function openFloodRoadPopup(map, event) {
     ? `Deepest reported: ${p.depthEn}${p.depthTh && p.depthTh !== "null" ? ` · ${p.depthTh}` : ""}`
     : "Depth not given";
   const latestAgo = minutesSince(p.latest);
+  // The nearest traffic camera, so the report can be checked against a live view.
+  let cam = null;
+  for (const c of state.cctvGeojson?.features ?? []) {
+    const d = pointToLineMeters(c.geometry.coordinates, f.geometry.coordinates);
+    if (d <= FLOOD_CAM_LIVE_MAX_M && c.properties?.id && (!cam || d < cam.d)) cam = { id: c.properties.id, d: Math.round(d) };
+  }
   const html = `
     <div class="atlas-cctv-card atlas-gauge-card">
       <p class="atlas-cctv-kicker">Flooded road · reported</p>
@@ -3940,6 +3946,7 @@ function openFloodRoadPopup(map, event) {
       <p class="atlas-cctv-status">${p.placed === "road-name"
         ? "DDS gives a road name, not a place: the whole named road in this khet is marked."
         : "Marked ~100 m either side of each report — not a surveyed flood extent."}</p>
+      ${cam ? `<button type="button" class="atlas-cctv-live-link" data-cam="${escapeHtml(cam.id)}">Live camera ${cam.d} m away →</button>` : ""}
       <p class="atlas-gauge-duty">Depth is the reporter's word, not a measurement · ${escapeHtml(FLOOD_DUTY)}</p>
     </div>`;
   closeFloodRoadPopup();
@@ -3947,11 +3954,18 @@ function openFloodRoadPopup(map, event) {
     .setLngLat(event.lngLat)
     .setHTML(html)
     .addTo(map);
+  state.floodRoadPopup.getElement()?.querySelector("[data-cam]")?.addEventListener("click", async () => {
+    closeFloodRoadPopup();
+    await flyToCctvFromRoad(map, cam.id);
+  });
 }
 
 async function loadFloodRoadsPayload() {
   const payload = await fetchJson(FLOOD_ROADS_URL);
-  if (payload?.tool === "flood-roads") state.floodRoads = payload;
+  if (payload?.tool === "flood-roads") {
+    state.floodRoads = payload;
+    computeFloodCamJoin();
+  }
   return state.floodRoads;
 }
 
@@ -4652,7 +4666,28 @@ function wireEmergencyInteractions(map) {
 // ─────────────────────────────────────────────────────────────────
 
 const FLOOD_CAM_JOIN_MAX_M = 800;
-const FLOOD_CAM_JOIN_MAX_M_BBOX_BIAS = 1500; // generous when both anchor near district centroid
+// Live street reports (/api/flood/roads): a camera within this distance of a
+// stretch reported in the last few hours can show what the report describes.
+const FLOOD_CAM_LIVE_MAX_M = 300;
+const FLOOD_CAM_LIVE_MAX_H = 6;
+// A DDS record older than this says nothing about what the camera sees now.
+const FLOOD_CAM_DDS_MAX_H = 24;
+
+/** Metres from a point to a LineString (equirectangular; fine at city scale). */
+function pointToLineMeters([lng, lat], coords) {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180);
+  const ky = 110540;
+  let best = Infinity;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const ax = (coords[i][0] - lng) * kx, ay = (coords[i][1] - lat) * ky;
+    const bx = (coords[i + 1][0] - lng) * kx, by = (coords[i + 1][1] - lat) * ky;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
 
 function haversineMeters(a, b) {
   const R = 6371000;
@@ -4668,21 +4703,39 @@ function haversineMeters(a, b) {
 function computeFloodCamJoin() {
   const byCam = new Map();
   const byRoad = new Map();
-  const roads = state.roadsFloodedGeojson?.features;
+  const byCamLive = new Map();
+  const roads = state.roadsFloodedGeojson?.features ?? [];
   const cams = state.cctvGeojson?.features;
-  if (!Array.isArray(roads) || !Array.isArray(cams) || !roads.length || !cams.length) {
-    state.floodCamJoin = { byCam, byRoad, count: 0 };
+  if (!Array.isArray(cams) || !cams.length) {
+    state.floodCamJoin = { byCam, byRoad, byCamLive, count: 0 };
     return;
   }
-  // Index active roads once (severity ≠ cleared). A road is "active"
-  // when BMA DDS has no cleared_at timestamp; cleared reports would
-  // misrepresent what's on the live stream right now.
+  // Live first: residents' and drivers' reports on a street (flood-roads).
+  const liveCutoff = Date.now() - FLOOD_CAM_LIVE_MAX_H * 3_600_000;
+  const stretches = (state.floodRoads?.roads?.features ?? [])
+    .filter((f) => f.properties?.placed === "report" && Date.parse(f.properties.latest) >= liveCutoff);
+  for (const cam of cams) {
+    const at = cam.geometry?.coordinates;
+    const camId = cam.properties?.id;
+    if (!Array.isArray(at) || !camId) continue;
+    let best = null;
+    for (const f of stretches) {
+      const d = pointToLineMeters(at, f.geometry.coordinates);
+      if (d <= FLOOD_CAM_LIVE_MAX_M && (!best || d < best.d)) best = { f, d };
+    }
+    if (best) byCamLive.set(camId, { ...best.f.properties, distM: Math.round(best.d) });
+  }
+  // Then BMA DDS, but only a record dated within the last day and not
+  // cleared — an older "clearance not recorded" says nothing about the
+  // stream right now.
+  const ddsCutoff = Date.now() - FLOOD_CAM_DDS_MAX_H * 3_600_000;
   const activeRoads = roads.filter((f) => {
     const p = f.properties || {};
-    return p.status !== "reported-cleared" && p.severity !== "cleared";
+    const t = Date.parse(p.flooded_at ?? "");
+    return p.status !== "reported-cleared" && p.severity !== "cleared" && Number.isFinite(t) && t >= ddsCutoff;
   });
   if (!activeRoads.length) {
-    state.floodCamJoin = { byCam, byRoad, count: 0 };
+    state.floodCamJoin = { byCam, byRoad, byCamLive, count: byCamLive.size };
     return;
   }
   let joinCount = 0;
@@ -4694,7 +4747,7 @@ function computeFloodCamJoin() {
       const roadLngLat = road.geometry?.coordinates;
       if (!Array.isArray(roadLngLat)) continue;
       const dist = haversineMeters(camLngLat, roadLngLat);
-      if (dist > FLOOD_CAM_JOIN_MAX_M && dist > FLOOD_CAM_JOIN_MAX_M_BBOX_BIAS) continue;
+      if (dist > FLOOD_CAM_JOIN_MAX_M) continue;
       if (!best || dist < best.dist) {
         best = { road, dist };
       }
@@ -4724,7 +4777,7 @@ function computeFloodCamJoin() {
       joinCount++;
     }
   }
-  state.floodCamJoin = { byCam, byRoad, count: joinCount };
+  state.floodCamJoin = { byCam, byRoad, byCamLive, count: joinCount + byCamLive.size };
 }
 
 async function installEmergency(map) {
@@ -5110,7 +5163,23 @@ function openCctvPopup(map, feature) {
   // the player. Stolen from JK World's flood page, where every road
   // card carries its nearest camera thumbnail.
   const floodEntry = state.floodCamJoin?.byCam?.get(props.id) || null;
-  const floodBanner = floodEntry
+  const liveEntry = state.floodCamJoin?.byCamLive?.get(props.id) || null;
+  const liveAgo = liveEntry ? minutesSince(liveEntry.latest) : null;
+  const liveBits = liveEntry
+    ? [
+        liveEntry.traffy ? `${liveEntry.traffy} resident report${liveEntry.traffy > 1 ? "s" : ""}` : "",
+        liveEntry.itic ? `${liveEntry.itic} iTIC report${liveEntry.itic > 1 ? "s" : ""}` : "",
+        liveEntry.depthEn ? `to ${liveEntry.depthEn}` : "",
+        liveAgo != null ? `latest ${ageWords(liveAgo)} ago` : "",
+      ].filter(Boolean).join(" · ")
+    : "";
+  const floodBanner = liveEntry
+    ? `<div class="atlas-cctv-flood-banner" data-severity="${liveEntry.depth >= 5 ? "severe" : liveEntry.depth >= 3 ? "moderate" : "shallow"}">
+        <span class="atlas-cctv-flood-kicker">🌊 REPORTED FLOODED · ${liveEntry.distM} m FROM THIS CAMERA</span>
+        <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(liveEntry.road || "Unnamed road")}</strong>
+        <span class="atlas-cctv-flood-meta">${escapeHtml(liveBits)} · depth is the reporter's word</span>
+      </div>`
+    : floodEntry
     ? `<div class="atlas-cctv-flood-banner" data-severity="${escapeHtml(floodEntry.severity || "unknown")}">
         <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD NEARBY · ${Math.round(floodEntry.distM)} m</span>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(floodEntry.roadName)}</strong>
@@ -6034,7 +6103,7 @@ function wireStackPresets(map) {
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
