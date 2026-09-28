@@ -5398,7 +5398,11 @@ async function installLiveCams(map) {
 
 async function fetchJson(url) {
   try {
-    const response = await fetch(url, { cache: "force-cache" });
+    // Static GeoJSON may come from the HTTP cache. Live /api/ feeds never:
+    // "force-cache" reuses a stored copy however old it is, which left
+    // returning visitors reading an hours-old flood picture as current.
+    const live = String(url).startsWith("/api/");
+    const response = await fetch(url, { cache: live ? "no-store" : "force-cache" });
     if (!response.ok) return null;
     return await response.json();
   } catch { return null; }
