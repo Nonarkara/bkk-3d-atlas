@@ -4024,9 +4024,14 @@ function openFloodRoadPopup(map, event) {
   const latestAgo = minutesSince(p.latest);
   // The nearest traffic camera, so the report can be checked against a live view.
   let cam = null;
-  for (const c of state.cctvGeojson?.features ?? []) {
-    const d = pointToLineMeters(c.geometry.coordinates, f.geometry.coordinates);
-    if (d <= FLOOD_CAM_LIVE_MAX_M && c.properties?.id && (!cam || d < cam.d)) cam = { id: c.properties.id, d: Math.round(d) };
+  const liveJoin = p.road ? state.floodCamJoin?.byRoadLive?.get(p.road) : null;
+  if (liveJoin) {
+    cam = { id: liveJoin.camId, d: liveJoin.distM };
+  } else {
+    for (const c of state.cctvGeojson?.features ?? []) {
+      const d = pointToLineMeters(c.geometry.coordinates, f.geometry.coordinates);
+      if (d <= FLOOD_CAM_LIVE_MAX_M && c.properties?.id && (!cam || d < cam.d)) cam = { id: c.properties.id, d: Math.round(d) };
+    }
   }
   const html = `
     <div class="atlas-cctv-card atlas-gauge-card">
@@ -4140,6 +4145,9 @@ async function installFloodRoads(map) {
         "line-color": FLOOD_DEPTH_COLOR,
         "line-width": width(),
         "line-opacity": ["interpolate", ["linear"], ["get", "score"], 0, 0.45, 0.6, 0.95],
+        "line-color-transition": { duration: 1500, delay: 0 },
+        "line-width-transition": { duration: 1500, delay: 0 },
+        "line-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.on("click", FLOOD_ROAD_LAYER, (e) => { e.originalEvent?.stopPropagation?.(); openFloodRoadPopup(map, e); });
@@ -4687,6 +4695,9 @@ async function installCanalGates(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.28,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -4706,6 +4717,9 @@ async function installCanalGates(map) {
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1.2,
         "circle-opacity": 0.95,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireCanalGateInteractions(map);
@@ -4826,6 +4840,51 @@ async function flyToCctvFromRoad(map, camId) {
   map.once("moveend", () => openCctvPopup(map, feat));
 }
 
+async function flyToRoadFromCctv(map, roadName) {
+  if (!map || !roadName) return;
+  closeCctvPopup();
+  if (!state.layerOn["flood-roads"]) {
+    await setLayerToggle(map, "flood-roads", true);
+  }
+  let tries = 0;
+  while ((!state.floodRoads?.roads?.features?.length) && tries < 12) {
+    await new Promise((r) => setTimeout(r, 150));
+    tries++;
+  }
+  const feat = state.floodRoads?.roads?.features?.find((f) => f.properties?.road === roadName);
+  if (!feat?.geometry?.coordinates?.length) return;
+  const coords = feat.geometry.coordinates;
+  const midPoint = coords[Math.floor(coords.length / 2)] || coords[0];
+  map.flyTo({ center: midPoint, zoom: 15.5, pitch: 45, essential: true });
+  map.once("moveend", () => {
+    openFloodRoadPopup(map, { features: [feat], lngLat: { lng: midPoint[0], lat: midPoint[1] } });
+  });
+}
+
+async function flyToDdsRoadFromCctv(map, roadKey) {
+  if (!map || !roadKey) return;
+  closeCctvPopup();
+  if (!state.layerOn["roads-flooded"]) {
+    await setLayerToggle(map, "roads-flooded", true);
+  }
+  let tries = 0;
+  while ((!state.roadsFloodedGeojson?.features?.length) && tries < 12) {
+    await new Promise((r) => setTimeout(r, 150));
+    tries++;
+  }
+  const feat = state.roadsFloodedGeojson?.features?.find((f) => {
+    const p = f.properties || {};
+    const k = p.id ?? `${p.district}/${p.name}`;
+    return k === roadKey || p.name === roadKey;
+  });
+  if (!feat?.geometry?.coordinates) return;
+  const center = feat.geometry.coordinates;
+  map.flyTo({ center, zoom: 15.5, pitch: 45, essential: true });
+  map.once("moveend", () => {
+    openRoadsFloodedPopup(map, feat);
+  });
+}
+
 function wireRoadsFloodedInteractions(map) {
   if (map.__bkkxRoadsFloodedWired) return;
   map.__bkkxRoadsFloodedWired = true;
@@ -4877,6 +4936,9 @@ async function installRoadsFlooded(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.26,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -4901,6 +4963,9 @@ async function installRoadsFlooded(map) {
           "cleared", 0.45,
           0.92,
         ],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireRoadsFloodedInteractions(map);
@@ -5014,6 +5079,12 @@ const FLOOD_CAM_LIVE_MAX_H = 6;
 // A DDS record older than this says nothing about what the camera sees now.
 const FLOOD_CAM_DDS_MAX_H = 24;
 
+// Bounding box thresholds (~800 m and ~300 m at Bangkok ~13.75° N)
+const BBOX_DEG_LAT = 800 / 110540; // ~0.0072°
+const BBOX_DEG_LNG = 800 / 108150; // ~0.0074°
+const BBOX_LIVE_LAT = 300 / 110540; // ~0.0027°
+const BBOX_LIVE_LNG = 300 / 108150; // ~0.0028°
+
 /** Metres from a point to a LineString (equirectangular; fine at city scale). */
 function pointToLineMeters([lng, lat], coords) {
   const kx = 111320 * Math.cos((lat * Math.PI) / 180);
@@ -5045,10 +5116,11 @@ function computeFloodCamJoin() {
   const byCam = new Map();
   const byRoad = new Map();
   const byCamLive = new Map();
+  const byRoadLive = new Map();
   const roads = state.roadsFloodedGeojson?.features ?? [];
   const cams = state.cctvGeojson?.features;
   if (!Array.isArray(cams) || !cams.length) {
-    state.floodCamJoin = { byCam, byRoad, byCamLive, count: 0 };
+    state.floodCamJoin = { byCam, byRoad, byCamLive, byRoadLive, count: 0 };
     return;
   }
   // Live first: residents' and drivers' reports on a street (flood-roads).
@@ -5059,12 +5131,33 @@ function computeFloodCamJoin() {
     const at = cam.geometry?.coordinates;
     const camId = cam.properties?.id;
     if (!Array.isArray(at) || !camId) continue;
+    const [cLng, cLat] = at;
     let best = null;
     for (const f of stretches) {
-      const d = pointToLineMeters(at, f.geometry.coordinates);
+      // Coarse bounding-box prune: skip if camera is not within ~300 m of coordinates
+      const coords = f.geometry.coordinates;
+      let near = false;
+      for (let i = 0; i < coords.length; i++) {
+        if (Math.abs(coords[i][1] - cLat) <= BBOX_LIVE_LAT && Math.abs(coords[i][0] - cLng) <= BBOX_LIVE_LNG) {
+          near = true;
+          break;
+        }
+      }
+      if (!near) continue;
+
+      const d = pointToLineMeters(at, coords);
       if (d <= FLOOD_CAM_LIVE_MAX_M && (!best || d < best.d)) best = { f, d };
     }
-    if (best) byCamLive.set(camId, { ...best.f.properties, distM: Math.round(best.d) });
+    if (best) {
+      const roadName = best.f.properties?.road || "";
+      byCamLive.set(camId, { ...best.f.properties, distM: Math.round(best.d) });
+      if (roadName) {
+        const existing = byRoadLive.get(roadName);
+        if (!existing || best.d < existing.distM) {
+          byRoadLive.set(roadName, { camId, distM: Math.round(best.d), camLngLat: at });
+        }
+      }
+    }
   }
   // Then BMA DDS, but only a record dated within the last day and not
   // cleared — an older "clearance not recorded" says nothing about the
@@ -5076,17 +5169,22 @@ function computeFloodCamJoin() {
     return p.status !== "reported-cleared" && p.severity !== "cleared" && Number.isFinite(t) && t >= ddsCutoff;
   });
   if (!activeRoads.length) {
-    state.floodCamJoin = { byCam, byRoad, byCamLive, count: byCamLive.size };
+    state.floodCamJoin = { byCam, byRoad, byCamLive, byRoadLive, count: byCamLive.size };
     return;
   }
   let joinCount = 0;
   for (const cam of cams) {
     const camLngLat = cam.geometry?.coordinates;
     if (!Array.isArray(camLngLat)) continue;
+    const [cLng, cLat] = camLngLat;
     let best = null;
     for (const road of activeRoads) {
       const roadLngLat = road.geometry?.coordinates;
       if (!Array.isArray(roadLngLat)) continue;
+      // Coarse bounding-box prune: skip if camera is not within ~800 m of point
+      if (Math.abs(roadLngLat[1] - cLat) > BBOX_DEG_LAT || Math.abs(roadLngLat[0] - cLng) > BBOX_DEG_LNG) {
+        continue;
+      }
       const dist = haversineMeters(camLngLat, roadLngLat);
       if (dist > FLOOD_CAM_JOIN_MAX_M) continue;
       if (!best || dist < best.dist) {
@@ -5096,8 +5194,10 @@ function computeFloodCamJoin() {
     if (best) {
       const camId = cam.properties?.id;
       const roadProps = best.road.properties || {};
+      const roadKey = best.road.properties?.id ?? `${roadProps.district}/${roadProps.name}`;
       const entry = {
         camId,
+        roadKey,
         roadId: best.road.properties?.id ?? null,
         roadName: roadProps.name || roadProps.road || "ถนน",
         district: roadProps.district || "",
@@ -5110,7 +5210,6 @@ function computeFloodCamJoin() {
       if (camId) byCam.set(camId, entry);
       // If the same road happens to match multiple cameras, keep the
       // closest camera as the canonical "live view" link.
-      const roadKey = best.road.properties?.id ?? `${roadProps.district}/${roadProps.name}`;
       const existing = byRoad.get(roadKey);
       if (!existing || entry.distM < existing.distM) {
         byRoad.set(roadKey, { ...entry, roadKey });
@@ -5118,7 +5217,7 @@ function computeFloodCamJoin() {
       joinCount++;
     }
   }
-  state.floodCamJoin = { byCam, byRoad, byCamLive, count: joinCount + byCamLive.size };
+  state.floodCamJoin = { byCam, byRoad, byCamLive, byRoadLive, count: joinCount + byCamLive.size };
 }
 
 async function installEmergency(map) {
@@ -5157,6 +5256,9 @@ async function installEmergency(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.30,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -5175,6 +5277,9 @@ async function installEmergency(map) {
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1.4,
         "circle-opacity": ["match", ["get", "tier"], "reported", 0.78, 0.95],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireEmergencyInteractions(map);
@@ -5226,6 +5331,12 @@ async function installFloodSensors(map) {
         // Only prepare and worse get a halo — the eye goes where the water is.
         "circle-opacity": ["case", [">=", ["get", "rank"], 3], ["case", dim, 0.14, 0.28], 0],
         "circle-stroke-width": 0,
+        // Animate the colour transition (1.5 s) so a sensor going from
+        // prepare → safe visibly fades red → yellow → green on the
+        // map. The user sees the water going down, not a snap.
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -5241,6 +5352,9 @@ async function installFloodSensors(map) {
         "circle-stroke-width": ["case", silent, 1.6, 1.2],
         "circle-opacity": ["case", dim, 0.55, 0.95],
         "circle-stroke-opacity": ["case", dim, 0.55, 1],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireFloodSensorInteractions(map);
@@ -5516,13 +5630,19 @@ function openCctvPopup(map, feature) {
     : "";
   const floodBanner = liveEntry
     ? `<div class="atlas-cctv-flood-banner" data-severity="${liveEntry.depth >= 5 ? "severe" : liveEntry.depth >= 3 ? "moderate" : "shallow"}">
-        <span class="atlas-cctv-flood-kicker">🌊 REPORTED FLOODED · ${liveEntry.distM} m FROM THIS CAMERA</span>
+        <div class="atlas-cctv-flood-head">
+          <span class="atlas-cctv-flood-kicker">🌊 REPORTED FLOODED · ${liveEntry.distM} m</span>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-road="${escapeHtml(liveEntry.road || "")}">Show road ↗</button>
+        </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(liveEntry.road || "Unnamed road")}</strong>
         <span class="atlas-cctv-flood-meta">${escapeHtml(liveBits)} · depth is the reporter's word</span>
       </div>`
     : floodEntry
     ? `<div class="atlas-cctv-flood-banner" data-severity="${escapeHtml(floodEntry.severity || "unknown")}">
-        <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD NEARBY · ${Math.round(floodEntry.distM)} m</span>
+        <div class="atlas-cctv-flood-head">
+          <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD · ${Math.round(floodEntry.distM)} m</span>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-dds="${escapeHtml(floodEntry.roadKey || "")}">Show road ↗</button>
+        </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(floodEntry.roadName)}</strong>
         <span class="atlas-cctv-flood-meta">
           ${escapeHtml(floodEntry.district || "")}${floodEntry.depthCm != null ? ` · depth ${floodEntry.depthCm} cm` : ""}${floodEntry.floodedAt ? ` · since ${escapeHtml(floodEntry.floodedAt)}` : ""}
@@ -5561,6 +5681,21 @@ function openCctvPopup(map, feature) {
     destroyCctvHls();
     if (state.cctvPopup === popup) state.cctvPopup = null;
   });
+
+  const jumpRoadBtn = popup.getElement()?.querySelector("[data-jump-road]");
+  if (jumpRoadBtn) {
+    jumpRoadBtn.addEventListener("click", () => {
+      const roadName = jumpRoadBtn.getAttribute("data-jump-road");
+      if (roadName) flyToRoadFromCctv(map, roadName);
+    });
+  }
+  const jumpDdsBtn = popup.getElement()?.querySelector("[data-jump-dds]");
+  if (jumpDdsBtn) {
+    jumpDdsBtn.addEventListener("click", () => {
+      const roadKey = jumpDdsBtn.getAttribute("data-jump-dds");
+      if (roadKey) flyToDdsRoadFromCctv(map, roadKey);
+    });
+  }
 
   const video = popup.getElement()?.querySelector(".atlas-cctv-video");
   const status = popup.getElement()?.querySelector(".atlas-cctv-status");
@@ -6097,7 +6232,10 @@ async function runInspect(map, event) {
   }
 
   const section = document.getElementById("atlas-inspect");
-  if (section) section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (section) {
+    if (section.tagName === "DETAILS") section.open = true;
+    section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 async function fetchRisk(lng, lat) {
@@ -6805,6 +6943,67 @@ async function loadBkkLiveStrip() {
 
 const FLOOD_LEVEL_WORD = { safe: "Safe", watch: "Watch", prepare: "Prepare", danger: "Danger" };
 
+function isFeatureCollection(data) {
+  return !!data && data.type === "FeatureCollection" && Array.isArray(data.features);
+}
+
+// A failed fetch keeps the last picture. A valid empty collection clears it:
+// the water going down must leave the map, and an empty feed is still not an all-clear.
+async function refreshMountedFloodLayers(map) {
+  if (!map) return;
+  const apply = async (sourceId, url, onData) => {
+    if (!map.getSource(sourceId)) return;
+    const data = await fetchJson(url);
+    if (!isFeatureCollection(data)) return;
+    map.getSource(sourceId).setData(data);
+    onData(data);
+  };
+
+  await apply(CANAL_GATE_SOURCE, CANAL_GATES_URL, (data) => {
+    const counts = data.counts ?? {};
+    setLayerStatus(
+      "canal-gates",
+      data.features.length
+        ? `BMA DDS bulletin · ${counts.total ?? data.features.length} stations (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · normal ${counts.normal ?? 0})`
+        : "unavailable · DDS bulletin empty — not an all-clear",
+    );
+  });
+
+  await apply(ROADS_FLOODED_SOURCE, ROADS_FLOODED_URL, (data) => {
+    state.roadsFloodedGeojson = data;
+    const counts = data.counts ?? {};
+    const byStatus = counts.byStatus ?? {};
+    const bySev = counts.bySeverity ?? {};
+    setLayerStatus(
+      "roads-flooded",
+      data.features.length
+        ? `BMA DDS · ${counts.total ?? data.features.length} road reports (severe ${bySev.severe ?? 0} · moderate ${bySev.moderate ?? 0} · shallow ${bySev.shallow ?? 0} · cleared ${byStatus["reported-cleared"] ?? 0})`
+        : "unavailable · DDS road feed empty — not an all-clear",
+    );
+  });
+
+  await apply(EMERGENCY_SOURCE, EMERGENCY_URL, (data) => {
+    const total = data.counts?.total ?? data.features.length;
+    setLayerStatus(
+      "emergency-points",
+      data.features.length
+        ? `FloodDash · ${total} emergency points (BKK + 30 km halo · confirmed + reported)`
+        : "unavailable · no FloodDash emergency points — not an all-clear",
+    );
+  });
+
+  await apply(INCIDENT_SOURCE, INCIDENTS_URL, (data) => {
+    const counts = data.counts ?? {};
+    const bySource = counts.bySource ?? {};
+    setLayerStatus(
+      "flood-incidents",
+      data.features.length
+        ? `ThaiWater/FloodDash/BMA DDS · ${counts.total ?? data.features.length} incidents (city ${bySource.city ?? 0} · news ${bySource.news ?? 0} · dds ${bySource.dds ?? 0} · gauge ${bySource.sensor ?? 0})`
+        : "unavailable · incident feed returned 0",
+    );
+  });
+}
+
 async function loadFloodRelay() {
   let payload = null;
   try {
@@ -6821,6 +7020,11 @@ async function loadFloodRelay() {
     const data = await fetchJson(FLOOD_SENSOR_LIVE_URL);
     if (data?.features) src.setData(data);
   }
+  // Canal gates, DDS roads, emergency points and incident heat stay mounted
+  // after the first toggle. Replace them from the same reading, including a
+  // valid empty collection, so a recovery is not left painted on the map.
+  await refreshMountedFloodLayers(state.map);
+  computeFloodCamJoin();
 }
 
 function renderFloodVerdict(flood) {
@@ -7043,7 +7247,8 @@ function wireFolds() {
   });
   for (const a of document.querySelectorAll('.atlas-header-nav a[href^="#"]')) {
     a.addEventListener("click", () => {
-      const d = document.querySelector(`${a.getAttribute("href")} > details`);
+      const t = document.querySelector(a.getAttribute("href"));
+      const d = t?.matches("details") ? t : t?.querySelector(":scope > details");
       if (d) d.open = true;
     });
   }
