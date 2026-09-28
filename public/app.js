@@ -3965,6 +3965,7 @@ async function loadFloodRoadsPayload() {
   if (payload?.tool === "flood-roads") {
     state.floodRoads = payload;
     computeFloodCamJoin();
+    renderSituation(payload);
   }
   return state.floodRoads;
 }
@@ -6300,6 +6301,98 @@ function setBkkCardText(cardId, value, whereText, severity) {
   if (whereText != null && whereEl) whereEl.textContent = whereText;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Situation board — the strip under the map. Reads /api/flood/roads
+// (areas, hourly, rainTrend) and the ThaiWater gauges per district.
+// ─────────────────────────────────────────────────────────────────
+
+/** Wettest live gauge per district (Thai name without เขต), last 3 h of readings. */
+async function loadDistrictRain() {
+  const gj = await fetchJson("/api/water/bkk/rain-stations");
+  const by = new Map();
+  for (const f of gj?.features ?? []) {
+    const p = f.properties || {};
+    const key = String(p.amphoe ?? "").replace(/^เขต/, "").trim();
+    const mm = Number(p.rain_24h_mm);
+    if (!key || !Number.isFinite(mm) || mm < 0) continue;
+    const t = Date.parse(`${String(p.observed_at ?? "").replace(" ", "T")}:00+07:00`);
+    if (!Number.isFinite(t) || Date.now() - t > 3 * 3_600_000) continue; // a stale gauge says nothing about today
+    const cur = by.get(key);
+    if (!cur || mm > cur.mm) by.set(key, { mm, h1: Number(p.rain_1h_mm), station: p.name });
+  }
+  state.districtRain = by;
+  renderSituation(state.floodRoads);
+}
+
+function renderSituation(payload) {
+  if (!payload) return;
+  // Where it is worst.
+  const body = document.getElementById("atlas-sit-areas");
+  const meta = document.getElementById("atlas-sit-areas-meta");
+  if (body) {
+    const top = (payload.areas ?? []).filter((a) => a.n3h > 0).slice(0, 8);
+    const rain = state.districtRain ?? new Map();
+    body.innerHTML = top.length ? top.map((a, i) => {
+      const r = rain.get(a.nameTh);
+      const diff = a.n1h - a.nPrev1h;
+      const trend = diff > 1 ? ["up", `▲ ${a.n1h}`] : diff < -1 ? ["down", `▼ ${a.n1h}`] : ["flat", `● ${a.n1h}`];
+      return `<tr data-lng="${a.center?.[0] ?? ""}" data-lat="${a.center?.[1] ?? ""}" tabindex="0" role="button" aria-label="Go to ${escapeHtml(a.nameEn)}">
+        <td><span class="atlas-sit-rank">${i + 1}</span><strong lang="th">${escapeHtml(a.nameTh)}</strong> <small>${escapeHtml(a.nameEn)}</small></td>
+        <td class="num"><strong>${a.n3h}</strong></td>
+        <td><span class="atlas-sit-trend" data-trend="${trend[0]}">${trend[1]}</span></td>
+        <td><span class="atlas-sit-depth" data-depth="${a.deepest}">${escapeHtml(a.deepestEn ?? "—")}</span></td>
+        <td class="num">${r ? `${r.mm.toFixed(0)}<small> mm</small>` : "—"}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="5" class="atlas-sit-empty">No district has flood reports in the last 3 hours — that is not the same as dry streets.</td></tr>`;
+  }
+  if (meta) {
+    const age = minutesSince(payload.fetchedAt);
+    const affected = (payload.areas ?? []).filter((a) => a.n3h > 0).length;
+    meta.textContent = `${affected} districts with reports · ${age == null ? "age unknown" : `${ageWords(age)} ago`}`;
+  }
+
+  // Getting worse?
+  const hourly = payload.hourly ?? [];
+  const bars = document.getElementById("atlas-sit-pulse-bars");
+  if (bars && hourly.length) {
+    const tot = hourly.map((h) => h.traffy + h.itic);
+    const max = Math.max(1, ...tot);
+    bars.innerHTML = tot.map((n, i) => `<span style="--h:${(n / max) * 100}%" ${i === tot.length - 1 ? 'class="is-now"' : ""} title="${n} reports"></span>`).join("");
+    // The current hour is partial; compare the last full hour with the one before.
+    const last = tot[tot.length - 2] ?? 0, before = tot[tot.length - 3] ?? 0, partial = tot[tot.length - 1] ?? 0;
+    const n = document.getElementById("atlas-sit-pulse-n");
+    if (n) n.textContent = String(last);
+    const unit = document.getElementById("atlas-sit-pulse-unit");
+    if (unit) unit.textContent = "flood reports in the last full hour";
+    const delta = document.getElementById("atlas-sit-pulse-delta");
+    if (delta) {
+      const d = last - before;
+      delta.dataset.trend = d > 2 ? "up" : d < -2 ? "down" : "flat";
+      delta.textContent = `${d > 0 ? "▲" : d < 0 ? "▼" : "●"} ${Math.abs(d)} vs the hour before (${before}) · ${partial} so far this hour`;
+    }
+  }
+
+  // Rain behind it.
+  const rt = payload.rainTrend;
+  const rb = document.getElementById("atlas-sit-rain-bars");
+  if (rb && rt?.series?.length) {
+    const max = Math.max(1, ...rt.series.map((d) => d.mm));
+    const lastWeek = rt.series.length - 7;
+    rb.innerHTML = rt.series.map((d, i) =>
+      `<span style="--h:${(d.mm / max) * 100}%" class="${i >= lastWeek ? "is-week" : ""}${i === rt.series.length - 1 ? " is-now" : ""}" title="${escapeHtml(d.day)} · ${d.mm} mm"></span>`).join("");
+    const axis = document.getElementById("atlas-sit-rain-axis");
+    const fmt = (day) => new Date(`${day}T00:00:00+07:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Bangkok" });
+    if (axis) axis.innerHTML = `<span>${fmt(rt.series[0].day)}</span><span>peak ${max.toFixed(0)} mm/day</span><span>today (partial)</span>`;
+    const week = document.getElementById("atlas-sit-rain-week");
+    if (week && rt.wkNowMm != null && rt.wkPrevMm != null) {
+      week.dataset.trend = rt.ratio >= 1.3 ? "up" : rt.ratio <= 0.77 ? "down" : "flat";
+      week.textContent = `This week ${rt.wkNowMm} mm · last week ${rt.wkPrevMm} mm${rt.ratio != null ? ` · ×${rt.ratio}` : ""}`;
+    }
+    const band = document.getElementById("atlas-sit-rain-band");
+    if (band) band.textContent = rt.band ? `FloodDash: ${rt.band}` : "";
+  }
+}
+
 async function loadBkkLiveStrip() {
   const dot = document.querySelector(".atlas-bkk-live-dot");
   const freshness = document.getElementById("atlas-bkk-live-freshness");
@@ -6540,6 +6633,18 @@ const FLOOD_RANK = { "no-signal": 0, untrusted: 0, safe: 1, watch: 2, prepare: 3
 function wireWaterPanel() {
   const details = document.getElementById("atlas-water-details");
   details?.addEventListener("toggle", () => { details.dataset.touched = "1"; });
+  const sitAreas = document.getElementById("atlas-sit-areas");
+  const goArea = (event) => {
+    const row = event.target.closest("tr[data-lng]");
+    if (!row || !row.dataset.lng || !state.map) return;
+    if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    if (!state.layerOn["flood-roads"]) setLayerToggle(state.map, "flood-roads", true);
+    state.map.flyTo({ center: [Number(row.dataset.lng), Number(row.dataset.lat)], zoom: 13.5, pitch: 50, essential: true });
+    document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  sitAreas?.addEventListener("click", goArea);
+  sitAreas?.addEventListener("keydown", goArea);
   document.getElementById("atlas-water-streets")?.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-lng]");
     if (!btn || !state.map) return;
@@ -6589,7 +6694,15 @@ async function init() {
   wireWaterPanel();
   loadFloodRelay();
   setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
-  setInterval(refreshFloodRoadsLayer, 2 * 60_000);
+  // The situation board needs the flood-roads reading even with the layer off.
+  const refreshSituation = async () => {
+    if (state.map?.getSource(FLOOD_ROADS_SOURCE)) await refreshFloodRoadsLayer();
+    else await loadFloodRoadsPayload();
+  };
+  refreshSituation();
+  loadDistrictRain();
+  setInterval(refreshSituation, 2 * 60_000);
+  setInterval(loadDistrictRain, 5 * 60_000);
 
   const initialId = parseHashId();
   const initialArea = initialId ? state.areas.find((a) => a.id === initialId) : state.areas[0];

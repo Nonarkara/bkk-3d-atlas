@@ -76,56 +76,88 @@
           <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
         </div>
       </div>
-      <div class="atlas-bkk-live-grid" id="atlas-bkk-live-grid">
-        <article class="atlas-bkk-card" data-card="rain1d">
-          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 24 ชม.</p>
-          <p class="atlas-bkk-card-value" id="bkk-card-rain1d-value">—</p>
-          <p class="atlas-bkk-card-unit">มม.</p>
-          <p class="atlas-bkk-card-where">
-            <span class="atlas-bkk-card-place" id="bkk-card-rain1d-where">—</span>
-          </p>
-        </article>
-        <article class="atlas-bkk-card" data-card="rain3d">
-          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 3 วัน</p>
-          <p class="atlas-bkk-card-value" id="bkk-card-rain3d-value">—</p>
-          <p class="atlas-bkk-card-unit">มม.</p>
-          <p class="atlas-bkk-card-where">
-            <span class="atlas-bkk-card-place" id="bkk-card-rain3d-where">—</span>
-          </p>
-        </article>
-        <article class="atlas-bkk-card" data-card="rain7d">
-          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">ฝนสะสม 7 วัน</p>
-          <p class="atlas-bkk-card-value" id="bkk-card-rain7d-value">—</p>
-          <p class="atlas-bkk-card-unit">มม.</p>
-          <p class="atlas-bkk-card-where">
-            <span class="atlas-bkk-card-place" id="bkk-card-rain7d-where">—</span>
-          </p>
-        </article>
-        <article class="atlas-bkk-card" data-card="temp">
-          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">อุณหภูมิ สูงสุด / ต่ำสุด</p>
-          <p class="atlas-bkk-card-value">
-            <span id="bkk-card-temp-max">—</span><span class="atlas-bkk-card-temp-sep">°</span><span class="atlas-bkk-card-temp-sep"> / </span><span id="bkk-card-temp-min">—</span><span class="atlas-bkk-card-temp-sep">°</span>
-          </p>
-          <p class="atlas-bkk-card-unit">เซลเซียส</p>
-          <p class="atlas-bkk-card-where">
-            <span class="atlas-bkk-card-place" id="bkk-card-temp-where">—</span>
-          </p>
-        </article>
-        <article class="atlas-bkk-card atlas-bkk-card-meta" data-card="meta">
-          <p class="atlas-eyebrow atlas-eyebrow-sub atlas-bkk-card-label">แหล่งข้อมูล</p>
-          <p class="atlas-bkk-card-value atlas-bkk-card-source-name">ThaiWater v3</p>
-          <p class="atlas-bkk-card-unit">HII · สสน.</p>
-          <p class="atlas-bkk-card-where">
-            <span class="atlas-bkk-card-place">
-              <a
-                href="https://bangkok.thaiwater.net/dashboard"
-                target="_blank"
-                rel="noreferrer"
-                class="atlas-bkk-card-link"
-              >bangkok.thaiwater.net ↗</a>
-            </span>
-          </p>
-        </article>
+      <!-- Situation board — what a resident needs to decide and an operator
+           needs to dispatch: where it is worst, whether it is getting worse,
+           how much rain is behind it, and who to call. Filled from
+           /api/flood/roads (areas, hourly, rainTrend), ThaiWater gauges and
+           the provincial KPI below. -->
+      <div class="atlas-sit" id="atlas-sit">
+        <section class="atlas-sit-mod atlas-sit-areas" aria-labelledby="atlas-sit-areas-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-areas-h">Where it is worst now <span lang="th">· เขตที่หนักที่สุดตอนนี้</span></h3>
+            <span class="atlas-sit-meta" id="atlas-sit-areas-meta">loading…</span>
+          </header>
+          <table class="atlas-sit-table">
+            <thead>
+              <tr>
+                <th scope="col">District · เขต</th>
+                <th scope="col" class="num">Reports 3 h</th>
+                <th scope="col">Last hour</th>
+                <th scope="col">Deepest reported</th>
+                <th scope="col" class="num">Rain 24 h</th>
+              </tr>
+            </thead>
+            <tbody id="atlas-sit-areas"></tbody>
+          </table>
+          <p class="atlas-sit-note">Residents' Traffy Fondue tickets and iTIC road reports, placed by district boundary. A count is reports, not people or depth; one flood can draw many. Rain is the wettest gauge in the district. Tap a district to go there.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-pulse" aria-labelledby="atlas-sit-pulse-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-pulse-h">Getting worse? <span lang="th">· แย่ลงหรือไม่</span></h3>
+          </header>
+          <p class="atlas-sit-big"><span id="atlas-sit-pulse-n">—</span><small id="atlas-sit-pulse-unit">flood reports in the last hour</small></p>
+          <p class="atlas-sit-delta" id="atlas-sit-pulse-delta"></p>
+          <div class="atlas-sit-bars" id="atlas-sit-pulse-bars" role="img" aria-label="Flood reports per hour, last 24 hours"></div>
+          <p class="atlas-sit-axis"><span>−24 h</span><span>−12 h</span><span>now</span></p>
+          <p class="atlas-sit-note">Report volume also follows the clock: fewer people report at night.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-rain" aria-labelledby="atlas-sit-rain-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-rain-h">Rain behind it <span lang="th">· ฝนสะสม</span></h3>
+            <span class="atlas-sit-meta" id="atlas-sit-rain-band"></span>
+          </header>
+          <div class="atlas-sit-bars atlas-sit-bars-rain" id="atlas-sit-rain-bars" role="img" aria-label="Daily mean rain across Bangkok gauges, last 15 days"></div>
+          <p class="atlas-sit-axis" id="atlas-sit-rain-axis"><span></span><span></span></p>
+          <p class="atlas-sit-delta" id="atlas-sit-rain-week"></p>
+          <div class="atlas-sit-facts">
+            <article class="atlas-bkk-card" data-card="rain1d">
+              <p class="atlas-bkk-card-label">Wettest gauge 24 h · ฝน 24 ชม.</p>
+              <p class="atlas-bkk-card-value"><span id="bkk-card-rain1d-value">—</span><small> mm</small></p>
+              <p class="atlas-bkk-card-where"><span class="atlas-bkk-card-place" id="bkk-card-rain1d-where">—</span></p>
+            </article>
+            <article class="atlas-bkk-card" data-card="rain3d">
+              <p class="atlas-bkk-card-label">3 days · 3 วัน</p>
+              <p class="atlas-bkk-card-value"><span id="bkk-card-rain3d-value">—</span><small> mm</small></p>
+              <p class="atlas-bkk-card-where"><span class="atlas-bkk-card-place" id="bkk-card-rain3d-where">—</span></p>
+            </article>
+            <article class="atlas-bkk-card" data-card="rain7d">
+              <p class="atlas-bkk-card-label">7 days · 7 วัน</p>
+              <p class="atlas-bkk-card-value"><span id="bkk-card-rain7d-value">—</span><small> mm</small></p>
+              <p class="atlas-bkk-card-where"><span class="atlas-bkk-card-place" id="bkk-card-rain7d-where">—</span></p>
+            </article>
+            <article class="atlas-bkk-card" data-card="temp">
+              <p class="atlas-bkk-card-label">Temp max / min · อุณหภูมิ</p>
+              <p class="atlas-bkk-card-value"><span id="bkk-card-temp-max">—</span>° / <span id="bkk-card-temp-min">—</span>°</p>
+              <p class="atlas-bkk-card-where"><span class="atlas-bkk-card-place" id="bkk-card-temp-where">—</span></p>
+            </article>
+          </div>
+          <p class="atlas-sit-note">Bars: daily mean across ~134 Bangkok gauges, via FloodDash. Totals: the single wettest gauge, <a href="https://bangkok.thaiwater.net/dashboard" target="_blank" rel="noreferrer">ThaiWater / HII ↗</a>.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-act" aria-labelledby="atlas-sit-act-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-act-h">If you need help <span lang="th">· ต้องการความช่วยเหลือ</span></h3>
+          </header>
+          <ul class="atlas-sit-calls">
+            <li><a href="tel:1784"><strong>1784</strong><span>DDPM disaster line · ปภ.</span></a></li>
+            <li><a href="tel:1555"><strong>1555</strong><span>Bangkok city hall · กทม.</span></a></li>
+            <li><a href="tel:1669"><strong>1669</strong><span>Medical emergency · การแพทย์ฉุกเฉิน</span></a></li>
+            <li><a href="https://www.traffy.in.th/" target="_blank" rel="noreferrer"><strong>Traffy</strong><span>Report flooding on your street · แจ้งน้ำท่วม ↗</span></a></li>
+          </ul>
+          <p class="atlas-sit-note">Water rising indoors: switch off power at the main, move up, keep your phone charged. Never walk or drive through moving water. This board is not an official warning.</p>
+        </section>
       </div>
     </section>
 

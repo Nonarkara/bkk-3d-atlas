@@ -282,7 +282,47 @@ export type FloodRoads = {
   roads: { type: "FeatureCollection"; features: unknown[] };
   heat: { type: "FeatureCollection"; features: unknown[] };
   unplacedDds: { district: string | null; road: string | null; location: string | null; floodedAt: string | null }[];
+  /** Districts ranked by reports in the last 3 h (residents + iTIC, placed by boundary). */
+  areas: Area[];
+  /** Reports per hour, citywide, oldest first — is it getting worse? */
+  hourly: { hour: string; traffy: number; itic: number }[];
+  /** FloodDash's Bangkok rain trend: daily mean mm across ~134 gauges. */
+  rainTrend: RainTrend | null;
 };
+
+export type Area = {
+  id: number | null; nameTh: string; nameEn: string;
+  n1h: number; nPrev1h: number; n3h: number; n24h: number;
+  deepest: number; deepestEn: string | null; deepestTh: string | null;
+  latest: string | null; center: [number, number] | null;
+};
+
+export type RainTrend = {
+  generatedAt: string | null;
+  series: { day: string; mm: number }[];
+  wkNowMm: number | null; wkPrevMm: number | null; ratio: number | null; band: string | null;
+  stations: number | null;
+};
+
+async function fetchRainTrend(): Promise<RainTrend> {
+  const r = await fetch(`${FLOODDASH_ORIGIN}/api/rain/trend`, {
+    headers: { accept: "application/json", "user-agent": UA },
+    signal: AbortSignal.timeout(40_000),
+  });
+  if (!r.ok) throw new Error(`FloodDash /api/rain/trend HTTP ${r.status}`);
+  const j = (await r.json()) as { generated_at?: string; provinces?: Record<string, unknown>[] };
+  const bkk = j.provinces?.find((p) => String(p.province_code) === "10");
+  if (!bkk) throw new Error("rain trend: no Bangkok row");
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return {
+    generatedAt: j.generated_at ?? null,
+    series: ((bkk.series as { day: string; mm: number }[]) ?? [])
+      .filter((d) => typeof d.day === "string" && Number.isFinite(d.mm))
+      .map((d) => ({ day: d.day, mm: Math.round(d.mm * 10) / 10 })),
+    wkNowMm: n(bkk.wk_now_mm), wkPrevMm: n(bkk.wk_prev_mm), ratio: n(bkk.ratio),
+    band: typeof bkk.band === "string" ? bkk.band : null, stations: n(bkk.stations),
+  };
+}
 
 async function readRow<T>(env: Env, key: string): Promise<{ payload: T; fetchedAt: string } | null> {
   const row = await env.CIVIC_DB.prepare("SELECT payload, fetched_at FROM flood_state WHERE key = ?")
@@ -507,6 +547,71 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
     flush();
   }
 
+  // Districts: every report placed by the boundary it falls in, so resident
+  // and iTIC reports count the same way (addresses are not read).
+  const districts = (deps.districts?.features ?? []).map((f) => {
+    const rings = outerRings(f.geometry);
+    let sx = 0, sy = 0, k = 0;
+    for (const [x, y] of rings[0] ?? []) { sx += x; sy += y; k++; }
+    return {
+      id: (f.properties?.id as number) ?? null,
+      nameTh: String(f.properties?.name_th ?? "").replace(/^เขต/, ""),
+      nameEn: String(f.properties?.name_en ?? "").replace(/ District$/, ""),
+      rings,
+      center: k ? ([Math.round((sx / k) * 1e4) / 1e4, Math.round((sy / k) * 1e4) / 1e4] as [number, number]) : null,
+    };
+  });
+  const districtOf = (lng: number, lat: number) => districts.find((d) => d.rings.some((r) => pointInRing(lng, lat, r))) ?? null;
+  const HOUR = 3_600_000;
+  const areaMap = new Map<string, Area>();
+  const hourStart = Math.floor(now / HOUR) * HOUR;
+  const hourly = Array.from({ length: 24 }, (_, i) => ({ hour: new Date(hourStart - (23 - i) * HOUR).toISOString(), traffy: 0, itic: 0 }));
+  const tally = (lng: number, lat: number, t: number, depth: number, src: "traffy" | "itic") => {
+    const slot = 23 - Math.floor((hourStart - Math.floor(t / HOUR) * HOUR) / HOUR);
+    if (slot >= 0 && slot < 24) hourly[slot][src]++;
+    const d = districtOf(lng, lat);
+    if (!d) return;
+    const a = areaMap.get(d.nameTh) ?? {
+      id: d.id, nameTh: d.nameTh, nameEn: d.nameEn, n1h: 0, nPrev1h: 0, n3h: 0, n24h: 0,
+      deepest: 0, deepestEn: null, deepestTh: null, latest: null, center: d.center,
+    };
+    const age = now - t;
+    if (age <= 24 * HOUR) a.n24h++;
+    if (age <= 3 * HOUR) {
+      a.n3h++;
+      if (depth > a.deepest) {
+        a.deepest = depth;
+        a.deepestEn = DEPTHS.find((x) => x.rank === depth)?.en ?? null;
+        a.deepestTh = DEPTHS.find((x) => x.rank === depth)?.th ?? null;
+      }
+    }
+    if (age <= HOUR) a.n1h++;
+    else if (age <= 2 * HOUR) a.nPrev1h++;
+    if (!a.latest || t > Date.parse(a.latest)) a.latest = new Date(t).toISOString();
+    areaMap.set(d.nameTh, a);
+  };
+  for (const r of traffy) {
+    const t = Date.parse(r.t);
+    if (Number.isFinite(t)) tally(r.lng, r.lat, t, r.depth ? RANK[r.depth] ?? 0 : 0, "traffy");
+  }
+  for (const e of itic) {
+    const t = Date.parse(e.start);
+    const cm = Number(e.depth_cm);
+    const depth = Number.isFinite(cm) && cm > 0 ? RANK[CM_EDGES.find(([edge]) => cm < edge)?.[1] ?? "chest"] : 0;
+    if (Number.isFinite(t) && now - t <= 24 * HOUR) tally(e.lng, e.lat, t, depth, "itic");
+  }
+  const areas = [...areaMap.values()]
+    .filter((a) => a.n24h > 0)
+    .sort((a, b) => b.n3h - a.n3h || b.deepest - a.deepest || b.n24h - a.n24h);
+
+  let rainTrend: RainTrend | null = prev?.payload.rainTrend ?? null;
+  try {
+    rainTrend = await fetchRainTrend();
+    mark("rainTrend", true, rainTrend.series.length);
+  } catch (e) {
+    mark("rainTrend", false, rainTrend?.series.length ?? 0, String(e).slice(0, 160));
+  }
+
   const heatFeatures = [...heat.values()].map((c) => ({
     type: "Feature",
     geometry: { type: "Point", coordinates: [Math.round(c.lng * 1e4) / 1e4, Math.round(c.lat * 1e4) / 1e4] },
@@ -523,6 +628,9 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
     roads: { type: "FeatureCollection", features },
     heat: { type: "FeatureCollection", features: heatFeatures },
     unplacedDds,
+    areas,
+    hourly,
+    rainTrend,
   };
   const errors = Object.entries(sources).filter(([, s]) => s.error).map(([k, s]) => `${k}: ${s.error}`).join("; ");
   await writeRow(env, STATE_KEY, out, nowIso, errors || null);
