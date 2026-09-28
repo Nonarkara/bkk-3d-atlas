@@ -4596,6 +4596,9 @@ async function installCanalGates(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.28,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -4615,6 +4618,9 @@ async function installCanalGates(map) {
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1.2,
         "circle-opacity": 0.95,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireCanalGateInteractions(map);
@@ -5151,6 +5157,9 @@ async function installEmergency(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.30,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -5169,6 +5178,9 @@ async function installEmergency(map) {
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1.4,
         "circle-opacity": ["match", ["get", "tier"], "reported", 0.78, 0.95],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireEmergencyInteractions(map);
@@ -6828,6 +6840,67 @@ async function loadBkkLiveStrip() {
 
 const FLOOD_LEVEL_WORD = { safe: "Safe", watch: "Watch", prepare: "Prepare", danger: "Danger" };
 
+function isFeatureCollection(data) {
+  return !!data && data.type === "FeatureCollection" && Array.isArray(data.features);
+}
+
+// A failed fetch keeps the last picture. A valid empty collection clears it:
+// the water going down must leave the map, and an empty feed is still not an all-clear.
+async function refreshMountedFloodLayers(map) {
+  if (!map) return;
+  const apply = async (sourceId, url, onData) => {
+    if (!map.getSource(sourceId)) return;
+    const data = await fetchJson(url);
+    if (!isFeatureCollection(data)) return;
+    map.getSource(sourceId).setData(data);
+    onData(data);
+  };
+
+  await apply(CANAL_GATE_SOURCE, CANAL_GATES_URL, (data) => {
+    const counts = data.counts ?? {};
+    setLayerStatus(
+      "canal-gates",
+      data.features.length
+        ? `BMA DDS bulletin · ${counts.total ?? data.features.length} stations (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · normal ${counts.normal ?? 0})`
+        : "unavailable · DDS bulletin empty — not an all-clear",
+    );
+  });
+
+  await apply(ROADS_FLOODED_SOURCE, ROADS_FLOODED_URL, (data) => {
+    state.roadsFloodedGeojson = data;
+    const counts = data.counts ?? {};
+    const byStatus = counts.byStatus ?? {};
+    const bySev = counts.bySeverity ?? {};
+    setLayerStatus(
+      "roads-flooded",
+      data.features.length
+        ? `BMA DDS · ${counts.total ?? data.features.length} road reports (severe ${bySev.severe ?? 0} · moderate ${bySev.moderate ?? 0} · shallow ${bySev.shallow ?? 0} · cleared ${byStatus["reported-cleared"] ?? 0})`
+        : "unavailable · DDS road feed empty — not an all-clear",
+    );
+  });
+
+  await apply(EMERGENCY_SOURCE, EMERGENCY_URL, (data) => {
+    const total = data.counts?.total ?? data.features.length;
+    setLayerStatus(
+      "emergency-points",
+      data.features.length
+        ? `FloodDash · ${total} emergency points (BKK + 30 km halo · confirmed + reported)`
+        : "unavailable · no FloodDash emergency points — not an all-clear",
+    );
+  });
+
+  await apply(INCIDENT_SOURCE, INCIDENTS_URL, (data) => {
+    const counts = data.counts ?? {};
+    const bySource = counts.bySource ?? {};
+    setLayerStatus(
+      "flood-incidents",
+      data.features.length
+        ? `ThaiWater/FloodDash/BMA DDS · ${counts.total ?? data.features.length} incidents (city ${bySource.city ?? 0} · news ${bySource.news ?? 0} · dds ${bySource.dds ?? 0} · gauge ${bySource.sensor ?? 0})`
+        : "unavailable · incident feed returned 0",
+    );
+  });
+}
+
 async function loadFloodRelay() {
   let payload = null;
   try {
@@ -6844,16 +6917,10 @@ async function loadFloodRelay() {
     const data = await fetchJson(FLOOD_SENSOR_LIVE_URL);
     if (data?.features) src.setData(data);
   }
-  // Refresh DDS roads layer if mounted so live paint transitions animate smoothly
-  const roadsSrc = state.map?.getSource(ROADS_FLOODED_SOURCE);
-  if (roadsSrc) {
-    const ddsData = await fetchJson(ROADS_FLOODED_URL);
-    if (ddsData?.features?.length) {
-      state.roadsFloodedGeojson = ddsData;
-      roadsSrc.setData(ddsData);
-    }
-  }
-  // Unified join sync across gauges, cams, and flood roads
+  // Canal gates, DDS roads, emergency points and incident heat stay mounted
+  // after the first toggle. Replace them from the same reading, including a
+  // valid empty collection, so a recovery is not left painted on the map.
+  await refreshMountedFloodLayers(state.map);
   computeFloodCamJoin();
 }
 
@@ -6923,7 +6990,7 @@ function renderWaterPanel(flood) {
             <span class="atlas-gauge-swatch" aria-hidden="true"></span>
             <span class="atlas-water-row-main">
               <strong>${escapeHtml(g.bandEn)}</strong> ${escapeHtml(g.name)}
-              <small>${escapeHtml(g.waterwayName || g.river || "")}${g.confidence === "stale" ? ` · stale, ${ageWords((g.ageMin ?? 0) + relayAge)} old` : ""}</small>
+              <small>${escapeHtml(g.waterwayName || g.river || "")}${Number.isFinite(g.riseMH) ? ` · ${g.riseMH >= 0 ? "rising" : "falling"} ${(Math.abs(g.riseMH) * 100).toFixed(1)} cm/h` : ""}${g.confidence === "stale" ? ` · stale, ${ageWords((g.ageMin ?? 0) + relayAge)} old` : ""}</small>
             </span>
           </button>
         </li>`).join("")
