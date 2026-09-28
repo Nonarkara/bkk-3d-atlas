@@ -3987,8 +3987,8 @@ async function installFloodRoads(map) {
       source: FLOOD_HEAT_SOURCE,
       paint: {
         // Weight grows fast then saturates: one fresh report shows, a street of them glows.
-        "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0, 0.1, 0.3, 0.5, 0.65, 1.5, 1],
-        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 1.4, 14, 2.2],
+        "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0, 0.1, 0.2, 0.6, 0.5, 2.5, 1],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 0.7, 14, 1.3],
         "heatmap-radius": ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22, 13, 44, 16, 100],
         "heatmap-color": [
           "interpolate", ["linear"], ["heatmap-density"],
@@ -4088,7 +4088,7 @@ function startFloodWaterMotion(map) {
     map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-radius",
       ["interpolate", ["exponential", 1.6], ["zoom"], 10, 22 * (1 + 0.1 * slosh), 13, 44 * (1 + 0.12 * slosh), 16, 100 * (1 + 0.12 * slosh)]);
     map.setPaintProperty(FLOOD_HEAT_LAYER, "heatmap-intensity",
-      ["interpolate", ["linear"], ["zoom"], 10, 1.4 * (1 + 0.12 * drift), 14, 2.2 * (1 + 0.12 * drift)]);
+      ["interpolate", ["linear"], ["zoom"], 10, 0.7 * (1 + 0.12 * drift), 14, 1.3 * (1 + 0.12 * drift)]);
     step = (step + 1) % FLOW_DASH_STEPS.length;
     map.setPaintProperty(FLOOD_ROAD_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
     const phase = (now % 2600) / 2600;
