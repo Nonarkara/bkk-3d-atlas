@@ -4049,6 +4049,9 @@ async function installFloodRoads(map) {
         "line-color": FLOOD_DEPTH_COLOR,
         "line-width": width(),
         "line-opacity": ["interpolate", ["linear"], ["get", "score"], 0, 0.45, 0.6, 0.95],
+        "line-color-transition": { duration: 1500, delay: 0 },
+        "line-width-transition": { duration: 1500, delay: 0 },
+        "line-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.on("click", FLOOD_ROAD_LAYER, (e) => { e.originalEvent?.stopPropagation?.(); openFloodRoadPopup(map, e); });
@@ -4828,6 +4831,9 @@ async function installRoadsFlooded(map) {
         "circle-color": "#dc2626",
         "circle-opacity": 0.26,
         "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -4852,6 +4858,9 @@ async function installRoadsFlooded(map) {
           "cleared", 0.45,
           0.92,
         ],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireRoadsFloodedInteractions(map);
@@ -5211,6 +5220,12 @@ async function installFloodSensors(map) {
         // Only prepare and worse get a halo — the eye goes where the water is.
         "circle-opacity": ["case", [">=", ["get", "rank"], 3], ["case", dim, 0.14, 0.28], 0],
         "circle-stroke-width": 0,
+        // Animate the colour transition (1.5 s) so a sensor going from
+        // prepare → safe visibly fades red → yellow → green on the
+        // map. The user sees the water going down, not a snap.
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
       },
     });
     map.addLayer({
@@ -5226,6 +5241,9 @@ async function installFloodSensors(map) {
         "circle-stroke-width": ["case", silent, 1.6, 1.2],
         "circle-opacity": ["case", dim, 0.55, 0.95],
         "circle-stroke-opacity": ["case", dim, 0.55, 1],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireFloodSensorInteractions(map);
@@ -6826,6 +6844,17 @@ async function loadFloodRelay() {
     const data = await fetchJson(FLOOD_SENSOR_LIVE_URL);
     if (data?.features) src.setData(data);
   }
+  // Refresh DDS roads layer if mounted so live paint transitions animate smoothly
+  const roadsSrc = state.map?.getSource(ROADS_FLOODED_SOURCE);
+  if (roadsSrc) {
+    const ddsData = await fetchJson(ROADS_FLOODED_URL);
+    if (ddsData?.features?.length) {
+      state.roadsFloodedGeojson = ddsData;
+      roadsSrc.setData(ddsData);
+    }
+  }
+  // Unified join sync across gauges, cams, and flood roads
+  computeFloodCamJoin();
 }
 
 function renderFloodVerdict(flood) {
