@@ -692,6 +692,7 @@ const DAM_LAYER = "bkkx-bkk-dams-dots";
 const DAMS_URL = "/api/water/bkk/dams";
 const ALERTS_URL = "/api/water/bkk/alerts";
 const SOURCES_HEALTH_URL = "/api/water/bkk/sources-health";
+const NEWS_WATCH_URL = "/api/water/bkk/news-watch";
 
 // Rain severity colors — match the ThaiWater dashboard gradient so the
 // two visualizations speak the same language. Tuned to be readable on
@@ -7098,13 +7099,91 @@ async function refreshAlertsPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Sources health panel (2026-09-29) — pulls FloodDash's snapshot.sources
-// which lists 40 upstream feeds with last-run / failures / status. The
-// atlas paints each as a small dot — green ok, amber degraded, red
-// stale — so a reader can see which of the 40 feeds the atlas depends
-// on is dead. DDPM, TMD, BMA, HII are the names a Thai reader will
-// recognise.
+// News watch (2026-09-29) — pulls FloodDash's curated flood-news
+// feed (gnews_flood: Google News flood filter + Bangkok Post /
+// Khaosod / Thai PBS / Reuters). Sits at the very top of the sidebar
+// so a person opening the atlas during a flood sees the headlines
+// before anything else.
+//
+// Each item carries a severity chip:
+//   - urgent   (red)    — keywords like อพยพ / ด่วน / evacuate / urgent
+//   - watch    (orange) — เตือน / ระวัง / flood / rising
+//   - advisory (yellow) — อัปเดต / สถานการณ์ / update / advisory
+//   - info     (grey)   — anything else
+// Trusted sources (Bangkok Post, Khaosod, Thai PBS, Reuters, BBC, …)
+// get a "Trusted" pill so a reader can see provenance at a glance.
 // ─────────────────────────────────────────────────────────────────
+
+const NEWS_SEVERITY_COLOR = {
+  urgent: "#dc2626",
+  watch: "#f97316",
+  advisory: "#facc15",
+  info: "#7d8a9a",
+};
+
+const NEWS_SEVERITY_LABEL = {
+  urgent: "URGENT",
+  watch: "WATCH",
+  advisory: "UPDATE",
+  info: "INFO",
+};
+
+async function refreshNewsWatch() {
+  const listEl = document.getElementById("atlas-news-watch-list");
+  const headEl = document.getElementById("atlas-news-watch-meta");
+  const noteEl = document.getElementById("atlas-news-watch-note");
+  if (!listEl) return;
+  let payload = null;
+  try {
+    const res = await fetch(NEWS_WATCH_URL, { cache: "no-store" });
+    if (res.ok) payload = await res.json();
+  } catch { /* rendered as unavailable below */ }
+  if (!payload || !Array.isArray(payload.items)) {
+    if (headEl) headEl.textContent = "FloodDash · unavailable";
+    listEl.innerHTML = `<li class="atlas-news-empty">FloodDash news feed unavailable.</li>`;
+    if (noteEl) noteEl.textContent = "";
+    return;
+  }
+  const items = payload.items.slice(0, 8);
+  const c = payload.counts ?? {};
+  if (headEl) {
+    const sev = [];
+    if (c.urgent) sev.push(`${c.urgent} urgent`);
+    if (c.watch) sev.push(`${c.watch} watch`);
+    headEl.textContent =
+      `FloodDash · ${c.total ?? items.length} · ${sev.join(" · ") || "all routine"}` +
+      (payload.fetchedAt ? ` · ${ageWords(minutesSince(payload.fetchedAt))} ago` : "");
+  }
+  if (!items.length) {
+    listEl.innerHTML = `<li class="atlas-news-empty">No flood headlines from trusted Thai outlets in the last 30 min.</li>`;
+    if (noteEl) noteEl.textContent = payload.attribution || "";
+    return;
+  }
+  listEl.innerHTML = items.map((n) => {
+    const sev = n.severity || "info";
+    const color = NEWS_SEVERITY_COLOR[sev] || NEWS_SEVERITY_COLOR.info;
+    const label = NEWS_SEVERITY_LABEL[sev] || "INFO";
+    const ageMin = n.published_at ? minutesSince(n.published_at) : null;
+    const ageTxt = ageMin == null ? "fresh" : ageMin < 1 ? "<1 min" : `${Math.round(ageMin)} min`;
+    const domain = n.source_domain || "link";
+    const trustedPill = n.trusted ? `<span class="atlas-news-trusted" title="Trusted Thai/English outlet">✓ trusted</span>` : "";
+    return `
+      <li class="atlas-news-item" data-severity="${escapeHtml(sev)}">
+        <a class="atlas-news-link" href="${escapeHtml(n.link || "#")}" target="_blank" rel="noreferrer noopener">
+          <span class="atlas-news-chip" style="--band:${color}">${escapeHtml(label)}</span>
+          <span class="atlas-news-title" lang="th">${escapeHtml(n.title || "")}</span>
+          <span class="atlas-news-meta">
+            <span class="atlas-news-domain">${escapeHtml(domain)}</span>
+            ${trustedPill}
+            <span class="atlas-news-age">${ageTxt}</span>
+          </span>
+        </a>
+      </li>`;
+  }).join("");
+  if (noteEl) {
+    noteEl.textContent = `Sourced from FloodDash's curated gnews_flood feed — Google News flood filter + Bangkok Post / Khaosod / Thai PBS / Reuters. Severity auto-detected from title keywords (อพยพ/urgent = red).`;
+  }
+}
 
 const SOURCE_STATUS_COLOR = {
   ok: "#10b981",
@@ -7282,6 +7361,7 @@ async function refreshMountedFloodLayers(map) {
   // the layers above. We refresh them here so the situation board
   // tells the truth every 5 minutes, on the same cadence as the map.
   await refreshAlertsPanel();
+  await refreshNewsWatch();
   await refreshSourcesHealthPanel();
 
   state.lastFloodRefreshAt = new Date().toISOString();

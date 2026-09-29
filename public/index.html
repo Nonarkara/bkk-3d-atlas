@@ -238,6 +238,20 @@
     </section>
 
     <aside class="atlas-panel" aria-live="polite">
+      <!-- Trusted flood news (2026-09-29) — sits BEFORE the Operate bar
+           so a person opening the atlas during a flood sees the
+           headlines before anything else. Source: FloodDash's curated
+           gnews_flood feed (Google News flood filter + Bangkok Post /
+           Khaosod / Thai PBS / Reuters). Refreshed every 5 minutes. -->
+      <section class="atlas-news-watch" id="atlas-news-watch" aria-label="Trusted flood news">
+        <header class="atlas-news-watch-head">
+          <span class="atlas-eyebrow atlas-eyebrow-news">Flood news now · ข่าวน้ำท่วมตอนนี้</span>
+          <span class="atlas-news-watch-meta" id="atlas-news-watch-meta">loading…</span>
+        </header>
+        <ul class="atlas-news-watch-list" id="atlas-news-watch-list"></ul>
+        <p class="atlas-news-watch-note" id="atlas-news-watch-note"></p>
+      </section>
+
       <div class="atlas-operate-bar">
         <p class="atlas-eyebrow">Operate</p>
         <button type="button" class="atlas-about-chip" data-about-open aria-haspopup="dialog">

@@ -2625,3 +2625,130 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-source-cell[data-status="stale"] { border-left: 2px solid #dc2626; }
 .atlas-source-cell[data-status="skipped"] { opacity: 0.55; }
 .atlas-source-label { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* === 2026-09-29 — Trusted flood news watch (sidebar top) ===
+   Sits BEFORE the Operate bar in the right panel so a person opening
+   the atlas during a flood sees Bangkok's newsroom before anything
+   else. Severity chip on each headline (urgent=evacuate, watch=flood
+   warning, advisory=update, info=routine) so a reader can triage at
+   a glance. The "trusted" pill on Bangkok Post / Khaosod / Thai PBS /
+   Reuters / BBC items shows provenance without leaving the sidebar. */
+
+.atlas-news-watch {
+  display: block;
+  padding: 10px 12px 12px;
+  background: rgba(201, 255, 56, 0.04);
+  border: 1px solid rgba(201, 255, 56, 0.18);
+  border-left: 2px solid var(--signal, #c9ff38);
+  margin: 0 0 10px;
+}
+.atlas-news-watch-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.atlas-eyebrow-news {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--signal, #c9ff38);
+  font-weight: 800;
+}
+.atlas-news-watch-meta {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+}
+.atlas-news-watch-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+  display: grid;
+  gap: 0;
+}
+.atlas-news-item { padding: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.atlas-news-item:last-child { border-bottom: 0; }
+.atlas-news-link {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+.atlas-news-link:hover { background: rgba(201, 255, 56, 0.06); }
+.atlas-news-link:focus-visible {
+  outline: 2px solid var(--signal, #c9ff38);
+  outline-offset: 2px;
+}
+.atlas-news-chip {
+  grid-row: 1 / span 2;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 0;
+  background: var(--band, #7d8a9a);
+  color: #11120f;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  border-radius: 0;
+  min-height: 20px;
+}
+.atlas-news-title {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--paper);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.atlas-news-meta {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono, monospace);
+}
+.atlas-news-domain { color: var(--muted); }
+.atlas-news-trusted {
+  display: inline-block;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  letter-spacing: 0.04em;
+  border-radius: 0;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.atlas-news-age { color: var(--muted); margin-left: auto; }
+.atlas-news-empty { padding: 6px 0; color: var(--muted); font-size: 12px; }
+.atlas-news-watch-note {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Severity-tinted row stripes so a reader scanning the list can
+   triage at a glance — urgent headlines get a red wash, watch orange. */
+.atlas-news-item[data-severity="urgent"] { background: rgba(220, 38, 38, 0.04); }
+.atlas-news-item[data-severity="watch"] { background: rgba(249, 115, 22, 0.03); }

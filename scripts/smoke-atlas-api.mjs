@@ -462,6 +462,29 @@ async function checkSourcesHealth() {
   logOk("GET /api/water/bkk/sources-health", ms, `${c.total ?? body.items.length} feeds (ok ${c.ok ?? 0} · degraded ${c.degraded ?? 0} · skipped ${c.skipped ?? 0}) · system ${body.system_counts?.monitored_stations ?? "?"} stations`);
 }
 
+// News watch (2026-09-29) — FloodDash gnews_flood curated feed.
+// Contract:
+//   - 200, JSON with tool=bkk-news-watch
+//   - items array, each with title + link + source_domain + severity
+//   - severity ∈ {urgent, watch, advisory, info}
+//   - link is https?:// (a real article URL, not a redirect)
+//   - when items is non-empty, each item has a non-empty title
+async function checkNewsWatch() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/news-watch");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/news-watch", `status=${status}`);
+  assert(body.tool === "bkk-news-watch", `tool=${body.tool}`);
+  assert(Array.isArray(body.items), "items not an array");
+  const allowed = new Set(["urgent", "watch", "advisory", "info"]);
+  for (const n of body.items) {
+    assert(typeof n.title === "string" && n.title.length > 0, "empty title");
+    assert(typeof n.link === "string" && /^https?:\/\//.test(n.link), `invalid link on '${n.title.slice(0, 40)}'`);
+    assert(allowed.has(n.severity), `unknown severity '${n.severity}' on '${n.title.slice(0, 40)}'`);
+    assert(typeof n.source_domain === "string" && n.source_domain.length > 0, `empty source_domain on '${n.title.slice(0, 40)}'`);
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/news-watch", ms, `${c.total ?? body.items.length} headlines (urgent ${c.urgent ?? 0} · watch ${c.watch ?? 0} · advisory ${c.advisory ?? 0} · info ${c.info ?? 0} · trusted ${c.trusted ?? 0})`);
+}
+
 // Live city incidents — the "God Mode" layer. The contract is:
 //   - 200, FeatureCollection
 //   - features (when present) have coordinates inside the Bangkok bbox
@@ -558,6 +581,7 @@ async function main() {
   await checkBkkEmergencyPoints();
   await checkBkkDams();
   await checkBkkAlerts();
+  await checkNewsWatch();
   await checkSourcesHealth();
   await checkCivicPois();
   await checkCityEvents();

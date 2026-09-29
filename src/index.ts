@@ -1451,6 +1451,107 @@ async function proxyBkkAlerts(_request: Request): Promise<Response> {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// News watch (2026-09-29) — pulls FloodDash's snapshot.news which is
+// a curated Thai-language flood news feed (gnews_flood: Google News
+// filtered to flood terms, plus the Bangkok Post / Khaosod / Thai PBS
+// official outlets via the same relay). This is the "trusted sources
+// about flood predictions" surface the user wants at the top of the
+// sidebar — the headline answer to "what is Bangkok's newsroom
+// saying right now".
+//
+// Severity is derived from the title: explicit evacuate/urgent/warn
+// keywords trigger red; advisories/watches orange; status updates
+// yellow; routine coverage neutral. Honest degradation: empty feed is
+// still surfaced as "0 items" — not an all-clear on its own.
+// ─────────────────────────────────────────────────────────────────
+
+const FLOOD_NEWS_URGENT_KEYWORDS = ["อพยพ", "ด่วน", "ประกาศเตือน", "วิกฤต", "น้ำล้นตลิ่ง", "evacuat", "urgent", "critical"];
+const FLOOD_NEWS_WATCH_KEYWORDS = ["เตือน", "ระวัง", "น้ำท่วม", "ท่วม", "น้ำขึ้น", "ฝนตกหนัก", "warn", "flood", "rising"];
+const FLOOD_NEWS_ADVISORY_KEYWORDS = ["อัปเดต", "สถานการณ์", "มาตรการ", "ช่วยเหลือ", "ฟื้นฟู", "update", "advisory"];
+
+function deriveNewsSeverity(title: string): string {
+  const t = String(title || "").toLowerCase();
+  if (FLOOD_NEWS_URGENT_KEYWORDS.some((k) => t.includes(k.toLowerCase()))) return "urgent";
+  if (FLOOD_NEWS_WATCH_KEYWORDS.some((k) => t.includes(k.toLowerCase()))) return "watch";
+  if (FLOOD_NEWS_ADVISORY_KEYWORDS.some((k) => t.includes(k.toLowerCase()))) return "advisory";
+  return "info";
+}
+
+function extractSourceDomain(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+async function proxyNewsWatch(_request: Request): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "news_watch_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { news?: any[]; now?: string };
+  const items = Array.isArray(data.news) ? data.news : [];
+  const severityCounts: Record<string, number> = { urgent: 0, watch: 0, advisory: 0, info: 0 };
+  const cleaned = [];
+  for (const n of items) {
+    const title = String(n.title || "");
+    const link = String(n.link || "");
+    const severity = deriveNewsSeverity(title);
+    severityCounts[severity] = (severityCounts[severity] ?? 0) + 1;
+    cleaned.push({
+      feed: n.feed || "flooddash-news",
+      title,
+      link,
+      source_domain: extractSourceDomain(link),
+      published_at: n.published_at || null,
+      severity,
+    });
+  }
+  // Newest first — already sorted by upstream but enforce.
+  cleaned.sort((a, b) => {
+    const ta = a.published_at ? Date.parse(a.published_at) : 0;
+    const tb = b.published_at ? Date.parse(b.published_at) : 0;
+    return tb - ta;
+  });
+  // Whitelist of trusted Thai + English outlets — anything outside this
+  // list gets flagged as "other" so the atlas doesn't promote a random
+  // blog. Maps known GDELT/Google News domains to a display label.
+  const TRUSTED_SOURCES = new Set([
+    "bangkokpost.com", "khaosodenglish.com", "nationthailand.com", "thaipbs.or.th",
+    "thairath.co.th", "dailynews.co.th", "matichon.co.th", "prachachat.net",
+    "bbc.com", "bbc.co.uk", "reuters.com", "apnews.com", "theguardian.com",
+    "channelnewsasia.com", "straitstimes.com", "tnatoday.com", "workpointtoday.com",
+    "news.google.com", "line.me", "thansettakij.com", "mcot.net", "pptvhd36.com",
+    "thailandplus.tv", "bangkokinsight.com",
+  ]);
+  for (const item of cleaned) {
+    (item as any).trusted = TRUSTED_SOURCES.has(item.source_domain);
+  }
+  return jsonResponse({
+    tool: "bkk-news-watch",
+    version: 1,
+    fetchedAt: data.now ?? null,
+    counts: {
+      total: cleaned.length,
+      ...severityCounts,
+      trusted: cleaned.filter((i: any) => i.trusted).length,
+    },
+    attribution: "FloodDash gnews_flood relay (flood.nonarkara.org/api/snapshot) · Google News flood filter + Bangkok Post / Khaosod / Thai PBS",
+    items: cleaned.slice(0, 12),
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "FloodDash flood news · gnews_flood curated feed",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Sources health (2026-09-29) — pulls FloodDash's snapshot.sources
 // which lists 40+ upstream feeds (BMA DDS, HII, ThaiWater, RID, GISTDA,
 // PCD, Air4Thai, etc.) with last-run / last-OK / failure counts. The
@@ -3034,6 +3135,7 @@ function apiCatalog(request: Request): Response {
         { path: "/api/water/bkk/dams", method: "GET", description: "FloodDash major dams (Bhumibol, Sirikit, Pasak, Kwae Noi) — storage %, inflow, release. Filtered to Chao Phraya + nearby basins.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/alerts", method: "GET", description: "FloodDash active flood alerts (thaiwater_wl level changes + flash-flood precursors) — Bangkok + Chao Phraya upstream provinces.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/sources-health", method: "GET", description: "FloodDash ingest health for 40 upstream feeds (BMA DDS, HII, ThaiWater, RID, GISTDA, PCD, Air4Thai, …) — last-run, failures, status.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/news-watch", method: "GET", description: "FloodDash curated Thai flood-news feed (gnews_flood: Google News flood filter + Bangkok Post / Khaosod / Thai PBS / Reuters). Severity derived from title keywords.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -3117,6 +3219,9 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/sources-health") {
       return proxySourcesHealth(request);
+    }
+    if (url.pathname === "/api/water/bkk/news-watch") {
+      return proxyNewsWatch(request);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);
