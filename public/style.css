@@ -2517,3 +2517,111 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-panel .atlas-bkk-live-head {
   margin-bottom: 6px;
 }
+
+/* === 2026-09-29 — Visible FloodDash credit + 3 new situation-board surfaces === */
+
+/* Attribution chip sits under the Flood verdict buttons. Answers
+   "where does this data come from?" without leaving the page. */
+.atlas-flood-credit {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: rgba(201, 255, 56, 0.06);
+  border-left: 2px solid var(--signal, #c9ff38);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.atlas-flood-credit strong { color: var(--paper); font-weight: 600; }
+.atlas-flood-credit a { color: var(--signal); text-decoration: none; border-bottom: 1px solid rgba(201, 255, 56, 0.4); }
+.atlas-flood-credit a:hover { color: #d6ff5e; }
+.atlas-flood-credit-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--signal, #c9ff38);
+  box-shadow: 0 0 0 3px rgba(201, 255, 56, 0.18);
+  margin-top: 4px;
+  flex-shrink: 0;
+  animation: atlas-credit-pulse 2.4s ease-in-out infinite;
+}
+@keyframes atlas-credit-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(201, 255, 56, 0.18); }
+  50%      { box-shadow: 0 0 0 6px rgba(201, 255, 56, 0); }
+}
+
+/* Gauge trend — most recent movers on each refresh. The arrow colour
+   matches the gauge band ladder. */
+.atlas-gauge-trend-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.atlas-gauge-trend {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+.atlas-trend-arrow { font-weight: 800; font-size: 13px; text-align: center; }
+.atlas-trend-arrow.rising { color: #fb923c; }
+.atlas-trend-arrow.falling { color: #7eb6ff; }
+.atlas-trend-main { display: grid; gap: 1px; min-width: 0; }
+.atlas-trend-main strong { font-size: 12px; color: var(--paper); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-trend-main small { color: var(--muted); font-size: 10px; }
+.atlas-trend-delta { font-family: var(--font-mono, monospace); font-size: 12px; font-weight: 700; }
+.atlas-trend-delta.rising { color: #fb923c; }
+.atlas-trend-delta.falling { color: #7eb6ff; }
+
+/* Active alerts — FloodDash's level-change + flash-flood precursors
+   for BKK + Chao Phraya upstream provinces. */
+.atlas-alert-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.atlas-alert {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11.5px;
+}
+.atlas-alert-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--band, #7d8a9a);
+  margin-top: 4px;
+}
+.atlas-alert-main { display: grid; gap: 1px; min-width: 0; }
+.atlas-alert-main strong { font-size: 11px; letter-spacing: 0.04em; color: var(--paper); font-weight: 700; text-transform: uppercase; }
+.atlas-alert-main small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.atlas-alert-main small.atlas-alert-meta { color: rgba(255, 255, 255, 0.45); font-family: var(--font-mono, monospace); font-size: 10px; }
+
+/* Sources health — 40 upstream feeds as a coloured grid. Each cell
+   holds the dot + the feed name; status drives the colour. */
+.atlas-sources-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+@media (min-width: 600px) {
+  .atlas-sources-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.atlas-source-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10.5px;
+  line-height: 1.2;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
+  overflow: hidden;
+}
+.atlas-source-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--band, #7d8a9a);
+  flex-shrink: 0;
+}
+.atlas-source-cell[data-status="ok"] { border-left: 2px solid #10b981; }
+.atlas-source-cell[data-status="degraded"] { border-left: 2px solid #f97316; }
+.atlas-source-cell[data-status="stale"] { border-left: 2px solid #dc2626; }
+.atlas-source-cell[data-status="skipped"] { opacity: 0.55; }
+.atlas-source-label { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

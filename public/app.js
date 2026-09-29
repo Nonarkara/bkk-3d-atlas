@@ -681,6 +681,18 @@ const EMERGENCY_HALO_LAYER = "bkkx-bkk-emergency-halo";
 const EMERGENCY_LAYER = "bkkx-bkk-emergency-dots";
 const EMERGENCY_URL = "/api/water/bkk/emergency-points";
 
+// Dams + alerts + sources-health (2026-09-29) — three more surfaces
+// pulled from FloodDash's /api/snapshot. Dams paint upstream-of-BKK
+// variables (Bhumibol/Sirikit storage %) so the river the atlas
+// already colours has a story upstream. Alerts + sources-health are
+// panel-only (text + status grid) — no map layer.
+const DAM_SOURCE = "bkkx-bkk-dams";
+const DAM_HALO_LAYER = "bkkx-bkk-dams-halo";
+const DAM_LAYER = "bkkx-bkk-dams-dots";
+const DAMS_URL = "/api/water/bkk/dams";
+const ALERTS_URL = "/api/water/bkk/alerts";
+const SOURCES_HEALTH_URL = "/api/water/bkk/sources-health";
+
 // Rain severity colors — match the ThaiWater dashboard gradient so the
 // two visualizations speak the same language. Tuned to be readable on
 // a dark satellite base + the #11120f halo from flood sensors.
@@ -740,6 +752,11 @@ const state = {
   canalGatePopup: null,
   roadsFloodedPopup: null,
   emergencyPopup: null,
+  damPopup: null,
+  // Last FloodDash reading time + a per-gauge delta history so the
+  // situation board can show "Chao Phraya +5 cm since last reading".
+  lastFloodRefreshAt: null,
+  gaugeTrend: new Map(), // gaugeId → [{ ts, levelMs }, ...] (cap 4)
   liveCamPopup: null,
   landPricePopup: null,
   civicPoiPopup: null,
@@ -818,6 +835,8 @@ const LAYER_STACK = [
   ROADS_FLOODED_LAYER,
   EMERGENCY_HALO_LAYER,
   EMERGENCY_LAYER,
+  DAM_HALO_LAYER,
+  DAM_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
   NEWS_EVENT_GLOW_LAYER,
@@ -1368,6 +1387,26 @@ const LAYERS = [
       { color: "#dc2626", label: "high (news + sensor) · confirmed" },
       { color: "#f97316", label: "watch (sensor only or single mention)" },
       { color: "#facc15", label: "reported · needs confirmation" },
+    ],
+  },
+  {
+    id: "dams",
+    name: "Major dams (upstream)",
+    description: "FloodDash · Chao Phraya + nearby basins · storage %",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [DAM_HALO_LAYER, DAM_LAYER],
+    install: async (map) => { await installDams(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeDamPopup();
+      setLayersVisible(map, [DAM_HALO_LAYER, DAM_LAYER], false);
+    },
+    legend: [
+      { color: "#dc2626", label: "≥90% · about to spill" },
+      { color: "#f97316", label: "80–89% · filling fast" },
+      { color: "#facc15", label: "60–79% · normal high" },
+      { color: "#7eb6ff", label: "<60% · normal" },
+      { color: "#7d8a9a", label: "absent · no recent reading" },
     ],
   },
   {
@@ -4481,6 +4520,8 @@ async function installIncidents(map) {
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1,
         "circle-opacity": 0.95,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
     });
     wireIncidentInteractions(map);
@@ -5193,6 +5234,172 @@ async function installEmergency(map) {
   } catch (error) {
     console.warn("BKK emergency-points layer failed:", error);
     setLayerStatus("emergency-points", "unavailable · layer failed");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Dams (2026-09-29) — major dams pulled from FloodDash's snapshot.dams,
+// filtered to the Chao Phraya + nearby basins that actually drive
+// Bangkok's river level. Marker size scales with absolute storage so
+// Bhumibol/Sirikit (the two biggest) read as "this is the volume that
+// matters", and color follows the gauge-band ladder so a person
+// already fluent in flood colours reads dams the same way.
+// ─────────────────────────────────────────────────────────────────
+
+function closeDamPopup() {
+  if (state.damPopup) {
+    try { state.damPopup.remove(); } catch {}
+    state.damPopup = null;
+  }
+}
+
+function openDamPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeDamPopup();
+  const sevColor = p.severity === "critical" ? "#ff8a8a"
+    : p.severity === "warning" ? "#fb923c"
+    : p.severity === "watch" ? "#facc15"
+    : p.severity === "unknown" ? "#7d8a9a"
+    : "#7eb6ff";
+  const storagePct = p.storage_pct != null ? `${p.storage_pct}%` : "—";
+  const storageMcm = p.storage_mcm != null ? `${p.storage_mcm} MCM` : "—";
+  const maxStorage = p.max_storage_mcm != null ? `${p.max_storage_mcm} MCM` : "—";
+  const inflow = p.inflow_mcm != null ? `${p.inflow_mcm} MCM` : "—";
+  const released = p.released_mcm != null ? `${p.released_mcm} MCM` : "—";
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker" style="color:${sevColor}">FLOODDASH · MAJOR DAM · ${escapeHtml(p.severity || "safe").toUpperCase()}</p>
+      <strong class="atlas-cctv-title">${escapeHtml(p.name_en || p.name_th || "Dam")}</strong>
+      <p class="atlas-cctv-status" lang="th">${escapeHtml(p.name_th || "")}${p.basin_en ? ` · ${escapeHtml(p.basin_en)}` : ""}</p>
+      <p class="atlas-cctv-status">storage <strong>${storagePct}</strong> · ${storageMcm} of ${maxStorage}</p>
+      <p class="atlas-cctv-status">inflow ${inflow} · released ${released}</p>
+      <div class="atlas-cctv-actions">
+        <span>${escapeHtml(p.province_en || "")}</span>
+        <span>${escapeHtml(p.obs_time || "")}</span>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.damPopup = popup;
+}
+
+function wireDamInteractions(map) {
+  if (map.__bkkxDamsWired) return;
+  map.__bkkxDamsWired = true;
+  map.on("click", DAM_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openDamPopup(map, feature);
+  });
+  map.on("mouseenter", DAM_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", DAM_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installDams(map) {
+  if (map.getLayer(DAM_LAYER)) {
+    setLayersVisible(map, [DAM_HALO_LAYER, DAM_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(DAMS_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("dams", "unavailable · no FloodDash dam reading — not an all-clear");
+    return;
+  }
+  if (!map.getSource(DAM_SOURCE)) {
+    try {
+      map.addSource(DAM_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("BKK dams source failed:", error);
+      setLayerStatus("dams", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(DAM_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    map.addLayer({
+      id: DAM_HALO_LAYER,
+      type: "circle",
+      source: DAM_SOURCE,
+      minzoom: 6,
+      filter: ["any",
+        ["==", ["get", "severity"], "critical"],
+        ["==", ["get", "severity"], "warning"],
+      ],
+      paint: {
+        // Bigger dams get bigger halos so Bhumibol/Sirikit dominate the
+        // BKK flood story and smaller reservoirs stay out of the way.
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"], 6,
+          ["+", ["*", 14, ["/", ["coalesce", ["to-number", ["get", "max_storage_mcm"]], 1000], 13000]], 4],
+          14,
+          ["+", ["*", 22, ["/", ["coalesce", ["to-number", ["get", "max_storage_mcm"]], 1000], 13000]], 8],
+        ],
+        "circle-color": [
+          "match", ["get", "severity"],
+          "critical", "#dc2626",
+          "warning", "#f97316",
+          "#facc15",
+        ],
+        "circle-opacity": 0.20,
+        "circle-stroke-width": 0,
+        // Animate the colour transition so a dam rising into the
+        // warning band visibly fades from yellow to orange over 1.5s.
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+      },
+    });
+    map.addLayer({
+      id: DAM_LAYER,
+      type: "circle",
+      source: DAM_SOURCE,
+      minzoom: 6,
+      paint: {
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"], 6,
+          ["+", ["*", 5, ["coalesce", ["to-number", ["get", "max_storage_mcm"]], 1000], "/", 13000], 3],
+          14,
+          ["+", ["*", 8, ["coalesce", ["to-number", ["get", "max_storage_mcm"]], 1000], "/", 13000], 6],
+        ],
+        "circle-color": [
+          "match", ["get", "severity"],
+          "critical", "#dc2626",
+          "warning", "#f97316",
+          "watch", "#facc15",
+          "unknown", "#7d8a9a",
+          "#7eb6ff",
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1.4,
+        "circle-opacity": ["match", ["get", "confidence"], "absent", 0.55, 0.95],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-radius-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+      },
+    });
+    wireDamInteractions(map);
+    const counts = geojson.counts ?? {};
+    setLayerStatus(
+      "dams",
+      `FloodDash · ${counts.total ?? geojson.features.length} dams (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · watch ${counts.watch ?? 0} · safe ${counts.safe ?? 0})`,
+    );
+  } catch (error) {
+    console.warn("BKK dams layer failed:", error);
+    setLayerStatus("dams", "unavailable · layer failed");
   }
 }
 
@@ -6844,6 +7051,166 @@ function isFeatureCollection(data) {
   return !!data && data.type === "FeatureCollection" && Array.isArray(data.features);
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Alerts panel (2026-09-29) — pulls FloodDash's active alerts (level
+// changes + flash-flood precursors) for BKK + Chao Phraya upstream.
+// Renders the top 5 in the situation board with Thai + English
+// messages so a reader can audit why a gauge alarmed.
+// ─────────────────────────────────────────────────────────────────
+
+async function refreshAlertsPanel() {
+  const listEl = document.getElementById("atlas-alerts-list");
+  const headEl = document.getElementById("atlas-alerts-head");
+  if (!listEl) return;
+  let payload = null;
+  try {
+    const res = await fetch(ALERTS_URL, { cache: "no-store" });
+    if (res.ok) payload = await res.json();
+  } catch { /* rendered as unavailable below */ }
+  if (!payload || !Array.isArray(payload.items)) {
+    if (headEl) headEl.textContent = "Active alerts · FloodDash · unavailable";
+    listEl.innerHTML = `<li class="atlas-water-empty">No FloodDash alerts — not an all-clear.</li>`;
+    return;
+  }
+  const items = payload.items.slice(0, 5);
+  if (headEl) {
+    headEl.textContent = `Active alerts · FloodDash · ${payload.counts?.total ?? payload.items.length} (critical ${payload.counts?.critical ?? 0} · high ${payload.counts?.high ?? 0} · watch ${payload.counts?.watch ?? 0})${payload.fetchedAt ? ` · ${ageWords(minutesSince(payload.fetchedAt))} ago` : ""}`;
+  }
+  if (!items.length) {
+    listEl.innerHTML = `<li class="atlas-water-empty">No active alerts for BKK + upstream right now.</li>`;
+    return;
+  }
+  listEl.innerHTML = items.map((a) => {
+    const sev = Number(a.severity) || 0;
+    const color = sev >= 4 ? "#dc2626" : sev >= 3 ? "#f97316" : sev >= 2 ? "#facc15" : "#7eb6ff";
+    const msg = a.message_en || a.message_th || "Alert";
+    const province = a.province_en || a.province_th || "";
+    return `
+      <li class="atlas-alert" data-severity="${sev}">
+        <span class="atlas-alert-dot" style="--band:${color}" aria-hidden="true"></span>
+        <span class="atlas-alert-main">
+          <strong>${escapeHtml(province || "Alert")} · ${escapeHtml(a.rule || "")}</strong>
+          <small>${escapeHtml(msg)}</small>
+          <small class="atlas-alert-meta">${escapeHtml(a.source || "")}${a.age_min != null ? ` · ${a.age_min} min ago` : ""}</small>
+        </span>
+      </li>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Sources health panel (2026-09-29) — pulls FloodDash's snapshot.sources
+// which lists 40 upstream feeds with last-run / failures / status. The
+// atlas paints each as a small dot — green ok, amber degraded, red
+// stale — so a reader can see which of the 40 feeds the atlas depends
+// on is dead. DDPM, TMD, BMA, HII are the names a Thai reader will
+// recognise.
+// ─────────────────────────────────────────────────────────────────
+
+const SOURCE_STATUS_COLOR = {
+  ok: "#10b981",
+  degraded: "#f97316",
+  stale: "#dc2626",
+  skipped: "#7d8a9a",
+};
+
+async function refreshSourcesHealthPanel() {
+  const gridEl = document.getElementById("atlas-sources-grid");
+  const headEl = document.getElementById("atlas-sources-head");
+  if (!gridEl) return;
+  let payload = null;
+  try {
+    const res = await fetch(SOURCES_HEALTH_URL, { cache: "no-store" });
+    if (res.ok) payload = await res.json();
+  } catch { /* rendered as unavailable below */ }
+  if (!payload || !Array.isArray(payload.items)) {
+    if (headEl) headEl.textContent = "Upstream feeds · FloodDash · unavailable";
+    gridEl.innerHTML = `<div class="atlas-water-empty">FloodDash ingest health unavailable.</div>`;
+    return;
+  }
+  if (headEl) {
+    const c = payload.counts || {};
+    headEl.textContent = `Upstream feeds · FloodDash · ${c.total ?? payload.items.length} (ok ${c.ok ?? 0} · degraded ${c.degraded ?? 0} · skipped ${c.skipped ?? 0})${payload.fetchedAt ? ` · ${ageWords(minutesSince(payload.fetchedAt))} ago` : ""}`;
+  }
+  // Show the worst first (the renderer already sorted them). Cap at
+  // 18 for a tight grid; the full list lives in the panel source.
+  const items = payload.items.slice(0, 18);
+  gridEl.innerHTML = items.map((s) => {
+    const color = SOURCE_STATUS_COLOR[s.status] || SOURCE_STATUS_COLOR.skipped;
+    return `
+      <div class="atlas-source-cell" data-status="${escapeHtml(s.status)}" title="${escapeHtml(s.label_th || s.label_en || s.key)} · ${escapeHtml(s.last_error || s.status)}">
+        <span class="atlas-source-dot" style="--band:${color}" aria-hidden="true"></span>
+        <span class="atlas-source-label">${escapeHtml(s.label_en || s.label_th || s.key)}</span>
+      </div>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Gauge trend (2026-09-29) — track each FloodDash gauge's last few
+// readings on the client so the situation board can show
+// "Chao Phraya +5 cm since last reading". Cap at 4 entries per gauge
+// so the memory stays bounded.
+// ─────────────────────────────────────────────────────────────────
+
+const GAUGE_TREND_CAP = 4;
+
+function recordGaugeTrends(features) {
+  if (!Array.isArray(features) || !state.gaugeTrend) return [];
+  const movers = [];
+  for (const f of features) {
+    const p = f.properties || {};
+    const id = p.id;
+    const level = Number(p.levelMsl ?? p.level_msl);
+    if (!id || !Number.isFinite(level)) continue;
+    let history = state.gaugeTrend.get(id);
+    if (!history) {
+      history = [];
+      state.gaugeTrend.set(id, history);
+    }
+    const prev = history.length ? history[history.length - 1] : null;
+    history.push({ ts: Date.now(), level });
+    if (history.length > GAUGE_TREND_CAP) history.splice(0, history.length - GAUGE_TREND_CAP);
+    if (prev && Number.isFinite(prev.level)) {
+      const delta = level - prev.level;
+      if (Math.abs(delta) >= 0.02) { // >= 2 cm
+        movers.push({
+          id,
+          name: p.nameEn || p.name_en || p.name || id,
+          district: p.districtNameEn || p.district_name_en || "",
+          band: p.band || p.bandEn || "",
+          level,
+          delta,
+        });
+      }
+    }
+  }
+  movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  return movers.slice(0, 6);
+}
+
+function renderGaugeTrendPanel(movers) {
+  const el = document.getElementById("atlas-gauge-trend");
+  if (!el) return;
+  if (!movers || !movers.length) {
+    el.innerHTML = `<li class="atlas-water-empty">No recent gauge changes — readings stable.</li>`;
+    return;
+  }
+  el.innerHTML = movers.map((m) => {
+    const sign = m.delta > 0 ? "▲" : "▼";
+    const cls = m.delta > 0 ? "rising" : "falling";
+    const cm = (m.delta * 100).toFixed(0); // level is in metres, convert to cm
+    const cmAbs = Math.abs(cm);
+    return `
+      <li class="atlas-gauge-trend" data-band="${escapeHtml(m.band)}">
+        <span class="atlas-trend-arrow ${cls}" aria-hidden="true">${sign}</span>
+        <span class="atlas-trend-main">
+          <strong>${escapeHtml(m.name)}</strong>
+          <small>${escapeHtml(m.district || "")}</small>
+        </span>
+        <span class="atlas-trend-delta ${cls}">${cmAbs} cm</span>
+      </li>`;
+  }).join("");
+}
+
 // A failed fetch keeps the last picture. A valid empty collection clears it:
 // the water going down must leave the map, and an empty feed is still not an all-clear.
 async function refreshMountedFloodLayers(map) {
@@ -6899,6 +7266,31 @@ async function refreshMountedFloodLayers(map) {
         : "unavailable · incident feed returned 0",
     );
   });
+
+  await apply(DAM_SOURCE, DAMS_URL, (data) => {
+    const counts = data.counts ?? {};
+    setLayerStatus(
+      "dams",
+      data.features.length
+        ? `FloodDash · ${counts.total ?? data.features.length} dams (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · watch ${counts.watch ?? 0} · safe ${counts.safe ?? 0})`
+        : "unavailable · no FloodDash dam reading — not an all-clear",
+    );
+  });
+
+  // Side panels — alerts (text) + sources-health (40 upstream feeds).
+  // Both are panel-only; the map already has the coloured markers via
+  // the layers above. We refresh them here so the situation board
+  // tells the truth every 5 minutes, on the same cadence as the map.
+  await refreshAlertsPanel();
+  await refreshSourcesHealthPanel();
+
+  state.lastFloodRefreshAt = new Date().toISOString();
+  // Live attribution chip — answers "is the data fresh?" with a real age.
+  const freshEl = document.getElementById("atlas-flood-credit-fresh");
+  if (freshEl) {
+    const ageMin = minutesSince(state.lastFloodRefreshAt);
+    freshEl.textContent = ageMin == null ? "moments ago" : `${ageMin} min ago`;
+  }
 }
 
 async function loadFloodRelay() {
@@ -6915,7 +7307,14 @@ async function loadFloodRelay() {
   const src = state.map?.getSource(FLOOD_SENSOR_SOURCE);
   if (src && payload?.tool === "flood-bkk") {
     const data = await fetchJson(FLOOD_SENSOR_LIVE_URL);
-    if (data?.features) src.setData(data);
+    if (data?.features) {
+      src.setData(data);
+      // Record the readings so the situation board can show "Chao
+      // Phraya +5 cm since last reading". The trend survives across
+      // refreshes; only new readings are added.
+      const movers = recordGaugeTrends(data.features);
+      renderGaugeTrendPanel(movers);
+    }
   }
   // Canal gates, DDS roads, emergency points and incident heat stay mounted
   // after the first toggle. Replace them from the same reading, including a

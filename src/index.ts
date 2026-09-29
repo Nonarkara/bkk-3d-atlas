@@ -1293,6 +1293,231 @@ async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Resp
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Dams (2026-09-29) — pulled from FloodDash's snapshot.dams. The Chao
+// Phraya basin dams are upstream of Bangkok and their release schedule
+// drives the river level the atlas already colours. Surface them as
+// map markers so a person can read "Bhumibol is 87% full" without
+// leaving the atlas.
+// ─────────────────────────────────────────────────────────────────
+
+const DAM_BBOX = { minLat: 12.5, maxLat: 20.5, minLng: 97.0, maxLng: 106.0 };
+
+async function proxyBkkDams(_request: Request): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "bkk_dams_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { dams?: any[]; now?: string };
+  const dams = Array.isArray(data.dams) ? data.dams : [];
+  const features = [];
+  for (const d of dams) {
+    const lat = Number(d.lat);
+    const lng = Number(d.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (lat < DAM_BBOX.minLat || lat > DAM_BBOX.maxLat || lng < DAM_BBOX.minLng || lng > DAM_BBOX.maxLng) continue;
+    const storagePct = Number(d.dam_storage_pct);
+    const storageMcm = Number(d.dam_storage_mcm);
+    const inflowMcm = Number(d.dam_inflow_mcm);
+    const releasedMcm = Number(d.dam_released_mcm);
+    const maxStorage = Number(d.meta?.max_storage_mcm);
+    // Severity tier — mirrors the gauge band ladder so a person
+    // already fluent in flood colours reads dams the same way.
+    let severity: string;
+    if (!Number.isFinite(storagePct)) severity = "unknown";
+    else if (storagePct >= 90) severity = "critical";   // about to spill
+    else if (storagePct >= 80) severity = "warning";    // filling fast
+    else if (storagePct >= 60) severity = "watch";      // normal high
+    else severity = "safe";                              // normal
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: {
+        source: "flooddash-dams",
+        kind: "dam",
+        key: d.key,
+        name_th: d.name_th || "",
+        name_en: d.name_en || "",
+        basin_th: d.basin_th || "",
+        basin_en: d.basin_en || "",
+        province_th: d.province_th || "",
+        province_en: d.province_en || "",
+        storage_pct: Number.isFinite(storagePct) ? Number(storagePct.toFixed(1)) : null,
+        storage_mcm: Number.isFinite(storageMcm) ? Number(storageMcm.toFixed(2)) : null,
+        inflow_mcm: Number.isFinite(inflowMcm) ? Number(inflowMcm.toFixed(2)) : null,
+        released_mcm: Number.isFinite(releasedMcm) ? Number(releasedMcm.toFixed(2)) : null,
+        max_storage_mcm: Number.isFinite(maxStorage) ? maxStorage : null,
+        obs_time: d.obs_time || null,
+        age_min: Number(d.age_min) || null,
+        confidence: d.data_confidence || "ok",
+        severity,
+        weight: Number.isFinite(storagePct) ? storagePct / 100 : 0,
+      },
+    });
+  }
+  return jsonResponse({
+    type: "FeatureCollection",
+    tool: "bkk-dams",
+    version: 1,
+    fetchedAt: data.now ?? null,
+    counts: {
+      total: features.length,
+      critical: features.filter(f => f.properties.severity === "critical").length,
+      warning: features.filter(f => f.properties.severity === "warning").length,
+      watch: features.filter(f => f.properties.severity === "watch").length,
+      safe: features.filter(f => f.properties.severity === "safe").length,
+    },
+    attribution: "FloodDash dam aggregator (flood.nonarkara.org/api/snapshot) · RID + EGAT via HII",
+    features,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "FloodDash major dams · Chao Phraya + nearby basins",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Active flood alerts (2026-09-29) — pulled from FloodDash's
+// snapshot.alerts. Each alert has a Thai + English message, the
+// upstream source, severity, and station. Filter to Bangkok + 30 km
+// halo so the atlas panel doesn't fill with Rayong/Sukhothai noise.
+// ─────────────────────────────────────────────────────────────────
+
+const ALERT_HALO_BBOX = { minLat: 13.25, maxLat: 14.50, minLng: 99.80, maxLng: 101.20 };
+
+async function proxyBkkAlerts(_request: Request): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "bkk_alerts_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { alerts?: any[]; now?: string };
+  const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+  const filtered = [];
+  for (const a of alerts) {
+    const provinceEn = String(a.province_en || "");
+    // Keep anything in the atlas halo OR anything from the Chao Phraya
+    // upstream (Tak, Nakhon Sawan, Uthai Thani, Chainat, Sing Buri,
+    // Ang Thong) — the river carries their water to Bangkok.
+    const upstream = new Set(["Bangkok", "Nonthaburi", "Pathum Thani", "Samut Prakan",
+      "Nakhon Pathom", "Samut Sakhon", "Tak", "Nakhon Sawan", "Uthai Thani",
+      "Chainat", "Sing Buri", "Ang Thong", "Ayutthaya", "Suphan Buri"]);
+    if (!upstream.has(provinceEn)) continue;
+    filtered.push(a);
+  }
+  const severityCounts = filtered.reduce((acc, a) => {
+    const s = Number(a.severity) || 0;
+    if (s >= 4) acc.critical++;
+    else if (s >= 3) acc.high++;
+    else if (s >= 2) acc.watch++;
+    else acc.info++;
+    return acc;
+  }, { critical: 0, high: 0, watch: 0, info: 0 });
+  return jsonResponse({
+    tool: "bkk-alerts",
+    version: 1,
+    fetchedAt: data.now ?? null,
+    counts: {
+      total: filtered.length,
+      ...severityCounts,
+    },
+    attribution: "FloodDash alert engine (flood.nonarkara.org/api/snapshot) · thaiwater_wl + ff_imminent + precursors",
+    items: filtered.slice(0, 30).map(a => ({
+      id: a.id,
+      ts: a.ts,
+      rule: a.rule || "",
+      source: a.source || "",
+      station_key: a.station_key || "",
+      province_th: a.province_th || "",
+      province_en: a.province_en || "",
+      severity: Number(a.severity) || 0,
+      value: a.value ?? null,
+      prev_value: a.prev_value ?? null,
+      message_th: a.message_th || "",
+      message_en: a.message_en || "",
+    })),
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "FloodDash active alerts · BKK + Chao Phraya upstream",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Sources health (2026-09-29) — pulls FloodDash's snapshot.sources
+// which lists 40+ upstream feeds (BMA DDS, HII, ThaiWater, RID, GISTDA,
+// PCD, Air4Thai, etc.) with last-run / last-OK / failure counts. The
+// atlas paints each as a coloured dot so a person reading the
+// situation board can see when one of the 40 feeds is dead.
+// ─────────────────────────────────────────────────────────────────
+
+async function proxySourcesHealth(_request: Request): Promise<Response> {
+  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "sources_health_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { sources?: Record<string, any>; now?: string; system_counts?: any };
+  const sources = data.sources || {};
+  const items = [];
+  let ok = 0, fail = 0, never = 0;
+  for (const [key, info] of Object.entries(sources)) {
+    const i = info as any;
+    const failures = Number(i.failures) || 0;
+    const lastError = String(i.lastError || "");
+    const lastOk = i.lastOk ? Date.parse(i.lastOk) : NaN;
+    const ageMin = Number.isFinite(lastOk) ? Math.max(0, Math.round((Date.now() - lastOk) / 60000)) : null;
+    let status: string;
+    if (!i.lastRun || lastError.startsWith("skipped")) status = "skipped";
+    else if (failures > 0) status = "degraded";
+    else if (ageMin == null) status = "stale";
+    else if (ageMin > 180) status = "stale";
+    else status = "ok";
+    if (status === "ok") ok++;
+    else if (status === "skipped") never++;
+    else fail++;
+    items.push({
+      key,
+      label_th: i.label_th || "",
+      label_en: i.label_en || "",
+      interval_ms: Number(i.intervalMs) || null,
+      failures,
+      last_run: i.lastRun || null,
+      last_ok: i.lastOk || null,
+      last_error: i.lastError || null,
+      age_min: ageMin,
+      status,
+    });
+  }
+  items.sort((a, b) => {
+    const order: Record<string, number> = { degraded: 0, stale: 1, skipped: 2, ok: 3 };
+    return (order[a.status] ?? 9) - (order[b.status] ?? 9) || (a.age_min ?? 9999) - (b.age_min ?? 9999);
+  });
+  return jsonResponse({
+    tool: "sources-health",
+    version: 1,
+    fetchedAt: data.now ?? null,
+    system_counts: data.system_counts || null,
+    counts: { total: items.length, ok, degraded: fail, stale: fail, skipped: never },
+    attribution: "FloodDash ingest health (flood.nonarkara.org/api/snapshot) · 40 upstream feeds",
+    items,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "FloodDash upstream feed health",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
 const CIVIC_POI_CATEGORIES = new Set(["school", "sportsground", "carpark", "museum", "waterway"]);
 const CIVIC_POI_CACHE_TTL_SECONDS = 3600;
 
@@ -2806,6 +3031,9 @@ function apiCatalog(request: Request): Response {
         { path: "/api/water/bkk/canal-gates", method: "GET", description: "BMA Drainage bulletin: 10 Bangkok canal-gate stations with current water level vs critical level.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/roads-flooded", method: "GET", description: "BMA DDS dated road reports for Bangkok: 66 road segments with depth, lanes, status (reported / cleared / unrecorded).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/emergency-points", method: "GET", description: "FloodDash confirmed emergency points for Bangkok + 30 km halo (news-anchored flood-affected locations with depth + impact).", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/dams", method: "GET", description: "FloodDash major dams (Bhumibol, Sirikit, Pasak, Kwae Noi) — storage %, inflow, release. Filtered to Chao Phraya + nearby basins.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/alerts", method: "GET", description: "FloodDash active flood alerts (thaiwater_wl level changes + flash-flood precursors) — Bangkok + Chao Phraya upstream provinces.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/sources-health", method: "GET", description: "FloodDash ingest health for 40 upstream feeds (BMA DDS, HII, ThaiWater, RID, GISTDA, PCD, Air4Thai, …) — last-run, failures, status.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -2880,6 +3108,15 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/emergency-points") {
       return proxyBkkEmergencyPoints(request, env);
+    }
+    if (url.pathname === "/api/water/bkk/dams") {
+      return proxyBkkDams(request);
+    }
+    if (url.pathname === "/api/water/bkk/alerts") {
+      return proxyBkkAlerts(request);
+    }
+    if (url.pathname === "/api/water/bkk/sources-health") {
+      return proxySourcesHealth(request);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);

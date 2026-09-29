@@ -123,6 +123,11 @@
           </button>
           <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
         </div>
+        <!-- Visible FloodDash attribution — answers "where does this come from?" -->
+        <p class="atlas-flood-credit" aria-label="Data source attribution">
+          <span class="atlas-flood-credit-dot" aria-hidden="true"></span>
+          <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
+        </p>
       </div>
       <!-- Situation board -->
       <div class="atlas-sit" id="atlas-sit">
@@ -188,6 +193,33 @@
             </article>
           </div>
           <p class="atlas-sit-note">Bars: daily mean across ~134 Bangkok gauges, via FloodDash. Totals: the single wettest gauge, <a href="https://bangkok.thaiwater.net/dashboard" target="_blank" rel="noreferrer">ThaiWater / HII ↗</a>.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-trend" aria-labelledby="atlas-sit-trend-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-trend-h">Gauge movement · ระดับน้ำเปลี่ยน</h3>
+            <span class="atlas-sit-meta" id="atlas-sit-trend-meta">tracking…</span>
+          </header>
+          <ul class="atlas-gauge-trend-list" id="atlas-gauge-trend"></ul>
+          <p class="atlas-sit-note">Tracks each FloodDash gauge's last reading against the previous one — visible moves ≥2 cm. The water going down is as important as the water going up.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-alerts" aria-labelledby="atlas-sit-alerts-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-alerts-h">Active alerts · การแจ้งเตือน</h3>
+            <span class="atlas-sit-meta" id="atlas-alerts-head">loading…</span>
+          </header>
+          <ul class="atlas-alert-list" id="atlas-alerts-list"></ul>
+          <p class="atlas-sit-note">BKK + Chao Phraya upstream (Tak, Nakhon Sawan, Chainat, Sing Buri, Ang Thong, Ayutthaya, Suphan Buri, Nakhon Pathom, Samut Sakhon, Samut Prakan). Source: FloodDash alert engine on ThaiWater level changes + flash-flood precursors. Not an official warning.</p>
+        </section>
+
+        <section class="atlas-sit-mod atlas-sit-sources" aria-labelledby="atlas-sit-sources-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-sources-h">Upstream feeds · แหล่งข้อมูลดิบ</h3>
+            <span class="atlas-sit-meta" id="atlas-sources-head">loading…</span>
+          </header>
+          <div class="atlas-sources-grid" id="atlas-sources-grid"></div>
+          <p class="atlas-sit-note">Each dot is one of the 40 upstream feeds FloodDash pulls from (BMA DDS, HII water-level, TMD, RID reservoirs, GISTDA satellite, PCD water quality, Air4Thai, …). Grey = skipped, orange = degraded, red = stale, green = ok. If a dot is red, the corresponding number on this page is from the last good reading.</p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-act" aria-labelledby="atlas-sit-act-h">

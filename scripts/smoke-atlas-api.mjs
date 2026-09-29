@@ -380,6 +380,84 @@ async function checkCivicPois() {
   logOk("GET /api/civic-pois", ms, `count=${body.count ?? body.features.length} (D1-backed)`);
 }
 
+// Dams (2026-09-29) — pulled from FloodDash snapshot.dams. Filtered to
+// Chao Phraya + nearby basins that actually drive BKK floods. Contract:
+//   - 200, FeatureCollection
+//   - every feature has valid coords + severity ∈ {critical, warning, watch, safe, unknown}
+//   - coordinates sit inside the wider BKK-halo bbox (12.5–20.5 lat, 97.0–106.0 lng)
+//   - storage_pct is a number in [0, 100] when present
+async function checkBkkDams() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/dams");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/dams", `status=${status}`);
+  assert(body.tool === "bkk-dams", `tool=${body.tool}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  const allowed = new Set(["critical", "warning", "watch", "safe", "unknown"]);
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(allowed.has(p.severity), `unknown severity '${p.severity}' on ${p.name_en}`);
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /dams feature with non-finite coords", JSON.stringify(p));
+      return;
+    }
+    if (lng < 97.0 || lng > 106.0 || lat < 12.5 || lat > 20.5) {
+      logFail("  /dams feature outside dam bbox", `(${lng},${lat}) ${p.name_en}`);
+      return;
+    }
+    if (p.storage_pct != null) {
+      assert(p.storage_pct >= 0 && p.storage_pct <= 100, `storage_pct ${p.storage_pct} out of [0,100] on ${p.name_en}`);
+    }
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/dams", ms, `${c.total ?? body.features.length} dams (critical ${c.critical ?? 0} · warning ${c.warning ?? 0} · watch ${c.watch ?? 0} · safe ${c.safe ?? 0})`);
+}
+
+// Active alerts (2026-09-29) — filtered to BKK + Chao Phraya upstream.
+// Contract:
+//   - 200, JSON object with tool=bkk-alerts
+//   - items array with Thai + English messages
+//   - severity is a number, not a string
+//   - when items is non-empty, each item has source + ts + message_en
+async function checkBkkAlerts() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/alerts");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/alerts", `status=${status}`);
+  assert(body.tool === "bkk-alerts", `tool=${body.tool}`);
+  assert(Array.isArray(body.items), "items not an array");
+  for (const a of body.items) {
+    assert(typeof a.message_en === "string" && a.message_en.length > 0, `empty message_en on ${a.province_en}`);
+    assert(typeof a.severity === "number", `severity not a number on ${a.province_en}`);
+    assert(typeof a.source === "string" && a.source.length > 0, `empty source on ${a.province_en}`);
+    assert(typeof a.ts === "string", `missing ts on ${a.province_en}`);
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/alerts", ms, `${c.total ?? body.items.length} alerts (critical ${c.critical ?? 0} · high ${c.high ?? 0} · watch ${c.watch ?? 0})`);
+}
+
+// Sources health (2026-09-29) — 40 upstream feeds with their ingest
+// status. Contract:
+//   - 200, JSON with tool=sources-health
+//   - items array, each with key + label_en + status ∈ {ok, degraded, stale, skipped}
+//   - if lastError is set, status must not be ok
+async function checkSourcesHealth() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/sources-health");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/sources-health", `status=${status}`);
+  assert(body.tool === "sources-health", `tool=${body.tool}`);
+  assert(Array.isArray(body.items), "items not an array");
+  const allowed = new Set(["ok", "degraded", "stale", "skipped"]);
+  for (const s of body.items) {
+    assert(typeof s.key === "string" && s.key.length > 0, "missing key");
+    assert(allowed.has(s.status), `unknown status '${s.status}' on ${s.key}`);
+    assert(typeof s.label_en === "string" && s.label_en.length > 0, `empty label_en on ${s.key}`);
+    if (s.lastError && s.status === "ok") {
+      logFail("  /sources-health item with lastError but status=ok", `${s.key}: ${s.lastError}`);
+      return;
+    }
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/sources-health", ms, `${c.total ?? body.items.length} feeds (ok ${c.ok ?? 0} · degraded ${c.degraded ?? 0} · skipped ${c.skipped ?? 0}) · system ${body.system_counts?.monitored_stations ?? "?"} stations`);
+}
+
 // Live city incidents — the "God Mode" layer. The contract is:
 //   - 200, FeatureCollection
 //   - features (when present) have coordinates inside the Bangkok bbox
@@ -474,6 +552,9 @@ async function main() {
   await checkBkkCanalGates();
   await checkBkkRoadsFlooded();
   await checkBkkEmergencyPoints();
+  await checkBkkDams();
+  await checkBkkAlerts();
+  await checkSourcesHealth();
   await checkCivicPois();
   await checkCityEvents();
   await checkNewsEvents();
