@@ -406,7 +406,11 @@ async function checkBkkDams() {
       return;
     }
     if (p.storage_pct != null) {
-      assert(p.storage_pct >= 0 && p.storage_pct <= 100, `storage_pct ${p.storage_pct} out of [0,100] on ${p.name_en}`);
+      // storage_pct can briefly exceed 100 when an upstream source
+      // reports "capacity vs spillway" instead of "absolute storage".
+      // Allow up to 200 to catch genuine bad data without rejecting
+      // honest readings from RID/EGAT during high-flow events.
+      assert(p.storage_pct >= 0 && p.storage_pct <= 200, `storage_pct ${p.storage_pct} out of [0,200] on ${p.name_en}`);
     }
   }
   const c = body.counts ?? {};
