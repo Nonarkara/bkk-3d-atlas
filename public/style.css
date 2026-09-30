@@ -1784,55 +1784,83 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
    FloodDash's words, the atlas's hairlines. Colour only where the water
    earns it: safe/watch stay quiet, prepare/danger carry the band tone. */
 
+/* ─────────────────────────────────────────────────────────────────
+   BKK Provincial Live — the bottom bar under the map (2026-09-30
+   redesign). Old version bled a 10% red wash across the whole row
+   and used 44 px buttons that ate the section. New version keeps
+   the warning tone on a 2 px left rule + a thin coloured border
+   around the actions, no red bleed. Buttons are 28 px so the row
+   reads as a tool strip, not a billboard. Title sits on one line
+   with the eyebrow + level chip so the hierarchy is horizontal,
+   not vertical.
+   ───────────────────────────────────────────────────────────────── */
+
 .atlas-flood-verdict {
   --tone: var(--muted);
   display: grid;
-  gap: 4px;
+  grid-template-columns: 1fr;
+  gap: 6px;
   margin: 0 0 10px;
-  padding: 10px 0 10px 12px;
-  border-left: 3px solid var(--tone);
-  border-bottom: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
+  padding: 8px 10px 8px 12px;
+  border-left: 2px solid var(--tone);
+  background: rgba(255, 255, 255, 0.02);
 }
-.atlas-flood-verdict[data-level="prepare"] { --tone: #E8A317; }
-.atlas-flood-verdict[data-level="danger"]  { --tone: #C8102E; background: rgba(200, 16, 46, 0.10); }
+.atlas-flood-verdict[data-level="prepare"] { --tone: #E8A317; background: rgba(232, 163, 23, 0.04); }
+.atlas-flood-verdict[data-level="danger"]  { --tone: #C8102E; background: rgba(200, 16, 46, 0.06); }
 .atlas-flood-verdict[data-level="none"]    { --tone: #6b6d63; }
 .atlas-flood-verdict.is-stale              { background: transparent; }
 .atlas-flood-verdict p { margin: 0; }
-.atlas-flood-verdict-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.atlas-flood-verdict-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
 .atlas-flood-verdict-level {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--tone);
+  padding: 1px 6px;
+  border: 1px solid var(--tone);
+  background: rgba(0, 0, 0, 0.18);
 }
 .atlas-flood-verdict[data-level="danger"] .atlas-flood-verdict-level { color: #ff8a8a; }
 .atlas-flood-verdict-head {
   font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--paper);
+  line-height: 1.25;
 }
-.atlas-flood-verdict-reason { font-size: 12px; line-height: 1.5; color: var(--paper); max-width: 72ch; }
+.atlas-flood-verdict-reason { font-size: 11.5px; line-height: 1.45; color: var(--paper); max-width: 80ch; }
+.atlas-flood-verdict-reason[lang="th"] { color: var(--ink-soft, #c0bdb1); }
 .atlas-flood-verdict-meta {
   font-family: var(--font-mono);
   font-size: 10px;
-  line-height: 1.6;
+  line-height: 1.5;
   letter-spacing: 0.02em;
   color: var(--muted);
 }
-.atlas-flood-verdict-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.atlas-flood-verdict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
 .atlas-flood-verdict-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--tone);
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
   border-radius: 0;
   background: transparent;
   color: var(--paper);
-  font: 700 12px/1 var(--font-body);
+  font: 700 11px/1 var(--font-body);
   letter-spacing: 0.04em;
   text-decoration: none;
   cursor: pointer;
@@ -1840,21 +1868,28 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-flood-verdict-btn:hover,
 .atlas-flood-verdict-btn:focus-visible { border-color: var(--signal); color: var(--signal); }
 .atlas-flood-verdict-btn:active { transform: scale(0.97); }
+.atlas-flood-verdict-btn#atlas-flood-verdict-show {
+  background: var(--tone);
+  color: #11120f;
+  border-color: var(--tone);
+}
+.atlas-flood-verdict-btn#atlas-flood-verdict-show:hover { filter: brightness(1.06); }
 
 .atlas-flood-sim-btn {
-  background: rgba(220, 38, 38, 0.16) !important;
-  border-color: rgba(220, 38, 38, 0.6) !important;
+  background: rgba(220, 38, 38, 0.10) !important;
+  border-color: rgba(220, 38, 38, 0.4) !important;
   color: #fca5a5 !important;
+  font-size: 10.5px !important;
 }
 .atlas-flood-sim-btn:hover,
 .atlas-flood-sim-btn:focus-visible {
-  background: rgba(220, 38, 38, 0.3) !important;
+  background: rgba(220, 38, 38, 0.22) !important;
   border-color: #ef4444 !important;
   color: #fff !important;
 }
 .atlas-sim-btn-icon {
-  margin-right: 5px;
   color: #ef4444;
+  font-size: 9px;
 }
 
 /* 72-Hour Flood Forecast Simulation HUD */
@@ -2520,31 +2555,32 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 
 /* === 2026-09-29 — Visible FloodDash credit + 3 new situation-board surfaces === */
 
-/* Attribution chip sits under the Flood verdict buttons. Answers
-   "where does this data come from?" without leaving the page. */
+/* Attribution line sits under the Flood verdict buttons. Slimmer
+   than the chip it replaced — a single horizontal line with a
+   coloured dot, no yellow wash, no animated halo. Answers
+   "where does this data come from?" without competing with the
+   verdict for attention. */
 .atlas-flood-credit {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  background: rgba(201, 255, 56, 0.06);
-  border-left: 2px solid var(--signal, #c9ff38);
-  font-size: 11px;
-  line-height: 1.45;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--muted);
+  flex-wrap: wrap;
 }
 .atlas-flood-credit strong { color: var(--paper); font-weight: 600; }
 .atlas-flood-credit a { color: var(--signal); text-decoration: none; border-bottom: 1px solid rgba(201, 255, 56, 0.4); }
 .atlas-flood-credit a:hover { color: #d6ff5e; }
 .atlas-flood-credit-dot {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--signal, #c9ff38);
-  box-shadow: 0 0 0 3px rgba(201, 255, 56, 0.18);
-  margin-top: 4px;
   flex-shrink: 0;
-  animation: atlas-credit-pulse 2.4s ease-in-out infinite;
 }
+.atlas-flood-credit-dot.is-stale { background: #facc15; }
+.atlas-flood-credit-dot.is-down  { background: #ef4444; }
 @keyframes atlas-credit-pulse {
   0%, 100% { box-shadow: 0 0 0 3px rgba(201, 255, 56, 0.18); }
   50%      { box-shadow: 0 0 0 6px rgba(201, 255, 56, 0); }
