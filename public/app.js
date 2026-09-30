@@ -1429,7 +1429,7 @@ const LAYERS = [
     id: "maholan-cctv",
     name: "More CCTV cameras",
     description: "Maholan community CCTV · BKK + 30 km halo · ~1,700 cameras",
-    defaultOn: false,
+    defaultOn: true,
     softUninstall: true,
     layers: [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER],
     install: async (map) => { await installMaholanCctv(map); ensureStackOrder(map); },
@@ -5540,13 +5540,13 @@ async function installMaholanCctv(map) {
       id: MAHOLAN_CCTV_HALO_LAYER,
       type: "circle",
       source: MAHOLAN_CCTV_SOURCE,
-      minzoom: 10,
+      minzoom: 8,
       filter: ["all",
         ["==", ["get", "live"], true],
         ["==", ["get", "upstream_type"], "hls"],
       ],
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 13, 12, 16, 16],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 10, 13, 14, 16, 18],
         "circle-color": "#dc2626",
         "circle-opacity": 0.22,
         "circle-stroke-width": 0,
@@ -5558,9 +5558,9 @@ async function installMaholanCctv(map) {
       id: MAHOLAN_CCTV_LAYER,
       type: "circle",
       source: MAHOLAN_CCTV_SOURCE,
-      minzoom: 9,
+      minzoom: 7,
       paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2.5, 13, 4, 16, 6],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 3, 11, 4.5, 13, 6, 16, 8],
         // HLS live → red, MJPEG live → orange, snapshot → yellow,
         // offline → grey. Matches the layer's legend so a person can
         // decode it from the chip alone.
@@ -6883,7 +6883,7 @@ function wireStackPresets(map) {
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, "maholan-cctv": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
