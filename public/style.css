@@ -1534,24 +1534,75 @@ body.atlas-about-open { overflow: hidden; }
      sources, rain, help) from the phone layout entirely. The
      floating "More" button opens it as a sheet. */
   .atlas-sit { display: none; }
-  /* Tighter verdict on phone — title inline with the eyebrow + a
-     one-line meta strip. Buttons become a single row of compact
-     icon-buttons. */
+  /* Phone verdict strip — balanced layout. The title sits in a
+     flex row that pushes the meta chip to the right edge so the
+     strip reads as a single line; reason text justifies to fill the
+     row so the right edge isn't empty; buttons divide the row
+     equally with flex:1. */
   .atlas-flood-verdict {
-    padding: 4px 8px 4px 10px;
-    gap: 2px;
+    padding: 6px 10px;
+    gap: 4px;
   }
-  .atlas-flood-verdict-head { font-size: 13px; }
-  .atlas-flood-verdict-reason { font-size: 11px; line-height: 1.35; }
-  .atlas-flood-verdict-meta { font-size: 9.5px; line-height: 1.4; }
-  .atlas-flood-verdict-actions { gap: 4px; margin-top: 2px; }
+  /* Headline row: chip + title (flex:1) + meta (auto) on one line */
+  .atlas-flood-verdict-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .atlas-flood-verdict-line > .atlas-flood-verdict-level { flex: 0 0 auto; }
+  .atlas-flood-verdict-line > .atlas-flood-verdict-head {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  /* The standalone .atlas-flood-verdict-meta paragraph is rendered
+     outside .atlas-flood-verdict-line in HTML; on phone it's too
+     long for one row and creates an empty-right gap, so hide it.
+     The headline row above already carries the level + verdict. */
+  .atlas-flood-verdict > .atlas-flood-verdict-meta { display: none; }
+  /* Reason text — justified on phone so the right edge fills the
+     row instead of leaving dead space. Cap at 3 lines + ellipsis. */
+  .atlas-flood-verdict-reason {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--paper);
+    text-align: justify;
+    text-justify: inter-word;
+    hyphens: auto;
+    -webkit-line-clamp: 3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+  }
+  /* Actions row — divide the row equally. flex:1 on each button
+     makes them fill the phone width without empty right side. */
+  .atlas-flood-verdict-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+  }
   .atlas-flood-verdict-btn {
-    min-height: 26px;
-    padding: 0 8px;
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 6px;
     font-size: 10.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .atlas-flood-verdict-btn#atlas-flood-verdict-show { padding: 0 10px; }
-  .atlas-flood-credit { font-size: 10px; gap: 5px; margin-top: 4px; }
+  .atlas-flood-verdict-btn#atlas-flood-verdict-show { padding: 0 8px; }
+  .atlas-flood-credit {
+    font-size: 10px;
+    gap: 5px;
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  .atlas-flood-credit strong { flex-shrink: 0; }
+  .atlas-flood-credit a { word-break: break-word; }
 
   /* === Right panel becomes a hidden bottom-sheet on phone === */
   .atlas-panel {
@@ -1627,7 +1678,8 @@ body.atlas-about-open { overflow: hidden; }
     display: none;
   }
   .atlas-news-watch-more {
-    display: inline-block;
+    display: block;
+    width: 100%;
     margin-top: 4px;
     padding: 4px 10px;
     border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
@@ -1635,6 +1687,7 @@ body.atlas-about-open { overflow: hidden; }
     font: 600 11px/1 var(--font-body);
     background: transparent;
     cursor: pointer;
+    text-align: center;
   }
   .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::before { content: "Show all "; }
   .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::after { content: " headlines"; }
