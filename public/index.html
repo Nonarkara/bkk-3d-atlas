@@ -195,13 +195,13 @@
           <p class="atlas-sit-note">Bars: daily mean across ~134 Bangkok gauges, via FloodDash. Totals: the single wettest gauge, <a href="https://bangkok.thaiwater.net/dashboard" target="_blank" rel="noreferrer">ThaiWater / HII ↗</a>.</p>
         </section>
 
-        <section class="atlas-sit-mod atlas-sit-trend" aria-labelledby="atlas-sit-trend-h">
+        <section class="atlas-sit-mod atlas-sit-trend" id="atlas-sit-trend" aria-labelledby="atlas-sit-trend-h" hidden>
           <header class="atlas-sit-head">
             <h3 id="atlas-sit-trend-h">Gauge movement · ระดับน้ำเปลี่ยน</h3>
             <span class="atlas-sit-meta" id="atlas-sit-trend-meta">tracking…</span>
           </header>
           <ul class="atlas-gauge-trend-list" id="atlas-gauge-trend"></ul>
-          <p class="atlas-sit-note">Tracks each FloodDash gauge's last reading against the previous one — visible moves ≥2 cm. The water going down is as important as the water going up.</p>
+          <p class="atlas-sit-note">Tracks each FloodDash gauge's last reading against the previous one — visible moves ≥2 cm. The water going down is as important as the water going up. Section auto-hides when nothing has moved in the last 5 min.</p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-alerts" aria-labelledby="atlas-sit-alerts-h">
@@ -214,12 +214,16 @@
         </section>
 
         <section class="atlas-sit-mod atlas-sit-sources" aria-labelledby="atlas-sit-sources-h">
-          <header class="atlas-sit-head">
-            <h3 id="atlas-sit-sources-h">Upstream feeds · แหล่งข้อมูลดิบ</h3>
-            <span class="atlas-sit-meta" id="atlas-sources-head">loading…</span>
-          </header>
-          <div class="atlas-sources-grid" id="atlas-sources-grid"></div>
-          <p class="atlas-sit-note">Each dot is one of the 40 upstream feeds FloodDash pulls from (BMA DDS, HII water-level, TMD, RID reservoirs, GISTDA satellite, PCD water quality, Air4Thai, …). Grey = skipped, orange = degraded, red = stale, green = ok. If a dot is red, the corresponding number on this page is from the last good reading.</p>
+          <details class="atlas-sit-collapse">
+            <summary>
+              <span class="atlas-eyebrow atlas-eyebrow-sub">
+                <span class="atlas-sit-collapse-title">Upstream feeds · แหล่งข้อมูลดิบ</span>
+              </span>
+              <span class="atlas-sit-meta" id="atlas-sources-head">loading…</span>
+            </summary>
+            <div class="atlas-sources-grid" id="atlas-sources-grid"></div>
+            <p class="atlas-sit-note">Each dot is one of the 40 upstream feeds FloodDash pulls from (BMA DDS, HII water-level, TMD, RID reservoirs, GISTDA satellite, PCD water quality, Air4Thai, …). Grey = skipped, orange = degraded, red = stale, green = ok. If a dot is red, the corresponding number on this page is from the last good reading.</p>
+          </details>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-act" aria-labelledby="atlas-sit-act-h">

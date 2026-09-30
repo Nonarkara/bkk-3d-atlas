@@ -7456,11 +7456,20 @@ function recordGaugeTrends(features) {
 
 function renderGaugeTrendPanel(movers) {
   const el = document.getElementById("atlas-gauge-trend");
+  const sectionEl = document.getElementById("atlas-sit-trend");
+  const metaEl = document.getElementById("atlas-sit-trend-meta");
   if (!el) return;
+  // Auto-hide the whole section when there's nothing to show — a
+  // permanent "No recent changes" placeholder takes vertical space
+  // and tells the reader nothing new. The section re-appears the
+  // moment a gauge moves.
   if (!movers || !movers.length) {
-    el.innerHTML = `<li class="atlas-water-empty">No recent gauge changes — readings stable.</li>`;
+    el.innerHTML = "";
+    if (sectionEl) sectionEl.hidden = true;
     return;
   }
+  if (sectionEl) sectionEl.hidden = false;
+  if (metaEl) metaEl.textContent = `${movers.length} moved ≥2 cm since last reading`;
   el.innerHTML = movers.map((m) => {
     const sign = m.delta > 0 ? "▲" : "▼";
     const cls = m.delta > 0 ? "rising" : "falling";

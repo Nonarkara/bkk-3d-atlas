@@ -2768,3 +2768,39 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   border-radius: 0;
 }
 .atlas-cctv-popup .atlas-maholan-snap { margin: 4px 0 6px; }
+
+/* === 2026-09-30 — UX fixes ===
+   1. Sources-health + upstream-feeds collapsed by default — it's
+      reference data, not action data. Hides 40+ chips behind a click
+      instead of pushing other sections off-screen.
+   2. Gauge-movement section is now auto-hidden when empty (handled
+      in JS). When something moves, it slides back in.
+   3. Sources-health grid made denser (single column on mobile, two
+      on desktop). 40 cells now fit in ~6 lines instead of 8. */
+
+.atlas-sit-collapse > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 2px 0;
+}
+.atlas-sit-collapse > summary::-webkit-details-marker { display: none; }
+.atlas-sit-collapse > summary::after {
+  content: "+";
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: auto;
+  padding: 0 4px;
+}
+.atlas-sit-collapse[open] > summary::after { content: "−"; }
+.atlas-sit-collapse-title { font-weight: 600; letter-spacing: 0.04em; }
+
+@media (min-width: 700px) {
+  .atlas-sources-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1100px) {
+  .atlas-sources-grid { grid-template-columns: repeat(3, 1fr); }
+}
