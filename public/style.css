@@ -1557,10 +1557,13 @@ body.atlas-about-open { overflow: hidden; }
     font-size: 13px;
     line-height: 1.25;
   }
-  /* The standalone .atlas-flood-verdict-meta paragraph is rendered
-     outside .atlas-flood-verdict-line in HTML; on phone it's too
-     long for one row and creates an empty-right gap, so hide it.
-     The headline row above already carries the level + verdict. */
+  /* Hide the standalone .atlas-flood-verdict-meta paragraph on
+     phone. It's rendered as a sibling of .atlas-flood-verdict-line
+     in HTML, but its content (40+ chars of "stations overflowing,
+     rain mm, bank-may-be-reached in N h, FloodDash age, DDPM
+     1784") is too long for a phone row and creates an empty-right
+     gutter; the level + head already carry the verdict on the
+     headline row above. */
   .atlas-flood-verdict > .atlas-flood-verdict-meta { display: none; }
   /* Reason text — justified on phone so the right edge fills the
      row instead of leaving dead space. Cap at 3 lines + ellipsis. */
