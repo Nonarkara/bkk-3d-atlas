@@ -485,6 +485,41 @@ async function checkNewsWatch() {
   logOk("GET /api/water/bkk/news-watch", ms, `${c.total ?? body.items.length} headlines (urgent ${c.urgent ?? 0} · watch ${c.watch ?? 0} · advisory ${c.advisory ?? 0} · info ${c.info ?? 0} · trusted ${c.trusted ?? 0})`);
 }
 
+// Maholan community CCTV (2026-09-30) — proxies cctv.maholan.net's
+// 2,355-camera aggregator, filtered to BKK + 30 km halo. Contract:
+//   - 200, FeatureCollection
+//   - every feature has valid coords inside the BKK-halo bbox
+//   - upstream_type ∈ {hls, mjpeg, snapshot}
+//   - severity ∈ {live, stale}
+//   - viewer_url is https://cctv.maholan.net/?cam=<id>
+async function checkMaholanCctv() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/maholan-cctv");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/maholan-cctv", `status=${status}`);
+  assert(body.tool === "bkk-maholan-cctv", `tool=${body.tool}`);
+  assert(body.type === "FeatureCollection", `type=${body.type}`);
+  assert(Array.isArray(body.features), "features not an array");
+  const allowedType = new Set(["hls", "mjpeg", "snapshot"]);
+  const allowedSeverity = new Set(["live", "stale"]);
+  for (const f of body.features) {
+    const p = f.properties || {};
+    assert(typeof p.id === "string" && p.id.length > 0, "missing id");
+    assert(allowedType.has(p.upstream_type), `unknown upstream_type '${p.upstream_type}' on ${p.id}`);
+    assert(allowedSeverity.has(p.severity), `unknown severity '${p.severity}' on ${p.id}`);
+    assert(typeof p.viewer_url === "string" && /^https:\/\/cctv\.maholan\.net\//.test(p.viewer_url), `invalid viewer_url on ${p.id}`);
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      logFail("  /maholan-cctv feature with non-finite coords", JSON.stringify(p));
+      return;
+    }
+    if (lng < 99.85 || lng > 101.15 || lat < 13.20 || lat > 14.40) {
+      logFail("  /maholan-cctv feature outside BKK-halo bbox", `(${lng},${lat}) ${p.id}`);
+      return;
+    }
+  }
+  const c = body.counts ?? {};
+  logOk("GET /api/water/bkk/maholan-cctv", ms, `${c.total ?? body.features.length} cameras (live ${c.live ?? 0} · HLS ${c.hls ?? 0} · MJPEG ${c.mjpeg ?? 0} · snapshot ${c.snapshot ?? 0})`);
+}
+
 // Live city incidents — the "God Mode" layer. The contract is:
 //   - 200, FeatureCollection
 //   - features (when present) have coordinates inside the Bangkok bbox
@@ -582,6 +617,7 @@ async function main() {
   await checkBkkDams();
   await checkBkkAlerts();
   await checkNewsWatch();
+  await checkMaholanCctv();
   await checkSourcesHealth();
   await checkCivicPois();
   await checkCityEvents();

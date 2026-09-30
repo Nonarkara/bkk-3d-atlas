@@ -2752,3 +2752,19 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
    triage at a glance — urgent headlines get a red wash, watch orange. */
 .atlas-news-item[data-severity="urgent"] { background: rgba(220, 38, 38, 0.04); }
 .atlas-news-item[data-severity="watch"] { background: rgba(249, 115, 22, 0.03); }
+
+/* === 2026-09-30 — Maholan community CCTV snapshot popup ===
+   Inline JPEG from Maholan's /api/snap/<id> — the popup doubles as
+   a snapshot viewer so a person can see what the road looks like
+   before opening the upstream link. Sharp edges, atlas aesthetic. */
+
+.atlas-maholan-snap {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: #000;
+  border: 0;
+  border-radius: 0;
+}
+.atlas-cctv-popup .atlas-maholan-snap { margin: 4px 0 6px; }

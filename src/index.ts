@@ -1451,6 +1451,92 @@ async function proxyBkkAlerts(_request: Request): Promise<Response> {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Maholan community CCTV (2026-09-30) — pulls cctv.maholan.net's
+// consolidated feed of 2,355 cameras across Thailand (BKK + 30 km
+// halo ≈ 1,748 cameras, of which 123 are live right now). The atlas
+// already had iTIC/Longdo via /api/cctv (~66 cameras); this fills the
+// gap with provincial, DOH and community cameras — Pak Kret water-
+// level camera, Pathum Thani river gauge, BKK district cameras, the
+// Maholan community submissions — and gives the atlas ~10× the
+// coverage when the user turns the new layer on.
+//
+// The Maholan site bundles YouTube + MJPEG + HLS + snapshot streams
+// in one normalised API. We pass each camera's id + region + source
+// + type through so the atlas can render different markers per
+// type (hls = live, mjpeg = animated, snapshot = static refresh).
+// AI flood detections from the same site are exposed via
+// /api/water/bkk/ai-flood-detections for a follow-up.
+// ─────────────────────────────────────────────────────────────────
+
+const MAHOLAN_BBOX = { minLat: 13.20, maxLat: 14.40, minLng: 99.85, maxLng: 101.15 };
+
+async function proxyMaholanCctv(_request: Request): Promise<Response> {
+  const direct = await fetch("https://cctv.maholan.net/api/cameras", {
+    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org) · atlas@cctv.maholan" },
+  });
+  if (!direct.ok) {
+    return jsonResponse({ error: "maholan_cctv_upstream_error", status: direct.status }, { status: 502 });
+  }
+  const data = await direct.json() as { cameras?: any[]; links?: any };
+  const cameras = Array.isArray(data.cameras) ? data.cameras : [];
+  const features = [];
+  const liveCount = { hls: 0, mjpeg: 0, snapshot: 0, other: 0 };
+  for (const c of cameras) {
+    const lat = Number(c.lat);
+    const lng = Number(c.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (lat < MAHOLAN_BBOX.minLat || lat > MAHOLAN_BBOX.maxLat || lng < MAHOLAN_BBOX.minLng || lng > MAHOLAN_BBOX.maxLng) continue;
+    const type = String(c.type || "other");
+    const severity = c.live ? "live" : "stale";
+    if (c.live) {
+      if (type in liveCount) liveCount[type as keyof typeof liveCount]++;
+      else liveCount.other++;
+    }
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: {
+        source: "maholan-cctv",
+        kind: "maholan-cam",
+        id: c.id,
+        name: c.name || c.id,
+        name_en: c.name_en || "",
+        region: c.region || "",
+        district: c.district || "",
+        upstream_source: c.source || "",
+        upstream_type: type,
+        live: !!c.live,
+        configured: c.configured !== false,
+        ttl_ms: Number(c.ttlMs) || null,
+        viewer_url: `https://cctv.maholan.net/?cam=${encodeURIComponent(c.id)}`,
+        snap_url: `https://cctv.maholan.net/api/snap/${encodeURIComponent(c.id)}`,
+        severity,
+        weight: c.live ? 0.9 : 0.3,
+      },
+    });
+  }
+  return jsonResponse({
+    type: "FeatureCollection",
+    tool: "bkk-maholan-cctv",
+    version: 1,
+    fetchedAt: new Date().toISOString(),
+    counts: {
+      total: features.length,
+      live: features.filter((f) => f.properties.live).length,
+      ...liveCount,
+    },
+    attribution: "Maholan community CCTV aggregator (cctv.maholan.net/api/cameras) · 2,355 cameras across Thailand, filtered to BKK + 30 km halo",
+    features,
+  }, {
+    headers: {
+      "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": "Maholan community CCTV · BKK + 30 km halo",
+      "access-control-allow-origin": "*",
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
 // News watch (2026-09-29) — pulls FloodDash's snapshot.news which is
 // a curated Thai-language flood news feed (gnews_flood: Google News
 // filtered to flood terms, plus the Bangkok Post / Khaosod / Thai PBS
@@ -3136,6 +3222,7 @@ function apiCatalog(request: Request): Response {
         { path: "/api/water/bkk/alerts", method: "GET", description: "FloodDash active flood alerts (thaiwater_wl level changes + flash-flood precursors) — Bangkok + Chao Phraya upstream provinces.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/sources-health", method: "GET", description: "FloodDash ingest health for 40 upstream feeds (BMA DDS, HII, ThaiWater, RID, GISTDA, PCD, Air4Thai, …) — last-run, failures, status.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/news-watch", method: "GET", description: "FloodDash curated Thai flood-news feed (gnews_flood: Google News flood filter + Bangkok Post / Khaosod / Thai PBS / Reuters). Severity derived from title keywords.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/maholan-cctv", method: "GET", description: "Maholan community CCTV aggregator (cctv.maholan.net) — 2,355 cameras across Thailand, filtered to BKK + 30 km halo. Includes YouTube + HLS + MJPEG + snapshot streams.", cacheSeconds: CCTV_CACHE_TTL_SECONDS },
         { path: "/api/civic-pois", method: "GET", description: "BMA open-data civic amenities from D1.", query: ["category?", "district?", "limit?"] },
         { path: "/api/civic-pois/analysis", method: "GET", description: "Amenity counts aggregated by district for choropleths." },
         { path: "/api/risk", method: "GET", description: "Point risk: schematic flood envelope × live PM2.5.", query: ["lng", "lat"], example: "/api/risk?lng=100.5321&lat=13.7367", cacheSeconds: RISK_CACHE_TTL_SECONDS },
@@ -3222,6 +3309,9 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/news-watch") {
       return proxyNewsWatch(request);
+    }
+    if (url.pathname === "/api/water/bkk/maholan-cctv") {
+      return proxyMaholanCctv(request);
     }
     if (url.pathname === "/api/civic-pois") {
       return listCivicPois(request, env);

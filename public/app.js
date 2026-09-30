@@ -694,6 +694,18 @@ const ALERTS_URL = "/api/water/bkk/alerts";
 const SOURCES_HEALTH_URL = "/api/water/bkk/sources-health";
 const NEWS_WATCH_URL = "/api/water/bkk/news-watch";
 
+// Maholan community CCTV (2026-09-30) — proxies cctv.maholan.net's
+// consolidated feed of 2,355 cameras across Thailand, filtered to BKK
+// + 30 km halo by the Worker. The atlas previously had ~66 iTIC /
+// Longdo cameras via /api/cctv; this layer adds ~10× the coverage
+// including Pak Kret water-level, Pathum Thani river gauge, BKK
+// district, DOH and community submissions. Each click opens a popup
+// with a thumbnail + a link to the upstream Maholan viewer.
+const MAHOLAN_CCTV_SOURCE = "bkkx-maholan-cctv";
+const MAHOLAN_CCTV_HALO_LAYER = "bkkx-maholan-cctv-halo";
+const MAHOLAN_CCTV_LAYER = "bkkx-maholan-cctv-dots";
+const MAHOLAN_CCTV_URL = "/api/water/bkk/maholan-cctv";
+
 // Rain severity colors — match the ThaiWater dashboard gradient so the
 // two visualizations speak the same language. Tuned to be readable on
 // a dark satellite base + the #11120f halo from flood sensors.
@@ -754,6 +766,7 @@ const state = {
   roadsFloodedPopup: null,
   emergencyPopup: null,
   damPopup: null,
+  maholanCctvPopup: null,
   // Last FloodDash reading time + a per-gauge delta history so the
   // situation board can show "Chao Phraya +5 cm since last reading".
   lastFloodRefreshAt: null,
@@ -838,6 +851,8 @@ const LAYER_STACK = [
   EMERGENCY_LAYER,
   DAM_HALO_LAYER,
   DAM_LAYER,
+  MAHOLAN_CCTV_HALO_LAYER,
+  MAHOLAN_CCTV_LAYER,
   CIVIC_POI_HALO_LAYER,
   CIVIC_POI_LAYER,
   NEWS_EVENT_GLOW_LAYER,
@@ -1408,6 +1423,24 @@ const LAYERS = [
       { color: "#facc15", label: "60–79% · normal high" },
       { color: "#7eb6ff", label: "<60% · normal" },
       { color: "#7d8a9a", label: "absent · no recent reading" },
+    ],
+  },
+  {
+    id: "maholan-cctv",
+    name: "More CCTV cameras",
+    description: "Maholan community CCTV · BKK + 30 km halo · ~1,700 cameras",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER],
+    install: async (map) => { await installMaholanCctv(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeMaholanCctvPopup();
+      setLayersVisible(map, [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER], false);
+    },
+    legend: [
+      { color: "#dc2626", label: "live HLS stream (Pak Kret, Pathum Thani, …)" },
+      { color: "#f97316", label: "live MJPEG / animated" },
+      { color: "#7d8a9a", label: "offline · snapshot refresh failed" },
     ],
   },
   {
@@ -5404,6 +5437,161 @@ async function installDams(map) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Maholan community CCTV (2026-09-30) — ~1,700 cameras in BKK + halo
+// pulled from cctv.maholan.net's consolidated feed. Distinct from the
+// existing /api/cctv layer (66 iTIC/Longdo cameras) — this gives the
+// atlas ~10× the coverage with Pak Kret, Pathum Thani, district and
+// community submissions. Each click opens a popup with a thumbnail
+// (Maholan's /api/snap/<id>) + a link to the upstream viewer.
+// ─────────────────────────────────────────────────────────────────
+
+function closeMaholanCctvPopup() {
+  if (state.maholanCctvPopup) {
+    try { state.maholanCctvPopup.remove(); } catch {}
+    state.maholanCctvPopup = null;
+  }
+}
+
+function openMaholanCctvPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const p = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  closeMaholanCctvPopup();
+  const typeColor = p.upstream_type === "hls" ? "#dc2626"
+    : p.upstream_type === "mjpeg" ? "#f97316"
+    : p.live ? "#facc15"
+    : "#7d8a9a";
+  const typeLabel = p.upstream_type === "hls" ? "HLS stream"
+    : p.upstream_type === "mjpeg" ? "MJPEG stream"
+    : p.upstream_type === "snapshot" ? "Snapshot refresh"
+    : "Camera";
+  const safeName = escapeHtml(String(p.name || p.id || ""));
+  const safeRegion = escapeHtml(String(p.region || ""));
+  const safeSource = escapeHtml(String(p.upstream_source || ""));
+  const safeViewer = escapeHtml(String(p.viewer_url || "#"));
+  const safeSnap = escapeHtml(String(p.snap_url || ""));
+  // Render the Maholan /api/snap/<id> JPEG inline so the popup
+  // doubles as a snapshot viewer. <img> naturally reloads on click.
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker" style="color:${typeColor}">COMMUNITY CCTV · ${escapeHtml(String(p.upstream_type || "")).toUpperCase()} · ${escapeHtml(String(p.live ? "LIVE" : "OFFLINE"))}</p>
+      <strong class="atlas-cctv-title">${safeName}</strong>
+      <img class="atlas-maholan-snap" src="${safeSnap}&w=480" alt="Live snapshot · ${safeName}" loading="lazy" />
+      <p class="atlas-cctv-status" lang="th">${safeRegion}${safeSource ? ` · ${safeSource}` : ""}</p>
+      <div class="atlas-cctv-actions">
+        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open on Maholan ↗</a>
+        <a href="${safeSnap}" target="_blank" rel="noreferrer">Full snapshot ↗</a>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({
+    closeButton: true,
+    closeOnClick: true,
+    maxWidth: "320px",
+    className: "atlas-cctv-popup",
+    anchor: "bottom",
+    offset: 14,
+  })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  state.maholanCctvPopup = popup;
+}
+
+function wireMaholanCctvInteractions(map) {
+  if (map.__bkkxMaholanCctvWired) return;
+  map.__bkkxMaholanCctvWired = true;
+  map.on("click", MAHOLAN_CCTV_LAYER, (event) => {
+    const feature = event.features?.[0];
+    if (!feature) return;
+    event.originalEvent?.stopPropagation?.();
+    openMaholanCctvPopup(map, feature);
+  });
+  map.on("mouseenter", MAHOLAN_CCTV_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", MAHOLAN_CCTV_LAYER, () => { map.getCanvas().style.cursor = ""; });
+}
+
+async function installMaholanCctv(map) {
+  if (map.getLayer(MAHOLAN_CCTV_LAYER)) {
+    setLayersVisible(map, [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER], true);
+    applyOverlayCompositing(map);
+    return;
+  }
+  const geojson = await fetchJson(MAHOLAN_CCTV_URL);
+  if (!geojson?.features?.length) {
+    setLayerStatus("maholan-cctv", "unavailable · Maholan feed empty — not an all-clear");
+    return;
+  }
+  if (!map.getSource(MAHOLAN_CCTV_SOURCE)) {
+    try {
+      map.addSource(MAHOLAN_CCTV_SOURCE, { type: "geojson", data: geojson });
+    } catch (error) {
+      console.warn("Maholan CCTV source failed:", error);
+      setLayerStatus("maholan-cctv", "unavailable · source failed");
+      return;
+    }
+  } else {
+    try { map.getSource(MAHOLAN_CCTV_SOURCE).setData(geojson); } catch {}
+  }
+  try {
+    // Halo only on LIVE HLS streams — the most "watch this" surface.
+    map.addLayer({
+      id: MAHOLAN_CCTV_HALO_LAYER,
+      type: "circle",
+      source: MAHOLAN_CCTV_SOURCE,
+      minzoom: 10,
+      filter: ["all",
+        ["==", ["get", "live"], true],
+        ["==", ["get", "upstream_type"], "hls"],
+      ],
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 13, 12, 16, 16],
+        "circle-color": "#dc2626",
+        "circle-opacity": 0.22,
+        "circle-stroke-width": 0,
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+      },
+    });
+    map.addLayer({
+      id: MAHOLAN_CCTV_LAYER,
+      type: "circle",
+      source: MAHOLAN_CCTV_SOURCE,
+      minzoom: 9,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2.5, 13, 4, 16, 6],
+        // HLS live → red, MJPEG live → orange, snapshot → yellow,
+        // offline → grey. Matches the layer's legend so a person can
+        // decode it from the chip alone.
+        "circle-color": [
+          "match", ["get", "upstream_type"],
+          "hls", ["case", ["==", ["get", "live"], true], "#dc2626", "#7d8a9a"],
+          "mjpeg", ["case", ["==", ["get", "live"], true], "#f97316", "#7d8a9a"],
+          "snapshot", "#facc15",
+          ["case", ["==", ["get", "live"], true], "#facc15", "#7d8a9a"],
+        ],
+        "circle-stroke-color": "#11120f",
+        "circle-stroke-width": 1,
+        "circle-opacity": ["match", ["get", "live"], true, 0.92, 0.45],
+        "circle-color-transition": { duration: 1500, delay: 0 },
+        "circle-opacity-transition": { duration: 1500, delay: 0 },
+      },
+    });
+    wireMaholanCctvInteractions(map);
+    const counts = geojson.counts ?? {};
+    const total = counts.total ?? geojson.features.length;
+    const live = counts.live ?? 0;
+    setLayerStatus(
+      "maholan-cctv",
+      `Maholan community CCTV · ${total} cameras in halo · ${live} live now (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0})`,
+    );
+  } catch (error) {
+    console.warn("Maholan CCTV layer failed:", error);
+    setLayerStatus("maholan-cctv", "unavailable · layer failed");
+  }
+}
+
 async function installFloodSensors(map) {
   if (map.getLayer(FLOOD_SENSOR_LAYER)) {
     setLayersVisible(map, [FLOOD_SENSOR_HALO_LAYER, FLOOD_SENSOR_LAYER], true);
@@ -7353,6 +7541,18 @@ async function refreshMountedFloodLayers(map) {
       data.features.length
         ? `FloodDash · ${counts.total ?? data.features.length} dams (critical ${counts.critical ?? 0} · warning ${counts.warning ?? 0} · watch ${counts.watch ?? 0} · safe ${counts.safe ?? 0})`
         : "unavailable · no FloodDash dam reading — not an all-clear",
+    );
+  });
+
+  await apply(MAHOLAN_CCTV_SOURCE, MAHOLAN_CCTV_URL, (data) => {
+    const counts = data.counts ?? {};
+    const total = counts.total ?? data.features.length;
+    const live = counts.live ?? 0;
+    setLayerStatus(
+      "maholan-cctv",
+      data.features.length
+        ? `Maholan community CCTV · ${total} cameras in halo · ${live} live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0})`
+        : "unavailable · Maholan feed empty — not an all-clear",
     );
   });
 
