@@ -7371,6 +7371,9 @@ async function refreshNewsWatch() {
   if (noteEl) {
     noteEl.textContent = `Sourced from FloodDash's curated gnews_flood feed — Google News flood filter + Bangkok Post / Khaosod / Thai PBS / Reuters. Severity auto-detected from title keywords (อพยพ/urgent = red).`;
   }
+  // Re-apply phone-only collapsed state (1 headline + "Show all"
+  // toggle) every time the list is rebuilt.
+  collapseNewsWatch();
 }
 
 const SOURCE_STATUS_COLOR = {
@@ -7826,6 +7829,105 @@ function showTheWater() {
   document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Phone-only "More" sheet (2026-09-30) — the phone layout hides the
+// right-side panel by default (it's a bottom sheet, off-screen
+// via transform: translateY(100%)). A floating "More …" button
+// toggles the sheet via .is-open. The counter on the button shows
+// how many items are inside, so the reader knows whether the sheet
+// is worth opening. The sheet itself is the regular `.atlas-panel`
+// — no new content, just a different surface on phone.
+//
+// On phones the news-watch list collapses to the first headline
+// with a "Show all N headlines" toggle, so the sheet doesn't
+// become a 60-line scroll of khaosod.co.th links.
+// ─────────────────────────────────────────────────────────────────
+
+function wirePhonePanelToggle() {
+  const btn = document.getElementById("atlas-panel-toggle");
+  const panel = document.getElementById("atlas-panel");
+  const newsList = document.getElementById("atlas-news-watch-list");
+  const moreBtn = document.getElementById("atlas-news-watch-more");
+  if (!btn || !panel) return;
+
+  // Phone only — bail early on desktop.
+  if (window.matchMedia("(min-width: 721px)").matches) return;
+
+  const isPhone = () => window.matchMedia("(max-width: 720px)").matches;
+
+  function setOpen(open) {
+    panel.classList.toggle("is-open", open);
+    btn.classList.toggle("is-hidden", open);
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      document.body.style.overflow = "hidden";
+      panel.setAttribute("aria-hidden", "false");
+    } else {
+      document.body.style.overflow = "";
+      panel.setAttribute("aria-hidden", "true");
+    }
+  }
+
+  btn.addEventListener("click", () => setOpen(!panel.classList.contains("is-open")));
+
+  // Close the sheet when the sticky close row at its top is tapped
+  // (the ::before pseudo can't listen, so wire a real button).
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest("[data-close-sheet]")) setOpen(false);
+  });
+  // Esc closes the sheet
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panel.classList.contains("is-open")) setOpen(false);
+  });
+
+  // Collapse news-watch to the 1st headline + a "Show all" toggle.
+  // Re-applies every time refreshNewsWatch rebuilds the list.
+  function refreshCollapsedNews() {
+    if (!newsList) return;
+    if (isPhone()) {
+      newsList.classList.add("atlas-news-watch-list-collapsed");
+    } else {
+      newsList.classList.remove("atlas-news-watch-list-collapsed");
+    }
+  }
+  refreshCollapsedNews();
+  window.addEventListener("resize", refreshCollapsedNews);
+  // Expose so refreshNewsWatch can re-call it after each refresh
+  state._refreshCollapsedNews = refreshCollapsedNews;
+
+  // "Show all headlines" button — expands the collapsed news list
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      newsList?.classList.remove("atlas-news-watch-list-collapsed");
+    });
+  }
+
+  // Update the count on the floating "More …" button so the reader
+  // knows how many items are inside the sheet.
+  function updatePanelToggleCount() {
+    if (!btn) return;
+    const newsItems = newsList?.querySelectorAll(".atlas-news-item")?.length ?? 0;
+    const sitMods = document.querySelectorAll(".atlas-sit-mod").length;
+    const newsCount = newsList?.querySelectorAll(".atlas-news-item").length ?? 0;
+    const total = newsCount + sitMods;
+    if (total > 0) {
+      const countEl = btn.querySelector(".count");
+      if (countEl) countEl.textContent = String(total);
+      btn.classList.remove("is-hidden");
+    }
+  }
+  updatePanelToggleCount();
+  // Re-run after the news-watch builds
+  const newsObserver = new MutationObserver(updatePanelToggleCount);
+  if (newsList) newsObserver.observe(newsList, { childList: true });
+}
+
+function collapseNewsWatch() {
+  // Called by refreshNewsWatch after each rebuild so the
+  // phone-only collapsed state survives a 5-min refresh.
+  if (typeof state._refreshCollapsedNews === "function") state._refreshCollapsedNews();
+}
+
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
@@ -7840,6 +7942,7 @@ async function init() {
   loadBkkLiveStrip();
   setInterval(loadBkkLiveStrip, 5 * 60 * 1000);
   wireWaterPanel();
+  wirePhonePanelToggle();
   loadFloodRelay();
   setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
   // The situation board needs the flood-roads reading even with the layer off.

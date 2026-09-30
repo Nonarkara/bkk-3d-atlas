@@ -241,7 +241,22 @@
       </div>
     </section>
 
-    <aside class="atlas-panel" aria-live="polite">
+    <!-- Floating "More" button — phone only. Opens the situation-board
+         sheet that holds the full news list, situation board mod panels,
+         quick-jump, water-now, inspect, layers. Desktop hides it via
+         CSS @media (min-width: 721px). -->
+    <button type="button" id="atlas-panel-toggle" class="atlas-panel-toggle is-hidden" aria-expanded="false" aria-controls="atlas-panel">
+      More <span class="count" id="atlas-panel-toggle-count">…</span>
+    </button>
+
+    <aside class="atlas-panel" id="atlas-panel" aria-live="polite" aria-hidden="true">
+      <!-- Sticky close row at the top of the phone sheet. The CSS
+           ::before pseudo can't be a real button, so this row is
+           rendered for real and given data-close-sheet so the
+           click handler in wirePhonePanelToggle can find it. -->
+      <div class="atlas-sheet-close" data-close-sheet aria-label="Close situation board">
+        Situation board · close ↧
+      </div>
       <!-- Trusted flood news (2026-09-29) — sits BEFORE the Operate bar
            so a person opening the atlas during a flood sees the
            headlines before anything else. Source: FloodDash's curated
@@ -253,6 +268,7 @@
           <span class="atlas-news-watch-meta" id="atlas-news-watch-meta">loading…</span>
         </header>
         <ul class="atlas-news-watch-list" id="atlas-news-watch-list"></ul>
+        <button type="button" class="atlas-news-watch-more" id="atlas-news-watch-more">Show all headlines</button>
         <p class="atlas-news-watch-note" id="atlas-news-watch-note"></p>
       </section>
 

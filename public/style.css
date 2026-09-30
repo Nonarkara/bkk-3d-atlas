@@ -1450,7 +1450,15 @@ body.atlas-about-open { overflow: hidden; }
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* Phone: the map is the product. Header is a thin brand strip only. */
+/* Phone: the map is the product. The phone layout used to be
+   a single column that scrolled forever — BKK Provincial Live +
+   seven situation-board mod panels + the right-panel collapsible
+   sections all stacked vertically. On a 6-inch screen that's
+   4000 px of text nobody reads before bouncing. This rewrite
+   gives the phone ONE row of essentials under the map and hides
+   the rest behind a "More details" floating sheet.
+   ───────────────────────────────────────────────────────────────── */
+
 @media (max-width: 720px) {
   .atlas-page {
     grid-template-rows: auto minmax(0, 1fr) auto;
@@ -1506,27 +1514,163 @@ body.atlas-about-open { overflow: hidden; }
 
   .atlas-map { min-height: 0; }
 
-  .atlas-panel {
-    max-height: min(34vh, 320px);
-    gap: 14px;
-    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  /* === Phone-specific restructure ===
+     The desktop layout stacks the BKK Provincial Live + situation
+     board under the map. On phone we collapse that whole region
+     into a single slim strip (verdict + 2 quick actions + news
+     pill). Everything else moves into a full-screen sheet
+     behind the "More" floating button. The right-side panel
+     (.atlas-panel) becomes the bottom-sheet content. */
+  .atlas-bkk-live {
+    padding: 6px 12px 8px;
+    border-top: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
   }
+  .atlas-bkk-live-head { margin: 0 0 4px; }
+  .atlas-bkk-live-head .atlas-eyebrow-bkk {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  /* Hide the situation board (where it is worst, gauges, alerts,
+     sources, rain, help) from the phone layout entirely. The
+     floating "More" button opens it as a sheet. */
+  .atlas-sit { display: none; }
+  /* Tighter verdict on phone — title inline with the eyebrow + a
+     one-line meta strip. Buttons become a single row of compact
+     icon-buttons. */
+  .atlas-flood-verdict {
+    padding: 4px 8px 4px 10px;
+    gap: 2px;
+  }
+  .atlas-flood-verdict-head { font-size: 13px; }
+  .atlas-flood-verdict-reason { font-size: 11px; line-height: 1.35; }
+  .atlas-flood-verdict-meta { font-size: 9.5px; line-height: 1.4; }
+  .atlas-flood-verdict-actions { gap: 4px; margin-top: 2px; }
+  .atlas-flood-verdict-btn {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 10.5px;
+  }
+  .atlas-flood-verdict-btn#atlas-flood-verdict-show { padding: 0 10px; }
+  .atlas-flood-credit { font-size: 10px; gap: 5px; margin-top: 4px; }
 
-  /* Keep About one tap away even when the tray is scrolled. */
-  .atlas-operate-bar {
+  /* === Right panel becomes a hidden bottom-sheet on phone === */
+  .atlas-panel {
+    /* Off-screen by default; the "More" button (added below) slides
+       it up. The strip + map still show behind the scrim. */
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    max-height: none;
+    height: 100dvh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 220ms ease;
+    background: var(--bg, #0e0f0c);
+    border-top: 0;
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
+    gap: 10px;
+    will-change: transform;
+  }
+  .atlas-panel.is-open {
+    transform: translateY(0);
+    box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.55);
+  }
+  /* Real close row at the top of the phone sheet — a real button
+     so it gets keyboard focus + Esc handlers, not a ::before. */
+  .atlas-sheet-close {
+    display: block;
     position: sticky;
     top: 0;
     z-index: 2;
-    margin: -14px -14px 0;
-    padding: 10px 14px 8px;
-    background: linear-gradient(180deg, #0d0e0b 70%, rgba(13, 14, 11, 0.92));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px 14px;
+    margin: -14px -14px 10px;
+    background: linear-gradient(180deg, var(--bg, #0e0f0c) 70%, rgba(14, 15, 12, 0.92));
+    border-bottom: 1px solid var(--rule, rgba(255, 255, 255, 0.1));
+    color: var(--muted);
+    font: 600 11px/1 var(--font-body);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
   }
+  .atlas-sheet-close:hover { color: var(--paper); }
+
+  /* Floating "More" button — fixed bottom-right, opens the sheet */
+  .atlas-panel-toggle {
+    display: inline-flex;
+    position: fixed;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 19;
+    padding: 0 14px;
+    min-height: 38px;
+    border: 1px solid var(--signal, #c9ff38);
+    background: var(--signal, #c9ff38);
+    color: #11120f;
+    font: 700 12px/1 var(--font-body);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+  .atlas-panel-toggle.is-hidden { display: none; }
+  .atlas-panel-toggle .count {
+    background: rgba(0, 0, 0, 0.18);
+    padding: 1px 6px;
+    margin-left: 6px;
+    font-weight: 800;
+  }
+  /* Also hide the news-watch's bottom-sheet-mode list items that
+     would otherwise dominate the sheet — keep only the 1st
+     headline visible; the rest fold under a "Show all" toggle. */
+  .atlas-news-watch-list-collapsed .atlas-news-item:nth-child(n+2) {
+    display: none;
+  }
+  .atlas-news-watch-more {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
+    color: var(--paper);
+    font: 600 11px/1 var(--font-body);
+    background: transparent;
+    cursor: pointer;
+  }
+  .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::before { content: "Show all "; }
+  .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::after { content: " headlines"; }
+  .atlas-news-watch-list:not(.atlas-news-watch-list-collapsed) ~ .atlas-news-watch-more {
+    display: none;
+  }
+
+  /* Trim the news-watch headline density on phone */
+  .atlas-news-watch { padding: 6px 0 4px; }
+  .atlas-news-watch-list { gap: 0; }
+  .atlas-news-link { padding: 4px 0; grid-template-columns: 44px 1fr; row-gap: 1px; }
+  .atlas-news-chip { font-size: 9px; padding: 2px 0; min-height: 16px; }
+  .atlas-news-title { font-size: 11.5px; }
+  .atlas-news-meta { font-size: 9.5px; gap: 3px 6px; }
+  .atlas-news-watch-note { display: none; }
+
+  /* Default a few of the situation board's smaller mod panels to
+     compact on phone (the sheet is scrollable, so just less
+     padding). */
+  .atlas-sit-mod { padding: 10px 0 0; }
+
+  /* Quick-jump grid: 2 cols on phone already; ensure no overflow */
+  .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+
+  /* Inset map zoom controls so the panel-toggle doesn't cover them */
+  .maplibregl-ctrl-bottom-right { bottom: 70px; }
+
+  /* Hide the preset banner ("Bangkok from above" hero) on phone —
+     it's only useful on desktop when the user is exploring
+     presets. */
+  .atlas-preset-detail { display: none !important; }
 
   .atlas-quick-heading,
   .atlas-data-heading {
-    font-size: 17px;
-    margin: 4px 0 10px;
+    font-size: 15px;
+    margin: 4px 0 8px;
   }
 
   .atlas-inspect-blurb { font-size: 11px; }
@@ -1559,6 +1703,11 @@ body.atlas-about-open { overflow: hidden; }
     width: 160px;
     height: 113px;
   }
+}
+
+/* Hide the floating toggle on desktop — it's a phone-only affordance. */
+@media (min-width: 721px) {
+  .atlas-panel-toggle { display: none !important; }
 }
 
 /* the title is now an <h1> — keep the class styling, drop the UA margins */
