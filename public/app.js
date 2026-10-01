@@ -6008,7 +6008,13 @@ function openCctvPopup(map, feature) {
     if (status) status.textContent = "No HLS URL for this camera.";
     return;
   }
-  if (status) status.textContent = "Live · iTIC / Longdo";
+  if (status) {
+    // Credit the owning org, not just the platform: a กรมทางหลวง (DOH)
+    // camera streamed via iTIC/Longdo must not read "Live · iTIC / Longdo".
+    status.textContent = /กรมทางหลวง|DOH/.test(org)
+      ? "Live · กรมทางหลวง cam · iTIC / Longdo"
+      : "Live · iTIC / Longdo";
+  }
   playCctvStream(video, hls);
 }
 
@@ -7356,9 +7362,12 @@ async function loadBkkLiveStrip() {
     const fetched = new Date(kpi.fetchedAt);
     const ageMin = Math.round((Date.now() - fetched.getTime()) / 60000);
     let freshnessText;
+    // "live" is a claim: only print it while the reading actually is.
+    // Past 5 min the text states the age; past 60 min the dot goes stale.
     if (ageMin < 1) freshnessText = "live · <1 min";
-    else if (ageMin < 60) freshnessText = `live · ${ageMin} min`;
-    else freshnessText = `live · ${Math.round(ageMin / 60)} h`;
+    else if (ageMin < 5) freshnessText = `live · ${ageMin} min`;
+    else if (ageMin < 60) freshnessText = `${ageMin} min ago`;
+    else freshnessText = `${Math.round(ageMin / 60)} h ago`;
     if (freshness) freshness.textContent = freshnessText;
     if (dot) {
       dot.classList.remove("is-stale", "is-down");

@@ -984,10 +984,29 @@ async function proxyBkkIncidents(request: Request, env: Env, ctx: ExecutionConte
     } catch { /* ignore */ }
   }
 
+  // The envelope must not claim "just fetched" — derive fetchedAt from
+  // the newest observation actually in the payload (2026-09-03 lesson:
+  // honest data in the payload is not honest data on the envelope).
+  // Sensor features carry no timestamp of their own, so the FloodDash
+  // snapshot's fetchedAt stands in for them, and only when they exist.
+  const stateFetchedAt = floodState.status === "fulfilled" && floodState.value && sourceCounts.sensor > 0
+    ? floodState.value.fetchedAt ?? null
+    : null;
+  let newestObservedMs: number | null = stateFetchedAt ? Date.parse(stateFetchedAt) : null;
+  if (newestObservedMs != null && !Number.isFinite(newestObservedMs)) newestObservedMs = null;
+  for (const f of features) {
+    for (const key of ["observed_at", "latest_at", "latest_flooded_at"]) {
+      const raw = f.properties[key];
+      if (typeof raw !== "string") continue;
+      const ms = Date.parse(raw);
+      if (Number.isFinite(ms) && (newestObservedMs == null || ms > newestObservedMs)) newestObservedMs = ms;
+    }
+  }
+
   return new Response(JSON.stringify({
     tool: "bkk-incidents",
     version: 1,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: newestObservedMs != null ? new Date(newestObservedMs).toISOString() : new Date().toISOString(),
     bbox: BKK_INCIDENT_HALO_BBOX,
     counts: { total: features.length, bySource: sourceCounts },
     attribution: "Longdo/iTIC live incident feed · Bangkok Post + Khaosod RSS · BMA DDS road reports (via FloodDash relay)",
@@ -1518,7 +1537,7 @@ async function proxyMaholanCctv(_request: Request): Promise<Response> {
   if (!direct.ok) {
     return jsonResponse({ error: "maholan_cctv_upstream_error", status: direct.status }, { status: 502 });
   }
-  const data = await direct.json() as { cameras?: any[]; links?: any };
+  const data = await direct.json() as { cameras?: any[]; links?: any; generated_at?: string; updatedAt?: string; fetchedAt?: string };
   const cameras = Array.isArray(data.cameras) ? data.cameras : [];
   const features = [];
   const liveCount = { hls: 0, mjpeg: 0, snapshot: 0, other: 0 };
@@ -1560,7 +1579,11 @@ async function proxyMaholanCctv(_request: Request): Promise<Response> {
     type: "FeatureCollection",
     tool: "bkk-maholan-cctv",
     version: 1,
-    fetchedAt: new Date().toISOString(),
+    // Upstream age if the aggregator publishes one; otherwise the moment
+    // we fetched. Either way the payload says so — live/offline flags are
+    // passed through unverified (this handler does not re-date them).
+    fetchedAt: data.generated_at ?? data.updatedAt ?? data.fetchedAt ?? new Date().toISOString(),
+    note: "live/offline flags are as reported by the upstream aggregator; not independently verified",
     counts: {
       total: features.length,
       live: features.filter((f) => f.properties.live).length,

@@ -1522,8 +1522,13 @@ body.atlas-about-open { overflow: hidden; }
      behind the "More" floating button. The right-side panel
      (.atlas-panel) becomes the bottom-sheet content. */
   .atlas-bkk-live {
-    padding: 6px 12px 8px;
+    /* viewport-fit=cover puts the home-indicator zone inside the page:
+       the strip is the last in-flow row, so its bottom padding must clear
+       the safe area. border-bottom: 0 kills the double border (the base
+       rule above still drew one at the screen edge). */
+    padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
+    border-bottom: 0;
   }
   .atlas-bkk-live-head { margin: 0 0 4px; }
   .atlas-bkk-live-head .atlas-eyebrow-bkk {
@@ -1818,8 +1823,11 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 
 .atlas-bkk-live {
   border-top: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
-  border-bottom: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
-  background: var(--bg-elev, #13171c);
+  /* Same ground as the page (--ink). --bg-elev was never defined, so the
+     strip fell back to a bluer slate #13171c and read as a detached bar
+     bolted under the page — the "bleeding downward" unbalance. The
+     border-top hairline alone delineates it from the map. */
+  background: var(--ink);
   padding: 12px clamp(14px, 2vw, 22px) 14px;
 }
 .atlas-bkk-live-head {
