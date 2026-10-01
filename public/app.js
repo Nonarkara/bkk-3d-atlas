@@ -637,6 +637,7 @@ const INCIDENT_HEAT_MAX_ZOOM = 14;  // beyond this, switch to dots
 // and FloodDash gauges. Method stolen from FloodDash's streetReports.js /
 // streetFlood.js. A lit stretch = a report within ~100 m on that road.
 const FLOOD_ROADS_URL = "/api/flood/roads";
+const ROADS_XREF_URL = "/api/water/bkk/roads-xref";
 const FLOOD_ROADS_SOURCE = "bkkx-flood-roads";
 const FLOOD_HEAT_SOURCE = "bkkx-flood-roads-heat";
 const FLOOD_HEAT_LAYER = "bkkx-flood-roads-heat";
@@ -4044,6 +4045,10 @@ async function loadFloodRoadsPayload() {
     computeFloodCamJoin();
     renderSituation(payload);
   }
+  // The honest cross-reference is derived from the same data plus the
+  // flood-sensor feed; refresh both at the same cadence so the
+  // "✓ Confirmed" count never lags behind the report list.
+  loadRoadsXref();
   return state.floodRoads;
 }
 
@@ -7176,6 +7181,139 @@ function renderSituation(payload) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Honest cross-reference: road reports × flood sensors (JK World
+// Owner rule 2026-10-01). The confirmed count is the trustworthy
+// number. Reports without a nearby fresh sensor go to a closed
+// section. Atlas house rule: sharp edges, signal yellow for the
+// positive, no shadows or gradients.
+// ─────────────────────────────────────────────────────────────────
+function renderRoadsXref(payload) {
+  const root = document.getElementById("atlas-sit-xref");
+  if (!root) return;
+  if (!payload || payload.tool !== "bkk-roads-xref") {
+    root.hidden = true;
+    return;
+  }
+  root.hidden = false;
+
+  const counts = payload.counts || {};
+  const confirmed = payload.confirmed || [];
+  const unconfirmed = payload.unconfirmed || [];
+  const sensorOnly = payload.sensorOnly || [];
+
+  // Three headline stats.
+  const setStat = (id, value, where) => {
+    const v = document.getElementById(id);
+    const w = document.getElementById(id.replace("-n", "-where"));
+    if (v) v.textContent = String(value);
+    if (w) w.textContent = where || "—";
+  };
+  const fmtAge = (iso) => {
+    if (!iso) return "—";
+    const ms = Date.now() - Date.parse(iso);
+    if (!Number.isFinite(ms)) return "—";
+    const min = Math.round(ms / 60_000);
+    if (min < 60) return `${min} min ago`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `${h} h ago`;
+    return `${Math.round(h / 24)} d ago`;
+  };
+  const ageWords = fmtAge;
+
+  const topConfirmed = confirmed.slice(0, 6);
+  setStat(
+    "atlas-xref-confirmed-n",
+    counts.confirmed ?? 0,
+    counts.confirmed
+      ? `top: ${topConfirmed[0]?.road || "—"} · ${ageWords(topConfirmed[0]?.latest)}`
+      : counts.unconfirmed_no_sensor
+      ? "no nearby sensor — the BMA does not publish road-level flood sensors in this feed"
+      : counts.unconfirmed_sensor_dry || counts.unconfirmed_sensor_stale
+      ? "sensors nearby say safe or stale"
+      : "—",
+  );
+  setStat(
+    "atlas-xref-sensoronly-n",
+    counts.sensor_only ?? 0,
+    counts.sensor_only
+      ? `top: ${sensorOnly[0]?.name || "—"} · ${sensorOnly[0]?.band_en || sensorOnly[0]?.band || "wet"}`
+      : "no wet gauge ahead of the news",
+  );
+  setStat(
+    "atlas-xref-unconfirmed-n",
+    counts.unconfirmed_no_sensor + counts.unconfirmed_sensor_stale + counts.unconfirmed_sensor_dry,
+    [
+      counts.unconfirmed_no_sensor ? `${counts.unconfirmed_no_sensor} no sensor` : null,
+      counts.unconfirmed_sensor_stale ? `${counts.unconfirmed_sensor_stale} stale` : null,
+      counts.unconfirmed_sensor_dry ? `${counts.unconfirmed_sensor_dry} sensor says safe` : null,
+    ].filter(Boolean).join(" · ") || "—",
+  );
+
+  const meta = document.getElementById("atlas-sit-xref-meta");
+  if (meta) {
+    const age = minutesSince(payload.fetchedAt);
+    meta.textContent = `${counts.total_roads ?? 0} reports · ${age == null ? "age unknown" : `${ageWords(age)} old`} · 250 m join`;
+  }
+
+  // Confirmed list — short, only the top movers.
+  const list = document.getElementById("atlas-sit-xref-confirmed");
+  if (list) {
+    if (!confirmed.length) {
+      list.innerHTML = `<li class="atlas-xref-empty">No road report is within 250 m of a wet FloodDash gauge right now. The atlas's sensor feed is canal gauges (HII/ThaiWater), not BMA road sensors — so this number is intentionally low. The 967 reports are kept in the closed section below; they are not the same as "flooded right now".</li>`;
+    } else {
+      list.innerHTML = topConfirmed.map((r) => {
+        const g = r.nearest_gauge || {};
+        const where = r.road || "un-named road";
+        return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
+          <span class="atlas-xref-pill atlas-xref-pill-confirmed">✓ ${escapeHtml(r.depth_label || "flooded")}</span>
+          <span class="atlas-xref-where">${escapeHtml(where)}</span>
+          <span class="atlas-xref-meta">↔ ${g.distance_m ?? "?"} m to <strong>${escapeHtml(g.name || "gauge")}</strong> · ${escapeHtml(g.band_en || g.band || "")}</span>
+          <span class="atlas-xref-time">${escapeHtml(ageWords(r.latest))}</span>
+        </li>`;
+      }).join("");
+    }
+  }
+
+  // Unconfirmed list — collapsed by default.
+  const ul = document.getElementById("atlas-sit-xref-unconfirmed");
+  const sum = document.getElementById("atlas-sit-xref-unconf-summary");
+  if (ul) {
+    const top = unconfirmed.slice(0, 8);
+    if (sum) sum.textContent = `📋 Reports without sensor confirmation (${unconfirmed.length})`;
+    if (!unconfirmed.length) {
+      ul.innerHTML = `<li class="atlas-xref-empty">Every active road report has a fresh sensor within 250 m. Rare — that means the flood is well-monitored.</li>`;
+    } else {
+      ul.innerHTML = top.map((r) => {
+        const g = r.nearest_gauge;
+        const tag =
+          r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">📟 no sensor</span>`
+          : r.q === "sensor-stale" ? `<span class="atlas-xref-pill atlas-xref-pill-stale">⚠ stale</span>`
+          : `<span class="atlas-xref-pill atlas-xref-pill-dry">○ sensor safe</span>`;
+        return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
+          ${tag}
+          <span class="atlas-xref-where">${escapeHtml(r.road || "un-named road")}</span>
+          <span class="atlas-xref-meta">${g ? `${g.distance_m} m to ${escapeHtml(g.name)} (${escapeHtml(g.band_en || g.band)})` : "no road-level sensor within 250 m"}</span>
+          <span class="atlas-xref-time">${escapeHtml(ageWords(r.latest))}</span>
+        </li>`;
+      }).join("");
+    }
+  }
+
+  state.roadsXref = payload;
+}
+
+async function loadRoadsXref() {
+  try {
+    const r = await fetchJson(ROADS_XREF_URL);
+    if (r?.tool === "bkk-roads-xref") renderRoadsXref(r);
+    return r;
+  } catch (e) {
+    console.warn("roads-xref load failed:", e);
+    return null;
+  }
+}
+
 async function loadBkkLiveStrip() {
   const dot = document.querySelector(".atlas-bkk-live-dot");
   const freshness = document.getElementById("atlas-bkk-live-freshness");
@@ -7928,6 +8066,44 @@ function collapseNewsWatch() {
   if (typeof state._refreshCollapsedNews === "function") state._refreshCollapsedNews();
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Live presence — anonymous per-tab counter (JK World pattern).
+// Generates a session id, pings every 60 s, displays in the header.
+// ─────────────────────────────────────────────────────────────────
+const ATLAS_SESSION_KEY = "atlas-presence-session";
+function getOrCreateSessionId() {
+  try {
+    let id = localStorage.getItem(ATLAS_SESSION_KEY);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) || `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(ATLAS_SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    return `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+async function pingPresence() {
+  const el = document.getElementById("atlas-presence");
+  if (!el) return;
+  try {
+    const sessionId = getOrCreateSessionId();
+    const r = await fetch("/api/presence/ping", {
+      method: "POST",
+      headers: { "x-atlas-session": sessionId, "accept": "application/json" },
+      cache: "no-store",
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    el.textContent = `· 👥 ${j.online.toLocaleString()} online · peak ${j.peak.toLocaleString()} today`;
+    el.hidden = false;
+  } catch {
+    // A failed ping is fine — the chip just stays hidden. The atlas never
+    // depends on this counter; it is social proof, not a control.
+    el.hidden = true;
+  }
+}
+
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
@@ -7935,6 +8111,10 @@ async function init() {
   renderQuickJump(state.areas);
   wireAboutDrawer();
   document.getElementById("atlas-share").addEventListener("click", copyDeepLink);
+
+  // Live presence — ping on load and every 60 s (JK World pattern).
+  pingPresence();
+  setInterval(pingPresence, 60_000);
 
   // Kick off the BKK provincial live strip — runs in the background and
   // refreshes every 5 minutes (matching the upstream cache TTL). Stolen

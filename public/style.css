@@ -1712,6 +1712,11 @@ body.atlas-about-open { overflow: hidden; }
      padding). */
   .atlas-sit-mod { padding: 10px 0 0; }
 
+  /* Honest cross-reference — keep the 3-stat grid but tighter so the
+     sheet fits on a 360 px viewport without scrolling sideways. */
+  .atlas-sit-xref-summary { grid-template-columns: 1fr; gap: 4px; }
+  .atlas-xref-value { font-size: 20px; }
+
   /* Quick-jump grid: 2 cols on phone already; ensure no overflow */
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 
@@ -2645,9 +2650,147 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   color: var(--paper);
 }
 .atlas-sit-head h3 span { color: var(--muted); letter-spacing: 0.02em; text-transform: none; font-weight: 600; }
+
+/* Live presence chip — anonymous per-tab counter (JK World pattern).
+   Atlas house rule: muted ink, signal-yellow dot, mono font, no pill. */
+.atlas-presence {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.atlas-presence[hidden] { display: none; }
 .atlas-sit-meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
 .atlas-sit-note { margin: 10px 0 0; font-size: 11px; line-height: 1.55; color: var(--muted); max-width: 72ch; }
 .atlas-sit-note a { color: var(--signal); }
+
+/* Honest cross-reference (JK World Owner rule 2026-10-01):
+   sensor-confirmed vs reported, no shadows, sharp edges, signal yellow. */
+.atlas-sit-xref { border-top: 1px solid rgba(255, 255, 255, 0.12); margin-top: 12px; padding-top: 10px; }
+.atlas-sit-xref-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.atlas-xref-stat {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.02);
+}
+.atlas-xref-stat[data-stat="confirmed"] { border-left: 2px solid var(--signal); }
+.atlas-xref-stat[data-stat="sensor-only"] { border-left: 2px solid #E8A317; }
+.atlas-xref-stat[data-stat="unconfirmed"] { border-left: 2px solid #6b6d63; }
+.atlas-xref-label {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.atlas-xref-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--paper);
+}
+.atlas-xref-stat[data-stat="confirmed"] .atlas-xref-value { color: var(--signal); }
+.atlas-xref-stat[data-stat="sensor-only"] .atlas-xref-value { color: #E8A317; }
+.atlas-xref-where {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.atlas-sit-xref-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.atlas-xref-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "pill where time" "meta meta meta";
+  align-items: center;
+  gap: 2px 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+.atlas-xref-row:hover { background: rgba(201, 255, 56, 0.04); }
+.atlas-xref-pill {
+  grid-area: pill;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.atlas-xref-pill-confirmed { color: var(--signal); }
+.atlas-xref-pill-stale    { color: #c0bdb1; }
+.atlas-xref-pill-dry      { color: #E8A317; }
+.atlas-xref-pill-none     { color: #6b6d63; }
+.atlas-xref-where {
+  grid-area: where;
+  font-size: 12px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.atlas-xref-meta {
+  grid-area: meta;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.atlas-xref-time {
+  grid-area: time;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.atlas-xref-empty {
+  margin: 0;
+  padding: 8px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.atlas-sit-xref-unconf {
+  margin-top: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.atlas-sit-xref-unconf > summary {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.atlas-sit-xref-unconf > summary::marker,
+.atlas-sit-xref-unconf > summary::-webkit-details-marker { display: none; }
+.atlas-sit-xref-unconf > summary::before { content: "▸ "; color: var(--signal); font-weight: 700; }
+.atlas-sit-xref-unconf[open] > summary::before { content: "▾ "; }
+.atlas-sit-xref-unconf .atlas-sit-note { padding: 0 10px; }
+.atlas-sit-xref-list-dim .atlas-xref-where { color: var(--muted); }
+.atlas-sit-credit {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.atlas-sit-credit a { color: var(--signal); border-bottom: 1px solid rgba(201, 255, 56, 0.4); text-decoration: none; }
 
 /* Where it is worst — a ranked table, tap a row to go there. */
 .atlas-sit-table { width: 100%; border-collapse: collapse; font-size: 12px; }

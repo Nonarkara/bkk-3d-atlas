@@ -29,7 +29,7 @@
           <span class="atlas-title-desk">Bangkok, live, flood edition</span>
           <span class="atlas-title-phone">Bangkok · live · Flood edition</span>
         </h1>
-        <small>432,077 buildings · boats + rail · CCTV · flood sensors · traffic · wind · AQI · rain radar</small>
+        <small>432,077 buildings · boats + rail · CCTV · flood sensors · traffic · wind · AQI · rain radar <span class="atlas-presence" id="atlas-presence" hidden aria-live="polite" title="Anonymous per-tab counter · pings every 60 s · pattern from JK World"></span></small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
         <a href="#atlas-areas">Quick jump</a>
@@ -126,7 +126,7 @@
         <!-- Visible FloodDash attribution — answers "where does this come from?" -->
         <p class="atlas-flood-credit" aria-label="Data source attribution">
           <span class="atlas-flood-credit-dot" aria-hidden="true"></span>
-          <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
+          <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Sensor-confirmed vs reported layer is a pattern stolen from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · cross-checked within 250 m. Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
         </p>
       </div>
       <!-- Situation board -->
@@ -149,6 +149,47 @@
             <tbody id="atlas-sit-areas"></tbody>
           </table>
           <p class="atlas-sit-note">Residents' Traffy Fondue tickets and iTIC road reports, placed by district boundary. A count is reports, not people or depth; one flood can draw many. Rain is the wettest gauge in the district. Tap a district to go there.</p>
+        </section>
+
+        <!-- Honest cross-reference: road reports × flood sensors (JK World
+             pattern). A road report only counts as flooded when a fresh
+             sensor within 250 m confirms it. Pattern stolen from
+             world.tehx.dyndns.info/flood, Owner rule 2026-10-01. -->
+        <section class="atlas-sit-mod atlas-sit-xref" aria-labelledby="atlas-sit-xref-h" id="atlas-sit-xref" hidden>
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-xref-h">Sensor-confirmed vs reported <span lang="th">· เซ็นเซอร์ยืนยัน vs รายงาน</span></h3>
+            <span class="atlas-sit-meta" id="atlas-sit-xref-meta">loading…</span>
+          </header>
+          <div class="atlas-sit-xref-summary" id="atlas-sit-xref-summary">
+            <article class="atlas-xref-stat" data-stat="confirmed">
+              <p class="atlas-xref-label">✓ sensor-confirmed</p>
+              <p class="atlas-xref-value" id="atlas-xref-confirmed-n">—</p>
+              <p class="atlas-xref-where" id="atlas-xref-confirmed-where">—</p>
+            </article>
+            <article class="atlas-xref-stat" data-stat="sensor-only">
+              <p class="atlas-xref-label">📡 wet sensor · no nearby report</p>
+              <p class="atlas-xref-value" id="atlas-xref-sensoronly-n">—</p>
+              <p class="atlas-xref-where" id="atlas-xref-sensoronly-where">—</p>
+            </article>
+            <article class="atlas-xref-stat" data-stat="unconfirmed">
+              <p class="atlas-xref-label">📋 reports without sensor confirmation</p>
+              <p class="atlas-xref-value" id="atlas-xref-unconfirmed-n">—</p>
+              <p class="atlas-xref-where" id="atlas-xref-unconfirmed-where">—</p>
+            </article>
+          </div>
+          <ul class="atlas-sit-xref-list" id="atlas-sit-xref-confirmed" aria-label="Sensor-confirmed flooded roads"></ul>
+          <details class="atlas-sit-xref-unconf">
+            <summary id="atlas-sit-xref-unconf-summary">📋 Reports without sensor confirmation</summary>
+            <p class="atlas-sit-note">Traffy Fondue / iTIC road reports within the last 24 h that no fresh flood sensor (within 250 m) confirms. They are not added to the sensor-confirmed count above. <strong>Not an all-clear</strong> — only that the BMA does not publish a road-level flood sensor near this report in our feed. Pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer">JK World</a>, Owner rule 2026-10-01.</p>
+            <ul class="atlas-sit-xref-list atlas-sit-xref-list-dim" id="atlas-sit-xref-unconfirmed"></ul>
+          </details>
+          <p class="atlas-sit-credit">
+            Cross-reference pattern stolen from
+            <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong> · เฝ้าระวังน้ำท่วมกรุงเทพฯ</a>
+            (data: BMA DDS · HII ThaiWater · iTIC/Longdo, via
+            <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a>).
+            Not an official warning — DDPM 1784.
+          </p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-pulse" aria-labelledby="atlas-sit-pulse-h">

@@ -32,6 +32,8 @@ import {
 
 import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } from "./floodroads";
 
+import { roadsXrefResponse } from "./roads-xref";
+
 export interface Env {
   ASSETS: Fetcher;
   BKK_TILES: R2Bucket;
@@ -116,6 +118,45 @@ type FloodCollection = {
 };
 
 let floodCache: FloodCollection | null = null;
+
+// Live presence — anonymous, per-tab ID, pinged every 60 s. Pattern
+// stolen from JK World (world.tehx.dyndns.info/flood, presence.js).
+// Module-scoped state survives inside one isolate; resets on cold
+// start, which is honest. We do not log IPs, sessions, or referrers.
+const PRESENCE_TTL_MS = 5 * 60_000;
+const presenceMap = new Map<string, number>();
+let presencePeakToday = 0;
+let presencePeakDay = new Date().toISOString().slice(0, 10);
+
+function presenceSnapshot(now: number = Date.now()): { online: number; peak: number } {
+  const cutoff = now - PRESENCE_TTL_MS;
+  for (const [id, t] of presenceMap) if (t < cutoff) presenceMap.delete(id);
+  const online = presenceMap.size;
+  const today = new Date(now).toISOString().slice(0, 10);
+  if (today !== presencePeakDay) { presencePeakDay = today; presencePeakToday = online; }
+  if (online > presencePeakToday) presencePeakToday = online;
+  return { online, peak: presencePeakToday };
+}
+
+function handlePresence(request: Request): Response {
+  if (request.method === "POST" && new URL(request.url).pathname === "/api/presence/ping") {
+    const sessionId =
+      request.headers.get("x-atlas-session") ||
+      crypto.randomUUID();
+    presenceMap.set(sessionId, Date.now());
+    const snap = presenceSnapshot();
+    return jsonResponse({ ok: true, sessionId, online: snap.online, peak: snap.peak }, {
+      headers: { "cache-control": "no-store", "access-control-allow-origin": "*" },
+    });
+  }
+  if (request.method === "GET" && new URL(request.url).pathname === "/api/presence") {
+    const snap = presenceSnapshot();
+    return jsonResponse({ online: snap.online, peak: snap.peak }, {
+      headers: { "cache-control": "no-store", "access-control-allow-origin": "*" },
+    });
+  }
+  return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -3217,6 +3258,9 @@ function apiCatalog(request: Request): Response {
         { path: "/api/water/bkk/incidents", method: "GET", description: "BKK incident heat — city-events + news-events + BMA DDS road reports + flood-sensors in prepare/evacuate bands, aggregated for flood-preset heat map.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/canal-gates", method: "GET", description: "BMA Drainage bulletin: 10 Bangkok canal-gate stations with current water level vs critical level.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/roads-flooded", method: "GET", description: "BMA DDS dated road reports for Bangkok: 66 road segments with depth, lanes, status (reported / cleared / unrecorded).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/roads-xref", method: "GET", description: "Honest cross-reference: BMA DDS + Traffy + iTIC road reports cross-checked against FloodDash gauges (within 250 m). Pattern stolen from JK World (world.tehx.dyndns.info/flood).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/presence", method: "GET", description: "Anonymous online counter — how many atlas tabs are open right now and today's peak. Pattern stolen from JK World presence.js.", cacheSeconds: 0 },
+        { path: "/api/presence/ping", method: "POST", description: "Heartbeat — register this tab as online for 5 minutes. Send the session id back as `x-atlas-session` on the next ping.", cacheSeconds: 0 },
         { path: "/api/water/bkk/emergency-points", method: "GET", description: "FloodDash confirmed emergency points for Bangkok + 30 km halo (news-anchored flood-affected locations with depth + impact).", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/dams", method: "GET", description: "FloodDash major dams (Bhumibol, Sirikit, Pasak, Kwae Noi) — storage %, inflow, release. Filtered to Chao Phraya + nearby basins.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/alerts", method: "GET", description: "FloodDash active flood alerts (thaiwater_wl level changes + flash-flood precursors) — Bangkok + Chao Phraya upstream provinces.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
@@ -3294,6 +3338,18 @@ export default {
     }
     if (url.pathname === "/api/water/bkk/roads-flooded") {
       return proxyBkkRoadsFlooded(request, env);
+    }
+    if (url.pathname === "/api/water/bkk/roads-xref") {
+      // Cross-reference: live road-flooded data × live flood-sensor gauges.
+      // Both are cached in D1 from the previous refresh; this stays cheap.
+      const [roads, flood] = await Promise.all([
+        loadFloodRoads(env, () => floodRoadDeps(env, request, ctx)).catch(() => null),
+        loadFloodState(env, () => floodDeps(env, request)).catch(() => null),
+      ]);
+      return roadsXrefResponse(roads, flood);
+    }
+    if (url.pathname === "/api/presence" || url.pathname === "/api/presence/ping") {
+      return handlePresence(request);
     }
     if (url.pathname === "/api/water/bkk/emergency-points") {
       return proxyBkkEmergencyPoints(request, env);

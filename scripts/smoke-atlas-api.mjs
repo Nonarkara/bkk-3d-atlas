@@ -522,6 +522,50 @@ async function checkMaholanCctv() {
   logOk("GET /api/water/bkk/maholan-cctv", ms, `${c.total ?? body.features.length} cameras (live ${c.live ?? 0} · HLS ${c.hls ?? 0} · MJPEG ${c.mjpeg ?? 0} · snapshot ${c.snapshot ?? 0})`);
 }
 
+// Honest cross-reference: BMA DDS + Traffy + iTIC road reports
+// cross-checked against FloodDash gauges (JK World Owner rule
+// 2026-10-01). The smoke test verifies the contract, not the
+// specific number — the number is what the live data says it is.
+async function checkRoadsXref() {
+  const { ok, status, body, ms } = await fetchJson("/api/water/bkk/roads-xref");
+  if (!ok || status !== 200) return logFail("GET /api/water/bkk/roads-xref", `status=${status}`);
+  assert(body.tool === "bkk-roads-xref", `tool=${body.tool}`);
+  assert(typeof body.confirmRadiusM === "number" && body.confirmRadiusM > 0, `confirmRadiusM=${body.confirmRadiusM}`);
+  const counts = body.counts || {};
+  for (const k of ["confirmed", "unconfirmed_no_sensor", "unconfirmed_sensor_stale", "unconfirmed_sensor_dry", "sensor_only", "total_roads"]) {
+    assert(Number.isInteger(counts[k]) && counts[k] >= 0, `counts.${k} missing or negative: ${counts[k]}`);
+  }
+  assert(Array.isArray(body.confirmed), "confirmed is not an array");
+  assert(Array.isArray(body.unconfirmed), "unconfirmed is not an array");
+  assert(Array.isArray(body.sensorOnly), "sensorOnly is not an array");
+  assert(typeof body.attribution === "string" && body.attribution.includes("JK World"), "attribution does not credit JK World");
+  // Each confirmed row must have a nearest_gauge with a valid distance.
+  for (const r of body.confirmed.slice(0, 3)) {
+    assert(r.q === "sensor-confirmed", `confirmed row q=${r.q}`);
+    assert(r.nearest_gauge && typeof r.nearest_gauge.distance_m === "number", `confirmed row missing nearest_gauge.distance_m`);
+    assert(r.nearest_gauge.distance_m <= body.confirmRadiusM, `confirmed row distance ${r.nearest_gauge.distance_m}m > radius ${body.confirmRadiusM}m`);
+  }
+  // Each unconfirmed row must NOT be tagged as confirmed.
+  for (const r of body.unconfirmed.slice(0, 3)) {
+    assert(r.q !== "sensor-confirmed", `unconfirmed row q=${r.q}`);
+  }
+  logOk("GET /api/water/bkk/roads-xref", ms,
+    `${counts.confirmed} confirmed · ${counts.unconfirmed_no_sensor} no-sensor · ${counts.unconfirmed_sensor_stale} stale · ${counts.unconfirmed_sensor_dry} sensor-safe · ${counts.sensor_only} sensor-only (within ${body.confirmRadiusM} m)`);
+}
+
+// Live presence — anonymous per-tab counter (JK World pattern).
+async function checkPresence() {
+  const { ok, status, body, ms } = await fetchJson("/api/presence");
+  if (!ok || status !== 200) return logFail("GET /api/presence", `status=${status}`);
+  assert(typeof body.online === "number" && body.online >= 0, `online=${body.online}`);
+  assert(typeof body.peak === "number" && body.peak >= body.online, `peak=${body.peak}`);
+  const ping = await fetchJson("/api/presence/ping", { method: "POST" });
+  if (!ping.ok || ping.status !== 200) return logFail("POST /api/presence/ping", `status=${ping.status}`);
+  assert(typeof ping.body.sessionId === "string" && ping.body.sessionId.length > 0, "missing sessionId");
+  assert(ping.body.online >= 1, `ping did not register: online=${ping.body.online}`);
+  logOk("POST /api/presence/ping", ping.ms, `sessionId=${ping.body.sessionId.slice(0, 8)}… · online=${ping.body.online} · peak=${ping.body.peak}`);
+}
+
 // Live city incidents — the "God Mode" layer. The contract is:
 //   - 200, FeatureCollection
 //   - features (when present) have coordinates inside the Bangkok bbox
@@ -621,6 +665,8 @@ async function main() {
   await checkNewsWatch();
   await checkMaholanCctv();
   await checkSourcesHealth();
+  await checkRoadsXref();
+  await checkPresence();
   await checkCivicPois();
   await checkCityEvents();
   await checkNewsEvents();
