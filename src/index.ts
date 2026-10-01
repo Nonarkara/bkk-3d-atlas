@@ -167,6 +167,23 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), { ...init, headers });
 }
 
+const UPSTREAM_TIMEOUT_MS = 20_000;
+
+// Shared upstream fetch with a hard timeout. A hung FloodDash tunnel (one
+// Mac behind a tunnel) used to stall the water proxies until the Workers
+// fetch limit; now every boundary fetch fails fast and the handler's
+// existing `!upstream.ok` branch returns an honest 5xx JSON.
+async function fetchUpstream(url: string | URL, init: RequestInit = {}): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
+  } catch {
+    return new Response(JSON.stringify({ error: "upstream_unreachable_or_timeout" }), {
+      status: 502,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+}
+
 // Parse a single-range HTTP Range header. Supports three shapes:
 //   `bytes=<start>-`        → open-ended: from start to EOF
 //   `bytes=<start>-<end>`   → closed range: from start to end inclusive
@@ -276,7 +293,7 @@ async function loadFloodCollection(env: Env, request: Request): Promise<FloodCol
 
 let landmarksCountCache: number | null = null;
 
-async function loadLandmarksCount(env: Env, request: Request): Promise<number> {
+async function loadLandmarksCount(env: Env, request: Request): Promise<number | null> {
   if (landmarksCountCache !== null) return landmarksCountCache;
   try {
     const assetUrl = new URL("/bkk-landmarks.geojson", request.url);
@@ -289,7 +306,9 @@ async function loadLandmarksCount(env: Env, request: Request): Promise<number> {
       }
     }
   } catch {}
-  return 100;
+  // No fabricated fallback: an unknown count is served as null, never a
+  // magic 100 stamped as inventory (law #3 — silently faked fallback).
+  return null;
 }
 
 function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
@@ -437,7 +456,7 @@ async function fetchPointPm25(lat: number, lng: number): Promise<number | null> 
     const aqUrl =
       `https://air-quality-api.open-meteo.com/v1/air-quality` +
       `?latitude=${lat}&longitude=${lng}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
-    const res = await fetch(aqUrl, {
+    const res = await fetchUpstream(aqUrl, {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
     if (!res.ok) return null;
@@ -504,7 +523,7 @@ function camerasToGeoJson(cameras: LongdoCamera[]) {
 
 async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
   try {
-    const upstream = await fetch(LONGDO_CCTV_FEED, {
+    const upstream = await fetchUpstream(LONGDO_CCTV_FEED, {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
     if (!upstream.ok) {
@@ -642,7 +661,7 @@ function bkkRainStationsToGeoJson(rows: BkkRainStation[]) {
 
 async function fetchThaiwaterJson(url: string): Promise<{ ok: true; data: any } | { ok: false; status: number; message: string }> {
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchUpstream(url, {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
     if (!upstream.ok) {
@@ -825,7 +844,7 @@ async function proxyBkkIncidents(request: Request, env: Env, ctx: ExecutionConte
   // Failures on individual sources fall back to whatever landed; the
   // endpoint never 502s on a partial failure.
   const [cityRes, newsRes, floodState] = await Promise.allSettled([
-    listCityEvents(request, env),
+    listCityEvents(request, env, ctx),
     listNewsEvents(request, env, ctx),
     loadFloodState(env, () => floodDeps(env, request)),
   ]);
@@ -1138,7 +1157,7 @@ function pickAnchor(anchors: NonNullable<typeof bkkAnchorCache>, districtTh: str
 }
 
 async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1205,7 +1224,7 @@ async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response>
 }
 
 async function proxyBkkRoadsFlooded(request: Request, env: Env): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1299,7 +1318,7 @@ async function proxyBkkRoadsFlooded(request: Request, env: Env): Promise<Respons
 }
 
 async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1364,7 +1383,7 @@ async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Resp
 const DAM_BBOX = { minLat: 12.5, maxLat: 20.5, minLng: 97.0, maxLng: 106.0 };
 
 async function proxyBkkDams(_request: Request): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1450,7 +1469,7 @@ async function proxyBkkDams(_request: Request): Promise<Response> {
 const ALERT_HALO_BBOX = { minLat: 13.25, maxLat: 14.50, minLng: 99.80, maxLng: 101.20 };
 
 async function proxyBkkAlerts(_request: Request): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1531,7 +1550,7 @@ async function proxyBkkAlerts(_request: Request): Promise<Response> {
 const MAHOLAN_BBOX = { minLat: 13.20, maxLat: 14.40, minLng: 99.85, maxLng: 101.15 };
 
 async function proxyMaholanCctv(_request: Request): Promise<Response> {
-  const direct = await fetch("https://cctv.maholan.net/api/cameras", {
+  const direct = await fetchUpstream("https://cctv.maholan.net/api/cameras", {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org) · atlas@cctv.maholan" },
   });
   if (!direct.ok) {
@@ -1637,7 +1656,7 @@ function extractSourceDomain(url: string): string {
 }
 
 async function proxyNewsWatch(_request: Request): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1710,7 +1729,7 @@ async function proxyNewsWatch(_request: Request): Promise<Response> {
 // ─────────────────────────────────────────────────────────────────
 
 async function proxySourcesHealth(_request: Request): Promise<Response> {
-  const direct = await fetch(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!direct.ok) {
@@ -1997,7 +2016,7 @@ function findDistrictForPoint(
  * Safe to call often — it's an upsert keyed on the source event id, so
  * repeated polls refresh last_seen_at without duplicating pins. */
 async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: number; stored: number; skipped: number }> {
-  const upstream = await fetch(LONGDO_EVENT_FEED, {
+  const upstream = await fetchUpstream(LONGDO_EVENT_FEED, {
     headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
   });
   if (!upstream.ok) throw new Error(`Longdo feed returned ${upstream.status}`);
@@ -2064,16 +2083,24 @@ async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: 
   return { scanned: events.length, stored, skipped };
 }
 
-/** Live breaking events as GeoJSON. Ingests first so a visitor always
- * sees current data even if the cron hasn't fired recently. */
-async function listCityEvents(request: Request, env: Env): Promise<Response> {
-  let ingestError: string | null = null;
-  try {
-    await ingestCityEvents(env, request);
-  } catch (error) {
-    // Upstream hiccup shouldn't blank the map — serve what D1 already has.
-    ingestError = String(error);
-  }
+/** Live breaking events as GeoJSON. Ingest runs in the background so the
+ * visitor reads D1 immediately; the cron keeps it warm every 5 min. */
+
+// In-isolate throttle for background ingests (resets on cold start). With
+// the 60s edge cache on the response this bounds upstream hammering even
+// under concurrent visitors.
+let lastCityIngestMs = 0;
+const CITY_INGEST_EVERY_MS = 120_000;
+
+async function listCityEvents(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  // Ingest in the background (news-events pattern): the visitor reads D1
+  // immediately and concurrent visitors no longer parallel-hammer the
+  // upstream feed in the request path.
+  ctx?.waitUntil((async () => {
+    if (Date.now() - lastCityIngestMs < CITY_INGEST_EVERY_MS) return;
+    lastCityIngestMs = Date.now();
+    await ingestCityEvents(env, request).catch(() => {});
+  })());
 
   const { results } = await env.CIVIC_DB.prepare("SELECT * FROM city_events").all<CityEventRow>();
   const nowMs = Date.now();
@@ -2121,7 +2148,7 @@ async function listCityEvents(request: Request, env: Env): Promise<Response> {
       attribution: "Longdo / iTIC public event feed — live Thai road & city incidents",
       disclaimer:
         "Live incident reports (accidents, floods, jams, closures) with reporter-supplied coordinates — not a complete record of everything happening in Bangkok, and not verified by BKKx. Long-running roadworks are excluded so genuinely breaking events stay visible.",
-      ...(ingestError ? { ingestWarning: ingestError } : {}),
+      ingestMode: "background · throttled to one per 2 min · cron every 5 min",
       features,
     },
     { headers: { "cache-control": `public, max-age=${CITY_EVENT_CACHE_TTL_SECONDS}` } },
@@ -2444,6 +2471,27 @@ async function listNewsEvents(request: Request, env: Env, ctx?: ExecutionContext
   );
 }
 
+// Production doctrine law #2: no public endpoint fronts a paid API key
+// without rate limiting. Every anonymous /api/traffic hit burns the
+// LONGDO_KEY quota, so gate it per-IP. In-isolate counters reset on cold
+// start — imperfect, but it turns unlimited hammering into a bounded
+// 30/min per IP per window.
+const TRAFFIC_RATE_LIMIT = 30;
+const TRAFFIC_RATE_WINDOW_MS = 60_000;
+const trafficHits = new Map<string, { count: number; resetAt: number }>();
+
+function trafficRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = trafficHits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    if (trafficHits.size > 10_000) trafficHits.clear();
+    trafficHits.set(ip, { count: 1, resetAt: now + TRAFFIC_RATE_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > TRAFFIC_RATE_LIMIT;
+}
+
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
   if (!env.LONGDO_KEY) {
     // 200, not 503: no-key is the known steady state until a Longdo key
@@ -2463,10 +2511,17 @@ async function proxyTraffic(request: Request, env: Env): Promise<Response> {
       { status: 200 },
     );
   }
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  if (trafficRateLimited(ip)) {
+    return jsonResponse(
+      { error: "rate_limited", message: "Too many traffic requests. Retry in a minute." },
+      { status: 429, headers: { "retry-after": "60" } },
+    );
+  }
   const url = new URL(LONGDO_TRAFFIC_FEED);
   url.searchParams.set("key", env.LONGDO_KEY);
   try {
-    const upstream = await fetch(url.toString(), {
+    const upstream = await fetchUpstream(url.toString(), {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
     if (!upstream.ok) {
@@ -3399,7 +3454,7 @@ export default {
       return civicPoiAnalysis(request, env);
     }
     if (url.pathname === "/api/city-events") {
-      return listCityEvents(request, env);
+      return listCityEvents(request, env, ctx);
     }
     if (url.pathname === "/api/news-events") {
       return listNewsEvents(request, env, ctx);
