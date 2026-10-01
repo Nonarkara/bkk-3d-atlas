@@ -1310,7 +1310,7 @@ const LAYERS = [
   },
   {
     id: "flood-roads",
-    name: "Flooded roads now",
+    name: "Flood reports · last 24 h",
     description: "Residents · iTIC · BMA DDS · gauges — on the street",
     defaultOn: true,
     softUninstall: true,
@@ -3985,7 +3985,9 @@ function closeFloodRoadPopup() {
 
 function floodRoadsAgeText(payload) {
   const age = minutesSince(payload?.fetchedAt);
-  return age == null ? "age unknown" : `${ageWords(age)} ago`;
+  const failed = Object.entries(payload?.sources ?? {}).filter(([, s]) => !s.ok || s.error);
+  const relay = age == null ? "relay age unknown" : `relay ${ageWords(age)} ago`;
+  return `${relay} · reports in last ${payload?.windowH ?? 24} h${failed.length ? ` · check source: ${failed.map(([name]) => name).join(", ")}` : ""}`;
 }
 
 function openFloodRoadPopup(map, event) {
@@ -4047,7 +4049,7 @@ async function loadFloodRoadsPayload() {
   }
   // The honest cross-reference is derived from the same data plus the
   // flood-sensor feed; refresh both at the same cadence so the
-  // "✓ Confirmed" count never lags behind the report list.
+  // Nearby-gauge context uses the same report snapshot.
   loadRoadsXref();
   return state.floodRoads;
 }
@@ -4215,7 +4217,8 @@ function flyToFloodedRoads() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 72-Hour Flood Prediction Simulation (30-second run)
+// Illustrative 72-hour scenario tour (30-second run). Scripted phases and
+// visual heat modulation have no calibrated forecast or road-depth model.
 // ─────────────────────────────────────────────────────────────────
 const SIM_DURATION_MS = 30_000;
 const SIM_HOURS = 72;
@@ -4225,10 +4228,10 @@ const SIM_PHASES = [
     fromH: 0,
     toH: 14,
     phase: "Phase 1 (0h–14h) · Convective rain pulses over Eastern Bangkok",
-    detail: "Open-Meteo & TMD models predict 45–65 mm convective bursts on saturated ground. Severe soi ponding in Bang Kapi, Saphan Sung, and Prawet.",
-    depth: "Up to chest-deep (80cm)",
-    roads: "1,775+ stretches active",
-    river: "+1.65m MSL (elevated)",
+    detail: "Scenario: intense local rain on saturated ground could increase ponding in eastern Bangkok. This tour has no live rain-to-road forecast.",
+    depth: "Not calculated",
+    roads: "Not calculated",
+    river: "Not calculated",
     heatIntensity: 1.5,
     heatRadius: 1.15,
     camera: { center: [100.65, 13.76], zoom: 11.8, pitch: 45, bearing: -10 },
@@ -4236,11 +4239,11 @@ const SIM_PHASES = [
   {
     fromH: 14,
     toH: 28,
-    phase: "Phase 2 (14h–28h) · Pak Nam high tide (+2.05m MSL) locks sluice gates",
-    detail: "Gulf of Thailand astronomical high tide surges into the Chao Phraya river mouth. Sluice gates close; canal gravity drainage halts, backing water into Saen Saep & Phra Khanong.",
-    depth: "Up to waist-deep (60cm)",
-    roads: "2,150+ stretches active",
-    river: "+2.05m MSL (HIGH TIDE PEAK)",
+    phase: "Phase 2 (14h–28h) · Illustrative high-tide constraint",
+    detail: "Scenario: elevated river levels could constrain gravity drainage. Tide timing, gate operation and pump capacity are not calculated by this tour.",
+    depth: "Not calculated",
+    roads: "Not calculated",
+    river: "Not calculated",
     heatIntensity: 2.0,
     heatRadius: 1.35,
     camera: { center: [100.54, 13.72], zoom: 12.0, pitch: 48, bearing: 15 },
@@ -4248,11 +4251,11 @@ const SIM_PHASES = [
   {
     fromH: 28,
     toH: 52,
-    phase: "Phase 3 (28h–52h) · Upstream flood crest (2,300 m³/s) arrives from Bang Sai",
-    detail: "HII C.29A flood wave travels down the Chao Phraya corridor. Riverside communities outside dykes in Dusit, Phra Nakhon, and Thonburi face river overflow.",
-    depth: "Riverside overtopping (>100cm)",
-    roads: "2,480+ stretches active",
-    river: "+2.18m MSL (RIVER CREST PEAK)",
+    phase: "Phase 3 (28h–52h) · Illustrative northern inflow",
+    detail: "Scenario: increased upstream flow could raise pressure on riverside communities. Crest timing, discharge and overtopping are not predicted by this tour; consult the live gauges and FloodDash.",
+    depth: "Not calculated",
+    roads: "Not calculated",
+    river: "Not calculated",
     heatIntensity: 2.3,
     heatRadius: 1.5,
     camera: { center: [100.49, 13.77], zoom: 12.2, pitch: 50, bearing: -25 },
@@ -4261,10 +4264,10 @@ const SIM_PHASES = [
     fromH: 52,
     toH: 72,
     phase: "Phase 4 (52h–72h) · Saturated eastern polder depression ponding",
-    detail: "BMA drainage pump stations run at 100% capacity. Runoff pools in ground depressions (Srinakarin, Lat Krabang, Prawet); secondary sois remain waterlogged.",
-    depth: "Knee-to-waist (40–60cm)",
-    roads: "1,920+ stretches active",
-    river: "+1.75m MSL (slow drop)",
+    detail: "Scenario: low ground could retain runoff after rainfall subsides. Pump operation, local water depths and road clearance are not measured by this tour.",
+    depth: "Not calculated",
+    roads: "Not calculated",
+    river: "Not calculated",
     heatIntensity: 1.75,
     heatRadius: 1.25,
     camera: { center: [100.66, 13.74], zoom: 11.6, pitch: 42, bearing: 5 },
@@ -4283,9 +4286,9 @@ function updateSimHud(h, phase, progressPct) {
 
   if (hourEl) hourEl.textContent = `+${Math.round(h)}h`;
   if (dateEl) {
-    const future = new Date(Date.now() + h * 3600 * 1000);
-    dateEl.textContent = future.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    dateEl.textContent = "Scenario time · illustrative";
   }
+  document.getElementById("atlas-sim-progressbar")?.setAttribute("aria-valuenow", String(Math.round(h)));
   if (progEl) progEl.style.width = `${Math.min(100, Math.max(0, progressPct * 100))}%`;
   if (phaseEl) phaseEl.textContent = phase.phase;
   if (detailEl) detailEl.textContent = phase.detail;
@@ -4364,7 +4367,7 @@ function start72hSimulation(map) {
       const toggle = document.getElementById("atlas-sim-toggle");
       if (toggle) toggle.textContent = "Replay ▶";
       const phaseEl = document.getElementById("atlas-sim-phase");
-      if (phaseEl) phaseEl.textContent = "72h Projection Cycle Complete";
+      if (phaseEl) phaseEl.textContent = "Illustrative scenario complete";
       return;
     }
 
@@ -7116,7 +7119,7 @@ function renderSituation(payload) {
   const meta = document.getElementById("atlas-sit-areas-meta");
   if (body && !Array.isArray(payload.areas)) {
     // An older reading without district tallies: wait, never claim "no reports".
-    body.innerHTML = `<tr><td colspan="5" class="atlas-sit-empty">Waiting for the next reading…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="atlas-sit-empty">Current district totals unavailable — waiting for a fresh reading. This is not an all-clear.</td></tr>`;
   } else if (body) {
     const top = (payload.areas ?? []).filter((a) => a.n3h > 0).slice(0, 8);
     const rain = state.districtRain ?? new Map();
@@ -7136,12 +7139,21 @@ function renderSituation(payload) {
   if (meta) {
     const age = minutesSince(payload.fetchedAt);
     const affected = (payload.areas ?? []).filter((a) => a.n3h > 0).length;
-    meta.textContent = `${affected} districts with reports · ${age == null ? "age unknown" : `${ageWords(age)} ago`}`;
+    meta.textContent = `${Array.isArray(payload.areas) ? `${affected} districts with reports` : "District totals unavailable"} · relay ${age == null ? "age unknown" : `${ageWords(age)} ago`}`;
   }
 
   // Getting worse?
   const hourly = payload.hourly ?? [];
   const bars = document.getElementById("atlas-sit-pulse-bars");
+  if (!Array.isArray(payload.hourly)) {
+    if (bars) bars.innerHTML = "";
+    const n = document.getElementById("atlas-sit-pulse-n");
+    const unit = document.getElementById("atlas-sit-pulse-unit");
+    const delta = document.getElementById("atlas-sit-pulse-delta");
+    if (n) n.textContent = "—";
+    if (unit) unit.textContent = "current hourly totals unavailable";
+    if (delta) { delta.textContent = "Waiting for a fresh reading — not zero reports."; delta.dataset.trend = "unknown"; }
+  }
   if (bars && hourly.length) {
     const tot = hourly.map((h) => h.traffy + h.itic);
     const max = Math.max(1, ...tot);
@@ -7183,8 +7195,8 @@ function renderSituation(payload) {
 
 // ─────────────────────────────────────────────────────────────────
 // Honest cross-reference: road reports × flood sensors (JK World
-// Owner rule 2026-10-01). The confirmed count is the trustworthy
-// number. Reports without a nearby fresh sensor go to a closed
+// Owner rule 2026-10-01). Gauge proximity is context, not proof of road
+// flooding or passability. Reports without a nearby fresh sensor go to a closed
 // section. Atlas house rule: sharp edges, signal yellow for the
 // positive, no shadows or gradients.
 // ─────────────────────────────────────────────────────────────────
@@ -7230,7 +7242,7 @@ function renderRoadsXref(payload) {
       : counts.unconfirmed_no_sensor
       ? "no nearby sensor — the BMA does not publish road-level flood sensors in this feed"
       : counts.unconfirmed_sensor_dry || counts.unconfirmed_sensor_stale
-      ? "sensors nearby say safe or stale"
+      ? "nearby gauges have no alert or are stale"
       : "—",
   );
   setStat(
@@ -7246,27 +7258,27 @@ function renderRoadsXref(payload) {
     [
       counts.unconfirmed_no_sensor ? `${counts.unconfirmed_no_sensor} no sensor` : null,
       counts.unconfirmed_sensor_stale ? `${counts.unconfirmed_sensor_stale} stale` : null,
-      counts.unconfirmed_sensor_dry ? `${counts.unconfirmed_sensor_dry} sensor says safe` : null,
+      counts.unconfirmed_sensor_dry ? `${counts.unconfirmed_sensor_dry} gauge without alert` : null,
     ].filter(Boolean).join(" · ") || "—",
   );
 
   const meta = document.getElementById("atlas-sit-xref-meta");
   if (meta) {
     const age = minutesSince(payload.fetchedAt);
-    meta.textContent = `${counts.total_roads ?? 0} reports · ${age == null ? "age unknown" : `${ageWords(age)} old`} · 250 m join`;
+    meta.textContent = `${counts.total_roads ?? 0} road stretches · ${age == null ? "relay age unknown" : `relay ${fmtAge(payload.fetchedAt)}`} · 250 m nearby context`;
   }
 
   // Confirmed list — short, only the top movers.
   const list = document.getElementById("atlas-sit-xref-confirmed");
   if (list) {
     if (!confirmed.length) {
-      list.innerHTML = `<li class="atlas-xref-empty">No road report is within 250 m of a wet FloodDash gauge right now. The atlas's sensor feed is canal gauges (HII/ThaiWater), not BMA road sensors — so this number is intentionally low. The 967 reports are kept in the closed section below; they are not the same as "flooded right now".</li>`;
+      list.innerHTML = `<li class="atlas-xref-empty">No recent road report is paired with a fresh nearby gauge alert. ${unconfirmed.length} road stretches remain listed below. Canal and river readings do not establish road depth or passability.</li>`;
     } else {
       list.innerHTML = topConfirmed.map((r) => {
         const g = r.nearest_gauge || {};
         const where = r.road || "un-named road";
         return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
-          <span class="atlas-xref-pill atlas-xref-pill-confirmed">✓ ${escapeHtml(r.depth_label || "flooded")}</span>
+          <span class="atlas-xref-pill atlas-xref-pill-confirmed">${escapeHtml(r.depth_label || "reported flood")} · nearby gauge alert</span>
           <span class="atlas-xref-where">${escapeHtml(where)}</span>
           <span class="atlas-xref-meta">↔ ${g.distance_m ?? "?"} m to <strong>${escapeHtml(g.name || "gauge")}</strong> · ${escapeHtml(g.band_en || g.band || "")}</span>
           <span class="atlas-xref-time">${escapeHtml(ageWords(r.latest))}</span>
@@ -7280,16 +7292,16 @@ function renderRoadsXref(payload) {
   const sum = document.getElementById("atlas-sit-xref-unconf-summary");
   if (ul) {
     const top = unconfirmed.slice(0, 8);
-    if (sum) sum.textContent = `📋 Reports without sensor confirmation (${unconfirmed.length})`;
+    if (sum) sum.textContent = `📋 Other road reports (${unconfirmed.length})`;
     if (!unconfirmed.length) {
-      ul.innerHTML = `<li class="atlas-xref-empty">Every active road report has a fresh sensor within 250 m. Rare — that means the flood is well-monitored.</li>`;
+      ul.innerHTML = `<li class="atlas-xref-empty">No other road reports in this snapshot. Unreported streets remain unknown.</li>`;
     } else {
       ul.innerHTML = top.map((r) => {
         const g = r.nearest_gauge;
         const tag =
           r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">📟 no sensor</span>`
           : r.q === "sensor-stale" ? `<span class="atlas-xref-pill atlas-xref-pill-stale">⚠ stale</span>`
-          : `<span class="atlas-xref-pill atlas-xref-pill-dry">○ sensor safe</span>`;
+          : `<span class="atlas-xref-pill atlas-xref-pill-dry">○ gauge without alert</span>`;
         return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
           ${tag}
           <span class="atlas-xref-where">${escapeHtml(r.road || "un-named road")}</span>

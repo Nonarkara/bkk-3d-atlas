@@ -11,22 +11,20 @@
 //   2. /api/flood-sensors       — FloodDash's judged canal/river gauges.
 //                                 Each gauge has lat/lng, band, confidence.
 //
-// JK World's `/flood` page does one thing the atlas doesn't: it cross-checks
-// the two. A road report only counts as flooded when a nearby gauge
-// confirms it now (sensor fresh AND wet). Reports without a fresh sensor
-// nearby are kept visible — but in a closed "📋 Reports without sensor
-// confirmation (12)" section, not in the main count. That is the
-// superpower this module steals. (Owner rule 2026-10-01 in their flood.js.)
+// Pair the two as nearby evidence. Canal and river gauges do not measure
+// road flooding or passability. The legacy confirmed API bucket means a
+// recent report near a fresh, high-confidence gauge alert; the UI names
+// that relationship explicitly. All other reports remain visible.
 //
 // What "nearby" means here: within ~250 m of the road stretch, measured
 // with the same equirectangular projection as the rest of the atlas
 // (flooddash.ts distanceM). 250 m is generous enough to catch a sensor
-// at the end of the same soi while still being a real "on this road"
-// signal, not a "somewhere in the district" guess.
+// at the end of the same soi. Distance alone cannot establish hydraulic
+// connectivity or whether water has reached the road surface.
 //
 // Output shape — three groups, never overlapped:
 //
-//   - confirmed         road claim + nearby sensor wet (the real count)
+//   - confirmed         recent road report + nearby fresh gauge alert
 //   - unconfirmed       road claim + no nearby sensor OR sensor stale
 //                       OR sensor dry (the closed section in the UI)
 //   - sensor_only       nearby sensor wet + no road claim within 6 h
@@ -36,8 +34,9 @@
 
 import { distanceM, type FloodState } from "./flooddash";
 import type { FloodRoads } from "./floodroads";
+import { reportWithin } from "./report-freshness";
 
-const XREF_MAX_M = 250;        // confirm radius: a sensor this close confirms the road
+const XREF_MAX_M = 250;        // context radius; canal/river readings do not measure road depth
 const SENSOR_ONLY_HOURS = 6;   // how recent a sensor reading needs to be to count as "ahead of the news"
 const SENSOR_ONLY_MAX_M = 250; // same radius for the reverse lookup
 const STALE_MIN = 45;          // FloodDash stamps confidence="stale" past this age; we re-check defensively
@@ -70,12 +69,10 @@ function pointToLineM(lng: number, lat: number, lineCoords: number[][]): number 
 }
 
 function isFresh(observedAt: string | null | undefined, ageMin: number | null | undefined, nowMs: number): boolean {
-  if (typeof ageMin === "number" && Number.isFinite(ageMin) && ageMin > STALE_MIN) return false;
-  if (typeof observedAt === "string" && observedAt) {
-    const t = Date.parse(observedAt);
-    if (Number.isFinite(t) && nowMs - t > STALE_MIN * 60_000) return false;
-  }
-  return true;
+  // A saved ageMin alone freezes time across a relay outage. Require the
+  // observation timestamp, and honour either signal when it says stale.
+  if (ageMin != null && (!Number.isFinite(ageMin) || ageMin < -5 || ageMin > STALE_MIN)) return false;
+  return reportWithin(observedAt, nowMs, STALE_MIN / 60);
 }
 
 function tagQuality(sensor: SensorFeature | null, distM: number, nowMs: number): {
@@ -83,7 +80,7 @@ function tagQuality(sensor: SensorFeature | null, distM: number, nowMs: number):
   confirmation: "wet" | "dry" | "stale" | "none";
 } {
   if (!sensor || distM > XREF_MAX_M) return { q: "no-sensor", confirmation: "none" };
-  const fresh = (sensor.confidence !== "stale") && isFresh(sensor.observedAt, sensor.ageMin, nowMs);
+  const fresh = sensor.confidence === "high" && isFresh(sensor.observedAt, sensor.ageMin, nowMs);
   if (!fresh) return { q: "sensor-stale", confirmation: "stale" };
   const band = String(sensor.band ?? "");
   if (WET_BANDS.has(band)) return { q: "sensor-confirmed", confirmation: "wet" };
@@ -188,10 +185,12 @@ export function buildRoadsXref(
   for (const f of features) {
     const props = (f.properties ?? {}) as Record<string, unknown>;
     const coords = (f.geometry?.coordinates as number[][] | undefined) ?? [];
-    if (!coords.length) continue;
+    if (!coords.length || !reportWithin(props.latest, nowMs, 24)) continue;
 
     const near = nearestSensor(coords, sensors);
-    const { q, confirmation } = tagQuality(near?.s ?? null, near?.d ?? Infinity, nowMs);
+    const tagged = tagQuality(near?.s ?? null, near?.d ?? Infinity, nowMs);
+    const { q, confirmation } = tagged.q === "sensor-confirmed" && !reportWithin(props.latest, nowMs, SENSOR_ONLY_HOURS)
+      ? { q: "sensor-stale" as const, confirmation: "stale" as const } : tagged;
 
     const [cx, cy] = coords[0] ?? [];
     const xrefRoad: XrefRoad = {
@@ -231,25 +230,21 @@ export function buildRoadsXref(
 
   // Sensor-only: a wet sensor with no road report nearby in the last SENSOR_ONLY_HOURS.
   const confirmedSet = new Set(confirmed.map((r) => r.id));
-  const allRoadCoords = features
-    .map((f) => (f.geometry?.coordinates as number[][] | undefined) ?? [])
-    .filter((c) => c.length > 0);
+  const recentFeatures = features.filter((f) => reportWithin(f.properties?.latest, nowMs, SENSOR_ONLY_HOURS));
 
   const sensorOnly: XrefSensorOnly[] = [];
   for (const s of sensors) {
     if (typeof s.lng !== "number" || typeof s.lat !== "number") continue;
     const band = String(s.band ?? "");
     if (!WET_BANDS.has(band)) continue;
-    if (!isFresh(s.observedAt ?? null, s.ageMin ?? null, nowMs)) continue;
+    if (s.confidence !== "high" || !isFresh(s.observedAt ?? null, s.ageMin ?? null, nowMs)) continue;
     // Skip if there's a confirmed road report very close.
     let claimedByRoad = false;
     let best: { id: string; road: string | null; distance_m: number } | null = null;
-    for (const coords of allRoadCoords) {
+    for (const f of recentFeatures) {
+      const coords = (f.geometry?.coordinates as number[][] | undefined) ?? [];
       const d = pointToLineM(s.lng, s.lat, coords);
       if (d <= SENSOR_ONLY_MAX_M) {
-        // Find the matched feature for this coords array.
-        const idx = allRoadCoords.indexOf(coords);
-        const f = features[idx];
         const props = (f?.properties ?? {}) as Record<string, unknown>;
         const [cx, cy] = coords[0] ?? [];
         const id = String(props.id ?? `${props.road ?? "road"}-${cx?.toFixed(4) ?? ""}-${cy?.toFixed(4) ?? ""}`);
@@ -289,7 +284,7 @@ export function buildRoadsXref(
       total_roads: confirmed.length + unconfirmed.length,
     },
     attribution: "BMA DDS road reports + Traffy Fondue + iTIC/Longdo events, cross-checked against FloodDash gauges. Pattern from JK World (world.tehx.dyndns.info/flood) · Owner rule 2026-10-01. Not an official warning.",
-    credit: "Honest data layer — a road report only counts as flooded when a fresh nearby gauge says so. Pattern stolen from JK World.",
+    credit: "Road reports paired with nearby canal/river gauge alerts. Proximity does not verify road flooding, depth, clearance or passability. Legacy confirmed fields mean nearby gauge context only. Pattern from JK World.",
     confirmed,
     unconfirmed,
     sensorOnly,

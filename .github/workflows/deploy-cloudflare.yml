@@ -24,6 +24,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Verify flood observation integrity and existing atlas features
+        run: npm run test:flood && npm run typecheck && npm run verify
       - name: Deploy Worker (atlas.nonarkara.org)
         uses: cloudflare/wrangler-action@v3
         with:

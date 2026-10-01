@@ -28,6 +28,7 @@
 import type { Env } from "./index";
 import type { FloodState } from "./flooddash";
 import { BAND_RANK, FLOODDASH_ORIGIN } from "./flooddash";
+import { reportWithin } from "./report-freshness";
 
 const STATE_KEY = "bkk-roads";
 const TRAFFY_KEY = "bkk-traffy";
@@ -86,6 +87,10 @@ export function traffyTime(ts: unknown): string | null {
 }
 
 export type StreetReport = { id: string; t: string; lat: number; lng: number; depth: string | null; done: boolean };
+
+export function currentStreetReports(reports: StreetReport[], now: number): StreetReport[] {
+  return reports.filter((r) => !r.done && reportWithin(r.t, now, KEEP_H));
+}
 
 /** One Traffy ticket → a minimal street-flood report, or null. No text survives. */
 export function toStreetReport(ticket: Record<string, unknown>): StreetReport | null {
@@ -234,8 +239,7 @@ async function fetchTraffy(prev: StreetReport[], now: number): Promise<StreetRep
   // Newest state wins; older than a day drops out.
   const byId = new Map(prev.map((r) => [r.id, r]));
   for (const r of fresh) byId.set(r.id, r);
-  const since = now - KEEP_H * 3_600_000;
-  return [...byId.values()].filter((r) => Date.parse(r.t) >= since && Date.parse(r.t) <= now + 300_000);
+  return currentStreetReports([...byId.values()], now);
 }
 
 type IticEvent = { id: string; category: string; lat: number; lng: number; start: string; depth_cm?: number | null; passable?: boolean | null; title_th?: string };
@@ -362,7 +366,7 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
   };
 
   // Residents — keep the last good set if Traffy is down.
-  const kept = (await readRow<StreetReport[]>(env, TRAFFY_KEY))?.payload ?? [];
+  const kept = currentStreetReports((await readRow<StreetReport[]>(env, TRAFFY_KEY))?.payload ?? [], now);
   let traffy = kept;
   try {
     traffy = await fetchTraffy(kept, now);
@@ -411,7 +415,7 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
 
   for (const e of itic) {
     const t = Date.parse(e.start);
-    if (!Number.isFinite(t) || now - t > 12 * 3_600_000) continue;
+    if (!reportWithin(e.start, now, 12) || (e.category !== "flood" && e.category !== "closed")) continue;
     const closed = e.category === "closed" || e.passable === false;
     const cm = Number(e.depth_cm);
     const depth = Number.isFinite(cm) && cm > 0 ? RANK[CM_EDGES.find(([edge]) => cm < edge)?.[1] ?? "chest"] : 0;
@@ -424,8 +428,7 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
   const unplacedDds: FloodRoads["unplacedDds"] = [];
   // Rolling 24 h, not "today": at 00:30 the whole evening's list is yesterday's.
   const ddsOpen = (deps.flood?.roads.records ?? []).filter((r) => {
-    const t = Date.parse(r.floodedAt ?? "");
-    return Number.isFinite(t) && now - t <= 24 * 3_600_000 && !r.clearedAt;
+    return reportWithin(r.floodedAt, now, KEEP_H) && !r.clearedAt;
   });
   const districtRings = new Map<string, number[][][]>();
   for (const f of deps.districts?.features ?? []) {
@@ -598,7 +601,7 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
     const t = Date.parse(e.start);
     const cm = Number(e.depth_cm);
     const depth = Number.isFinite(cm) && cm > 0 ? RANK[CM_EDGES.find(([edge]) => cm < edge)?.[1] ?? "chest"] : 0;
-    if (Number.isFinite(t) && now - t <= 24 * HOUR) tally(e.lng, e.lat, t, depth, "itic");
+    if (reportWithin(e.start, now, KEEP_H) && (e.category === "flood" || e.category === "closed")) tally(e.lng, e.lat, t, depth, "itic");
   }
   const areas = [...areaMap.values()]
     .filter((a) => a.n24h > 0)
@@ -615,7 +618,7 @@ export async function refreshFloodRoads(env: Env, deps: RoadDeps, opts: { force?
   const heatFeatures = [...heat.values()].map((c) => ({
     type: "Feature",
     geometry: { type: "Point", coordinates: [Math.round(c.lng * 1e4) / 1e4, Math.round(c.lat * 1e4) / 1e4] },
-    properties: { w: Math.round(c.w * 100) / 100, n: c.n, fresh: now - c.t < 30 * 60_000 },
+    properties: { w: Math.round(c.w * 100) / 100, n: c.n, latest: new Date(c.t).toISOString(), fresh: now - c.t < 30 * 60_000 },
   }));
 
   const out: FloodRoads = {
@@ -644,7 +647,7 @@ export async function loadFloodRoads(env: Env, deps: () => Promise<RoadDeps>): P
   return refreshFloodRoads(env, await deps(), { force: true });
 }
 
-export function floodRoadsResponse(state: FloodRoads | null): Response {
+export function floodRoadsResponse(state: FloodRoads | null, now = Date.now()): Response {
   const headers = {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "public, max-age=60",
@@ -657,9 +660,25 @@ export function floodRoadsResponse(state: FloodRoads | null): Response {
       message: "No flood-road reading yet. Absence of data is not an all-clear.",
     }), { status: 503, headers });
   }
-  const ageMin = Math.max(0, Math.round((Date.now() - Date.parse(state.fetchedAt)) / 60_000));
+  // D1 can retain a last-good snapshot through an outage. Expire individual
+  // observations at serving time; a recent snapshot is not a recent report.
+  const roads = state.roads.features.filter((f) => reportWithin((f as { properties?: { latest?: string } }).properties?.latest, now, KEEP_H));
+  const heat = state.heat.features.filter((f) => {
+    const latest = (f as { properties?: { latest?: string } }).properties?.latest;
+    return reportWithin(latest ?? state.fetchedAt, now, KEEP_H);
+  });
+  const ageMin = Math.max(0, Math.round((now - Date.parse(state.fetchedAt)) / 60_000));
+  const aggregatesAvailable = reportWithin(state.fetchedAt, now, 20 / 60);
+  const unplacedDds = state.unplacedDds.filter((r) => reportWithin(r.floodedAt, now, KEEP_H));
   return new Response(JSON.stringify({
     ...state,
+    areas: aggregatesAvailable ? state.areas : null,
+    hourly: aggregatesAvailable ? state.hourly : null,
+    aggregatesAvailable,
+    unplacedDds,
+    roads: { type: "FeatureCollection", features: roads },
+    heat: { type: "FeatureCollection", features: heat },
+    counts: { ...state.counts, stretches: roads.length, closed: roads.filter((f) => (f as { properties?: { closed?: boolean } }).properties?.closed === true).length, heatCells: heat.length, unplacedDds: unplacedDds.length },
     ageMin,
     stale: ageMin > 20,
     credit: "Method stolen from FloodDash (flood.nonarkara.org): streetReports.js depth parser, streetFlood.js evidence order.",

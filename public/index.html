@@ -46,23 +46,23 @@
     </header>
 
     <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok">
-      <!-- 72-Hour Flood Forecast Simulation Floating HUD (30-second run) -->
-      <aside class="atlas-sim-hud" id="atlas-sim-hud" aria-label="72-hour flood forecast simulation" hidden>
+      <!-- Illustrative scenario tour, separate from live observations. -->
+      <aside class="atlas-sim-hud" id="atlas-sim-hud" aria-label="Illustrative 72-hour flood scenario" hidden>
         <div class="atlas-sim-top">
           <div class="atlas-sim-badge">
             <span class="atlas-sim-pulse" aria-hidden="true"></span>
-            <span>72H PREDICTION SIMULATION · 30s RUN</span>
+            <span>ILLUSTRATIVE SCENARIO · 30s TOUR</span>
           </div>
           <div class="atlas-sim-clock">
             <span class="atlas-sim-hour" id="atlas-sim-hour">+0h</span>
-            <span class="atlas-sim-date" id="atlas-sim-date">Starting now</span>
+            <span class="atlas-sim-date" id="atlas-sim-date">Scenario time</span>
           </div>
           <div class="atlas-sim-actions">
             <button type="button" class="atlas-sim-toggle" id="atlas-sim-toggle" aria-label="Pause or resume simulation">Pause</button>
             <button type="button" class="atlas-sim-close" id="atlas-sim-close" aria-label="Exit simulation">Exit to live</button>
           </div>
         </div>
-        <div class="atlas-sim-progress-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="72" aria-valuenow="0" id="atlas-sim-progressbar" title="Click to scrub 72h forecast">
+        <div class="atlas-sim-progress-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="72" aria-valuenow="0" id="atlas-sim-progressbar" title="Click to scrub illustrative scenario time">
           <div class="atlas-sim-progress-bar" id="atlas-sim-progress"></div>
           <div class="atlas-sim-ticks" aria-hidden="true">
             <span style="left:0%">0h Now</span>
@@ -74,20 +74,20 @@
         </div>
         <div class="atlas-sim-narrative">
           <p class="atlas-sim-phase" id="atlas-sim-phase">Phase 1 · Convective rainfall bursts</p>
-          <p class="atlas-sim-detail" id="atlas-sim-detail">Open-Meteo & TMD models forecast 45–65 mm rain bursts over Eastern Bangkok (Bang Kapi, Prawet, Saphan Sung).</p>
+          <p class="atlas-sim-detail" id="atlas-sim-detail">Illustrative sequence of local rain, tide constraints and northern inflow. Timing and map intensity are scripted. No road depth, closure count or river level is forecast.</p>
         </div>
         <div class="atlas-sim-metrics">
           <div class="atlas-sim-metric">
             <small>Peak water depth</small>
-            <strong id="atlas-sim-metric-depth">Chest-deep (80cm)</strong>
+            <strong id="atlas-sim-metric-depth">Not calculated</strong>
           </div>
           <div class="atlas-sim-metric">
             <small>At-risk roads</small>
-            <strong id="atlas-sim-metric-roads">1,775+ stretches</strong>
+            <strong id="atlas-sim-metric-roads">Not calculated</strong>
           </div>
           <div class="atlas-sim-metric">
             <small>Chao Phraya level</small>
-            <strong id="atlas-sim-metric-river">+2.05m MSL (High tide)</strong>
+            <strong id="atlas-sim-metric-river">Not calculated</strong>
           </div>
         </div>
       </aside>
@@ -118,15 +118,15 @@
         <p class="atlas-flood-verdict-meta" id="atlas-flood-verdict-meta"></p>
         <div class="atlas-flood-verdict-actions">
           <button type="button" class="atlas-flood-verdict-btn" id="atlas-flood-verdict-show">Show the water</button>
-          <button type="button" class="atlas-flood-verdict-btn atlas-flood-sim-btn" id="atlas-flood-verdict-sim" title="Simulate the next 72 hours of flood progression in 30 seconds">
-            <span class="atlas-sim-btn-icon" aria-hidden="true">▶</span> 72h simulation
+          <button type="button" class="atlas-flood-verdict-btn atlas-flood-sim-btn" id="atlas-flood-verdict-sim" title="Explore a scripted 72-hour scenario; timings and map intensity are illustrative">
+            <span class="atlas-sim-btn-icon" aria-hidden="true">▶</span> Scenario tour
           </button>
           <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
         </div>
         <!-- Visible FloodDash attribution — answers "where does this come from?" -->
         <p class="atlas-flood-credit" aria-label="Data source attribution">
           <span class="atlas-flood-credit-dot" aria-hidden="true"></span>
-          <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Sensor-confirmed vs reported layer is a pattern stolen from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · cross-checked within 250 m. Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
+          <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Nearby-gauge context uses a pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · paired within 250 m; road passability remains unknown. Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
         </p>
       </div>
       <!-- Situation board -->
@@ -152,35 +152,35 @@
         </section>
 
         <!-- Honest cross-reference: road reports × flood sensors (JK World
-             pattern). A road report only counts as flooded when a fresh
-             sensor within 250 m confirms it. Pattern stolen from
+             pattern). Recent road reports paired with fresh gauge alerts
+             within 250 m. This is nearby context, not road verification. Pattern from
              world.tehx.dyndns.info/flood, Owner rule 2026-10-01. -->
         <section class="atlas-sit-mod atlas-sit-xref" aria-labelledby="atlas-sit-xref-h" id="atlas-sit-xref" hidden>
           <header class="atlas-sit-head">
-            <h3 id="atlas-sit-xref-h">Sensor-confirmed vs reported <span lang="th">· เซ็นเซอร์ยืนยัน vs รายงาน</span></h3>
+            <h3 id="atlas-sit-xref-h">Road reports + nearby gauges <span lang="th">· รายงานถนน + เกจใกล้เคียง</span></h3>
             <span class="atlas-sit-meta" id="atlas-sit-xref-meta">loading…</span>
           </header>
           <div class="atlas-sit-xref-summary" id="atlas-sit-xref-summary">
             <article class="atlas-xref-stat" data-stat="confirmed">
-              <p class="atlas-xref-label">✓ sensor-confirmed</p>
+              <p class="atlas-xref-label">report + nearby gauge alert</p>
               <p class="atlas-xref-value" id="atlas-xref-confirmed-n">—</p>
               <p class="atlas-xref-where" id="atlas-xref-confirmed-where">—</p>
             </article>
             <article class="atlas-xref-stat" data-stat="sensor-only">
-              <p class="atlas-xref-label">📡 wet sensor · no nearby report</p>
+              <p class="atlas-xref-label">📡 gauge alert · no recent nearby report</p>
               <p class="atlas-xref-value" id="atlas-xref-sensoronly-n">—</p>
               <p class="atlas-xref-where" id="atlas-xref-sensoronly-where">—</p>
             </article>
             <article class="atlas-xref-stat" data-stat="unconfirmed">
-              <p class="atlas-xref-label">📋 reports without sensor confirmation</p>
+              <p class="atlas-xref-label">📋 other road reports</p>
               <p class="atlas-xref-value" id="atlas-xref-unconfirmed-n">—</p>
               <p class="atlas-xref-where" id="atlas-xref-unconfirmed-where">—</p>
             </article>
           </div>
-          <ul class="atlas-sit-xref-list" id="atlas-sit-xref-confirmed" aria-label="Sensor-confirmed flooded roads"></ul>
+          <ul class="atlas-sit-xref-list" id="atlas-sit-xref-confirmed" aria-label="Road reports near fresh gauge alerts"></ul>
           <details class="atlas-sit-xref-unconf">
-            <summary id="atlas-sit-xref-unconf-summary">📋 Reports without sensor confirmation</summary>
-            <p class="atlas-sit-note">Traffy Fondue / iTIC road reports within the last 24 h that no fresh flood sensor (within 250 m) confirms. They are not added to the sensor-confirmed count above. <strong>Not an all-clear</strong> — only that the BMA does not publish a road-level flood sensor near this report in our feed. Pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer">JK World</a>, Owner rule 2026-10-01.</p>
+            <summary id="atlas-sit-xref-unconf-summary">📋 Other road reports</summary>
+            <p class="atlas-sit-note">Road reports cover the last 24 h. Only reports within 6 h are paired with high-confidence gauge alerts observed within 45 min and 250 m. Canal and river gauges do not measure road depth, clearance or passability. A gauge without an alert does not establish that a road is dry. Pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer">JK World</a>.</p>
             <ul class="atlas-sit-xref-list atlas-sit-xref-list-dim" id="atlas-sit-xref-unconfirmed"></ul>
           </details>
           <p class="atlas-sit-credit">
@@ -602,7 +602,7 @@
             <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-flood-roads" checked />
               <span class="atlas-layer-name">
-                <strong>Flooded roads now</strong>
+                <strong>Flood reports · last 24 h</strong>
                 <small id="toggle-flood-roads-detail">Residents · iTIC · BMA DDS · gauges — on the street</small>
               </span>
               <span class="atlas-layer-state" id="toggle-flood-roads-state" aria-live="polite">on</span>
