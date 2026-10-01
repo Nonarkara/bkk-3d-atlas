@@ -18,6 +18,15 @@ Scope: a bounded audit of operational Atlas, not a rewrite of the separate BKKx 
 - Dependency audit reports zero production vulnerabilities. Independent diff review reproduced the stale-aggregate issue; this release adds a failing-case regression and correction.
 - Recent GitHub workflows failed before steps ran. Local checks and direct deployment verification are required; no CI pass is claimed.
 
+## Live release proof
+
+Code commit `bab8c6b`, pushed to main. Cloudflare version `7fc844e5-e74e-42bb-ba09-61a7869bc1ca` deployed to `atlas.nonarkara.org`.
+
+- Three independent custom-domain asset probes matched the local SHA-256 of `public/app.js` (`e8d5132be5bf4695…`). Existing deploy checks also passed three times.
+- Live road API excluded observations older than 24 hours or over five minutes in the future; counts matched active geometry and unplaced reports. Aggregate-availability and nearby-gauge disclaimers were present.
+- All 29 API smoke checks passed after deployment. This is contract/reachability evidence, not validation of physical flood predictions or camera playback. DDS requests took about 25–26 seconds; other relay requests sometimes took eight seconds, a latency gap for a future pass.
+- Real Chrome interaction: map canvas loaded, scenario started, pause changed to resume, exit returned to live and concealed the scenario HUD. All scenario metrics remained “Not calculated.” A narrow-viewport check showed no document overflow at the browser's effective 433 CSS-pixel width; viewport override was reset. This is not a 390-pixel device certification.
+
 ## Not certified by this release
 
 Unmarked roads remain unknown, never safe. Gauge proximity cannot certify a journey. A real flood forecast still needs validated rainfall/wind/storm inputs, upstream-flow propagation, tide and drainage interactions, terrain uncertainty, and retrospective validation against observed inundation.
