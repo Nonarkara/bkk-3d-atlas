@@ -35,6 +35,25 @@ const roads = (features = [road()]) => ({
 const gauge = (change = {}) => ({ id: 'g1', lng: 100.5, lat: 13.75, band: 'prepare', name: 'Canal', confidence: 'high', observedAt: at(0.1), ageMin: 6, ...change });
 const xref = (g, features) => buildRoadsXref(roads(features), { gauges: [g] }, now);
 
+test('historical-envelope point summaries cannot imply present-day safe roads', () => {
+  const source = readFileSync(new URL('../src/index.ts',import.meta.url),'utf8');
+  const start = source.indexOf('  // Summary band —');
+  const end = source.indexOf('async function atlasTransit',start);
+  const js = ts.transpileModule('function pointSummary(){\n'+source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  for(const inside of [false,true]){
+    const result = vm.runInNewContext(js+'\npointSummary()',{
+      landPriceRow:null,nearestTransit:null,nearestWaterTransit:null,districtRow:null,lng:100.5,lat:13.75,
+      ATLAS_API_VERSION:1,flood:{inside,top:inside?{severity:'high'}:null},jsonResponse:body=>body,
+    });
+    assert.equal(result.summary.floodBand,inside?'high':'unassessed');
+    assert.equal(result.summary.roadPassability,'unknown');
+    assert.equal(result.summary.floodBandBasis,'historical-schematic-envelope');
+    assert.match(result.disclaimer,/not dry or safe/);
+  }
+  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/Confirmed · report \+ nearby gauge/);
+});
+
 test('missing wind values are unknown, while a genuine calm model field remains zero', async () => {
   const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
   const start = app.indexOf('function weatherNumber(');

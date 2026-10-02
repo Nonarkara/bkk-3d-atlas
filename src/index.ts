@@ -3251,7 +3251,7 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
         : nearestTransitDistance <= 1500
           ? "near"
           : "far";
-  const floodBand = flood.inside ? (flood.top?.severity ?? "inside") : "clear";
+  const floodBand = flood.inside ? (flood.top?.severity ?? "inside") : "unassessed";
 
   return jsonResponse(
     {
@@ -3268,9 +3268,9 @@ async function atlasAtThisPoint(request: Request, env: Env): Promise<Response> {
       },
       nearestTransit,
       nearestWaterTransit,
-      summary: { landPriceBand, transitBand, floodBand },
+      summary: { landPriceBand, transitBand, floodBand, floodBandBasis: "historical-schematic-envelope", roadPassability: "unknown" },
       disclaimer:
-        "Civic-readout endpoint, not a real-estate or insurance-grade service. Flood is the schematic 2011-style envelope, not an official forecast. Land price is the district group's peak road figure.",
+        "Civic-readout endpoint, not a real-estate or insurance-grade service. Flood is the schematic 2011-style envelope, not current inundation or an official forecast. Outside the envelope is unassessed, not dry or safe; road passability remains unknown. Land price is the district group's peak road figure.",
     },
     {
       headers: {
