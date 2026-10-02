@@ -39,6 +39,7 @@
         </button>
         <a href="https://bkk.nonarkara.org" class="atlas-nav-sibling" title="The heritage register — nine quarters, seven walks, 571 monuments">Heritage</a>
         <a href="https://shophouses.nonarkara.org" class="atlas-nav-sibling" title="Shophouse Metropolis — the essay, the Bible, the pressure map">Shophouses</a>
+        <a href="https://dao.nonarkara.org" class="atlas-nav-sibling" title="Dao De Jing · Less force. More life. · 81 chapters, three languages — easy read edition">Dao</a>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
           GitHub <span aria-hidden="true">↗</span>
         </a>
@@ -108,6 +109,7 @@
         </span>
       </div>
       <!-- FloodDash's verdict for Bangkok, relayed by /api/flood/bkk. -->
+      <div class="atlas-live-band">
       <div class="atlas-flood-verdict" id="atlas-flood-verdict" data-level="loading" hidden>
         <p class="atlas-flood-verdict-line">
           <span class="atlas-flood-verdict-level" id="atlas-flood-verdict-level">—</span>
@@ -129,8 +131,41 @@
           <span><strong>Live data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Nearby-gauge context uses a pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · paired within 250 m; road passability remains unknown. Refreshed every 5 min · last reading <span id="atlas-flood-credit-fresh">—</span>.</span>
         </p>
       </div>
-      <!-- Situation board -->
-      <div class="atlas-sit" id="atlas-sit">
+      <!-- Compact numbers row — the headline live data, always visible,
+           balanced across the width. The long-form board below collapses. -->
+      <div class="atlas-sit-quick" aria-label="Bangkok flood headline numbers">
+        <article class="atlas-quick-stat">
+          <p class="atlas-quick-label">Flood reports · last full hour</p>
+          <p class="atlas-quick-value"><span id="atlas-quick-pulse">—</span></p>
+          <p class="atlas-quick-where" id="atlas-quick-pulse-delta">—</p>
+        </article>
+        <article class="atlas-quick-stat">
+          <p class="atlas-quick-label">Confirmed · report + nearby gauge</p>
+          <p class="atlas-quick-value"><span id="atlas-quick-confirmed">—</span></p>
+          <p class="atlas-quick-where">paired within 250 m · not road verification</p>
+        </article>
+        <article class="atlas-quick-stat">
+          <p class="atlas-quick-label">Wettest gauge · 24 h</p>
+          <p class="atlas-quick-value"><span id="atlas-quick-rain">—</span><small> mm</small></p>
+          <p class="atlas-quick-where" id="atlas-quick-rain-where">—</p>
+        </article>
+        <article class="atlas-quick-stat">
+          <p class="atlas-quick-label">If you need help</p>
+          <p class="atlas-quick-value"><a href="tel:1784">1784</a></p>
+          <p class="atlas-quick-where">DDPM disaster line · 1555 city hall · 1669 medical</p>
+        </article>
+      </div>
+      </div>
+      <!-- Situation board — the long form: district table, hourly and rain
+           charts, cross-reference lists, trend, alerts, upstream feeds,
+           full help notes. Collapsed by default so the bottom bar stays a
+           compact band; open it to read everything. -->
+      <details class="atlas-sit-long" id="atlas-sit-long">
+        <summary>
+          <span class="atlas-eyebrow atlas-eyebrow-sub">Full situation board · ตารางสถานการณ์เต็ม — districts, charts, alerts, feeds</span>
+          <span class="atlas-sit-meta" id="atlas-sit-long-meta">collapsed</span>
+        </summary>
+        <div class="atlas-sit" id="atlas-sit">
         <section class="atlas-sit-mod atlas-sit-areas" aria-labelledby="atlas-sit-areas-h">
           <header class="atlas-sit-head">
             <h3 id="atlas-sit-areas-h">Where it is worst now <span lang="th">· เขตที่หนักที่สุดตอนนี้</span></h3>
@@ -279,7 +314,8 @@
           </ul>
           <p class="atlas-sit-note">Water rising indoors: switch off power at the main, move up, keep your phone charged. Never walk or drive through moving water. This board is not an official warning.</p>
         </section>
-      </div>
+        </div>
+      </details>
     </section>
 
     <!-- Floating "More" button — phone only. Opens the situation-board
@@ -757,6 +793,8 @@
         <p>
           OSM · ODbL · <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>
           · Esri imagery.
+          · <a href="https://dao.nonarkara.org" target="_blank" rel="noreferrer">Dao De Jing · D2</a>
+          · <a href="https://daoriginal.nonarkara.org" target="_blank" rel="noreferrer">D1 archive</a>.
           <button type="button" class="atlas-foot-about" data-about-open>Credits &amp; data →</button>
         </p>
       </footer>
@@ -793,6 +831,7 @@
           <a href="#about-roadmap">Roadmap</a>
           <a href="#about-paper">Paper</a>
           <a href="#about-contact">Contact</a>
+          <a href="#about-dao">Dao</a>
           <a href="#about-credits">Credits</a>
         </nav>
 
@@ -1049,6 +1088,52 @@
                 <small>Source</small>
               </li>
             </ul>
+          </section>
+
+          <section class="atlas-about-section" id="about-dao">
+            <p class="atlas-eyebrow atlas-eyebrow-sub">Dao</p>
+            <h3>Two editions of the Dao De Jing, kept side by side</h3>
+            <p>
+              The atlas is a Bangkok object. The Dao is the other side of
+              the same author — a quiet one, written for the people who
+              ask him for it in person. Eighty-one chapters, three
+              languages (Wang Bi's Chinese, clear English, Thai),
+              dedicated to the Upatising family and in memory of
+              Mother Lilly Upatising (1948–2026).
+            </p>
+            <figure class="atlas-about-film atlas-dao-palette">
+              <img
+                src="/about/dr-non-dao-palette.png"
+                alt="Side-by-side thumbnail: D2 'Less force. More life.' (modern illustrated reader, sky-blue) and D1 'Reading the Dao De Jing with Dr Non' (classic archive, deep-red framed illustration with monks and scrolls)"
+                width="1600"
+                height="675"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>
+                Left · D2 — "Less force. More life." · the default
+                edition. Right · D1 — "Reading the Dao De Jing with
+                Dr Non" — the classic archive.
+              </figcaption>
+            </figure>
+            <div class="atlas-dao-pills">
+              <a class="atlas-dao-pill" href="https://dao.nonarkara.org" target="_blank" rel="noreferrer">
+                <strong>dao.nonarkara.org</strong>
+                <span>D2 · easy read · default edition</span>
+                <em>Less force. More life. — 81 short chapters, a five-minute guide, find-a-chapter, three languages</em>
+              </a>
+              <a class="atlas-dao-pill" href="https://daoriginal.nonarkara.org" target="_blank" rel="noreferrer">
+                <strong>daoriginal.nonarkara.org</strong>
+                <span>D1 · classic archive · for study</span>
+                <em>Reading the Dao De Jing with Dr Non — the original presentation, kept alive for readers who study it</em>
+              </a>
+            </div>
+            <p class="atlas-dao-note">
+              Both editions are developed in parallel. D2 is the default
+              for people who want something simple and easy to read;
+              D1 is the classic archive for people who study it. The
+              atlas links to both — pick the one that fits your day.
+            </p>
           </section>
 
           <section class="atlas-about-section" id="about-credits">

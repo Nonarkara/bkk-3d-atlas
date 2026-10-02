@@ -1365,6 +1365,84 @@ body.is-night .atlas-header {
 }
 .atlas-about-film[hidden] { display: none; }
 
+/* Dao De Jing side-by-side thumbnail — full-width inside the About
+   section, since the small 200-px film frame would lose the D2
+   "Less force. More life." tagline. Atlas house rule: no rounded
+   corners, no shadows; signal-yellow border on hover, hairline
+   otherwise. */
+.atlas-about-film.atlas-dao-palette {
+  float: none;
+  width: 100%;
+  margin: 12px 0 16px;
+}
+.atlas-about-film.atlas-dao-palette img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: auto;
+  object-fit: contain;
+  filter: none;
+  opacity: 1;
+  border: 1px solid rgba(241, 239, 232, 0.22);
+}
+.atlas-about-film.atlas-dao-palette figcaption {
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  text-align: left;
+  opacity: 0.85;
+}
+
+.atlas-dao-pills {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+.atlas-dao-pill {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
+  text-decoration: none;
+  color: var(--paper);
+  background: rgba(241, 239, 232, 0.02);
+}
+.atlas-dao-pill:hover {
+  border-color: var(--signal);
+  background: rgba(201, 255, 56, 0.06);
+}
+.atlas-dao-pill strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--signal);
+  margin-bottom: 2px;
+}
+.atlas-dao-pill span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.atlas-dao-pill em {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--paper);
+  opacity: 0.9;
+}
+.atlas-dao-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 4px 0 0;
+}
+
 .atlas-about-stack {
   list-style: none;
   margin: 0;
@@ -2170,7 +2248,7 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
    it sits under the map, beside the panel. ≤1000 px: the page scrolls like
    a document — map first, then the strip, then the panel. */
 .atlas-page {
-  grid-template-rows: auto minmax(0, 1fr) minmax(148px, 300px);
+  grid-template-rows: auto minmax(0, 1fr) minmax(148px, 320px);
   grid-template-areas: "header header" "map panel" "live panel";
 }
 .atlas-bkk-live {
@@ -2194,6 +2272,9 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     grid-template-columns: 1fr;
     grid-template-areas: "areas" "pulse" "rain" "act";
   }
+  /* Tablet: the band stacks (verdict, then the 2×2 headline numbers);
+     the long board stays collapsed behind its summary. */
+  .atlas-live-band { grid-template-columns: 1fr; gap: 8px 0; }
   .atlas-panel { max-height: none; overflow: visible; }
 }
 
@@ -2333,6 +2414,93 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-water-method:focus-visible { color: var(--paper); }
 /* Numbers share one baseline even when a label wraps. */
 .atlas-research-stats > div { display: flex; flex-direction: column; justify-content: space-between; }
+
+/* ── Compact bottom bar (2026-10-02 redesign) ───────────────────────
+   The strip was a 300px scroll window onto a ~1,050px board — the
+   "bleed". The default band is now head + verdict (left) + four
+   headline numbers (right), balanced across the width; the long-form
+   board collapses behind "Full situation board". Sharp edges,
+   hairlines, signal only where the data earns it. */
+
+.atlas-live-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0 28px;
+  align-items: start;
+}
+.atlas-sit-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 0;
+  margin-top: 4px;
+}
+.atlas-quick-stat {
+  min-width: 0;
+  padding: 8px 14px 6px 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+.atlas-quick-stat:nth-child(odd) { border-left: 0; padding-left: 0; }
+.atlas-quick-stat:nth-child(even) { border-left: 1px solid rgba(255, 255, 255, 0.08); }
+.atlas-quick-label {
+  margin: 0 0 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.atlas-quick-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--paper);
+  line-height: 1.1;
+}
+.atlas-quick-value small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.atlas-quick-value a { color: var(--signal); }
+.atlas-quick-where {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: break-word;
+}
+.atlas-quick-where[data-trend="up"] { color: #ff8a8a; }
+.atlas-quick-where[data-trend="down"] { color: #7eb6ff; }
+
+/* The collapsed long-form board — one click opens the district table,
+   charts, cross-reference lists, alerts and upstream feeds. */
+.atlas-sit-long {
+  margin-top: 8px;
+  border-top: 1px solid var(--rule, rgba(255, 255, 255, 0.12));
+}
+.atlas-sit-long > summary {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  cursor: pointer;
+  user-select: none;
+}
+.atlas-sit-long > summary::-webkit-details-marker { display: none; }
+.atlas-sit-long > summary::after { content: "+"; color: var(--muted); font-weight: 400; }
+.atlas-sit-long[open] > summary { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.atlas-sit-long[open] > summary::after { content: "−"; }
+
+/* Verdict compaction: the verdict used to eat 205px of the 300px band.
+   Reason clamped to 2 lines here; the credit's text clamps in its own
+   base rule below (a container -webkit-box would break the dot row).
+   The full text stays one click away in the board; the phone layout
+   keeps its own clamps. */
+.atlas-flood-verdict-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 
 /* ── Situation board (the live strip) ───────────────────────────────
    The strip's ground is always dark, so its text is always light. The
@@ -2639,6 +2807,15 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   color: var(--muted);
   flex-wrap: wrap;
 }
+/* Clamp the text to 2 lines so the verdict fits the compact band —
+   the container stays a flex row (a -webkit-box on it would break
+   the dot alignment). */
+.atlas-flood-credit > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .atlas-flood-credit strong { color: var(--paper); font-weight: 600; }
 .atlas-flood-credit a { color: var(--signal); text-decoration: none; border-bottom: 1px solid rgba(201, 255, 56, 0.4); }
 .atlas-flood-credit a:hover { color: #d6ff5e; }
@@ -2941,6 +3118,11 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     grid-template-rows: auto minmax(220px, 1fr) auto auto;
   }
 
+  /* Phone: the strip stays slim (head + verdict + More button). The
+     headline numbers and the long board live behind the More sheet. */
+  .atlas-sit-quick { display: none; }
+  .atlas-sit-long { display: none; }
+
   .atlas-header {
     gap: 8px;
     padding: 7px 12px;
@@ -3197,6 +3379,11 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
      sheet fits on a 360 px viewport without scrolling sideways. */
   .atlas-sit-xref-summary { grid-template-columns: 1fr; gap: 4px; }
   .atlas-xref-value { font-size: 20px; }
+
+  /* Dao pills stack on phone — the about drawer is the same width as
+     the rest of the sheet, and two side-by-side pills would be too
+     narrow to read the second-line description. */
+  .atlas-dao-pills { grid-template-columns: 1fr; gap: 6px; }
 
   /* Quick-jump grid: 2 cols on phone already; ensure no overflow */
   .atlas-area-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
