@@ -97,7 +97,7 @@ button { font: inherit; }
   text-transform: uppercase;
   padding: 1px 5px;
   background: rgba(255, 255, 255, 0.06);
-  border-radius: 3px;
+  border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
   line-height: 1.1;
   user-select: none;
@@ -1615,10 +1615,11 @@ body.atlas-about-open { overflow: hidden; }
   /* === Right panel becomes a hidden bottom-sheet on phone === */
   .atlas-panel {
     /* Off-screen by default; the "More" button (added below) slides
-       it up. The strip + map still show behind the scrim. */
+       it up. z-index above the header (30) and sim HUD (25): a
+       full-screen sheet must cover all chrome, not compete with it. */
     position: fixed;
     inset: 0;
-    z-index: 20;
+    z-index: 40;
     max-height: none;
     height: 100dvh;
     overflow-y: auto;
@@ -1632,7 +1633,6 @@ body.atlas-about-open { overflow: hidden; }
   }
   .atlas-panel.is-open {
     transform: translateY(0);
-    box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.55);
   }
   /* Real close row at the top of the phone sheet — a real button
      so it gets keyboard focus + Esc handlers, not a ::before. */
@@ -1643,7 +1643,7 @@ body.atlas-about-open { overflow: hidden; }
     z-index: 2;
     padding: 10px 14px;
     margin: -14px -14px 10px;
-    background: linear-gradient(180deg, var(--bg, #0e0f0c) 70%, rgba(14, 15, 12, 0.92));
+    background: var(--bg, #0e0f0c);
     border-bottom: 1px solid var(--rule, rgba(255, 255, 255, 0.1));
     color: var(--muted);
     font: 600 11px/1 var(--font-body);
@@ -1670,7 +1670,6 @@ body.atlas-about-open { overflow: hidden; }
     font: 700 12px/1 var(--font-body);
     letter-spacing: 0.04em;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   }
   .atlas-panel-toggle.is-hidden { display: none; }
   .atlas-panel-toggle .count {
@@ -2120,8 +2119,7 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   width: min(92%, 620px);
   background: rgba(13, 14, 11, 0.95);
   border: 1px solid rgba(220, 38, 38, 0.55);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(220, 38, 38, 0.25);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 16px 20px;
   color: var(--paper);
   font-family: var(--font-body);
@@ -2153,7 +2151,6 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   height: 8px;
   border-radius: 50%;
   background: #dc2626;
-  box-shadow: 0 0 8px #dc2626;
   animation: atlasSimPulse 1.2s ease-in-out infinite;
 }
 @keyframes atlasSimPulse {
@@ -2184,12 +2181,12 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--paper);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 5px 12px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 140ms ease;
+  transition: all 140ms ease-out;
 }
 .atlas-sim-toggle:hover {
   background: rgba(255, 255, 255, 0.22);
@@ -2208,14 +2205,16 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   width: 100%;
   height: 8px;
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
+  border-radius: 0;
   margin: 12px 0 22px;
   cursor: pointer;
 }
 .atlas-sim-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #38bdf8 0%, #facc15 35%, #f97316 65%, #dc2626 100%);
-  border-radius: 4px;
+  /* Solid HUD tone, not a rainbow gradient — the timeline scale already
+     lives in the ticks; the bar is a progress indicator, not a chart. */
+  background: #dc2626;
+  border-radius: 0;
   width: 0%;
   transition: width 60ms linear;
 }
@@ -3195,4 +3194,17 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 @media (min-width: 1100px) {
   .atlas-sources-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────
+   The JS honors it for water flow and flood motion; the chrome-side
+   loops (sim pulse, rain frame cycling is JS-driven and honors it at
+   app.js) must respect it too. */
+@media (prefers-reduced-motion: reduce) {
+  .atlas-sim-pulse { animation: none; }
+  .atlas-panel,
+  .atlas-about-sheet,
+  .atlas-sheet-close { transition: none; }
+  .atlas-sim-toggle, .atlas-sim-close { transition: none; }
+  .atlas-sim-progress-bar { transition: none; }
 }

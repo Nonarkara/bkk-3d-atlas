@@ -178,7 +178,7 @@ const BUILDING_COLOR_BY_TYPE = [
   "hostel", "#d946a0",
   "museum", "#a855f7",
   // education — clear blues
-  "school", "#3b82f6",
+  "school", "#3d74c4",
   "kindergarten", "#60a5fa",
   "university", "#1e40af",
   "college", "#1e40af",
@@ -442,7 +442,7 @@ const NEWS_EVENT_REFRESH_MS = 300000;
 
 const CIVIC_POI_CATEGORY_COLOR = [
   "match", ["get", "category"],
-  "school", "#3b82f6",
+  "school", "#3d74c4",
   "sportsground", "#10b981",
   "carpark", "#6b7280",
   "museum", "#a855f7",
@@ -596,9 +596,9 @@ const FLOOD_DATA_URL = "/bkk-flood-envelope.geojson";
 const FLOOD_FILL_COLOR = [
   "match", ["get", "severity"],
   "high", "#1d4ed8",
-  "medium", "#3b82f6",
+  "medium", "#3d74c4",
   "low", "#93c5fd",
-  "#3b82f6",
+  "#3d74c4",
 ];
 
 // Water-level gauges as judged by FloodDash — see /api/flood-sensors
@@ -1072,7 +1072,7 @@ const LAYERS = [
       { color: "#e8d5a3", label: "Victory Monument" },
       { color: "#a8c84a", label: "mosque" },
       { color: "#c89b3c", label: "church / cathedral" },
-      { color: "#3b82f6", label: "school" },
+      { color: "#3d74c4", label: "school" },
       { color: "#1e40af", label: "university" },
       { color: "#10b981", label: "hospital" },
       { color: "#ec4899", label: "hotel" },
@@ -1262,7 +1262,7 @@ const LAYERS = [
     uninstall: (map) => setLayersVisible(map, [FLOOD_FILL, FLOOD_LINE], false),
     legend: [
       { color: "#1d4ed8", label: "high severity corridor" },
-      { color: "#3b82f6", label: "medium" },
+      { color: "#3d74c4", label: "medium" },
       { color: "#93c5fd", label: "low / drain pocket" },
     ],
   },
@@ -1488,7 +1488,7 @@ const LAYERS = [
       setLayersVisible(map, [CIVIC_POI_HALO_LAYER, CIVIC_POI_LAYER], false);
     },
     legend: [
-      { color: "#3b82f6", label: "School", category: "school" },
+      { color: "#3d74c4", label: "School", category: "school" },
       { color: "#10b981", label: "Sports ground", category: "sportsground" },
       { color: "#6b7280", label: "Car park", category: "carpark" },
       { color: "#a855f7", label: "Local museum", category: "museum" },
