@@ -1768,13 +1768,14 @@ const MAHOLAN_BBOX = { minLat: 13.20, maxLat: 14.40, minLng: 99.85, maxLng: 101.
 
 // Vetting tier, classified conservatively: 'operator' ONLY for a
 // recognized agency/municipal feed on the Maholan aggregator (2026-10-02
-// source distribution: floodbkk, BMA/สจส, DOH, iTIC/Longdo,
-// ThaiWater/EGAT/DWR, world.tehx, Pak Kret, Hatyai). ผู้ใช้เพิ่มเอง
+// source distribution, 17 distinct: floodbkk, BMA/สจส, DOH, iTIC/Longdo,
+// ThaiWater/EGAT/DWR, world.tehx, Pak Kret, Hatyai, BMA drainage
+// (สำนักการระบายน้ำ กทม.), the four เทศบาล municipalities). ผู้ใช้เพิ่มเอง
 // (user-added), empty, and any unrecognized source are 'community' —
 // unvetted by BKKx. An unknown source must never read as a vetted
 // operator camera.
 const MAHOLAN_OPERATOR_SOURCES =
-  /floodbkk|bma|สจส|กรมทางหลวง|DOH|world\.tehx|itic|thaiwater|egat|dwr|เทศบาล|hatyai/i;
+  /floodbkk|bma|สจส|กรมทางหลวง|DOH|world\.tehx|itic|thaiwater|egat|dwr|เทศบาล|hatyai|ระบายน้ำ|กรุงเทพ|กทม/i;
 
 async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
   const cached = await withD1Cache<unknown>(env, "maholan-cctv", CCTV_CACHE_TTL_SECONDS, async () => {
