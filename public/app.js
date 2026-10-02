@@ -5581,7 +5581,9 @@ async function installMaholanCctv(map) {
         ],
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1,
-        "circle-opacity": ["match", ["get", "live"], true, 0.92, 0.45],
+        // match labels must be numbers/strings — a boolean label is
+        // rejected by MapLibre's validator, so this is a case, not a match.
+        "circle-opacity": ["case", ["==", ["get", "live"], true], 0.92, 0.45],
         "circle-color-transition": { duration: 1500, delay: 0 },
         "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
@@ -6043,6 +6045,227 @@ function wireCctvInteractions(map) {
   map.on("mouseleave", CCTV_LAYER, () => {
     map.getCanvas().style.cursor = "";
   });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Pin a problem, flush it away (2026-10-02). Long-press the map (or
+// Ctrl/Cmd-click) to pin a problem spot — a flooded corner, a blocked
+// drain. A pin exists until the user flushes it (tap the pin → "Flush
+// away": one expanding ring fades out, the inverse of the fresh-report
+// ripple) or it ages out at 90 days. Client-side only: these are the
+// user's own markers, not civic data — they never reach the API or
+// another visitor's map.
+// ─────────────────────────────────────────────────────────────────
+const PIN_SOURCE = "bkkx-pinned-problems";
+const PIN_LAYER = "bkkx-pinned-problems-dots";
+const PIN_HALO_LAYER = "bkkx-pinned-problems-halo";
+const PIN_FLUSH_RING = "bkkx-pin-flush-ring";
+const PIN_STORE_KEY = "bkkx-pinned-problems";
+const PIN_LONG_PRESS_MS = 600;
+const PIN_MAX_AGE_DAYS = 90;
+
+function loadPins() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PIN_STORE_KEY) || "[]");
+    if (!Array.isArray(raw)) return [];
+    const cutoff = Date.now() - PIN_MAX_AGE_DAYS * 86400000;
+    // Aged-out pins flush themselves on load — a pin that stopped being
+    // a problem is no longer a pin.
+    return raw.filter((p) => p && Number.isFinite(p.lng) && Number.isFinite(p.lat) &&
+      (!p.pinnedAt || Date.parse(p.pinnedAt) > cutoff));
+  } catch { return []; }
+}
+
+function savePins(pins) {
+  try { localStorage.setItem(PIN_STORE_KEY, JSON.stringify(pins)); } catch {}
+}
+
+function renderPins(map) {
+  const src = map.getSource(PIN_SOURCE);
+  if (!src) return;
+  src.setData({
+    type: "FeatureCollection",
+    features: loadPins().map((p) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+      properties: { id: p.id, note: p.note || "", pinnedAt: p.pinnedAt || null },
+    })),
+  });
+}
+
+function pinProblem(map, lng, lat) {
+  const pins = loadPins();
+  // A second pin within ~30 m is the same problem — move it, don't stack.
+  const near = pins.find((p) => haversineMeters([p.lng, p.lat], [lng, lat]) < 30);
+  const id = near ? near.id : `pin-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const next = pins.filter((p) => p.id !== id);
+  next.push({ id, lng, lat, note: near?.note || "", pinnedAt: near?.pinnedAt || new Date().toISOString() });
+  savePins(next);
+  renderPins(map);
+}
+
+function flushPin(map, id, lngLat) {
+  savePins(loadPins().filter((p) => p.id !== id));
+  renderPins(map);
+  playFlushRing(map, lngLat);
+}
+
+// The flush: one expanding ring that fades — the inverse of the
+// fresh-report ripple. Off for reduced motion.
+function playFlushRing(map, lngLat) {
+  const lngNum = Array.isArray(lngLat) ? lngLat[0] : lngLat.lng;
+  const latNum = Array.isArray(lngLat) ? lngLat[1] : lngLat.lat;
+  if (!Number.isFinite(lngNum) || !Number.isFinite(latNum)) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (!map.getSource(PIN_FLUSH_RING)) {
+    map.addSource(PIN_FLUSH_RING, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addLayer({
+      id: PIN_FLUSH_RING,
+      type: "circle",
+      source: PIN_FLUSH_RING,
+      paint: {
+        "circle-radius": 0,
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-stroke-color": "#c9ff38",
+        "circle-stroke-width": 2,
+        "circle-stroke-opacity": 0,
+        "circle-pitch-alignment": "map",
+      },
+    });
+  }
+  map.getSource(PIN_FLUSH_RING).setData({
+    type: "FeatureCollection",
+    features: [{ type: "Feature", geometry: { type: "Point", coordinates: [lngNum, latNum] }, properties: {} }],
+  });
+  const start = performance.now();
+  const DUR = 900;
+  const tick = (now) => {
+    if (!map.getLayer(PIN_FLUSH_RING)) return;
+    const t = Math.min((now - start) / DUR, 1);
+    map.setPaintProperty(PIN_FLUSH_RING, "circle-radius", 6 + 26 * t);
+    map.setPaintProperty(PIN_FLUSH_RING, "circle-stroke-opacity", 0.9 * (1 - t));
+    if (t < 1) requestAnimationFrame(tick);
+    else map.getSource(PIN_FLUSH_RING)?.setData({ type: "FeatureCollection", features: [] });
+  };
+  requestAnimationFrame(tick);
+}
+
+function openPinPopup(map, feature) {
+  if (!feature?.geometry?.coordinates) return;
+  const props = feature.properties || {};
+  const [lng, lat] = feature.geometry.coordinates;
+  const age = props.pinnedAt ? `${ageWords(minutesSince(props.pinnedAt))} ago` : "";
+  closeCctvPopup();
+  const html = `
+    <div class="atlas-cctv-card">
+      <p class="atlas-cctv-kicker">Pinned problem · your marker</p>
+      <strong class="atlas-cctv-title">${escapeHtml(props.note || "Problem spot")}</strong>
+      <span class="atlas-cctv-meta">${escapeHtml(age)} · ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
+      <div class="atlas-cctv-actions">
+        <button type="button" class="atlas-pin-flush-btn" data-flush-pin="${escapeHtml(props.id)}">Flush away ↘</button>
+      </div>
+    </div>
+  `;
+  const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 18 })
+    .setLngLat([lng, lat])
+    .setHTML(html)
+    .addTo(map);
+  popup.getElement()?.querySelector("[data-flush-pin]")?.addEventListener("click", () => {
+    flushPin(map, props.id, [lng, lat]);
+    popup.remove();
+  });
+}
+
+function wirePinInteractions(map) {
+  if (map.__bkkxPinsWired) return;
+  map.__bkkxPinsWired = true;
+
+  map.on("click", PIN_LAYER, (e) => {
+    const feature = e.features?.[0];
+    if (!feature) return;
+    e.originalEvent?.stopPropagation?.();
+    openPinPopup(map, feature);
+  });
+  map.on("mouseenter", PIN_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", PIN_LAYER, () => { map.getCanvas().style.cursor = ""; });
+
+  // Long-press (600 ms) pins a problem; any drag or release cancels. A
+  // pin just created suppresses the inspect click that fires on mouseup.
+  let pressTimer = null;
+  let suppressNextClick = false;
+  const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+  const startPress = (lng, lat) => {
+    cancelPress();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      suppressNextClick = true;
+      pinProblem(map, lng, lat);
+    }, PIN_LONG_PRESS_MS);
+  };
+  map.on("mousedown", (e) => { if (e.originalEvent?.button === 0) startPress(e.lngLat.lng, e.lngLat.lat); });
+  map.on("touchstart", (e) => { if (e.lngLat) startPress(e.lngLat.lng, e.lngLat.lat); });
+  map.on("mouseup", cancelPress);
+  map.on("touchend", cancelPress);
+  map.on("dragstart", cancelPress);
+  map.on("movestart", cancelPress);
+
+  // Ctrl/Cmd-click pins immediately. Registered before wireInspect's
+  // generic click so a suppress or a pin wins the event.
+  map.on("click", (e) => {
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      e.originalEvent?.stopPropagation?.();
+      return;
+    }
+    if (e.originalEvent?.ctrlKey || e.originalEvent?.metaKey) {
+      e.originalEvent?.stopPropagation?.();
+      pinProblem(map, e.lngLat.lng, e.lngLat.lat);
+    }
+  });
+
+  // Right-click pins too — on macOS Ctrl+click IS a right-click
+  // (contextmenu), so this is what makes the Ctrl-click affordance real
+  // there. A long-press that also fires contextmenu dedupes in
+  // pinProblem (within 30 m it moves the existing pin).
+  map.on("contextmenu", (e) => {
+    e.originalEvent?.preventDefault?.();
+    pinProblem(map, e.lngLat.lng, e.lngLat.lat);
+  });
+  map.getCanvasContainer()?.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+function addPinLayers(map) {
+  if (!map.getSource(PIN_SOURCE)) {
+    map.addSource(PIN_SOURCE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  }
+  if (!map.getLayer(PIN_HALO_LAYER)) {
+    map.addLayer({
+      id: PIN_HALO_LAYER,
+      type: "circle",
+      source: PIN_SOURCE,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 9, 15, 20],
+        "circle-color": "rgba(201, 255, 56, 0.16)",
+        "circle-pitch-alignment": "map",
+      },
+    });
+  }
+  if (!map.getLayer(PIN_LAYER)) {
+    map.addLayer({
+      id: PIN_LAYER,
+      type: "circle",
+      source: PIN_SOURCE,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 15, 6],
+        "circle-color": "#c9ff38",
+        "circle-stroke-color": "rgba(17, 18, 15, 0.9)",
+        "circle-stroke-width": 1.5,
+        "circle-pitch-alignment": "map",
+      },
+    });
+  }
+  renderPins(map);
+  wirePinInteractions(map);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -8247,6 +8470,7 @@ async function init() {
 
   map.on("load", () => {
     wireLayerToggles(map);
+    addPinLayers(map);
     wireInspect(map);
     if (initialArea) setActiveArea(initialArea.id);
   });
