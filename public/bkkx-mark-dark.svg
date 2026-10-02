@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- BKKx Atlas mark — dark-chrome variant. The layers are light paper
+       ink (not transparent white), so the mark reads on the atlas's dark
+       ground; the river keeps the brand blue. -->
+  <path d="M6 71 L50 89 L94 71 L50 53 Z" fill="#f1efe8"/>
+  <path d="M6 51 L50 69 L94 51 L50 33 Z" fill="#b9bda9"/>
+  <path d="M6 31 L50 49 L94 31 L50 13 Z" fill="#f1efe8"/>
+  <path d="M64 5 C42 15 80 29 60 41 C43 52 66 63 48 75 C41 80 40 88 45 95"
+        fill="none" stroke="#2196f3" stroke-width="11" stroke-linecap="round"/>
+</svg>

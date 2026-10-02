@@ -6,6 +6,13 @@
   <title>BKKx 3D Atlas — Bangkok block by block</title>
   <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, rail and boat transit, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#11120f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BKKx Atlas" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
@@ -19,6 +26,16 @@
     <header class="atlas-header">
       <div class="atlas-brand">
         <a class="wordmark" href="/" aria-label="BKKx 3D Atlas home">
+          <!-- Inlined mark (river through three map layers): inline SVG
+               stays crisp and CSS-controllable — an <img>-loaded SVG
+               cannot inherit currentColor, so a mono variant via <img>
+               renders black on the dark chrome. -->
+          <svg class="wordmark-mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+            <path d="M6 71 L50 89 L94 71 L50 53 Z" fill="#f1efe8"/>
+            <path d="M6 51 L50 69 L94 51 L50 33 Z" fill="#b9bda9"/>
+            <path d="M6 31 L50 49 L94 31 L50 13 Z" fill="#f1efe8"/>
+            <path d="M64 5 C42 15 80 29 60 41 C43 52 66 63 48 75 C41 80 40 88 45 95" fill="none" stroke="#2196f3" stroke-width="11" stroke-linecap="round"/>
+          </svg>
           <span>BKK</span><b>x</b>
         </a>
         <span class="atlas-version" id="atlas-version" title="bkk-3d-atlas release version · v0.3.0 — Maholan snapshot proxy, D1 cache for water endpoints, stream-error fallback">v0.3.0</span>
@@ -1170,6 +1187,9 @@
               Cloudflare Workers + R2 + D1. Built by Dr Non · BKKx ·
               live at
               <a href="https://atlas.nonarkara.org" target="_blank" rel="noreferrer">atlas.nonarkara.org</a>.
+              Installable as a web app — Android (Chrome): menu → Add to
+              Home screen; iPhone (Safari): Share → Add to Home Screen.
+              Live layers need a connection.
             </p>
           </section>
         </div>
