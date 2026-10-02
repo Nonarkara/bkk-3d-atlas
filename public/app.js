@@ -2251,6 +2251,13 @@ function windCompass(directionDeg) {
   return points[Math.round((((directionDeg % 360) + 360) % 360) / 22.5) % 16];
 }
 
+function weatherNumber(value) {
+  if (typeof value !== "number" && typeof value !== "string") return NaN;
+  if (typeof value === "string" && !value.trim()) return NaN;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 async function fetchWindGrid() {
   const lats = [];
   const lons = [];
@@ -2270,18 +2277,19 @@ async function fetchWindGrid() {
   let capturedAt = null;
   for (let i = 0; i < locations.length; i++) {
     const loc = locations[i];
-    const speed = Number(loc?.current?.wind_speed_10m);
-    const direction = Number(loc?.current?.wind_direction_10m);
-    const gust = Number(loc?.current?.wind_gusts_10m);
+    const speed = weatherNumber(loc?.current?.wind_speed_10m);
+    const direction = weatherNumber(loc?.current?.wind_direction_10m);
+    const gust = weatherNumber(loc?.current?.wind_gusts_10m);
     const lat = Number(loc?.latitude ?? lats[i]);
     const lon = Number(loc?.longitude ?? lons[i]);
     if (![speed, direction, lat, lon].every(Number.isFinite)) continue;
+    if (speed < 0 || direction < 0 || direction > 360) continue;
     capturedAt ||= loc?.current?.time ?? null;
     features.push({
       type: "Feature",
       properties: {
         speedKmh: speed,
-        gustKmh: Number.isFinite(gust) ? gust : null,
+        gustKmh: Number.isFinite(gust) && gust >= 0 ? gust : null,
         directionDeg: direction,
         directionLabel: windCompass(direction),
         flowBearing: (direction + 180) % 360,
@@ -7653,9 +7661,9 @@ async function loadBkkLiveStrip() {
     }
     const temp = kpi.temperature;
     if (temp) {
-      document.getElementById("bkk-card-temp-max").textContent = Number(temp.max_c).toFixed(1);
-      document.getElementById("bkk-card-temp-min").textContent = Number(temp.min_c).toFixed(1);
-      document.getElementById("bkk-card-temp-where").textContent = temp.station || "—";
+      document.getElementById("bkk-card-temp-max").textContent = Number.isFinite(weatherNumber(temp.max_c)) ? Number(temp.max_c).toFixed(1) : "—";
+      document.getElementById("bkk-card-temp-min").textContent = Number.isFinite(weatherNumber(temp.min_c)) ? Number(temp.min_c).toFixed(1) : "—";
+      document.getElementById("bkk-card-temp-where").textContent = `${temp.station || "—"} · week from ${temp.start_date || "date unknown"}`;
     }
 
     // Freshness — how old is the upstream payload?

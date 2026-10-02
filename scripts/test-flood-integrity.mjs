@@ -35,6 +35,61 @@ const roads = (features = [road()]) => ({
 const gauge = (change = {}) => ({ id: 'g1', lng: 100.5, lat: 13.75, band: 'prepare', name: 'Canal', confidence: 'high', observedAt: at(0.1), ageMin: 6, ...change });
 const xref = (g, features) => buildRoadsXref(roads(features), { gauges: [g] }, now);
 
+test('missing wind values are unknown, while a genuine calm model field remains zero', async () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const start = app.indexOf('function weatherNumber(');
+  const end = app.indexOf('\nfunction ', app.indexOf('async function fetchWindGrid()', start));
+  let current;
+  const fetchGrid = vm.runInNewContext(app.slice(start, end) + '\nfetchWindGrid', {
+    WIND_API: 'https://example.test', windCompass: () => 'N', windArrowGeometry: () => ({}),
+    fetch: async () => ({ ok: true, json: async () => ({latitude:13.75,longitude:100.5,current}) }),
+  });
+  for (const bad of [null, '', ' ', false, [], {}, -1]) {
+    current = {wind_speed_10m:bad,wind_direction_10m:0,wind_gusts_10m:null};
+    assert.equal(await fetchGrid(), null, String(bad));
+  }
+  current = {wind_speed_10m:0,wind_direction_10m:0,wind_gusts_10m:null};
+  const calm = await fetchGrid();
+  assert.equal(calm.features[0].properties.speedKmh,0);
+  assert.equal(calm.features[0].properties.gustKmh,null);
+  current.wind_direction_10m = null;
+  assert.equal(await fetchGrid(),null);
+});
+
+test('weather KPIs never turn missing or negative rainfall into dry readings', async () => {
+  const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('function weatherNumber(');
+  const end = source.indexOf('// ──', source.indexOf('async function proxyBkkRainKpi',start));
+  const js = ts.transpileModule(source.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+  let rows = [];
+  const fn = vm.runInNewContext(js+'\nproxyBkkRainKpi',{
+    BKK_RAIN1D_URL:'rain',BKK_RAIN3D_URL:'rain',BKK_RAIN7D_URL:'rain',BKK_TEMP_URL:'temp',BKK_WATER_CACHE_TTL_SECONDS:300,
+    Response,fetchThaiwaterJson:async url=>({ok:true,data:{data:url==='temp'?[{max_temperature:null,min_temperature:'',start_date:'2026-09-28'}]:rows}}),
+  });
+  rows=[{rain_1d:null},{rain_1d:''},{rain_1d:-1},{rain_1d:false}];
+  const missing=await (await fn({})).json();
+  assert.equal(missing.rain['1d'].mm,null);
+  assert.equal(missing.temperature.max_c,null);
+  assert.equal(missing.temperature.min_c,null);
+  rows.push({rain_1d:0});
+  const zero=await (await fn({})).json();
+  assert.equal(zero.rain['1d'].mm,0);
+});
+
+test('weekly temperature rendering shows missing values as unknown and retains its period', () => {
+  const app = readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  const helperStart = app.indexOf('function weatherNumber(');
+  const helperEnd = app.indexOf('async function fetchWindGrid',helperStart);
+  const start = app.indexOf('    const temp = kpi.temperature;');
+  const end = app.indexOf('    // Freshness',start);
+  const elements = new Map();
+  const document = {getElementById:id=>{if(!elements.has(id))elements.set(id,{textContent:''});return elements.get(id);}};
+  vm.runInNewContext(app.slice(helperStart,helperEnd)+app.slice(start,end),{document,kpi:{temperature:{max_c:null,min_c:0,station:'Station',start_date:'2026-09-28'}}});
+  assert.equal(elements.get('bkk-card-temp-max').textContent,'—');
+  assert.equal(elements.get('bkk-card-temp-min').textContent,'0.0');
+  assert.match(elements.get('bkk-card-temp-where').textContent,/week from 2026-09-28/);
+});
+
 test('camera provenance uses exact known labels, not agency-name fragments', () => {
   const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
   const start = source.indexOf('const MAHOLAN_OPERATOR_SOURCES =');

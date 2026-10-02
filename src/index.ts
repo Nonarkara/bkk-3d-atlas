@@ -787,6 +787,13 @@ async function proxyBkkRainStations(_request: Request): Promise<Response> {
 //   24h rain | 3-day rain | 7-day rain | temp high / temp low
 // Returns the single worst station per period as the "where" attribution
 // the dashboard prints under each value.
+function weatherNumber(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function proxyBkkRainKpi(_request: Request): Promise<Response> {
   const [rain1dRes, rain3dRes, rain7dRes, tempRes] = await Promise.all([
     fetchThaiwaterJson(BKK_RAIN1D_URL),
@@ -806,7 +813,8 @@ async function proxyBkkRainKpi(_request: Request): Promise<Response> {
   const pickWorst = (rows: any[]): { mm: number | null; station?: { name: string; amphoe: string; lat: number; lng: number } } => {
     let worst: { mm: number | null; station?: any } = { mm: null };
     for (const r of rows || []) {
-      const mm = Number(r.rain_1d ?? r.rain_3d ?? r.rain_7d ?? null);
+      const mm = weatherNumber(r.rain_1d ?? r.rain_3d ?? r.rain_7d);
+      if (mm == null || mm < 0) continue;
       if (worst.mm == null || (Number.isFinite(mm) && mm > worst.mm)) {
         worst = {
           mm: Number.isFinite(mm) ? mm : worst.mm,
@@ -827,8 +835,8 @@ async function proxyBkkRainKpi(_request: Request): Promise<Response> {
   const tempRow = Array.isArray(tempRes.data?.data) && tempRes.data.data[0];
   const temp = tempRow
     ? {
-        max_c: Number(tempRow.max_temperature),
-        min_c: Number(tempRow.min_temperature),
+        max_c: weatherNumber(tempRow.max_temperature),
+        min_c: weatherNumber(tempRow.min_temperature),
         station: tempRow.station?.tele_station_name?.th || tempRow.station?.tele_station_name?.en || "",
         start_date: tempRow.start_date,
       }
@@ -3589,7 +3597,7 @@ function apiCatalog(request: Request): Response {
         { path: "/api/flood-sensors", method: "GET", description: "Water-level gauges in the Bangkok metro, each judged by FloodDash (band, action, freshness).", cacheSeconds: FLOOD_SENSOR_CACHE_TTL_SECONDS },
         { path: "/api/flood/bkk", method: "GET", description: "FloodDash relay for Bangkok: city verdict, judged gauges, waterway status, BMA DDS canal gates and road reports. Not an official warning — DDPM 1784.", cacheSeconds: 60 },
         { path: "/api/water/bkk/rain-stations", method: "GET", description: "ThaiWater v3 Bangkok provincial rain gauge network (133 stations with rain_24h + rain_1h).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
-        { path: "/api/water/bkk/kpi", method: "GET", description: "BKK provincial top KPIs (24h/3d/7d rain, today/tomorrow/day-after forecast, temperature, worst station).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
+        { path: "/api/water/bkk/kpi", method: "GET", description: "BKK observed rainfall totals (24h/3d/7d) and this week's temperature extremes with period start and station. Relay fetchedAt is fetch time, not observation time. No forecast in this endpoint.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/incidents", method: "GET", description: "BKK incident heat — city-events + news-events + BMA DDS road reports + flood-sensors in prepare/evacuate bands, aggregated for flood-preset heat map.", cacheSeconds: BKK_INCIDENTS_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/canal-gates", method: "GET", description: "BMA Drainage bulletin: 10 Bangkok canal-gate stations with current water level vs critical level.", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
         { path: "/api/water/bkk/roads-flooded", method: "GET", description: "BMA DDS dated road reports for Bangkok: 66 road segments with depth, lanes, status (reported / cleared / unrecorded).", cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS },
