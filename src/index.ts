@@ -208,14 +208,19 @@ async function withD1Cache<T>(
   producer: () => Promise<{ payload: T; upstreamFetchedAt: string } | null>,
 ): Promise<{ payload: T; fromCache: boolean; fetchedAt: string } | null> {
   const cacheKey = `water-cache:${key}`;
-  // Cheap read; index lookup on PK. We check `fetched_at` (string ISO)
-  // against now() so a clock skew won't be worse than upstream's own
-  // tolerance.
+  // Cheap read; index lookup on PK.
   const row = await env.CIVIC_DB.prepare(
-    "SELECT payload, fetched_at FROM flood_state WHERE key = ?",
-  ).bind(cacheKey).first<{ payload: string; fetched_at: string }>();
-  const ageSec = row ? (Date.now() - Date.parse(row.fetched_at)) / 1000 : null;
-  if (row && Number.isFinite(ageSec) && ageSec != null && ageSec >= 0 && ageSec < ttlSeconds) {
+    "SELECT payload, fetched_at, attempted_at FROM flood_state WHERE key = ?",
+  ).bind(cacheKey).first<{ payload: string; fetched_at: string; attempted_at: string }>();
+  // The TTL throttles OUR refetch, not the data age: the upstream's own
+  // timestamps inside the payload tell the client how old the data is.
+  // A BMA DDS bulletin updates ~twice daily, so its fetched_at is almost
+  // always older than the TTL — checking against it made the cache MISS
+  // forever and every request paid the upstream fetch. Check the FETCH
+  // age (attempted_at) instead.
+  const lastFetchMs = Date.parse(row?.attempted_at || "");
+  const ageSec = Number.isFinite(lastFetchMs) ? Math.max(0, (Date.now() - lastFetchMs) / 1000) : null;
+  if (row && Number.isFinite(ageSec) && ageSec != null && ageSec < ttlSeconds) {
     try {
       return { payload: JSON.parse(row.payload) as T, fromCache: true, fetchedAt: row.fetched_at };
     } catch {
@@ -223,7 +228,17 @@ async function withD1Cache<T>(
     }
   }
   const fresh = await producer();
-  if (!fresh) return null;
+  if (!fresh) {
+    // Producer failed (upstream down): serve the last good copy if one
+    // exists — absence of a fresh fetch is not a reason to blank the
+    // endpoint. Its fetched_at stays honest.
+    if (row) {
+      try {
+        return { payload: JSON.parse(row.payload) as T, fromCache: true, fetchedAt: row.fetched_at };
+      } catch { /* corrupted row */ }
+    }
+    return null;
+  }
   const fetchedAt = fresh.upstreamFetchedAt || new Date().toISOString();
   try {
     await env.CIVIC_DB.prepare(
@@ -1216,67 +1231,77 @@ function pickAnchor(anchors: NonNullable<typeof bkkAnchorCache>, districtTh: str
 }
 
 async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response> {
-  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
-    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
-  });
-  if (!direct.ok) {
-    return jsonResponse({ error: "bkk_canal_gates_upstream_error", status: direct.status }, { status: 502 });
-  }
-  const data = await direct.json() as { bulletin?: { stations?: any[]; date?: string; stale?: boolean; fetchedAt?: string; source?: string } };
-  const stations = data.bulletin?.stations ?? [];
-  const anchors = await buildBkkAnchor(env, request);
-
-  const features = [];
-  for (const s of stations) {
-    const name = String(s.name ?? "").trim();
-    const level = Number(s.levelMsl);
-    const critical = Number(s.criticalMsl);
-    const yesterdayMax = Number(s.yesterdayMaxMsl);
-    const status = String(s.statusTh ?? "");
-    const side = String(s.side ?? "");
-    let ll: [number, number] | null = pickAnchor(anchors, name, name);
-    if (!ll) continue;  // skip stations we can't anchor
-    const ratio = Number.isFinite(level) && Number.isFinite(critical) && critical > 0 ? level / critical : 0;
-    let severity: string;
-    let weight: number;
-    if (status.includes("วิกฤติ")) { severity = "critical"; weight = 1.0; }
-    else if (status.includes("เตือนภัย")) { severity = "warning"; weight = 0.7; }
-    else { severity = "normal"; weight = 0.2; }
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
-      properties: {
-        source: "bma-dds-bulletin",
-        kind: "canal-gate",
-        name,
-        side,
-        level_msl: Number.isFinite(level) ? level : null,
-        critical_msl: Number.isFinite(critical) ? critical : null,
-        yesterday_max_msl: Number.isFinite(yesterdayMax) ? yesterdayMax : null,
-        ratio: Number.isFinite(ratio) ? Number(ratio.toFixed(2)) : null,
-        status_th: status,
-        severity,
-        weight,
-        observed_at: s.observedAt ?? null,
-      },
+  const cached = await withD1Cache<unknown>(env, "bkk-canal-gates", BKK_WATER_CACHE_TTL_SECONDS, async () => {
+    const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
-  }
+    if (!direct.ok) return null;
+    const data = await direct.json() as { bulletin?: { stations?: any[]; date?: string; stale?: boolean; fetchedAt?: string; source?: string } };
+    const stations = data.bulletin?.stations ?? [];
+    const anchors = await buildBkkAnchor(env, request);
 
-  return jsonResponse({
-    // MapLibre rejects a source without it ("not a valid GeoJSON object").
-    type: "FeatureCollection",
-    tool: "bkk-canal-gates",
-    version: 1,
-    fetchedAt: data.bulletin?.fetchedAt ?? null,
-    bulletin_date: data.bulletin?.date ?? null,
-    stale: data.bulletin?.stale ?? false,
-    counts: { total: features.length, critical: features.filter(f => f.properties.severity === "critical").length, warning: features.filter(f => f.properties.severity === "warning").length, normal: features.filter(f => f.properties.severity === "normal").length },
-    attribution: "BMA Drainage bulletin via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
-    features,
-  }, {
+    const features = [];
+    for (const s of stations) {
+      const name = String(s.name ?? "").trim();
+      const level = Number(s.levelMsl);
+      const critical = Number(s.criticalMsl);
+      const yesterdayMax = Number(s.yesterdayMaxMsl);
+      const status = String(s.statusTh ?? "");
+      const side = String(s.side ?? "");
+      let ll: [number, number] | null = pickAnchor(anchors, name, name);
+      if (!ll) continue;  // skip stations we can't anchor
+      const ratio = Number.isFinite(level) && Number.isFinite(critical) && critical > 0 ? level / critical : 0;
+      let severity: string;
+      let weight: number;
+      if (status.includes("วิกฤติ")) { severity = "critical"; weight = 1.0; }
+      else if (status.includes("เตือนภัย")) { severity = "warning"; weight = 0.7; }
+      else { severity = "normal"; weight = 0.2; }
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
+        properties: {
+          source: "bma-dds-bulletin",
+          kind: "canal-gate",
+          name,
+          side,
+          level_msl: Number.isFinite(level) ? level : null,
+          critical_msl: Number.isFinite(critical) ? critical : null,
+          yesterday_max_msl: Number.isFinite(yesterdayMax) ? yesterdayMax : null,
+          ratio: Number.isFinite(ratio) ? Number(ratio.toFixed(2)) : null,
+          status_th: status,
+          severity,
+          weight,
+          observed_at: s.observedAt ?? null,
+        },
+      });
+    }
+
+    return {
+      payload: {
+        // MapLibre rejects a source without it ("not a valid GeoJSON object").
+        type: "FeatureCollection",
+        tool: "bkk-canal-gates",
+        version: 1,
+        fetchedAt: data.bulletin?.fetchedAt ?? null,
+        bulletin_date: data.bulletin?.date ?? null,
+        stale: data.bulletin?.stale ?? false,
+        counts: { total: features.length, critical: features.filter(f => f.properties.severity === "critical").length, warning: features.filter(f => f.properties.severity === "warning").length, normal: features.filter(f => f.properties.severity === "normal").length },
+        attribution: "BMA Drainage bulletin via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
+        features,
+      },
+      upstreamFetchedAt: data.bulletin?.fetchedAt ?? "",
+    };
+  });
+  if (!cached) {
+    return jsonResponse({ error: "bkk_canal_gates_upstream_error" }, { status: 502 });
+  }
+  return jsonResponse(cached.payload, {
     headers: {
       "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
-      "x-bkkx-source": "BMA Drainage bulletin · canal-gate water levels",
+      "x-bkkx-source": cached.fromCache
+        ? "BMA Drainage bulletin · canal-gate water levels (D1 cache hit)"
+        : "BMA Drainage bulletin · canal-gate water levels (D1 cache miss → upstream)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
       "access-control-allow-origin": "*",
     },
   });
@@ -1373,149 +1398,169 @@ function placeholderImage(reason: string, w = 480, h = 270): Response {
 }
 
 async function proxyBkkRoadsFlooded(request: Request, env: Env): Promise<Response> {
-  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
-    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
-  });
-  if (!direct.ok) {
-    return jsonResponse({ error: "bkk_roads_flooded_upstream_error", status: direct.status }, { status: 502 });
-  }
-  const data = await direct.json() as { roads?: { records?: any[]; days?: string[]; stale?: boolean; fetchedAt?: string; source?: string } };
-  const records = data.roads?.records ?? [];
-  const anchors = await buildBkkAnchor(env, request);
-
-  const features = [];
-  for (const r of records) {
-    const district = String(r.district ?? "").trim();
-    const road = String(r.road ?? "").trim();
-    const location = String(r.location ?? "").trim();
-    const depthCm = Number(r.depthCm);
-    const lengthM = Number(r.lengthM);
-    const floodedAt = r.floodedAt ?? null;
-    const clearedAt = r.clearedAt ?? null;
-    const status = String(r.status ?? "");
-    const lanes = String(r.lanes ?? "");
-    const id = String(r.id ?? `${district}/${road}/${floodedAt}`);
-
-    let ll = pickAnchor(anchors, district, road);
-    // District fallback if road-name lookup didn't match
-    if (!ll) ll = pickAnchor(anchors, district, district);
-    if (!ll) continue;
-
-    let severity: string;
-    let weight: number;
-    if (status === "reported-cleared") { severity = "cleared"; weight = 0.15; }
-    else if (status === "clearance-unrecorded") { severity = "unknown"; weight = 0.55; }
-    else if (Number.isFinite(depthCm)) {
-      if (depthCm >= 30) { severity = "severe"; weight = 1.0; }
-      else if (depthCm >= 15) { severity = "moderate"; weight = 0.75; }
-      else { severity = "shallow"; weight = 0.45; }
-    } else {
-      severity = "unknown"; weight = 0.4;
-    }
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
-      properties: {
-        source: "bma-dds-roads",
-        kind: "road-flooded",
-        name: road,
-        district,
-        location,
-        depth_cm: Number.isFinite(depthCm) ? depthCm : null,
-        length_m: Number.isFinite(lengthM) ? lengthM : null,
-        lanes,
-        status,
-        severity,
-        weight,
-        flooded_at: floodedAt,
-        cleared_at: clearedAt,
-        date: r.date ?? null,
-        id,
-      },
+  const cached = await withD1Cache<unknown>(env, "bkk-roads-flooded", BKK_WATER_CACHE_TTL_SECONDS, async () => {
+    const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/dds/briefing`, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
-  }
+    if (!direct.ok) return null;
+    const data = await direct.json() as { roads?: { records?: any[]; days?: string[]; stale?: boolean; fetchedAt?: string; source?: string } };
+    const records = data.roads?.records ?? [];
+    const anchors = await buildBkkAnchor(env, request);
 
-  return jsonResponse({
-    type: "FeatureCollection",
-    tool: "bkk-roads-flooded",
-    version: 1,
-    fetchedAt: data.roads?.fetchedAt ?? null,
-    days: data.roads?.days ?? [],
-    stale: data.roads?.stale ?? false,
-    counts: {
-      total: features.length,
-      byStatus: features.reduce((acc: Record<string, number>, f) => {
-        const s = f.properties.status;
-        acc[s] = (acc[s] ?? 0) + 1;
-        return acc;
-      }, {}),
-      bySeverity: features.reduce((acc: Record<string, number>, f) => {
-        const s = f.properties.severity;
-        acc[s] = (acc[s] ?? 0) + 1;
-        return acc;
-      }, {}),
-    },
-    attribution: "BMA DDS dated road reports via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
-    features,
-  }, {
+    const features = [];
+    for (const r of records) {
+      const district = String(r.district ?? "").trim();
+      const road = String(r.road ?? "").trim();
+      const location = String(r.location ?? "").trim();
+      const depthCm = Number(r.depthCm);
+      const lengthM = Number(r.lengthM);
+      const floodedAt = r.floodedAt ?? null;
+      const clearedAt = r.clearedAt ?? null;
+      const status = String(r.status ?? "");
+      const lanes = String(r.lanes ?? "");
+      const id = String(r.id ?? `${district}/${road}/${floodedAt}`);
+
+      let ll = pickAnchor(anchors, district, road);
+      // District fallback if road-name lookup didn't match
+      if (!ll) ll = pickAnchor(anchors, district, district);
+      if (!ll) continue;
+
+      let severity: string;
+      let weight: number;
+      if (status === "reported-cleared") { severity = "cleared"; weight = 0.15; }
+      else if (status === "clearance-unrecorded") { severity = "unknown"; weight = 0.55; }
+      else if (Number.isFinite(depthCm)) {
+        if (depthCm >= 30) { severity = "severe"; weight = 1.0; }
+        else if (depthCm >= 15) { severity = "moderate"; weight = 0.75; }
+        else { severity = "shallow"; weight = 0.45; }
+      } else {
+        severity = "unknown"; weight = 0.4;
+      }
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [ll[1], ll[0]] },
+        properties: {
+          source: "bma-dds-roads",
+          kind: "road-flooded",
+          name: road,
+          district,
+          location,
+          depth_cm: Number.isFinite(depthCm) ? depthCm : null,
+          length_m: Number.isFinite(lengthM) ? lengthM : null,
+          lanes,
+          status,
+          severity,
+          weight,
+          flooded_at: floodedAt,
+          cleared_at: clearedAt,
+          date: r.date ?? null,
+          id,
+        },
+      });
+    }
+
+    return {
+      payload: {
+        type: "FeatureCollection",
+        tool: "bkk-roads-flooded",
+        version: 1,
+        fetchedAt: data.roads?.fetchedAt ?? null,
+        days: data.roads?.days ?? [],
+        stale: data.roads?.stale ?? false,
+        counts: {
+          total: features.length,
+          byStatus: features.reduce((acc: Record<string, number>, f: any) => {
+            const s = f.properties.status;
+            acc[s] = (acc[s] ?? 0) + 1;
+            return acc;
+          }, {}),
+          bySeverity: features.reduce((acc: Record<string, number>, f: any) => {
+            const s = f.properties.severity;
+            acc[s] = (acc[s] ?? 0) + 1;
+            return acc;
+          }, {}),
+        },
+        attribution: "BMA DDS dated road reports via FloodDash relay (flood.nonarkara.org/api/dds/briefing)",
+        features,
+      },
+      upstreamFetchedAt: data.roads?.fetchedAt ?? "",
+    };
+  });
+  if (!cached) {
+    return jsonResponse({ error: "bkk_roads_flooded_upstream_error" }, { status: 502 });
+  }
+  return jsonResponse(cached.payload, {
     headers: {
       "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
-      "x-bkkx-source": "BMA DDS · dated road reports (district-anchored)",
+      "x-bkkx-source": cached.fromCache
+        ? "BMA DDS · dated road reports, district-anchored (D1 cache hit)"
+        : "BMA DDS · dated road reports, district-anchored (D1 cache miss → upstream)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
       "access-control-allow-origin": "*",
     },
   });
 }
 
 async function proxyBkkEmergencyPoints(request: Request, env: Env): Promise<Response> {
-  const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
-    headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
-  });
-  if (!direct.ok) {
-    return jsonResponse({ error: "bkk_emergency_upstream_error", status: direct.status }, { status: 502 });
-  }
-  const data = await direct.json() as { emergency?: { points?: any[]; generated_at?: string; window_hours?: number } };
-  const points = data.emergency?.points ?? [];
-  const features = [];
-  for (const p of points) {
-    const lat = Number(p.lat);
-    const lng = Number(p.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
-    const score = Number(p.score);
-    const depth = Number(p.depth_cm);
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [lng, lat] },
-      properties: {
-        source: "flooddash-emergency",
-        kind: "emergency",
-        name: p.area_en ?? p.area_th ?? p.place_en ?? p.place_th ?? "Emergency",
-        province: p.province_en ?? p.province_th ?? null,
-        score: Number.isFinite(score) ? score : null,
-        band: p.band ?? null,
-        severity: p.severity ?? null,
-        tier: p.tier ?? null,
-        depth_cm: Number.isFinite(depth) ? depth : null,
-        news_count: p.news_count ?? null,
-        latest_at: p.latest_at ?? null,
-        impacts: Array.isArray(p.impacts) ? p.impacts : [],
-        news: Array.isArray(p.news) ? p.news.slice(0, 3).map((n: any) => ({ title: n.title, link: n.link, source: n.source })) : [],
-      },
+  const cached = await withD1Cache<unknown>(env, "bkk-emergency-points", BKK_INCIDENTS_CACHE_TTL_SECONDS, async () => {
+    const direct = await fetchUpstream(`${FLOODDASH_ORIGIN}/api/snapshot`, {
+      headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
+    if (!direct.ok) return null;
+    const data = await direct.json() as { emergency?: { points?: any[]; generated_at?: string; window_hours?: number } };
+    const points = data.emergency?.points ?? [];
+    const features = [];
+    for (const p of points) {
+      const lat = Number(p.lat);
+      const lng = Number(p.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (!pointInBbox(lng, lat, BKK_INCIDENT_HALO_BBOX)) continue;
+      const score = Number(p.score);
+      const depth = Number(p.depth_cm);
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [lng, lat] },
+        properties: {
+          source: "flooddash-emergency",
+          kind: "emergency",
+          name: p.area_en ?? p.area_th ?? p.place_en ?? p.place_th ?? "Emergency",
+          province: p.province_en ?? p.province_th ?? null,
+          score: Number.isFinite(score) ? score : null,
+          band: p.band ?? null,
+          severity: p.severity ?? null,
+          tier: p.tier ?? null,
+          depth_cm: Number.isFinite(depth) ? depth : null,
+          news_count: p.news_count ?? null,
+          latest_at: p.latest_at ?? null,
+          impacts: Array.isArray(p.impacts) ? p.impacts : [],
+          news: Array.isArray(p.news) ? p.news.slice(0, 3).map((n: any) => ({ title: n.title, link: n.link, source: n.source })) : [],
+        },
+      });
+    }
+    return {
+      payload: {
+        type: "FeatureCollection",
+        tool: "bkk-emergency-points",
+        version: 1,
+        fetchedAt: data.emergency?.generated_at ?? null,
+        window_hours: data.emergency?.window_hours ?? null,
+        counts: { total: features.length },
+        attribution: "FloodDash emergency aggregator (flood.nonarkara.org) · news-anchored flood-affected locations",
+        features,
+      },
+      upstreamFetchedAt: data.emergency?.generated_at ?? "",
+    };
+  });
+  if (!cached) {
+    return jsonResponse({ error: "bkk_emergency_upstream_error" }, { status: 502 });
   }
-  return jsonResponse({
-    type: "FeatureCollection",
-    tool: "bkk-emergency-points",
-    version: 1,
-    fetchedAt: data.emergency?.generated_at ?? null,
-    window_hours: data.emergency?.window_hours ?? null,
-    counts: { total: features.length },
-    attribution: "FloodDash emergency aggregator (flood.nonarkara.org) · news-anchored flood-affected locations",
-    features,
-  }, {
+  return jsonResponse(cached.payload, {
     headers: {
       "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
-      "x-bkkx-source": "FloodDash confirmed emergency points · BKK + 30km halo",
+      "x-bkkx-source": cached.fromCache
+        ? "FloodDash confirmed emergency points · BKK + 30km halo (D1 cache hit)"
+        : "FloodDash confirmed emergency points · BKK + 30km halo (D1 cache miss → upstream)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
       "access-control-allow-origin": "*",
     },
   });
@@ -1724,6 +1769,12 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
       if (lat < MAHOLAN_BBOX.minLat || lat > MAHOLAN_BBOX.maxLat || lng < MAHOLAN_BBOX.minLng || lng > MAHOLAN_BBOX.maxLng) continue;
       const type = String(c.type || "other");
       const severity = c.live ? "live" : "stale";
+      // Vetting tier: ผู้ใช้เพิ่มเอง (user-added) is a community submission,
+      // unvetted by BKKx; every other upstream source is an agency or
+      // municipal operator feed (floodbkk, BMA/สจส, DOH, iTIC, Pak Kret,
+      // ThaiWater/EGAT/DWR, world.tehx). The tier travels on every camera
+      // so the client can label what a visitor is looking at.
+      const isCommunity = /ผู้ใช้เพิ่มเอง/.test(String(c.source || ""));
       if (c.live) {
         if (type in liveCount) liveCount[type as keyof typeof liveCount]++;
         else liveCount.other++;
@@ -1740,6 +1791,8 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
           region: c.region || "",
           district: c.district || "",
           upstream_source: c.source || "",
+          source_url: c.sourceUrl || null,
+          tier: isCommunity ? "community" : "operator",
           upstream_type: type,
           live: !!c.live,
           configured: c.configured !== false,
@@ -1757,13 +1810,17 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
         tool: "bkk-maholan-cctv",
         version: 1,
         fetchedAt: data.generated_at ?? data.updatedAt ?? data.fetchedAt ?? new Date().toISOString(),
-        note: "live/offline flags are as reported by the upstream aggregator; not independently verified",
+        note: "live/offline flags are as reported by the upstream aggregator; not independently verified. tier 'community' = ผู้ใช้เพิ่มเอง (user-added, unvetted by BKKx); 'operator' = agency/municipal feed",
         counts: {
           total: features.length,
           live: features.filter((f) => f.properties.live).length,
+          byTier: {
+            operator: features.filter((f) => f.properties.tier === "operator").length,
+            community: features.filter((f) => f.properties.tier === "community").length,
+          },
           ...liveCount,
         },
-        attribution: "Maholan community CCTV aggregator (cctv.maholan.net/api/cameras) · 2,355 cameras across Thailand, filtered to BKK + 30 km halo",
+        attribution: "Maholan community CCTV aggregator (cctv.maholan.net/api/cameras) · 2,355 cameras across Thailand, filtered to BKK + 30 km halo · per-camera source_url credits the operator",
         features,
       },
       upstreamFetchedAt: new Date().toISOString(),

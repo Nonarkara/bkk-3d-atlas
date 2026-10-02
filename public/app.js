@@ -1429,7 +1429,7 @@ const LAYERS = [
   {
     id: "maholan-cctv",
     name: "More CCTV cameras",
-    description: "Maholan community CCTV · BKK + 30 km halo · ~1,700 cameras",
+    description: "Maholan aggregator · BKK + 30 km halo · ~1,700 cameras · agency feeds + user-added (unvetted)",
     defaultOn: true,
     softUninstall: true,
     layers: [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER],
@@ -5478,6 +5478,10 @@ function openMaholanCctvPopup(map, feature) {
   const safeRegion = escapeHtml(String(p.region || ""));
   const safeSource = escapeHtml(String(p.upstream_source || ""));
   const safeViewer = escapeHtml(String(p.viewer_url || "#"));
+  // Vetting tier from the payload: ผู้ใช้เพิ่มเอง (user-added) = community,
+  // unvetted — a visitor must be able to tell what they are looking at.
+  const isCommunity = /ผู้ใช้เพิ่มเอง/.test(String(p.upstream_source || ""));
+  const tierLabel = isCommunity ? "COMMUNITY · UNVETTED" : "OPERATOR CCTV";
   // Maholan's snap endpoint sends no Access-Control-Allow-Origin, so
   // browsers refuse to paint a direct <img>. The atlas proxies it
   // through /api/snap/<id> which adds ACAO + caches at the edge.
@@ -5485,7 +5489,7 @@ function openMaholanCctvPopup(map, feature) {
   // The Maholan viewer page has its own live stream; we link out for it.
   const html = `
     <div class="atlas-cctv-card">
-      <p class="atlas-cctv-kicker" style="color:${typeColor}">COMMUNITY CCTV · ${escapeHtml(String(p.upstream_type || "")).toUpperCase()} · ${escapeHtml(String(p.live ? "LIVE" : "OFFLINE"))}</p>
+      <p class="atlas-cctv-kicker" style="color:${typeColor}">${tierLabel} · ${escapeHtml(String(p.upstream_type || "")).toUpperCase()} · ${escapeHtml(String(p.live ? "LIVE" : "OFFLINE"))}</p>
       <strong class="atlas-cctv-title">${safeName}</strong>
       <img class="atlas-maholan-snap"
            src="${escapeHtml(proxySnap)}"
@@ -5499,6 +5503,7 @@ function openMaholanCctvPopup(map, feature) {
         <span class="atlas-cctv-snap-age" data-snap-age></span>
       </p>
       <div class="atlas-cctv-actions">
+        ${p.source_url ? `<a href="${escapeHtml(String(p.source_url))}" target="_blank" rel="noreferrer">Camera source ↗</a>` : ""}
         <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream ↗</a>
       </div>
     </div>
@@ -5643,7 +5648,7 @@ async function installMaholanCctv(map) {
     const live = counts.live ?? 0;
     setLayerStatus(
       "maholan-cctv",
-      `Maholan community CCTV · ${total} cameras in halo · ${live} live now (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0})`,
+      `Maholan CCTV · ${total} cameras in halo · ${live} live now (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} user-added (unvetted)`,
     );
   } catch (error) {
     console.warn("Maholan CCTV layer failed:", error);
@@ -8016,7 +8021,7 @@ async function refreshMountedFloodLayers(map) {
     setLayerStatus(
       "maholan-cctv",
       data.features.length
-        ? `Maholan community CCTV · ${total} cameras in halo · ${live} live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0})`
+        ? `Maholan CCTV · ${total} cameras in halo · ${live} live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} user-added (unvetted)`
         : "unavailable · Maholan feed empty — not an all-clear",
     );
   });
