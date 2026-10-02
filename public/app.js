@@ -7467,6 +7467,11 @@ function renderSituation(payload) {
     if (n) n.textContent = "—";
     if (unit) unit.textContent = "current hourly totals unavailable";
     if (delta) { delta.textContent = "Waiting for a fresh reading — not zero reports."; delta.dataset.trend = "unknown"; }
+    // Mirror into the compact quick-stat bar.
+    const qp0 = document.getElementById("atlas-quick-pulse");
+    const qpd0 = document.getElementById("atlas-quick-pulse-delta");
+    if (qp0) qp0.textContent = "—";
+    if (qpd0) { qpd0.dataset.trend = "unknown"; qpd0.textContent = "Waiting for a fresh reading — not zero reports."; }
   }
   if (bars && hourly.length) {
     const tot = hourly.map((h) => h.traffy + h.itic);
@@ -7483,6 +7488,11 @@ function renderSituation(payload) {
       const d = last - before;
       delta.dataset.trend = d > 2 ? "up" : d < -2 ? "down" : "flat";
       delta.textContent = `${d > 0 ? "▲" : d < 0 ? "▼" : "●"} ${Math.abs(d)} vs the hour before (${before}) · ${partial} so far this hour`;
+      // Mirror into the compact quick-stat bar.
+      const qp = document.getElementById("atlas-quick-pulse");
+      const qpd = document.getElementById("atlas-quick-pulse-delta");
+      if (qp) qp.textContent = String(last);
+      if (qpd) { qpd.dataset.trend = delta.dataset.trend; qpd.textContent = delta.textContent; }
     }
   }
 
@@ -7576,6 +7586,10 @@ function renderRoadsXref(payload) {
     ].filter(Boolean).join(" · ") || "—",
   );
 
+  // Mirror into the compact quick-stat bar.
+  const qc = document.getElementById("atlas-quick-confirmed");
+  if (qc) qc.textContent = String(counts.confirmed ?? 0);
+
   const meta = document.getElementById("atlas-sit-xref-meta");
   if (meta) {
     const age = minutesSince(payload.fetchedAt);
@@ -7658,6 +7672,13 @@ async function loadBkkLiveStrip() {
         ? `${slice.station.name}${slice.station.amphoe ? " · " + slice.station.amphoe : ""}`
         : "—";
       setBkkCardText(card, mm, where, bkkLiveSeverity(slice.mm));
+      if (key === "1d") {
+        // Mirror into the compact quick-stat bar (wettest gauge · 24 h).
+        const qr = document.getElementById("atlas-quick-rain");
+        const qrw = document.getElementById("atlas-quick-rain-where");
+        if (qr) qr.textContent = mm;
+        if (qrw) qrw.textContent = where;
+      }
     }
     const temp = kpi.temperature;
     if (temp) {
@@ -8244,6 +8265,11 @@ const FLOOD_RANK = { "no-signal": 0, untrusted: 0, safe: 1, watch: 2, prepare: 3
 function wireWaterPanel() {
   const details = document.getElementById("atlas-water-details");
   details?.addEventListener("toggle", () => { details.dataset.touched = "1"; });
+  const sitLong = document.getElementById("atlas-sit-long");
+  sitLong?.addEventListener("toggle", () => {
+    const meta = document.getElementById("atlas-sit-long-meta");
+    if (meta) meta.textContent = sitLong.open ? "open" : "collapsed";
+  });
   const sitAreas = document.getElementById("atlas-sit-areas");
   const goArea = (event) => {
     const row = event.target.closest("tr[data-lng]");
