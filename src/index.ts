@@ -192,14 +192,20 @@ async function fetchUpstream(url: string | URL, init: RequestInit = {}): Promise
 // Smoke checks + live traffic = hundreds of upstream hits a day,
 // even though the upstream payload itself moves every 5–10 min. Now:
 //   1. Read `flood_state` for `key = "water-cache:<key>"`.
-//   2. If the row exists and is younger than ttlSeconds, return it.
-//   3. Otherwise call `producer()`, store the JSON-encoded result
-//      + now() into D1, and return it.
+//   2. If the row exists and our last fetch is younger than
+//      ttlSeconds, return it (fromCache).
+//   3. Otherwise call `producer()` — the request itself refetches
+//      upstream, timeout-guarded — store the JSON-encoded result
+//      + now() into D1, and return it. So an expired cache still
+//      fetches upstream during visitor requests; the TTL bounds how
+//      often, not whether.
+//   4. If the producer returns null OR THROWS (upstream down,
+//      malformed JSON), serve the last good copy from the row —
+//      absence of a fresh fetch never blanks the endpoint.
 //
-// Atlas house rule: never fabricate. If the producer returns null,
-// we forward that failure to the next caller instead of "warming" a
-// stale row. The cache lives in the same `flood_state` table the
-// relay already uses; the schema needs no migration.
+// Atlas house rule: never fabricate. The cache lives in the same
+// `flood_state` table the relay already uses; the schema needs no
+// migration.
 // ─────────────────────────────────────────────────────────────────
 async function withD1Cache<T>(
   env: Env,
@@ -227,11 +233,19 @@ async function withD1Cache<T>(
       // Corrupted row; fall through to refresh.
     }
   }
-  const fresh = await producer();
+  let fresh: { payload: T; upstreamFetchedAt: string } | null = null;
+  try {
+    fresh = await producer();
+  } catch {
+    // A THROWN producer error (e.g. malformed upstream JSON) must not
+    // bypass the last-good copy — it would bubble out as a 500 and blank
+    // the endpoint while D1 still holds a good snapshot.
+    fresh = null;
+  }
   if (!fresh) {
-    // Producer failed (upstream down): serve the last good copy if one
-    // exists — absence of a fresh fetch is not a reason to blank the
-    // endpoint. Its fetched_at stays honest.
+    // Producer failed or threw (upstream down): serve the last good copy
+    // if one exists — absence of a fresh fetch is not a reason to blank
+    // the endpoint. Its fetched_at stays honest.
     if (row) {
       try {
         return { payload: JSON.parse(row.payload) as T, fromCache: true, fetchedAt: row.fetched_at };
@@ -1752,6 +1766,16 @@ async function proxyBkkAlerts(request: Request, env: Env): Promise<Response> {
 
 const MAHOLAN_BBOX = { minLat: 13.20, maxLat: 14.40, minLng: 99.85, maxLng: 101.15 };
 
+// Vetting tier, classified conservatively: 'operator' ONLY for a
+// recognized agency/municipal feed on the Maholan aggregator (2026-10-02
+// source distribution: floodbkk, BMA/สจส, DOH, iTIC/Longdo,
+// ThaiWater/EGAT/DWR, world.tehx, Pak Kret, Hatyai). ผู้ใช้เพิ่มเอง
+// (user-added), empty, and any unrecognized source are 'community' —
+// unvetted by BKKx. An unknown source must never read as a vetted
+// operator camera.
+const MAHOLAN_OPERATOR_SOURCES =
+  /floodbkk|bma|สจส|กรมทางหลวง|DOH|world\.tehx|itic|thaiwater|egat|dwr|เทศบาล|hatyai/i;
+
 async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
   const cached = await withD1Cache<unknown>(env, "maholan-cctv", CCTV_CACHE_TTL_SECONDS, async () => {
     const direct = await fetchUpstream("https://cctv.maholan.net/api/cameras", {
@@ -1769,12 +1793,9 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
       if (lat < MAHOLAN_BBOX.minLat || lat > MAHOLAN_BBOX.maxLat || lng < MAHOLAN_BBOX.minLng || lng > MAHOLAN_BBOX.maxLng) continue;
       const type = String(c.type || "other");
       const severity = c.live ? "live" : "stale";
-      // Vetting tier: ผู้ใช้เพิ่มเอง (user-added) is a community submission,
-      // unvetted by BKKx; every other upstream source is an agency or
-      // municipal operator feed (floodbkk, BMA/สจส, DOH, iTIC, Pak Kret,
-      // ThaiWater/EGAT/DWR, world.tehx). The tier travels on every camera
-      // so the client can label what a visitor is looking at.
-      const isCommunity = /ผู้ใช้เพิ่มเอง/.test(String(c.source || ""));
+      // Tier travels on every camera so the client can label what a
+      // visitor is looking at. See MAHOLAN_OPERATOR_SOURCES above.
+      const tier = MAHOLAN_OPERATOR_SOURCES.test(String(c.source || "")) ? "operator" : "community";
       if (c.live) {
         if (type in liveCount) liveCount[type as keyof typeof liveCount]++;
         else liveCount.other++;
@@ -1792,7 +1813,7 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
           district: c.district || "",
           upstream_source: c.source || "",
           source_url: c.sourceUrl || null,
-          tier: isCommunity ? "community" : "operator",
+          tier,
           upstream_type: type,
           live: !!c.live,
           configured: c.configured !== false,
@@ -1810,7 +1831,7 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
         tool: "bkk-maholan-cctv",
         version: 1,
         fetchedAt: data.generated_at ?? data.updatedAt ?? data.fetchedAt ?? new Date().toISOString(),
-        note: "live/offline flags are as reported by the upstream aggregator; not independently verified. tier 'community' = ผู้ใช้เพิ่มเอง (user-added, unvetted by BKKx); 'operator' = agency/municipal feed",
+        note: "live/offline flags are as reported by the upstream aggregator; not independently verified. tier 'operator' = recognized agency/municipal feed; 'community' = user-added (ผู้ใช้เพิ่มเอง) or unrecognized source — unvetted by BKKx",
         counts: {
           total: features.length,
           live: features.filter((f) => f.properties.live).length,

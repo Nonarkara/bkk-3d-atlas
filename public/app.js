@@ -5478,9 +5478,10 @@ function openMaholanCctvPopup(map, feature) {
   const safeRegion = escapeHtml(String(p.region || ""));
   const safeSource = escapeHtml(String(p.upstream_source || ""));
   const safeViewer = escapeHtml(String(p.viewer_url || "#"));
-  // Vetting tier from the payload: ผู้ใช้เพิ่มเอง (user-added) = community,
-  // unvetted — a visitor must be able to tell what they are looking at.
-  const isCommunity = /ผู้ใช้เพิ่มเอง/.test(String(p.upstream_source || ""));
+  // Tier from the payload, read conservatively: anything not explicitly
+  // 'operator' labels community/unvetted (old cached payloads carry no
+  // tier — an unknown must not read as a vetted operator camera).
+  const isCommunity = p.tier !== "operator";
   const tierLabel = isCommunity ? "COMMUNITY · UNVETTED" : "OPERATOR CCTV";
   // Maholan's snap endpoint sends no Access-Control-Allow-Origin, so
   // browsers refuse to paint a direct <img>. The atlas proxies it
