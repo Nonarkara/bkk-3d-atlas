@@ -1768,14 +1768,19 @@ const MAHOLAN_BBOX = { minLat: 13.20, maxLat: 14.40, minLng: 99.85, maxLng: 101.
 
 // Vetting tier, classified conservatively: 'operator' ONLY for a
 // recognized agency/municipal feed on the Maholan aggregator (2026-10-02
-// source distribution, 17 distinct: floodbkk, BMA/สจส, DOH, iTIC/Longdo,
-// ThaiWater/EGAT/DWR, world.tehx, Pak Kret, Hatyai, BMA drainage
-// (สำนักการระบายน้ำ กทม.), the four เทศบาล municipalities). ผู้ใช้เพิ่มเอง
+// exact labels observed in the Bangkok halo on 2026-10-02. Matching a
+// fragment such as 'BMA' does not establish provenance. New labels
+// require review before entering this allowlist. ผู้ใช้เพิ่มเอง
 // (user-added), empty, and any unrecognized source are 'community' —
 // unvetted by BKKx. An unknown source must never read as a vetted
 // operator camera.
-const MAHOLAN_OPERATOR_SOURCES =
-  /floodbkk|bma|สจส|กรมทางหลวง|DOH|world\.tehx|itic|thaiwater|egat|dwr|เทศบาล|hatyai|ระบายน้ำ|กรุงเทพ|กทม/i;
+const MAHOLAN_OPERATOR_SOURCES = new Set([
+  "เทศบาลเมืองปทุมธานี", "สำนักการระบายน้ำ กทม.",
+  "เทศบาลนครนนทบุรี / FirstTech", "iTIC", "ThaiWater/EGAT/DWR",
+  "กรมทางหลวง (DOH)", "BMA/สจส (via world.tehx)",
+  "world.tehx (nonthaburi)", "world.tehx (dwr)", "iTIC / Longdo",
+  "เทศบาลนครรังสิต", "floodbkk (via world.tehx)", "world.tehx",
+].map((source) => source.toLowerCase()));
 
 async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
   const cached = await withD1Cache<unknown>(env, "maholan-cctv", CCTV_CACHE_TTL_SECONDS, async () => {
@@ -1796,7 +1801,7 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
       const severity = c.live ? "live" : "stale";
       // Tier travels on every camera so the client can label what a
       // visitor is looking at. See MAHOLAN_OPERATOR_SOURCES above.
-      const tier = MAHOLAN_OPERATOR_SOURCES.test(String(c.source || "")) ? "operator" : "community";
+      const tier = MAHOLAN_OPERATOR_SOURCES.has(String(c.source || "").trim().toLowerCase()) ? "operator" : "community";
       if (c.live) {
         if (type in liveCount) liveCount[type as keyof typeof liveCount]++;
         else liveCount.other++;

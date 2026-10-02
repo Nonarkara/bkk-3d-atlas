@@ -35,6 +35,37 @@ const roads = (features = [road()]) => ({
 const gauge = (change = {}) => ({ id: 'g1', lng: 100.5, lat: 13.75, band: 'prepare', name: 'Canal', confidence: 'high', observedAt: at(0.1), ageMin: 6, ...change });
 const xref = (g, features) => buildRoadsXref(roads(features), { gauges: [g] }, now);
 
+test('camera provenance uses exact known labels, not agency-name fragments', () => {
+  const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('const MAHOLAN_OPERATOR_SOURCES =');
+  const end = source.indexOf('async function proxyMaholanCctv', start);
+  const classify = vm.runInNewContext(source.slice(start, end) + '\n(s) => MAHOLAN_OPERATOR_SOURCES.has(String(s || "").trim().toLowerCase())');
+  for (const s of ['iTIC', 'สำนักการระบายน้ำ กทม.', ' BMA/สจส (via world.tehx) ']) assert.equal(classify(s), true);
+  for (const s of ['', null, 'ผู้ใช้เพิ่มเอง', 'unofficial BMA mirror', 'private เทศบาล webcam', 'world.tehx.fake']) assert.equal(classify(s), false, String(s));
+});
+
+test('cache uses relay fetch age, preserves observation age and survives null or thrown producers', async () => {
+  const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('async function withD1Cache');
+  const end = source.indexOf('// Parse a single-range', start);
+  const js = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const cache = vm.runInNewContext(js + '\nwithD1Cache', { console });
+  const row = { payload: '{"lastGood":true}', fetched_at: at(25), attempted_at: new Date().toISOString() };
+  let calls = 0;
+  const env = { CIVIC_DB: { prepare: () => ({ bind: () => ({ first: async () => row }) }) } };
+  const hit = await cache(env, 'test', 300, async () => { calls++; return null; });
+  assert.equal(calls, 0);
+  assert.equal(hit.fetchedAt, row.fetched_at);
+  row.attempted_at = at(25);
+  for (const producer of [async () => null, async () => { throw new Error('invalid JSON'); }]) {
+    const fallback = await cache(env, 'test', 300, producer);
+    assert.equal(fallback.payload.lastGood, true);
+    assert.equal(fallback.fetchedAt, row.fetched_at);
+  }
+  row.payload = 'corrupt';
+  assert.equal(await cache(env, 'test', 300, async () => { throw new Error('offline'); }), null);
+});
+
 test('unknown, future, absent and stale observations cannot provide fresh gauge context', () => {
   for (const change of [
     { observedAt: null }, { observedAt: 'invalid' }, { observedAt: at(-1) },

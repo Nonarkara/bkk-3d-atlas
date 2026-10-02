@@ -5482,7 +5482,7 @@ function openMaholanCctvPopup(map, feature) {
   // 'operator' labels community/unvetted (old cached payloads carry no
   // tier — an unknown must not read as a vetted operator camera).
   const isCommunity = p.tier !== "operator";
-  const tierLabel = isCommunity ? "COMMUNITY · UNVETTED" : "OPERATOR CCTV";
+  const tierLabel = isCommunity ? "COMMUNITY / UNKNOWN · UNVERIFIED" : "RECOGNIZED OPERATOR SOURCE";
   // Maholan's snap endpoint sends no Access-Control-Allow-Origin, so
   // browsers refuse to paint a direct <img>. The atlas proxies it
   // through /api/snap/<id> which adds ACAO + caches at the edge.
@@ -5649,7 +5649,7 @@ async function installMaholanCctv(map) {
     const live = counts.live ?? 0;
     setLayerStatus(
       "maholan-cctv",
-      `Maholan CCTV · ${total} cameras in halo · ${live} live now (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} user-added (unvetted)`,
+      `Maholan CCTV · ${total} cameras in halo · ${live} reported live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} community/unknown (unverified)`,
     );
   } catch (error) {
     console.warn("Maholan CCTV layer failed:", error);
@@ -8022,7 +8022,7 @@ async function refreshMountedFloodLayers(map) {
     setLayerStatus(
       "maholan-cctv",
       data.features.length
-        ? `Maholan CCTV · ${total} cameras in halo · ${live} live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} user-added (unvetted)`
+        ? `Maholan CCTV · ${total} cameras in halo · ${live} reported live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} community/unknown (unverified)`
         : "unavailable · Maholan feed empty — not an all-clear",
     );
   });
