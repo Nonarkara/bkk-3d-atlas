@@ -5478,18 +5478,28 @@ function openMaholanCctvPopup(map, feature) {
   const safeRegion = escapeHtml(String(p.region || ""));
   const safeSource = escapeHtml(String(p.upstream_source || ""));
   const safeViewer = escapeHtml(String(p.viewer_url || "#"));
-  const safeSnap = escapeHtml(String(p.snap_url || ""));
-  // Render the Maholan /api/snap/<id> JPEG inline so the popup
-  // doubles as a snapshot viewer. <img> naturally reloads on click.
+  // Maholan's snap endpoint sends no Access-Control-Allow-Origin, so
+  // browsers refuse to paint a direct <img>. The atlas proxies it
+  // through /api/snap/<id> which adds ACAO + caches at the edge.
+  const proxySnap = `/api/snap/${encodeURIComponent(String(p.id || ""))}?w=480`;
+  // The Maholan viewer page has its own live stream; we link out for it.
   const html = `
     <div class="atlas-cctv-card">
       <p class="atlas-cctv-kicker" style="color:${typeColor}">COMMUNITY CCTV · ${escapeHtml(String(p.upstream_type || "")).toUpperCase()} · ${escapeHtml(String(p.live ? "LIVE" : "OFFLINE"))}</p>
       <strong class="atlas-cctv-title">${safeName}</strong>
-      <img class="atlas-maholan-snap" src="${safeSnap}&w=480" alt="Live snapshot · ${safeName}" loading="lazy" />
-      <p class="atlas-cctv-status" lang="th">${safeRegion}${safeSource ? ` · ${safeSource}` : ""}</p>
+      <img class="atlas-maholan-snap"
+           src="${escapeHtml(proxySnap)}"
+           alt="Live snapshot · ${safeName}"
+           loading="lazy"
+           data-snap-loaded-at="${Date.now()}"
+           onerror="this.dataset.snapFailed='1';this.alt='Snapshot unavailable for ${safeName}';" />
+      <p class="atlas-cctv-status" lang="th">
+        ${safeRegion}${safeSource ? ` · ${safeSource}` : ""} ·
+        <a href="#" class="atlas-cctv-snap-refresh" data-snap="${escapeHtml(proxySnap)}">↻ refresh snapshot</a>
+        <span class="atlas-cctv-snap-age" data-snap-age></span>
+      </p>
       <div class="atlas-cctv-actions">
-        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open on Maholan ↗</a>
-        <a href="${safeSnap}" target="_blank" rel="noreferrer">Full snapshot ↗</a>
+        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream ↗</a>
       </div>
     </div>
   `;
@@ -5504,6 +5514,45 @@ function openMaholanCctvPopup(map, feature) {
     .setLngLat([lng, lat])
     .setHTML(html)
     .addTo(map);
+
+  // After the popup mounts: wire the refresh link and poll the proxy
+  // once for the snapshot's X-Image-Time so we can show "from 5 min
+  // ago". The atlas never shows "just now" without a real timestamp.
+  const el = popup.getElement();
+  const img = el?.querySelector(".atlas-maholan-snap");
+  const ageEl = el?.querySelector("[data-snap-age]");
+  const updateAge = (iso) => {
+    if (!ageEl || !iso) return;
+    const ms = Date.now() - Date.parse(iso);
+    if (!Number.isFinite(ms)) return;
+    const min = Math.max(0, Math.round(ms / 60_000));
+    ageEl.textContent = `· snapshot ${min < 60 ? min + " min ago" : Math.round(min / 60) + " h ago"}`;
+  };
+  if (img) {
+    // The proxy passes X-Image-Time on a HEAD-ish fetch. Browser
+    // <img> doesn't expose response headers, so we ask for the snap
+    // metadata with a tiny fetch + range: 0-0 won't help — instead
+    // we use a HEAD which the proxy still answers. If HEAD is blocked,
+    // fall back to "unknown age".
+    fetch(proxySnap, { method: "HEAD" }).then((r) => {
+      const t = r.headers.get("x-image-time");
+      if (t) updateAge(t);
+      else ageEl && (ageEl.textContent = "· snapshot age unknown");
+    }).catch(() => { if (ageEl) ageEl.textContent = "· snapshot age unknown"; });
+  }
+  el?.querySelector(".atlas-cctv-snap-refresh")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!img) return;
+    const fresh = `${proxySnap}&_=${Date.now()}`; // bust edge cache
+    img.src = fresh;
+    img.dataset.snapLoadedAt = String(Date.now());
+    delete img.dataset.snapFailed;
+    fetch(fresh, { method: "HEAD" }).then((r) => {
+      const t = r.headers.get("x-image-time");
+      if (t) updateAge(t);
+    }).catch(() => {});
+  });
+
   state.maholanCctvPopup = popup;
 }
 
@@ -5963,6 +6012,9 @@ function openCctvPopup(map, feature) {
       <strong class="atlas-cctv-title">${escapeHtml(title)}</strong>
       ${floodBanner}
       <video class="atlas-cctv-video" playsinline muted autoplay controls></video>
+      <div class="atlas-cctv-stream-error" hidden>
+        <span>Stream unavailable in your session — iTIC runs every camera on its own port and a handful are off-air.</span>
+      </div>
       <p class="atlas-cctv-status">Connecting live stream…</p>
       <div class="atlas-cctv-actions">
         <a href="${escapeHtml(iticUrl)}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
@@ -6006,8 +6058,10 @@ function openCctvPopup(map, feature) {
 
   const video = popup.getElement()?.querySelector(".atlas-cctv-video");
   const status = popup.getElement()?.querySelector(".atlas-cctv-status");
+  const errBox = popup.getElement()?.querySelector(".atlas-cctv-stream-error");
   if (!hls) {
     if (status) status.textContent = "No HLS URL for this camera.";
+    if (errBox) errBox.hidden = false;
     return;
   }
   if (status) {
@@ -6018,6 +6072,23 @@ function openCctvPopup(map, feature) {
       : "Live · iTIC / Longdo";
   }
   playCctvStream(video, hls);
+  // iTIC runs cameras on per-host ports; some are off-air. If the
+  // video element errors or stalls without ever playing, show the
+  // "stream unavailable" box so the popup doesn't look broken.
+  if (video && errBox) {
+    let showedError = false;
+    const showErr = () => {
+      if (showedError) return;
+      showedError = true;
+      errBox.hidden = false;
+      if (status) status.textContent = "Stream not available right now — open on iTIC ↗";
+    };
+    video.addEventListener("error", showErr, { once: true });
+    // 6 s of no playback after source set = treat as broken.
+    setTimeout(() => {
+      if (video.readyState < 2 && video.networkState !== 0) showErr();
+    }, 6000);
+  }
 }
 
 function escapeHtml(value) {

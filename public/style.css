@@ -2872,6 +2872,32 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   border-radius: 0;
 }
 .atlas-cctv-popup .atlas-maholan-snap { margin: 4px 0 6px; }
+/* Failed snapshot: dim the image so the placeholder SVG below reads
+   clearly. data-snapFailed is added by the onerror attribute in
+   openMaholanCctvPopup. */
+.atlas-maholan-snap[data-snap-failed="1"] { opacity: 0.35; }
+
+/* "stream not available" fallback for iTIC cameras whose HLS is
+   off-air. Sharp edges, signal yellow text, atlas house rule. */
+.atlas-cctv-stream-error {
+  display: block;
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  border: 1px solid rgba(232, 163, 23, 0.45);
+  background: rgba(232, 163, 23, 0.06);
+  color: #f5b243;
+  font: 600 11px/1.4 var(--font-body);
+}
+.atlas-cctv-stream-error[hidden] { display: none; }
+
+/* Refresh-snapshot link + age pill in the Maholan popup. */
+.atlas-cctv-snap-refresh {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.18);
+}
+.atlas-cctv-snap-refresh:hover { color: var(--signal); border-bottom-color: var(--signal); }
+.atlas-cctv-snap-age { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
 
 /* === 2026-09-30 — UX fixes ===
    1. Sources-health + upstream-feeds collapsed by default — it's

@@ -553,6 +553,33 @@ async function checkRoadsXref() {
     `${counts.confirmed} confirmed · ${counts.unconfirmed_no_sensor} no-sensor · ${counts.unconfirmed_sensor_stale} stale · ${counts.unconfirmed_sensor_dry} sensor-safe · ${counts.sensor_only} sensor-only (within ${body.confirmRadiusM} m)`);
 }
 
+// /api/snap/<id> — Maholan snapshot proxy. The atlas popup points at
+// this URL because cctv.maholan.net sends no Access-Control-Allow-Origin,
+// which makes browsers refuse to paint a direct <img>. The proxy
+// adds ACAO *, passes through X-Image-Time so the popup can show
+// snapshot age, and falls back to a tiny honest SVG when upstream
+// returns 404 / non-image / timeout — never a broken-image glyph.
+async function checkSnapProxy() {
+  // Real cam — expect JPEG, ACAO, cache-control.
+  const live = await fetchJson("/api/snap/rangsit-200?w=480");
+  if (!live.ok || live.status !== 200) return logFail("GET /api/snap/rangsit-200", `status=${live.status}`);
+  const ctype = live.headers.get("content-type") || "";
+  assert(ctype.startsWith("image/"), `content-type=${ctype}`);
+  assert(live.headers.get("access-control-allow-origin") === "*", "no ACAO on proxy response");
+  assert((live.headers.get("cache-control") || "").includes("max-age"), "no cache-control on proxy");
+  const len = live.body && typeof live.body === "string" ? new TextEncoder().encode(live.body).length : 0;
+  logOk("GET /api/snap/rangsit-200?w=480", live.ms, `${ctype} · ~${len} bytes · ACAO=*`);
+  // Bad id — expect the inline-SVG placeholder, NOT a 404. The atlas
+  // never lets the popup render a broken-image glyph.
+  const bad = await fetchJson("/api/snap/__definitely_does_not_exist__");
+  if (!bad.ok || bad.status !== 200) return logFail("GET /api/snap/<bad>", `status=${bad.status}`);
+  const bctype = bad.headers.get("content-type") || "";
+  assert(bctype.startsWith("image/svg"), `bad-id content-type=${bctype}`);
+  const body = typeof bad.body === "string" ? bad.body : new TextDecoder().decode(bad.body);
+  assert(/snapshot unavailable/i.test(body), "placeholder SVG missing 'snapshot unavailable' text");
+  logOk("GET /api/snap/<bad-id>", bad.ms, `${bctype} placeholder served`);
+}
+
 // Live presence — anonymous per-tab counter (JK World pattern).
 async function checkPresence() {
   const { ok, status, body, ms } = await fetchJson("/api/presence");
@@ -666,6 +693,7 @@ async function main() {
   await checkMaholanCctv();
   await checkSourcesHealth();
   await checkRoadsXref();
+  await checkSnapProxy();
   await checkPresence();
   await checkCivicPois();
   await checkCityEvents();
