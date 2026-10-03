@@ -3314,7 +3314,7 @@ function openNewsEventPopup(map, feature) {
   const articles = parseJsonProp(p.articles, []);
   const items = articles.map((a) => `
     <li>
-      <a href="${escapeHtml(a.url)}" target="_blank" rel="noreferrer">${escapeHtml(a.title)}</a>
+      <a href="${escapeHtml(safeHttpUrl(a.url))}" target="_blank" rel="noreferrer">${escapeHtml(a.title)}</a>
       <span class="atlas-news-src">${escapeHtml(a.source || "")} · matched “${escapeHtml(a.matchPhrase || "")}”</span>
     </li>
   `).join("");
@@ -4996,7 +4996,7 @@ function openEmergencyPopup(map, feature) {
     : "";
   const news = Array.isArray(p.news) ? p.news : [];
   const newsHtml = news.length
-    ? `<ul class="atlas-emergency-news">${news.map((n) => `<li><a href="${escapeHtml(n.link || "#")}" target="_blank" rel="noreferrer">${escapeHtml(n.title || "")}</a></li>`).join("")}</ul>`
+    ? `<ul class="atlas-emergency-news">${news.map((n) => `<li><a href="${escapeHtml(safeHttpUrl(n.link || "#"))}" target="_blank" rel="noreferrer">${escapeHtml(n.title || "")}</a></li>`).join("")}</ul>`
     : `<p class="atlas-cctv-status">No public news yet for this point.</p>`;
   const tierLabel = p.tier === "confirmed" ? "confirmed" : p.tier === "sensor" ? "sensor only" : "reported";
   const html = `
@@ -5512,7 +5512,7 @@ function openMaholanCctvPopup(map, feature) {
         <span class="atlas-cctv-snap-age" data-snap-age></span>
       </p>
       <div class="atlas-cctv-actions">
-        ${p.source_url ? `<a href="${escapeHtml(String(p.source_url))}" target="_blank" rel="noreferrer">Camera source ↗</a>` : ""}
+        ${p.source_url ? `<a href="${escapeHtml(safeHttpUrl(String(p.source_url)))}" target="_blank" rel="noreferrer">Camera source ↗</a>` : ""}
         <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream ↗</a>
       </div>
     </div>
@@ -6031,7 +6031,7 @@ function openCctvPopup(map, feature) {
       </div>
       <p class="atlas-cctv-status">Connecting live stream…</p>
       <div class="atlas-cctv-actions">
-        <a href="${escapeHtml(iticUrl)}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
+        <a href="${escapeHtml(safeHttpUrl(iticUrl))}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
         <span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
       </div>
     </div>
@@ -6111,6 +6111,19 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+// Only http(s) URLs may land in an href. escapeHtml stops attribute
+// breakout but not a smuggled `javascript:` scheme in an upstream link
+// (RSS headline, camera source page). Relative refs resolve against own
+// origin; anything else (data:, javascript:, …) falls back to "#".
+function safeHttpUrl(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.startsWith("#")) return raw || "#";
+  try {
+    const u = new URL(raw, location.origin);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : "#";
+  } catch { return "#"; }
 }
 
 function wireCctvInteractions(map) {
@@ -6385,7 +6398,7 @@ function openLiveCamPopup(map, feature) {
         <strong class="atlas-cctv-title">${escapeHtml(p.title || "External camera")}</strong>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(p.url || "")}" target="_blank" rel="noreferrer">Open ↗ (login required)</a>
+          <a href="${escapeHtml(safeHttpUrl(p.url || ""))}" target="_blank" rel="noreferrer">Open ↗ (login required)</a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -6403,7 +6416,7 @@ function openLiveCamPopup(map, feature) {
           allowfullscreen></iframe>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(watchUrl)}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(watchUrl))}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -6613,7 +6626,7 @@ function wireWaterTransitInteractions(map) {
           <strong class="atlas-cctv-title">${escapeHtml(p.name)}</strong>
           <p class="atlas-cctv-status">${escapeHtml(p.name_th || "")} · ${escapeHtml(p.operator || "")}</p>
           <p class="atlas-cctv-status">${escapeHtml(p.service_note || "Check the operator before travel.")}</p>
-          <a href="${escapeHtml(p.source_url || WATER_TRANSIT_DATA_URL)}" target="_blank" rel="noreferrer">Check operator ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(p.source_url || WATER_TRANSIT_DATA_URL))}" target="_blank" rel="noreferrer">Check operator ↗</a>
         `)
         .addTo(map);
     });
@@ -7845,7 +7858,7 @@ async function refreshNewsWatch() {
     const trustedPill = n.trusted ? `<span class="atlas-news-trusted" title="Trusted Thai/English outlet">✓ trusted</span>` : "";
     return `
       <li class="atlas-news-item" data-severity="${escapeHtml(sev)}">
-        <a class="atlas-news-link" href="${escapeHtml(n.link || "#")}" target="_blank" rel="noreferrer noopener">
+        <a class="atlas-news-link" href="${escapeHtml(safeHttpUrl(n.link || "#"))}" target="_blank" rel="noreferrer noopener">
           <span class="atlas-news-chip" style="--band:${color}">${escapeHtml(label)}</span>
           <span class="atlas-news-title" lang="th">${escapeHtml(n.title || "")}</span>
           <span class="atlas-news-meta">
@@ -8252,7 +8265,7 @@ async function renderEmergencyPanel() {
             <strong>${escapeHtml(p.name || "Emergency")}</strong>
             <small>${escapeHtml(p.province || "")}${p.depth_cm != null ? ` · ${p.depth_cm} cm` : ""} · ${tier} · ${newsCount} news</small>
             ${impactsLabel ? `<small>${impactsLabel}</small>` : ""}
-            ${newsTitle ? `<small class="atlas-water-emergency-news">${newsLink ? `<a href="${escapeHtml(newsLink)}" target="_blank" rel="noreferrer">${escapeHtml(newsTitle)}</a>` : escapeHtml(newsTitle)}</small>` : ""}
+            ${newsTitle ? `<small class="atlas-water-emergency-news">${newsLink ? `<a href="${escapeHtml(safeHttpUrl(newsLink))}" target="_blank" rel="noreferrer">${escapeHtml(newsTitle)}</a>` : escapeHtml(newsTitle)}</small>` : ""}
           </span>
         </button>
       </li>`;

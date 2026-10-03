@@ -1,0 +1,14 @@
+# Cloudflare Workers [assets] honors _headers like Pages (2024-Q3+).
+# One block for the whole site. The CSP is derived from the client code's
+# actual origin inventory (grep public/ for https:// hosts), not from a
+# guess: scripts lock to unpkg + jsdelivr pinned versions; styles to self +
+# unpkg + inline (app.js paints `style="--h:%"` on live tiles); tiles,
+# imagery, feeds and API fetches stay open in read-only categories
+# (img-src/connect-src https:) because a map legitimately reaches many
+# hosts — the risky surface is script/style, and those are pinned.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
