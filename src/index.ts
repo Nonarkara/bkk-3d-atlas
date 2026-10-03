@@ -306,8 +306,24 @@ async function serveRattanakosinPmtiles(request: Request, env: Env): Promise<Res
   return servePmtilesFromR2(request, env, RATTANAKOSIN_PMTILES_R2_KEY, RATTANAKOSIN_PMTILES_PATH);
 }
 
+// If-Match / If-None-Match arrive quoted ("a1b2…"), weak ("W/\"a1b2…\""),
+// wildcard (*), or as a comma list. R2's onlyIf wants the raw, unquoted
+// tag — pass the quoted form through and R2 throws, which turned every
+// real browser conditional GET into a 500 while the README promised 304
+// (probed live 2026-10-03). Unquote, take the first tag of a list, and
+// leave the wildcard alone.
+function parseEtagHeader(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const first = value.trim().split(",")[0]?.trim() ?? "";
+  if (!first || first === "*") return first || undefined;
+  const m = /^(?:W\/)?"([^"]+)"$/.exec(first);
+  return m ? m[1] : first;
+}
+
 async function servePmtilesFromR2(request: Request, env: Env, key: string, _logicalPath: string): Promise<Response> {
   const range = parseRange(request.headers.get("range"));
+  const ifMatch = parseEtagHeader(request.headers.get("if-match"));
+  const ifNoneMatch = parseEtagHeader(request.headers.get("if-none-match"));
   // For a suffix range we first read the metadata to know the total
   // size, then issue a ranged get for the trailing N bytes.
   if (range && "suffix" in range && range.suffix) {
@@ -334,8 +350,8 @@ async function servePmtilesFromR2(request: Request, env: Env, key: string, _logi
   const obj = await env.BKK_TILES.get(key, {
     range: range ?? undefined,
     onlyIf: {
-      etagMatches: request.headers.get("if-match") ?? undefined,
-      etagDoesNotMatch: request.headers.get("if-none-match") ?? undefined,
+      etagMatches: ifMatch,
+      etagDoesNotMatch: ifNoneMatch,
     },
   });
 

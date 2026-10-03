@@ -207,6 +207,27 @@ async function checkScoreboard() {
   logOk("GET /api/atlas/scoreboard", ms, `${body.buildings.totalMetro} buildings · ${body.rail.lines} rail · cityEvents ttl=${body.feeds.cityEvents.ttlMinutes}m · newsEvents=${body.feeds.newsEvents.windowDays}d · landmarks=${body.feeds.landmarks.count}`);
 }
 
+// Conditional GET contract on the PMTiles Range proxy (2026-10-03): a
+// browser echoes the quoted etag back as If-None-Match, but R2's onlyIf
+// expects the raw tag and throws on quotes — every real browser
+// revalidation 500'd while the README promised 304. This pair of checks
+// is the canary: quoted-match must 304, quoted-miss must fall through
+// (HEAD so the miss case downloads no body).
+async function checkPmtilesConditional() {
+  const head = await fetch(baseUrl + "/bkk-buildings.pmtiles", { method: "HEAD" });
+  const etag = head.headers.get("etag");
+  if (!etag) return logFail("HEAD /bkk-buildings.pmtiles", "no etag header");
+  logOk("HEAD /bkk-buildings.pmtiles", 0, `etag=${etag}`);
+
+  const hit = await fetch(baseUrl + "/bkk-buildings.pmtiles", { headers: { "if-none-match": etag } });
+  if (hit.status === 304) logOk("GET /bkk-buildings.pmtiles if-none-match (quoted)", 0, "304 as promised");
+  else logFail("GET /bkk-buildings.pmtiles if-none-match (quoted)", `expected 304, got ${hit.status}`);
+
+  const miss = await fetch(baseUrl + "/bkk-buildings.pmtiles", { method: "HEAD", headers: { "if-none-match": '"__stale__"' } });
+  if (miss.status === 200) logOk("HEAD /bkk-buildings.pmtiles stale quoted etag", 0, "200 on etag miss (no throw)");
+  else logFail("HEAD /bkk-buildings.pmtiles stale quoted etag", `expected 200, got ${miss.status}`);
+}
+
 // Legacy raw-feed endpoints — the same surface, different shape. We lock
 // in the contract so a future refactor can't silently break the client's
 // fallback path. /api/traffic specifically: 200 with `configured: false`
@@ -678,6 +699,7 @@ async function main() {
   await checkAtThisPoint();
   await checkTransit();
   await checkBuildings();
+  await checkPmtilesConditional();
   await checkScoreboard();
   await checkTraffic();
   await checkRisk();
