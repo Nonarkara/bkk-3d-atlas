@@ -2854,12 +2854,14 @@ async function handleGoogleWeather(request: Request, env: Env): Promise<Response
   // Model grids are not street sensors. Share reads at ~1 km resolution.
   url.searchParams.set("lat", lat.toFixed(2));
   url.searchParams.set("lng", lng.toFixed(2));
+  let reason = "weather upstream unavailable";
   const cached = await withD1Cache<any>(env, `weather-model:${lat.toFixed(2)}:${lng.toFixed(2)}`, GOOGLE_WEATHER_CACHE_TTL_SECONDS, async () => {
     const res = await weatherSupport(new Request(url.toString()));
     const payload = await res.json() as any;
+    reason = payload.reason ?? reason;
     return res.ok && payload.status === "ok" ? { payload, upstreamFetchedAt: payload.observationTimeUtc } : null;
   });
-  if (!cached) return jsonResponse({ status: "unavailable", source: "Open-Meteo model", weather: null, hourlyNowcast: [] }, { status: 503 });
+  if (!cached) return jsonResponse({ status: "unavailable", source: "Open-Meteo model", reason, weather: null, hourlyNowcast: [] }, { status: 503 });
   const payload = { ...cached.payload, tier: cached.fromCache ? "model-cache" : "model", hourlyNowcast: (cached.payload.hourlyNowcast ?? []).filter((h: any) => Date.parse(h.validAtUtc) >= Date.now()) };
   return jsonResponse(payload, { headers: { "cache-control": "public, max-age=180", "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS" } });
 }

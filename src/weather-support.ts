@@ -27,7 +27,7 @@ export async function weatherSupport(request: Request): Promise<Response> {
   };
   try {
     const upstream = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&hourly=precipitation,precipitation_probability&forecast_days=2&timezone=UTC`, { signal: AbortSignal.timeout(12000) });
-    if (!upstream.ok) throw new Error("upstream unavailable");
+    if (!upstream.ok) throw new Error(`upstream HTTP ${upstream.status}`);
     const data = await upstream.json() as any;
     const number = (v: unknown): number | null => typeof v === "number" && Number.isFinite(v) ? v : null;
     const timestamp = (v: unknown): string | null => {
@@ -57,7 +57,9 @@ export async function weatherSupport(request: Request): Promise<Response> {
     payload.status = "ok";
     payload.tier = "model";
     // `configured` refers to the legacy Google route, not a Google credential.
-  } catch { /* Keep explicitly unavailable values, never invent a fallback. */ }
+  } catch (error) {
+    payload.reason = error instanceof Error && /^(upstream HTTP \d{3}|model time unavailable or stale)$/.test(error.message) ? error.message : "weather fetch or parsing failed";
+  }
   return Response.json(payload, { headers: { "cache-control": "public, max-age=180", "access-control-allow-origin": "*" } });
 }
 
