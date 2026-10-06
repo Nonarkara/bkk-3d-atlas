@@ -33,12 +33,15 @@ import {
 import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } from "./floodroads";
 
 import { roadsXrefResponse } from "./roads-xref";
+import { weatherSupport, unavailableHydroForecast } from "./weather-support";
 
 export interface Env {
   ASSETS: Fetcher;
   BKK_TILES: R2Bucket;
   CIVIC_DB: D1Database;
   LONGDO_KEY?: string;
+  GOOGLE_MAPS_API_KEY?: string;
+  GOOGLE_WEATHER_API_KEY?: string;
 }
 
 const SPA_FALLBACK_PATHS = new Set<string>([
@@ -58,6 +61,8 @@ const CCTV_CACHE_TTL_SECONDS = 300;
 // Short: /api/risk now carries FloodDash's live reading, which moves every ~10 min.
 const RISK_CACHE_TTL_SECONDS = 300;
 const FLOOD_SENSOR_CACHE_TTL_SECONDS = 60;
+const GOOGLE_WEATHER_CACHE_TTL_SECONDS = 180;
+const TIMESFM_CACHE_TTL_SECONDS = 300;
 
 // Bangkok provincial water feeds — HII ThaiWater v3 (api-v3.thaiwater.net).
 // province_code=10 is Bangkok. The /api/water/bkk/* route family proxies
@@ -2836,6 +2841,34 @@ async function proxyTraffic(request: Request, env: Env): Promise<Response> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Google Weather & Environment API (/api/weather/google)
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy URL retained for the new panel. Real Open-Meteo model weather;
+// no paid Google request, fabricated observation or road-clearance inference.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleGoogleWeather(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const lat = Number(url.searchParams.get("lat") ?? 13.7563);
+  const lng = Number(url.searchParams.get("lng") ?? 100.5018);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < 13.4 || lat > 14.2 || lng < 100.2 || lng > 101.1) return weatherSupport(request);
+  // Model grids are not street sensors. Share reads at ~1 km resolution.
+  url.searchParams.set("lat", lat.toFixed(2));
+  url.searchParams.set("lng", lng.toFixed(2));
+  const cached = await withD1Cache<any>(env, `weather-model:${lat.toFixed(2)}:${lng.toFixed(2)}`, GOOGLE_WEATHER_CACHE_TTL_SECONDS, async () => {
+    const res = await weatherSupport(new Request(url.toString()));
+    const payload = await res.json() as any;
+    return res.ok && payload.status === "ok" ? { payload, upstreamFetchedAt: payload.observationTimeUtc } : null;
+  });
+  if (!cached) return jsonResponse({ status: "unavailable", source: "Open-Meteo model", weather: null, hourlyNowcast: [] }, { status: 503 });
+  const payload = { ...cached.payload, tier: cached.fromCache ? "model-cache" : "model", hourlyNowcast: (cached.payload.hourlyNowcast ?? []).filter((h: any) => Date.parse(h.validAtUtc) >= Date.now()) };
+  return jsonResponse(payload, { headers: { "cache-control": "public, max-age=180", "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS" } });
+}
+
+async function handleTimesFmPredict(_request: Request, _env: Env): Promise<Response> {
+  return unavailableHydroForecast();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI-readable mirror (/api/atlas/*) — six thin GETs that return what an LLM
 // agent, a research script, or your future MCP server would actually ask the
 // city. Every endpoint is additive: nothing above changes, the existing
@@ -3578,6 +3611,18 @@ async function atlasScoreboard(request: Request, env: Env): Promise<Response> {
           count: await loadLandmarksCountFromAsset(env, request, "/bkk-rain-stations.geojson"),
           cacheSeconds: BKK_WATER_CACHE_TTL_SECONDS,
         },
+        googleWeather: {
+          source: "Open-Meteo model weather and hourly precipitation; legacy Google route name",
+          live: Boolean(env.GOOGLE_MAPS_API_KEY || env.GOOGLE_WEATHER_API_KEY),
+          endpoint: "/api/weather/google",
+          cacheSeconds: GOOGLE_WEATHER_CACHE_TTL_SECONDS,
+        },
+        timesFmPredict: {
+          source: "Unavailable: no TimesFM inference or validated hydrological model connected",
+          live: true,
+          endpoint: "/api/predict/timesfm",
+          cacheSeconds: TIMESFM_CACHE_TTL_SECONDS,
+        },
       },
       copyright: "© OpenStreetMap contributors under ODbL 1.0. Esri imagery © Esri, Maxar, Earthstar Geographics (non-commercial use).",
     },
@@ -3636,6 +3681,8 @@ function apiCatalog(request: Request): Response {
         { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments, scheduled boat corridors and passenger piers.", query: ["lng", "lat", "radius?", "limit?"] },
         { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 432K buildings." },
         { path: "/api/atlas/scoreboard", method: "GET", description: "Single-object live health / inventory." },
+        { path: "/api/weather/google", method: "GET", description: "Legacy URL for Open-Meteo model weather and hourly rain forecasts. Road and electrical safety remain unknown.", query: ["lng?", "lat?"], cacheSeconds: GOOGLE_WEATHER_CACHE_TTL_SECONDS },
+        { path: "/api/predict/timesfm", method: "GET", description: "Explicit unavailable status: no TimesFM inference service is connected. No river arrival times or flood depths are calculated.", query: ["station?", "hours?"], cacheSeconds: 60 },
         { path: "/bkk-buildings.pmtiles", method: "GET", description: "432,077 OSM buildings — HTTP Range from R2." },
         { path: "/bkk-buildings-rattanakosin.pmtiles", method: "GET", description: "Rattanakosin detail buildings PMTiles (zoom 14–18)." },
       ],
@@ -3771,6 +3818,12 @@ export default {
     }
     if (url.pathname === "/api/atlas/scoreboard") {
       return atlasScoreboard(request, env);
+    }
+    if (url.pathname === "/api/weather/google") {
+      return handleGoogleWeather(request, env);
+    }
+    if (url.pathname === "/api/predict/timesfm") {
+      return handleTimesFmPredict(request, env);
     }
     if (url.pathname === PMTILES_PATH) {
       return serveBuildingsPmtiles(request, env);

@@ -4237,6 +4237,8 @@ const SIM_PHASES = [
     toH: 14,
     phase: "Phase 1 (0h–14h) · Convective rain pulses over Eastern Bangkok",
     detail: "Scenario: intense local rain on saturated ground could increase ponding in eastern Bangkok. This tour has no live rain-to-road forecast.",
+    passability: "Unknown",
+    electrocution: "Unknown",
     depth: "Not calculated",
     roads: "Not calculated",
     river: "Not calculated",
@@ -4249,6 +4251,8 @@ const SIM_PHASES = [
     toH: 28,
     phase: "Phase 2 (14h–28h) · Illustrative high-tide constraint",
     detail: "Scenario: elevated river levels could constrain gravity drainage. Tide timing, gate operation and pump capacity are not calculated by this tour.",
+    passability: "Unknown",
+    electrocution: "Unknown",
     depth: "Not calculated",
     roads: "Not calculated",
     river: "Not calculated",
@@ -4261,6 +4265,8 @@ const SIM_PHASES = [
     toH: 52,
     phase: "Phase 3 (28h–52h) · Illustrative northern inflow",
     detail: "Scenario: increased upstream flow could raise pressure on riverside communities. Crest timing, discharge and overtopping are not predicted by this tour; consult the live gauges and FloodDash.",
+    passability: "Unknown",
+    electrocution: "Unknown",
     depth: "Not calculated",
     roads: "Not calculated",
     river: "Not calculated",
@@ -4273,6 +4279,8 @@ const SIM_PHASES = [
     toH: 72,
     phase: "Phase 4 (52h–72h) · Saturated eastern polder depression ponding",
     detail: "Scenario: low ground could retain runoff after rainfall subsides. Pump operation, local water depths and road clearance are not measured by this tour.",
+    passability: "Unknown",
+    electrocution: "Unknown",
     depth: "Not calculated",
     roads: "Not calculated",
     river: "Not calculated",
@@ -4291,6 +4299,8 @@ function updateSimHud(h, phase, progressPct) {
   const depthEl = document.getElementById("atlas-sim-metric-depth");
   const roadsEl = document.getElementById("atlas-sim-metric-roads");
   const riverEl = document.getElementById("atlas-sim-metric-river");
+  const passEl = document.getElementById("atlas-sim-metric-pass");
+  const electEl = document.getElementById("atlas-sim-metric-elect");
 
   if (hourEl) hourEl.textContent = `+${Math.round(h)}h`;
   if (dateEl) {
@@ -4303,6 +4313,8 @@ function updateSimHud(h, phase, progressPct) {
   if (depthEl) depthEl.textContent = phase.depth;
   if (roadsEl) roadsEl.textContent = phase.roads;
   if (riverEl) riverEl.textContent = phase.river;
+  if (passEl && phase.passability) passEl.textContent = phase.passability;
+  if (electEl && phase.electrocution) electEl.textContent = phase.electrocution;
 }
 
 function start72hSimulation(map) {
@@ -7916,6 +7928,77 @@ async function refreshSourcesHealthPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Life-safety and livelihood decision module (Google Weather + TimesFM)
+// ─────────────────────────────────────────────────────────────────
+async function refreshSafetyModule() {
+  const metaEl = document.getElementById("atlas-safety-meta");
+  const elecValEl = document.getElementById("safety-electrocution-val");
+  const manValEl = document.getElementById("safety-manhole-val");
+  const shopValEl = document.getElementById("safety-shophouse-val");
+
+  const motoBadgeEl = document.getElementById("veh-moto-status");
+  const sedanBadgeEl = document.getElementById("veh-sedan-status");
+  const pickupBadgeEl = document.getElementById("veh-pickup-status");
+
+  try {
+    const [weatherRes, timesfmRes] = await Promise.all([
+      fetchJson("/api/weather/google"),
+      fetchJson("/api/predict/timesfm"),
+    ]);
+
+    if (weatherRes?.lifeSafety) {
+      const ls = weatherRes.lifeSafety;
+      if (elecValEl && ls.electrocutionRisk) {
+        elecValEl.textContent = String(ls.electrocutionRisk.level).toUpperCase();
+      }
+      if (manValEl && ls.manholeSuctionHazard) {
+        manValEl.textContent = String(ls.manholeSuctionHazard.level).toUpperCase();
+      }
+      if (ls.vehiclePassability) {
+        const vp = ls.vehiclePassability;
+        if (motoBadgeEl && vp.motorcycle) {
+          motoBadgeEl.textContent = String(vp.motorcycle.status).toUpperCase();
+          motoBadgeEl.className = `atlas-veh-badge is-${vp.motorcycle.status}`;
+        }
+        if (sedanBadgeEl && vp.sedan) {
+          sedanBadgeEl.textContent = String(vp.sedan.status).toUpperCase();
+          sedanBadgeEl.className = `atlas-veh-badge is-${vp.sedan.status}`;
+        }
+        if (pickupBadgeEl && vp.highClearancePickup) {
+          pickupBadgeEl.textContent = String(vp.highClearancePickup.status).toUpperCase();
+          pickupBadgeEl.className = `atlas-veh-badge is-${vp.highClearancePickup.status}`;
+        }
+      }
+    }
+
+    if (shopValEl) shopValEl.textContent = "Not calculated";
+    if (timesfmRes?.configured && timesfmRes?.livelihoodSummary) {
+      const ls = timesfmRes.livelihoodSummary;
+      if (shopValEl && ls.shophouseProtectionWindowHours) {
+        shopValEl.textContent = `~${ls.shophouseProtectionWindowHours} h lead`;
+      }
+    } else if (weatherRes?.livelihood?.shophouseProtection?.leadTimeHours != null) {
+      if (shopValEl) {
+        shopValEl.textContent = `~${weatherRes.livelihood.shophouseProtection.leadTimeHours} h lead`;
+      }
+    }
+
+    if (metaEl) {
+      metaEl.textContent = ["model", "model-cache"].includes(weatherRes?.tier)
+        ? `${weatherRes.source}${weatherRes.tier === "model-cache" ? " (cached)" : ""} · ${weatherRes.observationTimeUtc} · road safety unknown`
+        : "Weather unavailable · road safety unknown";
+    }
+    const hoursEl = document.getElementById("atlas-weather-hours");
+    if (hoursEl) hoursEl.textContent = (weatherRes?.hourlyNowcast ?? []).map((h) => `${h.validAtUtc}: ${h.precipitationMm == null ? "unknown" : h.precipitationMm + " mm"} rain · ${h.precipitationProbabilityPct == null ? "probability unknown" : h.precipitationProbabilityPct + "%"}`).join(" | ") || "Hourly forecast unavailable";
+  } catch (err) {
+    for (const el of [elecValEl, manValEl, motoBadgeEl, sedanBadgeEl, pickupBadgeEl]) if (el) { el.textContent = "UNKNOWN"; el.className = "atlas-veh-badge"; }
+    if (shopValEl) shopValEl.textContent = "Not calculated";
+    if (metaEl) metaEl.textContent = "Weather unavailable · road safety unknown";
+    console.warn("Safety module refresh failed:", err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Gauge trend (2026-09-29) — track each FloodDash gauge's last few
 // readings on the client so the situation board can show
 // "Chao Phraya +5 cm since last reading". Cap at 4 entries per gauge
@@ -8076,6 +8159,7 @@ async function refreshMountedFloodLayers(map) {
   await refreshAlertsPanel();
   await refreshNewsWatch();
   await refreshSourcesHealthPanel();
+  await refreshSafetyModule();
 
   state.lastFloodRefreshAt = new Date().toISOString();
   // Live attribution chip — answers "is the data fresh?" with a real age.

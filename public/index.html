@@ -107,6 +107,14 @@
             <small>Chao Phraya level</small>
             <strong id="atlas-sim-metric-river">Not calculated</strong>
           </div>
+          <div class="atlas-sim-metric">
+            <small>Vehicle passability</small>
+            <strong id="atlas-sim-metric-pass">Unknown</strong>
+          </div>
+          <div class="atlas-sim-metric">
+            <small>Electrocution risk</small>
+            <strong id="atlas-sim-metric-elect">220V step potential</strong>
+          </div>
         </div>
       </aside>
     </div>
@@ -317,6 +325,38 @@
             <div class="atlas-sources-grid" id="atlas-sources-grid"></div>
             <p class="atlas-sit-note">Each dot is one of the 40 upstream feeds FloodDash pulls from (BMA DDS, HII water-level, TMD, RID reservoirs, GISTDA satellite, PCD water quality, Air4Thai, …). Grey = skipped, orange = degraded, red = stale, green = ok. If a dot is red, the corresponding number on this page is from the last good reading.</p>
           </details>
+        <section class="atlas-sit-mod atlas-sit-safety" id="atlas-sit-safety" aria-labelledby="atlas-sit-safety-h">
+          <header class="atlas-sit-head">
+            <h3 id="atlas-sit-safety-h">Life-Safety &amp; Livelihood <span lang="th">· เอาชีวิตรอด &amp; คุ้มครองทรัพย์สิน</span></h3>
+            <span class="atlas-sit-meta" id="atlas-safety-meta">Weather pending · road safety unknown</span>
+          </header>
+          <div class="atlas-safety-badges">
+            <div class="atlas-safety-badge" id="safety-electrocution-badge">
+              <span class="atlas-safety-badge-title">220V Electrocution Hazard</span>
+              <strong id="safety-electrocution-val">Unknown</strong>
+              <small id="safety-electrocution-note">Submerged utility poles &amp; lampposts</small>
+            </div>
+            <div class="atlas-safety-badge" id="safety-manhole-badge">
+              <span class="atlas-safety-badge-title">Culvert Suction Risk</span>
+              <strong id="safety-manhole-val">Unknown</strong>
+              <small id="safety-manhole-note">Dislodged drain lids in opaque water</small>
+            </div>
+            <div class="atlas-safety-badge" id="safety-shophouse-badge">
+              <span class="atlas-safety-badge-title">Shophouse Inventory Window</span>
+              <strong id="safety-shophouse-val">Not calculated</strong>
+              <small id="safety-shophouse-note">Window to elevate stock ≥30 cm</small>
+            </div>
+          </div>
+          <div class="atlas-safety-vehicles">
+            <p class="atlas-safety-veh-head">Vehicular Passability Index:</p>
+            <ul class="atlas-safety-veh-list">
+              <li><span class="atlas-veh-type">Motorcycle</span><span class="atlas-veh-badge" id="veh-moto-status">Unknown</span><span class="atlas-veh-sub">No route assessment</span></li>
+              <li><span class="atlas-veh-type">Sedan</span><span class="atlas-veh-badge" id="veh-sedan-status">Unknown</span><span class="atlas-veh-sub">No route assessment</span></li>
+              <li><span class="atlas-veh-type">Pickup</span><span class="atlas-veh-badge" id="veh-pickup-status">Unknown</span><span class="atlas-veh-sub">No route assessment</span></li>
+            </ul>
+          </div>
+          <p class="atlas-sit-note" id="atlas-weather-hours">Hourly model forecast pending.</p>
+          <p class="atlas-sit-note">Weather forecasts do not establish road clearance or electrical safety. No TimesFM inference is connected. Do not enter floodwater. <a href="https://www.weather.gov/safety/flood-turn-around-dont-drown" target="_blank" rel="noreferrer">Flood safety guidance ↗</a></p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-act" aria-labelledby="atlas-sit-act-h">
@@ -1202,6 +1242,8 @@
           <a href="#research-record">Record</a>
           <a href="#research-relay">Relay</a>
           <a href="#research-method">Method</a>
+          <a href="#research-lifesafety">Life-safety</a>
+          <a href="#research-foundation-ai">AI Models</a>
           <a href="#research-limits">Limits</a>
           <a href="#research-build">Build log</a>
           <a href="#research-next">Next</a>
@@ -1371,6 +1413,10 @@
             <p class="atlas-research-live" id="atlas-research-live">Waiting for the first FloodDash reading…</p>
           </section>
 
+<section class="atlas-about-section" id="research-lifesafety"><p class="atlas-eyebrow">Flood preparedness</p><h3>Do not infer safe travel from rainfall</h3><p>Electrical hazards, missing drain covers, currents and vehicle clearance are not measured by this panel. Rain totals alone cannot determine them. Do not enter floodwater; follow DDPM and BMA instructions. For emergency help call 1784, 1555 or 1669.</p></section>
+
+<section class="atlas-about-section" id="research-foundation-ai"><p class="atlas-eyebrow">Weather models and future research</p><h3>What is connected, and what is not</h3><p>Open-Meteo supplies modelled current weather and hourly precipitation forecasts with explicit UTC valid times. It is not a street sensor or an inundation model.</p><p>TimesFM is not connected. No calibrated river crest, tide timing, road depth, vehicle clearance or shophouse lead time is supplied. The cinematic tour is an illustrative sequence, not model inference.</p><p><a href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">Weather source and units ↗</a></p></section>
+
           <section class="atlas-about-section" id="research-limits">
             <p class="atlas-eyebrow atlas-eyebrow-sub">Limits</p>
             <h3>What this map cannot tell you</h3>
@@ -1386,7 +1432,7 @@
 
           <section class="atlas-about-section" id="research-build">
             <p class="atlas-eyebrow atlas-eyebrow-sub">Build log</p>
-            <h3>Seven weeks, one laptop, in the open</h3>
+            <h3>Nine weeks, one laptop, in the open</h3>
             <ol class="atlas-research-log">
               <li><time datetime="2026-08-04">4 Aug</time><span>Day one. A Worker on atlas.nonarkara.org; 432,077 OSM buildings as PMTiles streamed from R2 with Range passthrough; live iTIC traffic; rail and 4,063 waterways.</span></li>
               <li><time datetime="2026-08-05">5 Aug</time><span>CCTV, animated rain radar, the first gauge layer straight from ThaiWater, civic open data in D1. A land-price layer shipped and came out the same day — there was no real geometry behind it — and returned only as a Treasury road-level choropleth.</span></li>
@@ -1396,6 +1442,9 @@
               <li><time datetime="2026-09-02">2–5 Sep</time><span>100 curated landmarks. The unverified icons were quarantined, not shipped.</span></li>
               <li><time datetime="2026-09-16">16 Sep</time><span>Bangkok's 133 provincial rain gauges and the live strip.</span></li>
               <li><time datetime="2026-09-25">25 Sep</time><span>The FloodDash relay and this waterway network. The same day: the live strip had been squeezing the phone map to zero height — fixed.</span></li>
+              <li><time datetime="2026-09-28">26–28 Sep</time><span>Cross-referenced road flood ground truth: 2,300+ Traffy Fondue citizen reports merged with BMA DDS bulletins and verified against FloodDash gauges within 250 m. Maholan community CCTV snapshot proxying with honest SVGs.</span></li>
+              <li><time datetime="2026-10-02">1–2 Oct</time><span>Crisis flood heatmap ramp with dynamic pulse shader, honest version indicator (<code>#atlas-version</code>), and the 72-hour 30-second simulation tour.</span></li>
+              <li><time datetime="2026-10-04">4 Oct</time><span>Weather and preparedness panel prototype. Current integration uses real weather model data; road safety remains unknown and TimesFM inference is not connected.</span></li>
             </ol>
             <p>
               The pattern that repeats: ship the layer, then take out whatever
@@ -1415,6 +1464,8 @@
               <li><strong>Water on land.</strong> GISTDA's satellite flood extent as the first layer that shows water outside the channels.</li>
               <li><strong>Check the colours against the ground.</strong> Compare judged stretches with DDS road reports, district by district, across the season.</li>
               <li><strong>Official extents.</strong> Retire the schematic envelope the day DDPM or BMA publish theirs as open GeoJSON.</li>
+              <li><strong>Edge AI on WebGPU.</strong> Run TimesFM decoder weights directly in the client browser via WebGPU to compute street-by-street recession curves offline without Cloudflare round-trips.</li>
+              <li><strong>Citizen sensor validation network.</strong> Pair street CCTV snapshot feeds with phone camera depth calibration to convert user Traffy photos into millimeter ground-truth water marks.</li>
             </ol>
             <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
               <span class="atlas-paper-btn-eyebrow">Research paper</span>
@@ -1438,6 +1489,9 @@
               relayed by FloodDash. <strong>Waterways.</strong> © OpenStreetMap
               contributors, ODbL 1.0. <strong>Imagery.</strong> © Esri, Maxar,
               Earthstar Geographics.
+              <strong>Weather model.</strong> Open-Meteo current conditions and
+              hourly precipitation forecasts. TimesFM is a research direction,
+              not an active source in this atlas.
             </p>
             <p>
               FloodDash thanks Dr Preesan Rakwatin (depa) for guidance and for

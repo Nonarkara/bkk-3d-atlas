@@ -9,15 +9,16 @@ import vm from 'node:vm';
 
 // Compile the real modules with the installed compiler; no runner dependency.
 const dir = mkdtempSync(join(tmpdir(), 'atlas-flood-test-'));
-let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads;
+let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads, weatherSupport, unavailableHydroForecast;
 try {
-  for (const name of ['report-freshness', 'flooddash', 'floodroads', 'roads-xref']) {
+  for (const name of ['report-freshness', 'flooddash', 'floodroads', 'roads-xref', 'weather-support']) {
     const source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
     const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
     writeFileSync(join(dir, `${name}.mjs`), compiled.replace(/from "\.\/([^".]+)"/g, 'from "./$1.mjs"'));
   }
   ({ buildRoadsXref } = await import(pathToFileURL(join(dir, 'roads-xref.mjs'))));
   ({ currentStreetReports, floodRoadsResponse, refreshFloodRoads } = await import(pathToFileURL(join(dir, 'floodroads.mjs'))));
+  ({ weatherSupport, unavailableHydroForecast } = await import(pathToFileURL(join(dir, 'weather-support.mjs'))));
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
 const now = Date.parse('2026-10-01T09:00:00Z');
@@ -34,6 +35,30 @@ const roads = (features = [road()]) => ({
 });
 const gauge = (change = {}) => ({ id: 'g1', lng: 100.5, lat: 13.75, band: 'prepare', name: 'Canal', confidence: 'high', observedAt: at(0.1), ageMin: 6, ...change });
 const xref = (g, features) => buildRoadsXref(roads(features), { gauges: [g] }, now);
+
+test('real model weather never turns rainfall into vehicle clearance or protection deadlines', async () => {
+  const original=globalThis.fetch;
+  const time=new Date().toISOString();
+  globalThis.fetch=async()=>Response.json({current:{time,interval:900,temperature_2m:31,relative_humidity_2m:80,precipitation:0,wind_speed_10m:0},hourly:{time:[new Date(Date.now()+3600000).toISOString()],precipitation:[4],precipitation_probability:[70]}});
+  try {
+    const p=await (await weatherSupport(new Request('https://atlas.test/api/weather/google'))).json();
+    assert.equal(p.tier,'model');assert.equal(p.weather.precipitationMm,0);
+    assert.equal(p.hourlyNowcast[0].precipitationMm,4);
+    for(const v of Object.values(p.lifeSafety.vehiclePassability))assert.equal(v.status,'unknown');
+    assert.equal(p.livelihood.shophouseProtection.leadTimeHours,null);
+    assert.equal(p.observationTimeUtc,time);
+  }finally{globalThis.fetch=original;}
+});
+
+test('weather failures and invalid locations produce no fabricated fallback; hydro inference is unavailable',async()=>{
+  const original=globalThis.fetch;let calls=0;
+  globalThis.fetch=async()=>{calls++;throw Error('offline');};
+  try{
+    const invalid=await weatherSupport(new Request('https://atlas.test/api/weather/google?lat=999&lng=100.5'));assert.equal(invalid.status,400);assert.equal(calls,0);
+    const p=await (await weatherSupport(new Request('https://atlas.test/api/weather/google'))).json();assert.equal(p.status,'unavailable');assert.equal(p.weather,null);assert.equal(p.hourlyNowcast.length,0);
+    const h=await unavailableHydroForecast().json();assert.equal(h.model,null);assert.equal(h.stations.length,0);assert.equal(h.configured,false);
+  }finally{globalThis.fetch=original;}
+});
 
 test('historical-envelope point summaries cannot imply present-day safe roads', () => {
   const source = readFileSync(new URL('../src/index.ts',import.meta.url),'utf8');

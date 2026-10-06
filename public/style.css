@@ -2044,8 +2044,8 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 .atlas-sim-metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -2068,7 +2068,7 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     top: 10px;
   }
   .atlas-sim-metrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
   }
 }
@@ -2794,6 +2794,106 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 .atlas-panel .atlas-bkk-live-head {
   margin-bottom: 6px;
+}
+
+/* Life-safety and livelihood decision module */
+.atlas-sit-safety {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.atlas-safety-badges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.atlas-safety-badge {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.atlas-safety-badge-title {
+  font-size: 9.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.atlas-safety-badge strong {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--signal);
+}
+.atlas-safety-badge small {
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.atlas-safety-vehicles {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+.atlas-safety-veh-head {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--paper);
+}
+.atlas-safety-veh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-safety-veh-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.atlas-veh-type {
+  font-family: var(--font-mono);
+  color: #fff;
+  font-size: 10.5px;
+}
+.atlas-veh-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.atlas-veh-badge.is-passable {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+.atlas-veh-badge.is-caution {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border-color: rgba(234, 179, 8, 0.4);
+}
+.atlas-veh-sub {
+  font-size: 9.5px;
+  color: var(--muted);
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .atlas-safety-badges {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 
 /* === 2026-09-29 — Visible FloodDash credit + 3 new situation-board surfaces === */
