@@ -60,6 +60,14 @@ test('weather failures and invalid locations produce no fabricated fallback; hyd
   }finally{globalThis.fetch=original;}
 });
 
+test('browser weather fallback uses real valid-time forecasts and preserves missing rainfall', async()=>{
+  const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('async function fetchBrowserWeather()'),end=app.indexOf('async function refreshSafetyModule()',start);
+  const next=new Date(Date.now()+3600000).toISOString();
+  const fn=vm.runInNewContext(app.slice(start,end)+'\nfetchBrowserWeather',{AbortSignal,fetch:async()=>({ok:true,json:async()=>({current:{time:new Date().toISOString()},hourly:{time:[next],precipitation:[null],precipitation_probability:[70]}})})});
+  const p=await fn();assert.match(p.source,/direct browser fallback/);assert.equal(p.hourlyNowcast[0].precipitationMm,null);assert.equal(p.hourlyNowcast[0].validAtUtc,next);assert.equal(p.configured,undefined);
+});
+
 test('historical-envelope point summaries cannot imply present-day safe roads', () => {
   const source = readFileSync(new URL('../src/index.ts',import.meta.url),'utf8');
   const start = source.indexOf('  // Summary band —');

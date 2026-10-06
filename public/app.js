@@ -7930,6 +7930,27 @@ async function refreshSourcesHealthPanel() {
 // ─────────────────────────────────────────────────────────────────
 // Life-safety and livelihood decision module (Google Weather + TimesFM)
 // ─────────────────────────────────────────────────────────────────
+async function fetchBrowserWeather() {
+  // Same public model already used by Atlas wind/heat. No key or fabricated data.
+  const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=13.76&longitude=100.50&current=temperature_2m&hourly=precipitation,precipitation_probability&forecast_days=2&timezone=UTC", { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error("Weather unavailable");
+  const data = await res.json();
+  const raw = data.current?.time;
+  const ms = typeof raw === "string" ? Date.parse(raw.endsWith("Z") ? raw : `${raw}Z`) : NaN;
+  const age = Date.now() - ms;
+  if (!Number.isFinite(age) || age < -300000 || age > 7200000) throw new Error("Model time unavailable");
+  const hourlyNowcast = [];
+  for (let i = 0; i < (data.hourly?.time?.length ?? 0); i++) {
+    const rawTime = data.hourly.time[i];
+    if (typeof rawTime !== "string") continue;
+    const time = Date.parse(rawTime.endsWith("Z") ? rawTime : `${rawTime}Z`);
+    if (!Number.isFinite(time) || time < Date.now() || time > Date.now() + 21600000) continue;
+    const mm = data.hourly.precipitation?.[i], p = data.hourly.precipitation_probability?.[i];
+    hourlyNowcast.push({ validAtUtc: new Date(time).toISOString(), precipitationMm: typeof mm === "number" && Number.isFinite(mm) && mm >= 0 ? mm : null, precipitationProbabilityPct: typeof p === "number" && p >= 0 && p <= 100 ? p : null });
+  }
+  return { tier: "model", source: "Open-Meteo model (direct browser fallback)", observationTimeUtc: new Date(ms).toISOString(), hourlyNowcast };
+}
+
 async function refreshSafetyModule() {
   const metaEl = document.getElementById("atlas-safety-meta");
   const elecValEl = document.getElementById("safety-electrocution-val");
@@ -7942,8 +7963,8 @@ async function refreshSafetyModule() {
 
   try {
     const [weatherRes, timesfmRes] = await Promise.all([
-      fetchJson("/api/weather/google"),
-      fetchJson("/api/predict/timesfm"),
+      fetchJson("/api/weather/google").catch(() => fetchBrowserWeather()),
+      fetchJson("/api/predict/timesfm").catch(() => ({ configured: false })),
     ]);
 
     if (weatherRes?.lifeSafety) {
