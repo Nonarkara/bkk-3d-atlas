@@ -58,13 +58,15 @@ jobs:
         run: |
           set +e
           # Semgrep OSS 1.180.0, manylinux x86_64 wheel.
+          # The filename must stay a valid wheel name or pip refuses to install it.
+          wheel_name=semgrep-1.180.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl
           wheel_sha=16db2e2706ab814a975eeec25debfad49abba846b7c513d88e041447152f8447
-          wheel_url=https://files.pythonhosted.org/packages/7c/1f/f4af9cc92651f04ab973eac214a62ed23260da9e0696c105b4b9734da453/semgrep-1.180.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl
+          wheel_url=https://files.pythonhosted.org/packages/7c/1f/f4af9cc92651f04ab973eac214a62ed23260da9e0696c105b4b9734da453/${wheel_name}
           python3 - << PY
           import hashlib, pathlib, urllib.request, sys
           url = "${wheel_url}"
           expected = "${wheel_sha}"
-          dest = pathlib.Path("/tmp/semgrep-1.180.0.whl")
+          dest = pathlib.Path("/tmp/${wheel_name}")
           urllib.request.urlretrieve(url, dest)
           digest = hashlib.sha256(dest.read_bytes()).hexdigest()
           if digest != expected:
@@ -82,7 +84,7 @@ jobs:
             echo "exit_code=venv-${install_exit}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          /tmp/semgrep-venv/bin/pip install --disable-pip-version-check --no-cache-dir /tmp/semgrep-1.180.0.whl
+          /tmp/semgrep-venv/bin/pip install --disable-pip-version-check --no-cache-dir "/tmp/${wheel_name}"
           install_exit=$?
           if [ "$install_exit" -ne 0 ]; then
             echo "exit_code=install-${install_exit}" >> "$GITHUB_OUTPUT"
