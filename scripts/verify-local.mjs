@@ -371,8 +371,61 @@ else ok("db/schema.sql present");
   else ok("db/schema.sql declares flood_state (merged in 2026-08-15 flooddash relay)");
 }
 const wt = readFileSync(join(root, "wrangler.toml"), "utf8");
-if (!wt.includes("[triggers]") || !wt.includes("crons")) fail("wrangler.toml missing cron trigger for event ingest");
-else ok("wrangler.toml schedules city-event ingest");
+const cronTomlPath = join(root, "wrangler.cron.toml");
+if (!existsSync(cronTomlPath)) fail("missing wrangler.cron.toml — */5 ingest cron has no Worker config");
+const cronToml = existsSync(cronTomlPath) ? readFileSync(cronTomlPath, "utf8") : "";
+function cpuMs(text) {
+  const match = text.match(/\[limits\][^\[]*?cpu_ms\s*=\s*(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+function observabilityOn(text) {
+  return /\[observability\][^\[]*?enabled\s*=\s*true/.test(text);
+}
+if (/\bcrons\b/.test(wt) || wt.includes("*/5")) {
+  fail("wrangler.toml still schedules the cron — request Worker must stay at cpu_ms 200 with no trigger");
+} else {
+  ok("request wrangler.toml has no cron trigger");
+}
+if (cpuMs(wt) !== 200) fail(`wrangler.toml cpu_ms is ${cpuMs(wt)}, expected 200`);
+else ok("request Worker limits.cpu_ms = 200");
+if (!observabilityOn(wt)) fail("wrangler.toml observability is not enabled");
+else ok("request Worker observability enabled");
+if (!cronToml.includes('crons = ["*/5 * * * *"]')) fail("wrangler.cron.toml missing */5 cron trigger");
+else ok("cron Worker schedules */5 ingest");
+if (cpuMs(cronToml) !== 30000) fail(`wrangler.cron.toml cpu_ms is ${cpuMs(cronToml)}, expected 30000`);
+else ok("cron Worker limits.cpu_ms = 30000");
+if (!observabilityOn(cronToml)) fail("wrangler.cron.toml observability is not enabled");
+else ok("cron Worker observability enabled");
+if (!cronToml.includes('name = "bkk-3d-atlas-cron"')) fail("wrangler.cron.toml must name the Worker bkk-3d-atlas-cron");
+else ok("cron Worker name is bkk-3d-atlas-cron");
+if (/^\s*custom_domain\s*=/m.test(cronToml) || /^\s*pattern\s*=\s*"atlas\.nonarkara\.org"/m.test(cronToml) || /^\s*\[\[routes\]\]/m.test(cronToml)) {
+  fail("wrangler.cron.toml must not bind a route or custom domain");
+} else {
+  ok("cron Worker has no route or custom domain");
+}
+if (!cronToml.includes("CIVIC_DB") || !cronToml.includes('binding = "ASSETS"')) {
+  fail("wrangler.cron.toml missing CIVIC_DB or ASSETS — scheduled() cannot ingest");
+} else {
+  ok("cron Worker binds CIVIC_DB and ASSETS");
+}
+{
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const deploy = pkg.scripts?.deploy ?? "";
+  const cronDeploy = "wrangler deploy --config wrangler.cron.toml";
+  if (!deploy.includes(cronDeploy) || deploy.indexOf(cronDeploy) > deploy.indexOf("&& wrangler deploy")) {
+    fail("npm run deploy must upload wrangler.cron.toml before the request Worker");
+  } else {
+    ok("npm run deploy uploads the cron Worker first");
+  }
+  const workflow = readFileSync(join(root, ".github/workflows/deploy-cloudflare.yml"), "utf8");
+  const cronStep = workflow.indexOf("command: deploy --config wrangler.cron.toml");
+  const requestStep = workflow.lastIndexOf("command: deploy\n");
+  if (cronStep === -1 || requestStep === -1 || cronStep > requestStep) {
+    fail("deploy workflow must upload wrangler.cron.toml before the request Worker");
+  } else {
+    ok("deploy workflow uploads the cron Worker first");
+  }
+}
 
 // AI-readable mirror — six endpoints, added 2026-08-05. If any of these
 // are missing, the atlas is back to being a website you look at instead

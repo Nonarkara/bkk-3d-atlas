@@ -91,14 +91,21 @@ Or by hand:
 git checkout main && git pull origin main
 grep -n 'id="atlas-about"' public/index.html   # must match before deploy
 npx wrangler whoami                            # account must be 74ad6bf8…
+npx wrangler deploy --config wrangler.cron.toml # bkk-3d-atlas-cron first
 npx wrangler deploy                            # must list atlas.nonarkara.org
 sleep 12
 curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-about"'   # expect 1
 curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-labs"'    # expect 0
 ```
 
+Requests and the 5-minute ingest cron are separate Workers. A cold
+cron pass is ~800 ms of CPU (venue matching, khlong geometry,
+flood-road snapping), so `wrangler.toml` caps the request Worker
+(`bkk-3d-atlas`) at `cpu_ms` 200 and `wrangler.cron.toml` runs
+`bkk-3d-atlas-cron` at `cpu_ms` 30000. Deploy the cron config first.
+
 There is also a GitHub Action (`.github/workflows/deploy-cloudflare.yml`)
-that deploys on push to `main` once `CLOUDFLARE_API_TOKEN` +
+that deploys both Workers on push to `main` once `CLOUDFLARE_API_TOKEN` +
 `CLOUDFLARE_ACCOUNT_ID` secrets are set. Until then, use local
 `deploy:live`.
 
@@ -206,7 +213,7 @@ multi-month `diversion` roadworks), and any event whose
 source-declared window exceeds 24h is dropped on duration as
 infrastructure. Persisted to D1 because the upstream is a rolling
 20-item window for all of Thailand; a 5-minute cron
-(`[triggers] crons = ["*/5 * * * *"]` in `wrangler.toml`) keeps the
+(`[triggers] crons = ["*/5 * * * *"]` in `wrangler.cron.toml`) keeps the
 store fresh between visitors.
 
 ### 2. `osm-buildings-to-geojson.py` — the building extrusions
@@ -442,7 +449,7 @@ report.
     from first sight or until the source's own stop time, whichever
     comes first. Persisted to D1 (not proxied) because the upstream
     is a rolling 20-item window for all of Thailand; a 5-minute cron
-    in `wrangler.toml` keeps the store fresh between visitors.
+    in `wrangler.cron.toml` keeps the store fresh between visitors.
     Endpoint: `/api/city-events`.
 18. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
     "●" pins for "what the city is talking about": motor shows,

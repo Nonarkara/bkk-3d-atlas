@@ -6,7 +6,7 @@
   "description": "Bangkok 3D atlas — in-browser viewer with quick-jump to historic cores, on Cloudflare Workers. Reusable 3D building data for Chula/UNL and other dashboards.",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --config wrangler.cron.toml && wrangler deploy",
     "deploy:live": "bash scripts/deploy-live.sh",
     "typecheck": "tsc --noEmit",
     "test:flood": "node --test scripts/test-flood-integrity.mjs",

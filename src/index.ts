@@ -3844,10 +3844,13 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  /** Cron-driven ingest. Without this, an incident that appears and drops
+  /** Cron-driven ingest, on the bkk-3d-atlas-cron Worker only
+   * (wrangler.cron.toml). Without this, an incident that appears and drops
    * out of the upstream 20-item window between two visitors would never be
    * captured at all. Polling on a schedule means the map has real history
-   * the moment someone opens it. */
+   * the moment someone opens it. The request Worker does not carry this
+   * trigger — the pass is hundreds of milliseconds of CPU, above that
+   * Worker's 200 ms cap. */
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {

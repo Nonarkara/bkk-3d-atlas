@@ -56,12 +56,16 @@ LONGDO_DATA_ORIGIN = "https://itic.longdo.com/opendata/"
 # Bangkok metro (100.30–100.95 E, 13.45–14.10 N) is covered at
 # zoom 11–15.
 
-# Poll the Longdo/iTIC incident feed every 5 minutes so the God-Mode
-# event layer captures incidents that appear and roll out of the
-# upstream 20-item window between visitors. Handler: `scheduled` in
-# src/index.ts. The feed itself caches for 60s, so 5m is polite.
-[triggers]
-crons = ["*/5 * * * *"]
+# Cost guard. A cold cron-shaped pass measured ~823 ms of CPU on
+# 2026-10-09 (Node process CPU, network wait excluded): news venue
+# matching alone was ~657 ms for 155 articles against 599 venues,
+# before khlong parsing and flood-road snapping. That does not fit
+# a 200 ms request cap, so the five-minute schedule lives on its own
+# Worker (wrangler.cron.toml, cpu_ms 30000). This Worker serves requests
+# only — keep the cron off this config or the 200 ms cap will kill
+# ingest, and a shared 30 s cap would drop the request cost guard.
+[limits]
+cpu_ms = 200
 
 [observability]
 enabled = true
