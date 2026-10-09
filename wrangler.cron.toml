@@ -1,0 +1,50 @@
+# Cron Worker for the atlas ingest. Same script as wrangler.toml
+# (`scheduled` in src/index.ts) but its own config so the request
+# Worker can stay at cpu_ms 200.
+#
+# Measured 2026-10-09, cold isolate, network wait excluded:
+#   news venue match (155 articles × 599 venues)   ~657 ms
+#   parse bkk-khlongs.geojson (3.1 MB)             ~57 ms
+#   snap 40 flood reports on 4 dense road cells    ~56 ms
+#   city-event district point-in-polygon ×20       ~15 ms
+#   decode 4 flood-road cells                      ~13 ms
+#   one cron-shaped pass                           ~823 ms
+# A flood-day pass touches more road cells than that sample, so the
+# cap is the platform maximum (30000), not a tight estimate.
+#
+# No custom domain and no workers.dev URL — this Worker must not
+# compete with atlas.nonarkara.org. Deploy this config BEFORE
+# wrangler.toml so the schedule is registered before the request
+# Worker drops the old trigger.
+name = "bkk-3d-atlas-cron"
+account_id = "74ad6bf8dfaaccf82de6f0847f7d2d54"
+main = "src/index.ts"
+compatibility_date = "2026-05-15"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+# scheduled() reads districts, venues, khlongs, and flood-road cells
+# through the ASSETS binding. Same directory as the request Worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Same civic D1 database the request Worker reads. Ingest writes
+# city_events, news_events, and flood_state.
+[[d1_databases]]
+binding = "CIVIC_DB"
+database_name = "bkkx-civic-data"
+database_id = "2fed2bc0-b8bf-4497-aa22-c6ac5b39a330"
+
+# Poll every 5 minutes. The Longdo feed caches for 60s; FloodDash
+# and flood-roads refresh themselves no more often than ~4.5–9.5 min
+# inside the handler. Handler: `scheduled` in src/index.ts.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[limits]
+cpu_ms = 30000
+
+[observability]
+enabled = true

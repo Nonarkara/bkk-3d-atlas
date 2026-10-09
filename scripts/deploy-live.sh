@@ -48,6 +48,9 @@ if ! printf '%s' "$WHOAMI" | grep -q "$EXPECTED_ACCOUNT"; then
   exit 1
 fi
 
+echo "==> wrangler deploy cron (bkk-3d-atlas-cron) before the request Worker"
+npx wrangler deploy --config wrangler.cron.toml
+
 echo "==> wrangler deploy"
 DEPLOY_LOG="$(mktemp)"
 npx wrangler deploy | tee "$DEPLOY_LOG"
