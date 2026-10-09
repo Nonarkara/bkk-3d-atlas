@@ -1,0 +1,26 @@
+name: Bug
+description: Something in the viewer, Worker, or scripts misbehaves.
+title: "[bug] "
+labels: []
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw. Include the URL or command.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: "https://atlas.nonarkara.org or npm run dev"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Response or log
+      description: Status code and a short JSON body or console line. Remove cookies and API keys.
+    validations:
+      required: false

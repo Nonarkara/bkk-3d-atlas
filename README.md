@@ -1,512 +1,296 @@
 # bkk-3d-atlas
 
-A 3D browser atlas of Bangkok, hosted on Cloudflare Workers. Real Esri
-satellite imagery, OpenStreetMap buildings extruded in BKKx signal
-yellow, tiered roads, and **quick-jump buttons to 16 curated key areas**
-(historic cores, transit hubs, market districts, the university campus,
-the airport). Click any building to inspect height/type plus the nearest
-Treasury land-price zone. No Minecraft, no install.
+<img src="assets/hero.svg" alt="Original ink drawing: empty warm paper, one dry stroke, a river that reverses out of a black field, and uneven building strokes. Palette plate 052, Sulpher Yellow and Black, switching for dark mode." width="100%">
 
-**Live:** https://atlas.nonarkara.org
+A browser atlas of Bangkok: 432,077 OpenStreetMap buildings, rail and boats, traffic, cameras, incidents, flood reports, rain, wind, PM2.5, and a NASA aerosol layer — on Cloudflare Workers, with no install.
 
-The atlas is one of three deliverables. The other two are **reusable
-data files** that Dr Non's other projects (Chula dashboards, UNL
-dashboards, anything else that needs Bangkok) can pull in:
+[![demo](https://img.shields.io/badge/demo-atlas.nonarkara.org-111314?style=flat-square)](https://atlas.nonarkara.org)
+[![verify](https://github.com/Nonarkara/bkk-3d-atlas/actions/workflows/verify.yml/badge.svg)](https://github.com/Nonarkara/bkk-3d-atlas/actions/workflows/verify.yml)
 
-1. **`public/bkk-areas.json`** — 16 curated Bangkok areas with
-   centre, zoom, pitch, bearing, key stats, and tags. Used by the
-   viewer's quick-jump panel; load it from any other project to do
-   the same curated tour.
-2. **`scripts/osm-buildings-to-geojson.py`** — pulls all OSM
-   building footprints in any Bangkok bbox and emits a single
-   GeoJSON with `height` + `base_height` on every feature. Drop
-   it into MapLibre, deck.gl, Cesium, or three.js; extrude on the
-   client. The script is the canonical Bangkok 3D buildings asset.
-3. **`scripts/generate-3d-tiles.sh`** — turn the same OSM data into
-   a PMTiles archive (MVT, gzipped) that the live viewer streams
-   via the `pmtiles` JS lib + HTTP Range requests. The 432,077-feature
-   Bangkok metro PMTiles lives in the Cloudflare R2 bucket
-   `bkk-tiles/buildings/bangkok.pmtiles` (~17 MB) and is served at
-   `/bkk-buildings.pmtiles` with full Range passthrough. Until
-   this PMTiles is uploaded, the viewer falls back to OpenFreeMap's
-   MVT buildings (sparse at city-scale zoom 10–11).
-4. **`src/index.ts`** has a `serveBuildingsPmtiles` route at
-   `/bkk-buildings.pmtiles` that handles the three Range shapes
-   the `pmtiles` lib issues (closed, open-ended, suffix) and
-   ETag/If-None-Match for 304 caching. The Workers `[assets]`
-   binding does NOT honor HTTP Range requests, so large binary
-   blobs have to live in R2 + the proxy — never in `public/`.
+**Live:** <https://atlas.nonarkara.org> · API catalog: <https://atlas.nonarkara.org/api> · research note: <https://atlas.nonarkara.org/labs/paper>
 
-## Stack
+The hero is original. Colour is Palette plate 052. The ink and the empty field take their mood from Takehiko Inoue’s *Vagabond* and copy none of it. Credits: [CREDITS.md](CREDITS.md).
 
-- **Frontend** — vanilla HTML + ES module JS. No build step. MapLibre
-  GL 4.7.1 from unpkg, Esri World Imagery from
-  `services.arcgisonline.com`, OpenFreeMap dark style as the
-  base style, OpenStreetMap `transportation` for roads,
-  **432,077 OSM buildings streamed from our own PMTiles** for 3D
-  extrusions (see `bkk-buildings.pmtiles` at the R2 route below).
-- **Worker** — `src/index.ts` is a Cloudflare Worker that handles
-  land-price + risk APIs, traffic proxy, PMTiles Range from R2, and
-  static assets. `/api/risk` scores land × schematic flood × live PM2.5.
-- **Hosting** — Cloudflare Workers + R2 on the custom domain
-  `atlas.nonarkara.org`. R2 bucket `bkk-tiles` holds the 17 MB
-  PMTiles.
+## Screenshots
 
-## Local dev
+The picture above is `assets/hero.svg`. It draws its own paper, so it stays readable on a light or dark GitHub theme: Sulpher Yellow `#f5ecc2` with black ink, or night ground `#6c6856` with white ink, following `prefers-color-scheme`.
 
-```sh
-npm install        # one time, installs wrangler
-npm run verify     # laptop smoke check (JSON, stack helpers, no network)
-npm run typecheck  # Worker TypeScript
-npm run dev        # http://localhost:8787
-npm run smoke      # 11-check live smoke test of the /api/atlas/* mirror
+The map itself is the live site. This repository does not commit a capture of the WebGL canvas. Open the demo and use **Quick jump** (sixteen areas in `public/bkk-areas.json`) or the layer panel.
+
+## What it does, and who it is for
+
+The viewer is a static page in `public/`. MapLibre draws Esri imagery, OpenFreeMap roads, and building extrusions. A click reads height and building type, and can ask `/api/risk` for a civic score. Presets stack the city with rain, wind, heat, air quality, or flood without tearing the WebGL sources down.
+
+It is for:
+
+- Anyone who wants to look at Bangkok as stacked, sourced layers rather than a single basemap.
+- Other dashboards (the package description names Chula and UNL) that can fetch `bkk-areas.json`, the GeoJSON under `public/`, or `/api/atlas/*`.
+- A developer forking the Worker pattern for another city. There is no `CITY` variable. See [Fork it for your city](#fork-it-for-your-city).
+
+It is not an official flood warning, a safe-route planner, or an insurance model. `/api/predict/timesfm` returns `status: "unavailable"` because no TimesFM service is connected. The limits are written up in [docs/shipability-2026-10-01.md](docs/shipability-2026-10-01.md).
+
+The page header links a separate heritage register at `bkk.nonarkara.org`. That site is not this Worker.
+
+## Architecture
+
+One TypeScript entry, `src/index.ts`, is deployed as two Workers so a five-minute ingest cannot share a CPU cap with ordinary requests.
+
+```mermaid
+flowchart TB
+  browser["Browser — public/index.html + app.js"]
+  req["bkk-3d-atlas — request Worker — cpu_ms 200 — atlas.nonarkara.org"]
+  cron["bkk-3d-atlas-cron — scheduled only — cpu_ms 30000 — no public URL"]
+  assets["ASSETS binding — public/"]
+  r2["R2 bucket bkk-tiles — request Worker only"]
+  d1["D1 bkkx-civic-data"]
+  up["Upstream feeds"]
+
+  browser --> req
+  req --> assets
+  req --> r2
+  req --> d1
+  req --> up
+  cron --> assets
+  cron --> d1
+  cron --> up
 ```
 
-The atlas is sized for a single laptop: static GeoJSON in `public/`,
-free tile APIs (Esri, RainViewer, Open-Meteo), and Cloudflare Workers
-+ R2 for PMTiles Range. Heavy layers (khlongs, traffic) load after the
-city paints. Inspect falls back to client-side nearest land-price when
-`/api/land-price` is unreachable. Layer toggles soft-hide instead of
-tearing down WebGL sources, so re-toggling rain/AQI stays cheap.
-Presets stack city + rain / 10 m wind / heat / AQI / flood without losing
-the silhouette.
+`wrangler.toml` is the request Worker: custom domain, R2, D1, static assets, `cpu_ms = 200`, no cron. `wrangler.cron.toml` is `bkk-3d-atlas-cron`: same script, same assets and D1, `crons = ["*/5 * * * *"]`, `cpu_ms = 30000`, `workers_dev = false`, no R2 binding and no hostname. Deploy cron first. Reversing the two uploads drops the schedule for the gap between them.
+
+### Data flow
+
+```mermaid
+flowchart LR
+  subgraph request ["Request Worker — fetch"]
+    page["HTML, CSS, app.js"]
+    files["GeoJSON and bkk-areas.json"]
+    tiles["GET /bkk-buildings.pmtiles — HTTP Range to R2"]
+    apis["/api/* reads D1 or proxies a feed"]
+  end
+  subgraph schedule ["Cron Worker — scheduled"]
+    city["ingestCityEvents → city_events"]
+    news["ingestNewsEvents → news_events"]
+    dash["refreshFloodDash and refreshFloodRoads → flood_state"]
+  end
+  visitor["Visitor or API client"] --> page
+  visitor --> files
+  visitor --> tiles
+  visitor --> apis
+  apis --> d1[("D1")]
+  city --> d1
+  news --> d1
+  dash --> d1
+  r2[("R2 buildings/*.pmtiles")] --> tiles
+```
+
+`/api/city-events` and `/api/news-events` also start a background ingest with `waitUntil` on the request Worker. The cron is the path that runs when nobody is looking. City-event background ingest is throttled to once per 120 seconds per isolate (`CITY_INGEST_EVERY_MS`).
+
+## Tech stack
+
+| Piece | What the repo uses |
+| --- | --- |
+| Viewer | Vanilla HTML, CSS, and ES modules in `public/`. No bundler. MapLibre GL 4.7.1 and `hls.js` 1.5.17 from CDNs. `pmtiles` 4.4.1 (`package.json` and the page). |
+| Map | OpenFreeMap dark style, Esri World Imagery, AWS Terrarium DEM (`elevation-tiles-prod`) for the terrain toggle. |
+| Worker | TypeScript on Cloudflare Workers, `nodejs_compat`, compatibility date `2026-05-15`. Wrangler 4.92.0. |
+| Store | R2 bucket `bkk-tiles` for PMTiles. D1 database `bkkx-civic-data` (`db/schema.sql`). |
+| Checks | Node.js 22 in CI. `npm run verify`, `npm run typecheck`, `npm run test:flood`. |
+
+`package.json` version is `0.1.0`. The badge in `public/index.html` reads `v0.3.0`.
+
+## Quickstart
+
+```sh
+npm ci
+npm run verify      # local checks, no network
+npm run typecheck
+npm run dev         # wrangler dev — http://localhost:8787
+```
+
+Python 3 is only needed for the extract and ingest scripts. `scripts/ingest-bma-open-data.py` asks for `pyproj` and `openpyxl`. `scripts/generate-3d-tiles.sh` shells out to `tippecanoe`. Those tools are not part of `npm ci`.
+
+`npm run smoke` calls the live atlas unless you set `ATLAS_URL`.
+
+## Configuration
+
+Names only. Values stay in the Cloudflare dashboard, GitHub Actions secrets, or your shell. See [`.env.example`](.env.example).
+
+**Worker secrets** (`npx wrangler secret put` — not in `wrangler.toml`):
+
+- `LONGDO_KEY` — live `/api/traffic`. Unset is a normal 200 with `configured: false`.
+- `GOOGLE_MAPS_API_KEY`
+- `GOOGLE_WEATHER_API_KEY` — both are on the `Env` interface. `/api/weather/google` fetches Open-Meteo and does not call Google. The scoreboard reports the weather feed as configured when either name is set.
+
+**`[vars]` in `wrangler.toml`:**
+
+- `LONGDO_FEED`
+- `LONGDO_DATA_ORIGIN`
+
+**Bindings** (not environment variables): `ASSETS`, `BKK_TILES` (request Worker only), `CIVIC_DB`.
+
+**Local / CI only:**
+
+- `ATLAS_URL` — `scripts/smoke-atlas-api.mjs`
+- `LIVE_URL`, `DEPLOY_CACHE_WAIT_SECS` — `scripts/deploy-live.sh`
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` — `.github/workflows/deploy-cloudflare.yml`
+
+## Data sources
+
+Counts below are the feature counts and headers in `public/`, or constants in `src/index.ts`. A licence cell says “not recorded here” when this repository does not name one.
+
+| Data | Where | Credit | Licence in this repo |
+| --- | --- | --- | --- |
+| 432,077 metro buildings, PMTiles, zoom 11–15 | R2 `buildings/bangkok.pmtiles`, route `/bkk-buildings.pmtiles`. Regenerated constant `2026-08-04`. | © OpenStreetMap contributors | ODbL 1.0 |
+| 9,275 Rattanakosin footprints | `/bkk-buildings-rattanakosin.pmtiles` and `public/bkk-buildings-rattanakosin.geojson`, `public/bkk-heritage-detail.geojson` | OpenStreetMap. Height from `height`, else `building:levels * 3`, else 9 m. | ODbL 1.0 on the GeoJSON |
+| 16 curated areas | `public/bkk-areas.json` | Derived from OpenStreetMap | ODbL 1.0 |
+| 50 districts (khet) | `public/bkk-districts.geojson` — OSM relation 92277, `admin_level=6` | © OpenStreetMap contributors | ODbL 1.0 |
+| 4,063 waterways (1,037 `river`, 3,026 `canal`) | `public/bkk-khlongs.geojson` | OpenStreetMap via Overpass | ODbL 1.0 |
+| 126 rail segments, 9 line keys in `byLine` | `public/bkk-rail.geojson` | OpenStreetMap via Overpass | ODbL 1.0 |
+| 20 boat features (4 corridors, 16 piers in the scoreboard) | `public/bkk-water-transit.geojson` | Chao Phraya Express Boat, Chao Phraya Tourist Boat, Government Contact Center note on Khlong Saen Saep | Not recorded as a licence id. Geometry is maintained orientation, not live positions. |
+| 599 venues | `public/bkk-venues.geojson` | OpenStreetMap via Overpass, plus curated areas | ODbL 1.0 |
+| 115 landmark extrusions; 43 held in quarantine | `public/bkk-landmarks.geojson` (`version` 2026-09-26), `public/bkk-landmarks-quarantine.geojson` | File text: OSM footprints, schematic heritage heights, curated skyline icons. The Fine Arts Department register (571 monuments) is the other site, not this file. | Not given a licence id on the landmark file. OSM footprints remain ODbL. |
+| 1,963 traffic sample segments, mock levels | `public/bkk-traffic-sample.geojson` | OpenStreetMap via Overpass. Live replacement is iTIC / Longdo. | ODbL 1.0 for the geometry. Levels are mock. |
+| Live traffic | `/api/traffic` → `https://traffic.longdo.com/api/feed/itsth` | iTIC Foundation / Longdo. Historical archive linked from the previous README: <https://itic.longdo.com/opendata/>, described there as CC-BY 4.0 for the 2017–2023 dumps. | Live feed needs `LONGDO_KEY`. |
+| 85 traffic cameras | `public/bkk-cctv.geojson`, `/api/cctv` | iTIC Foundation / Longdo, including Department of Highways cameras carried on that platform | Not recorded here |
+| 4 hand-placed YouTube streams | `public/bkk-live-cams.geojson` | Public YouTube livestreams via YouTube’s player. Not cameras this project operates. | YouTube’s own terms. Coordinates are exact only where the file says so. |
+| Maholan cameras | `/api/water/bkk/maholan-cctv`, snapshots `/api/snap/<id>` | `cctv.maholan.net`. Filtered to Bangkok plus a 30 km halo. | Not recorded here |
+| 5 schematic flood envelopes | `public/bkk-flood-envelope.geojson` | Drawn for this project from the 2011 floods and monsoon drainage, as a sandbox | CC0-1.0 in the file. Not an official flood map. |
+| FloodDash relay | `/api/flood/bkk`, `/api/flood-sensors`, `/api/water/bkk/*` | `flood.nonarkara.org`, which aggregates HII / ThaiWater, BMA DDS, and others. Scoreboard text names about 40 upstream feeds. | Not recorded here |
+| Road reports snapped to streets | `public/flood-roads/` — manifest: 267,856 ways, built 2026-09-27 | OpenStreetMap via Overpass for the roads. Reports from Traffy Fondue (`publicapi.traffy.in.th`), iTIC / Longdo via FloodDash, and BMA DDS via FloodDash. | ODbL 1.0 on the road geometry |
+| 133 rain gauges | `public/bkk-rain-stations.geojson` | Hydro-Informatics Institute / ThaiWater v3, `province_code=10`. Also RID and BMA drainage in the file attribution. | Not recorded here |
+| Land price, 50 district polygons | `public/bkk-land-price-districts.geojson` | Home Buyers Team summary of Treasury Department draft appraisal data. Scoreboard constant: 2,281,482 parcels, source string `Treasury 2024-2028`. The fill is the highest road in that district group, not “the district’s price”. | The file says it is not the official gazette. |
+| 1,725 civic POIs | `public/bkk-civic-pois.geojson`, table `civic_pois` | `data.go.th` / `data.bangkok.go.th`. Ingest script: schools, sports grounds, car parks, museums, waterway landmarks. | “CC-licensed” / “Creative Commons” in the file and script. A specific CC version is not named. |
+| City incidents | D1 `city_events`, `/api/city-events` | Longdo / iTIC `https://event.longdo.com/feed/json` | Not recorded here. Pins keep reporter coordinates. Icons kept: accident, flood, fire, trafficjam, roadclosed, rain, earthquake, protest, warning. Events longer than 24 h are dropped. TTL 60 minutes. |
+| News pins | D1 `news_events`, `/api/news-events` | Bangkok Post RSS, Khaosod English RSS, optional GDELT DOC API | Not recorded here. 14-day window. No pin without a gazetteer match. |
+| Rain radar | Browser → RainViewer manifest | RainViewer | Not recorded here |
+| PM2.5, heat, wind, `/api/weather/google` | Open-Meteo, including the air-quality API for PM2.5 | Open-Meteo. Attribution URL in `src/weather-support.ts`. | Not recorded here. Model grids, not street sensors. |
+| Satellite aerosol | NASA GIBS WMTS, MODIS MAIAC AOD | © NASA EOSDIS GIBS | Not recorded here. The layer status says regional AOD, not PM2.5. |
+| Imagery | Esri World Imagery | © Esri, Maxar, Earthstar Geographics | Scoreboard string: non-commercial use |
+| Terrain | AWS Open Data Terrarium tiles | Terrain © Mapzen / Tilezen · AWS Open Data · SRTM, ASTER, GMTED2010 | Not recorded here |
 
 ## Deploy
 
-Live custom domain: **https://atlas.nonarkara.org** (Worker `bkk-3d-atlas`,
-account `74ad6bf8dfaaccf82de6f0847f7d2d54`).
-
-Preferred local deploy (pull → marker check → whoami → deploy → wait for
-edge cache → verify). Do **not** trust the first `curl` right after
-upload — Workers assets often return a stale `cf-cache-status: HIT`
-for ~10s:
+Account id pinned in both Wrangler configs: `74ad6bf8dfaaccf82de6f0847f7d2d54`. Hostname: `atlas.nonarkara.org`.
 
 ```sh
-npm run deploy:live
+npm run deploy
 ```
 
-Or by hand:
+That runs `wrangler deploy --config wrangler.cron.toml` and then `wrangler deploy`.
+
+`npm run deploy:live` (`scripts/deploy-live.sh`) fetches `main`, checks out `main`, checks that the About markup and landmark wiring are present, checks `wrangler whoami`, deploys cron then the request Worker, waits (default 12 seconds, `DEPLOY_CACHE_WAIT_SECS`), and curls the live HTML. The wait is there because a fresh asset upload can still return `cf-cache-status: HIT` for a few seconds.
+
+GitHub Actions (`.github/workflows/deploy-cloudflare.yml`) deploys both Workers on push to `main` after the same verify steps, once `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist as repository secrets. Until they do, deploy from a machine that is logged in to that Cloudflare account.
+
+Regenerate the building archive when OSM changes:
 
 ```sh
-git checkout main && git pull origin main
-grep -n 'id="atlas-about"' public/index.html   # must match before deploy
-npx wrangler whoami                            # account must be 74ad6bf8…
-npx wrangler deploy --config wrangler.cron.toml # bkk-3d-atlas-cron first
-npx wrangler deploy                            # must list atlas.nonarkara.org
-sleep 12
-curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-about"'   # expect 1
-curl -sL https://atlas.nonarkara.org/ | grep -c 'id="atlas-labs"'    # expect 0
-```
-
-Requests and the 5-minute ingest cron are separate Workers. A cold
-cron pass is ~800 ms of CPU (venue matching, khlong geometry,
-flood-road snapping), so `wrangler.toml` caps the request Worker
-(`bkk-3d-atlas`) at `cpu_ms` 200 and `wrangler.cron.toml` runs
-`bkk-3d-atlas-cron` at `cpu_ms` 30000. Deploy the cron config first.
-
-There is also a GitHub Action (`.github/workflows/deploy-cloudflare.yml`)
-that deploys both Workers on push to `main` once `CLOUDFLARE_API_TOKEN` +
-`CLOUDFLARE_ACCOUNT_ID` secrets are set. Until then, use local
-`deploy:live`.
-
-## Reuse for Chula / UNL / other dashboards
-
-Three ways, in order of how heavy the lift is:
-
-### 1. `bkk-areas.json` — the curated tour
-
-```js
-import atlas from "https://atlas.nonarkara.org/bkk-areas.json";
-const ratchathewi = atlas.areas.find((a) => a.id === "ratchathewi");
-map.flyTo({ center: ratchathewi.center, zoom: ratchathewi.zoom });
-```
-
-Same data, same camera angles, no rebuild.
-
-### 1b. `/api/land-price` — nearest Treasury zone
-
-```js
-const res = await fetch(
-  "https://atlas.nonarkara.org/api/land-price?lng=100.5321&lat=13.7367"
-);
-const { nearestZone } = await res.json();
-// nearestZone.price_per_wah, zone_id, min_price, max_price, distanceM
-```
-
-Property-tech lite. Zone display points are grid approximations until
-cadastral polygons ship; see the `notes` field on the response.
-
-### 1c. `/api/risk` — land × flood × PM2.5
-
-```js
-const res = await fetch(
-  "https://atlas.nonarkara.org/api/risk?lng=100.5321&lat=13.7367"
-);
-const { score, band, factors } = await res.json();
-// factors.floodInside, factors.pm25, factors.landPricePerWah
-```
-
-Civic demo score (0–100). Optional `?pm25=` override. Flood envelopes in
-`public/bkk-flood-envelope.geojson` are **schematic** — not official
-DDPM/BMA maps. Do not underwrite insurance from this.
-
-### 1d. `/api/atlas/*` — the AI-readable mirror
-
-Six thin GETs that return what an LLM agent, a research script, or a
-future MCP server would actually ask the city. All additive — none of
-the endpoints above change.
-
-| Endpoint | What it returns |
-| --- | --- |
-| `GET /api/atlas/areas?bbox=&category=` | The 16 curated areas, filterable by viewport or category. |
-| `GET /api/atlas/districts` | All 50 khet, joined to Treasury land-price data, with centroids. |
-| `GET /api/atlas/at-this-point?lng=&lat=` | The generalised "click the city" — district, land price, flood status, nearest transit, summary band. One call. |
-| `GET /api/atlas/transit?lng=&lat=&radius=&limit=` | Nearest rail segments, scheduled boat corridors and passenger piers, with distances and sources. |
-| `GET /api/atlas/buildings?bbox=&limit=` | Honest pointer to the 432K PMTiles + the 9,275-feature Rattanakosin detail (no fake server-side bbox query yet). |
-| `GET /api/atlas/scoreboard` | Single object: live feed health, counts, district/rail/building totals, traffic-feed configured status, last civic-data ingest. |
-
-```js
-// "What's at this point, in one call?"
-const r = await fetch(
-  "https://atlas.nonarkara.org/api/atlas/at-this-point?lng=100.4914&lat=13.7500"
-).then((r) => r.json());
-// r.district.nameEn  → "Phra Nakhon District"
-// r.landPrice.peakNewPrice → 1000000
-// r.nearestTransit.line → "MRT-Blue", distanceM → 476
-// r.flood.inside → true, severity → "high"
-// r.summary → { landPriceBand: "premium", transitBand: "walkable", floodBand: "high" }
-```
-
-```sh
-# Smoke test — operator-runnable, end-to-end, hits all 6 + edge cases.
-npm run smoke                                    # default: live URL
-ATLAS_URL=http://localhost:8787 npm run smoke    # local wrangler dev
-```
-
-The script exits non-zero on any failure and prints a one-line
-PASS/FAIL summary. Run it after every deploy to know the city is
-still answering. **17 checks total**: 6 `/api/atlas/*` endpoints +
-the scoreboard's `cityEvents` contract + the `/api/traffic`
-`configured:false` body shape + the `/api/city-events` "no
-fabricated coordinates" bbox promise + filter + bad-bbox +
-malformed-bbox + the legacy feed shapes.
-
-### 1e. `/api/city-events` — live breaking incidents
-
-The "God Mode" layer. Real-time Thai road/city incidents with
-reporter-supplied lat/lng from the Longdo / iTIC public event feed.
-Nothing here is geocoded by us — an event arrives with coordinates
-or it isn't stored.
-
-```js
-const r = await fetch("https://atlas.nonarkara.org/api/city-events").then((r) => r.json());
-// r.count         → number of live pins (0 = no breaking events right now)
-// r.ttlMinutes    → 60 (a pin self-clears after this OR the source's stop time)
-// r.features      → GeoJSON points, all inside the Bangkok bbox
-// r.ingestWarning → optional upstream hiccup; the response still serves D1 data
-```
-
-Two editorial rules in the data, not in the code: only `accident |
-flood | fire | trafficjam | roadclosed | rain | earthquake |
-protest | warning` icons get a pin (the feed is dominated by
-multi-month `diversion` roadworks), and any event whose
-source-declared window exceeds 24h is dropped on duration as
-infrastructure. Persisted to D1 because the upstream is a rolling
-20-item window for all of Thailand; a 5-minute cron
-(`[triggers] crons = ["*/5 * * * *"]` in `wrangler.cron.toml`) keeps the
-store fresh between visitors.
-
-### 2. `osm-buildings-to-geojson.py` — the building extrusions
-
-```sh
-python3 scripts/osm-buildings-to-geojson.py \
-  --bbox 100.30,13.45,100.95,14.10 \
-  --output ./out/bkk-buildings.geojson
-```
-
-Emits a single GeoJSON `FeatureCollection` with `height` and
-`base_height` on every feature. The same file works in:
-
-```ts
-// MapLibre
-map.addSource("bkk", { type: "geojson", data: "/bkk-buildings.geojson" });
-map.addLayer({ id: "bkk-3d", type: "fill-extrusion", source: "bkk",
-  paint: { "fill-extrusion-height": ["get", "height"],
-           "fill-extrusion-base": ["get", "base_height"],
-           "fill-extrusion-color": "#c9ff38" } });
-
-// deck.gl
-new PolygonLayer({ data: bkkFeatures, extruded: true,
-  getElevation: (f) => f.properties.height, ... });
-
-// Cesium
-Cesium.GeoJsonDataSource.load("/bkk-buildings.geojson", { clampToGround: false })
-  .then((ds) => viewer.dataSources.add(ds));
-```
-
-### 3. PMTiles — the streaming format (live now)
-
-432,077 Bangkok OSM building footprints, baked into a single
-gzipped MVT PMTiles (~17 MB, 2,863 tiles, zoom 11–15). Hosted on
-Cloudflare R2 and served at `/bkk-buildings.pmtiles` with full
-HTTP Range passthrough. The browser's `pmtiles` JS lib
-(<https://unpkg.com/pmtiles@4.4.1/dist/pmtiles.js>) registers a
-`pmtiles://` protocol handler and issues per-tile Range requests
-that the Worker passes through to R2.
-
-**Why PMTiles over a single GeoJSON**: the same data as one
-GeoJSON is ~120 MB, unworkable in a browser. PMTiles streams
-tile-by-tile based on the viewport, so 17 MB serves 432K buildings
-smoothly at every zoom.
-
-**Why R2 over the `[assets]` static binding**: the Workers static
-asset binding does NOT honor HTTP Range requests — every GET
-returns the full 17 MB. The `pmtiles` lib streams by issuing
-Range requests for the directory and individual tiles, so a
-Range-honoring source is mandatory. R2 is the obvious fit; the
-Worker proxy just translates the `Range` header into a R2
-`get({ range })` call and writes the 206 back.
-
-**Regenerate** (when the upstream OSM data changes):
-
-```sh
-# 1. extract Bangkok from a fresh Thailand PBF
 python3 scripts/osm-buildings-to-geojson.py \
   --bbox 100.30,13.45,100.95,14.10 \
   --output /tmp/bkk-buildings/bangkok-buildings.geojson
-
-# 2. add height defaults (residential=9m, apartments=18m, office=24m, hotel=30m, ...)
-python3 scripts/preprocess-buildings.py \
-  --input /tmp/bkk-buildings/bangkok-buildings.geojson \
-  --output /tmp/bkk-buildings/bangkok-buildings-h.geojson
-
-# 3. tippecanoe → PMTiles
-tippecanoe -Z11 -z15 --no-tile-size-limit --no-feature-limit \
-  --simplification=20 --read-parallel --force \
-  --include=render_height --include=render_min_height \
-  -o /tmp/bkk-buildings/bangkok-buildings-h.pmtiles \
-  -l buildings /tmp/bkk-buildings/bangkok-buildings-h.geojson
-
-# 4. push to R2
-npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles \
-  --file=/tmp/bkk-buildings/bangkok-buildings-h.pmtiles --remote
+# then scripts/preprocess-buildings.py, tippecanoe, and:
+# npx wrangler r2 object put bkk-tiles/buildings/bangkok.pmtiles --file=... --remote
 ```
 
-The `scripts/generate-3d-tiles.sh` wrapper runs all four stages.
+`scripts/generate-3d-tiles.sh` wraps those stages. Do not put the PMTiles file in `public/`. The assets binding does not honour HTTP Range, and the `pmtiles` client needs Range.
 
-## Layer registry
+## Cost guards
 
-Layers are declared in a single `LAYERS` array at the top of
-`public/app.js`. Each entry is an object with:
+Measured cold pass recorded in `wrangler.cron.toml` (2026-10-09, network wait excluded):
 
-- `id` / `name` / `description` — what shows in the toggle panel
-- `defaultOn` — whether the layer starts visible
-- `layers` — the MapLibre layer IDs to flip visibility on/off
-- `install(map)` / `uninstall(map)` — async hooks for source +
-  layer wiring (AQI fetches Open-Meteo, terrain calls `setTerrain`,
-  rain fetches RainViewer's manifest, etc.)
-- `legend?` — optional colour swatch set rendered in the panel
-  when the layer is on
+| Step | CPU |
+| --- | --- |
+| News venue match, 155 articles × 599 venues | ~657 ms |
+| Parse `bkk-khlongs.geojson` | ~57 ms |
+| Snap 40 flood reports on 4 dense road cells | ~56 ms |
+| City-event district point-in-polygon × 20 | ~15 ms |
+| Decode 4 flood-road cells | ~13 ms |
+| One cron-shaped pass | ~823 ms |
 
-This means new layers are a one-object addition; the toggle UI,
-visibility flipping, and legend rendering are all generic.
+A flood day touches more road cells, so the cron cap is the platform maximum, 30,000 ms, not a tight estimate. The request Worker stays at 200 ms. Putting the cron on `wrangler.toml` would either kill ingest or drop the request cap.
 
-## R2 objects in this project
+Other bounds in `src/index.ts`:
 
-- `bkk-tiles/buildings/bangkok.pmtiles` — 20.3 MB, 432,077 features,
-  zoom 11–15. The metro-level buildings layer.
-- `bkk-tiles/buildings/bangkok-rattanakosin.pmtiles` — 1.27 MB,
-  9,275 features, zoom 14–18. The Old Town detail layer.
+- `/api/traffic` with a key: 30 requests per minute per IP per isolate, then HTTP 429. The counter resets on a cold isolate.
+- Upstream `fetch` times out at 20 seconds.
+- D1 `flood_state` caches water proxies. TTLs in code include 90 s (traffic), 300 s (CCTV, risk, ThaiWater provincial routes, news), 60 s (flood sensors, FloodDash verdict, TimesFM unavailable body), 180 s (weather model).
+- Presence (`/api/presence`) is in-memory per isolate. It does not log IPs. It is not a durable visitor counter.
 
-Both are served via the Worker at `/bkk-buildings.pmtiles` and
-`/bkk-buildings-rattanakosin.pmtiles` with full HTTP Range
-passthrough. The Worker proxy is in `src/index.ts` (`servePmtilesFromR2`).
+## How it works
 
-## Live traffic layer (iTIC / Longdo)
+A short reading path if you want to learn the system rather than only run it.
 
-The atlas includes a "Live traffic" layer in the side panel that
-shows Bangkok's expressways colored by traffic level (red / yellow
-/ green). The data comes from the iTIC Foundation, which exposes:
+1. **The page.** `public/index.html` is one screen: map, panel, About drawer. `public/app.js` declares layers in a `LAYERS` array. Each entry has an id, a default visibility, the MapLibre layer ids it toggles, and `install` / `uninstall`. Adding a layer is one object plus its source. Toggles hide layers; they do not destroy the WebGL sources, so rain and air quality can come back without a full reload.
+2. **Buildings.** The browser loads `pmtiles` and requests byte ranges at `/bkk-buildings.pmtiles`. `servePmtilesFromR2` turns `Range` into `BKK_TILES.get(key, { range })` and returns 206. A single GeoJSON of the same 432,077 footprints is too large for the browser; the tile archive is not. If that PMTiles is unreachable, the client falls back to OpenFreeMap buildings. From zoom 14 the Rattanakosin archive takes over through zoom 18.
+3. **A click.** Inspect reads the feature under the cursor. `/api/risk?lng=&lat=` combines the schematic flood polygon, a live PM2.5 reading, and land-price context. The response is a demo score from 0 to 100. The flood polygon is not an official extent.
+4. **The mirror API.** `/api/atlas/areas`, `districts`, `at-this-point`, `transit`, `buildings`, and `scoreboard` are thin GETs for a script or an agent. `buildings` returns pointers to the PMTiles. It does not run a server-side bounding-box query over 432,077 features. `at-this-point` rejects coordinates outside the Bangkok bbox.
+5. **The clock.** Every five minutes `scheduled` on the cron Worker ingests Longdo events, matches news against the venue gazetteer, refreshes FloodDash into `flood_state`, and snaps flood reports onto `public/flood-roads/` cells. A visitor hitting `/api/city-events` reads D1 immediately and may refresh in the background.
+6. **What a pin is allowed to mean.** Read the comments on `city_events` and `news_events` in `db/schema.sql`. Those comments are the contract: reporter coordinates, or a quoted place name, or no pin.
 
-- **Historical archive** (2017–2023, ~1–18 GB/month tar files)
-  under CC-BY 4.0 at <https://itic.longdo.com/opendata/traffic-status-feeds/>.
-- **Live feed** at <https://traffic.longdo.com/api/feed/itsth>
-  (Longdo map's `TRAFFIC` layer, members-only).
-- **Documentation** at <http://traffic.longdo.com/feed/>.
+House colours for the UI are separate from the README hero: signal yellow `#c9ff38`, paper `#f1efe8`, ink `#11120f` (`public/style.css`). The typeface is Sao Chingcha, self-hosted.
 
-The atlas Worker exposes a `/api/traffic` endpoint that proxies
-the live feed using a Longdo API key. Until you set the key, the
-client falls back to a static sample of ~1.9K OSM-derived
-Bangkok motorway/trunk line segments (1,302 km of road) with
-mock traffic levels, generated by Overpass and committed as
-`public/bkk-traffic-sample.geojson`. The fallback is enough to
-prove the wiring and tune the styling; the live feed replaces it
-when configured.
+## Fork it for your city
 
-### Enabling the live feed
+There is no city switch. Bangkok is baked into the data files, the bounding boxes, and the Cloudflare names. A fork that only renames the title would still be Bangkok.
 
-```sh
-# 1. Register a free Longdo Map key at https://map.longdo.com/
-# 2. Set it as a Cloudflare secret on the worker:
-npx wrangler secret put LONGDO_KEY
-# 3. Redeploy:
-npx wrangler deploy
-```
+1. Fork, keep the two-config Worker split, and keep `cpu_ms` 200 on the request Worker.
+2. Replace `public/bkk-areas.json` and the GeoJSON you still want. Delete layers you will not feed. Do not relabel Bangkok extracts as another city.
+3. Search `src/index.ts` for the boxes you must change: `CCTV_BBOX`, `BKK_INCIDENT_BBOX`, `BKK_INCIDENT_HALO_BBOX`, `DAM_BBOX`, `ALERT_HALO_BBOX`, `MAHOLAN_BBOX`, and the hard-coded Bangkok window `13.4–14.2` / `100.2–101.1` on `/api/risk`’s neighbours and `/api/weather/google`. ThaiWater URLs use `province_code=10`.
+4. Point `wrangler.toml` and `wrangler.cron.toml` at your account, script names, D1 database, and — on the request Worker only — your R2 bucket and hostname. `npm run deploy:live` checks out `main` and expects this account id and `atlas.nonarkara.org`. Write your own deploy script or edit those checks.
+5. Build a PMTiles for your buildings (`scripts/osm-buildings-to-geojson.py` takes `--bbox`) and upload it under the key `servePmtilesFromR2` reads: `buildings/bangkok.pmtiles` and `buildings/bangkok-rattanakosin.pmtiles`, unless you change those constants.
+6. Apply `db/schema.sql` to your D1 database before expecting civic rows, events, or flood cache.
+7. Keep upstream licences. OSM stays ODbL. Attribute Esri, NASA, and any feed you still call.
+8. Run `npm run verify`, `npm run typecheck`, and `npm run test:flood`. The flood tests assume this project’s report rules; update them if you remove flood layers rather than letting them fail silently.
 
-The next request to `/api/traffic` will hit
-`https://traffic.longdo.com/api/feed/itsth?key=<your-key>`, and the
-client will swap the static sample for the live feed (90-second
-edge cache). The endpoint is a **200 with `configured: false`** when
-no key is set — the no-key state is the known steady state (no
-Longdo/iTIC key is registered anywhere in the workspace), not a
-service failure. The client treats a body without `features` as
-"fall back to the static sample", and the layer keeps its honest
-"mock levels (not live)" label in the panel.
+Feeds that are Bangkok-specific and will not transfer: Longdo / iTIC traffic and events, BMA open data, ThaiWater province 10, Traffy Fondue, the Chao Phraya boat file, and FloodDash. Open-Meteo, RainViewer, NASA GIBS, Esri imagery, and OpenFreeMap are the pieces that are not tied to one municipality.
 
-## Traffic CCTV layer (iTIC / Longdo)
+## Roadmap
 
-Public **road / intersection** cameras — not the closed BMA security
-network (~60k+ cameras). The same iTIC ecosystem that powers
-[live.iticfoundation.org](https://live.iticfoundation.org) publishes:
+This is the list published in the About drawer (`public/index.html`, `#about-roadmap`), not a dated commitment.
 
-- **Camera catalog (JSON)** — no API key —
-  <https://camera.longdo.com/feed/?command=json> (~280 cameras
-  nationwide; ~80–110 in the Bangkok metro with HLS).
-- **Live HLS** — `camerai1.iticfoundation.org` playlists (CORS open).
-- **JPEG / MJPEG** endpoints exist but often return empty bodies;
-  the atlas plays **HLS** in a click popup (`hls.js` on Chromium,
-  native HLS on Safari).
+1. Official flood extents — replace the schematic envelope when DDPM or BMA GeoJSON is open.
+2. Property-tax verifier — deed or parcel lookup against Treasury zones and a typed bill.
+3. BTS / MRT isochrones — 5, 10, and 15 minute walksheds.
+4. Risk API v3 — rain intensity and building height in the score.
+5. Offline atlas pack — MapLibre, pmtiles, and samples on a USB stick.
 
-The Worker exposes `/api/cctv`, which filters the catalog to the
-Bangkok metro bbox and returns GeoJSON points. The client falls
-back to `public/bkk-cctv.geojson` when the Worker is offline.
+Further out, the same drawer names a handover of the twin, cadastral polygons (it says the blocker is institutional, not code), and denser tourist / planning / command-center chrome after the civic layers are reliable.
 
-Toggle **Traffic CCTV** in Layers (or use the Full pulse preset).
-Click a signal-yellow pin to watch the live stream. Attribution:
-iTIC Foundation / Longdo.
+`/api/atlas/buildings` still documents that there is no server-side bbox query. `/api/predict/timesfm` is an explicit empty. Both are current behaviour, not hidden roadmap items.
 
-What this is **not**: free access to BMA/police investigative CCTV
-at `cctv.bangkok.go.th`. Those remain request-only after a police
-report.
+## FAQ
 
-## Layer stack
+**Why are there two Workers?**  
+A cold ingest measured about 823 ms of CPU. The request Worker is capped at 200 ms. The schedule lives in `wrangler.cron.toml` on `bkk-3d-atlas-cron`.
 
-1. Esri World Imagery (raster, desaturated −0.45, opacity 0.78) — real
-   Bangkok.
-2. `transportation` minor roads (OpenFreeMap, ink-dim) — fill the gaps.
-3. `transportation` major roads (OpenFreeMap, paper-dim) — the grid.
-4. `transportation` motorways (OpenFreeMap, **signal yellow**) — the
-   expressways.
-5. `building` fill-extrusion (**our own 432K PMTiles, signal yellow**,
-   0.32 → 0.82 opacity ramp from z11 → z17) — the entire Bangkok
-   metro extruded, not just the OpenFreeMap city-scale outline.
-   Falls back to OpenFreeMap's MVT if the PMTiles is unreachable.
-6. **Rattanakosin detail** (z14–18 PMTiles, 9,275 features) — auto-
-   loaded with the buildings layer. Covers the Grand Palace, Wat
-   Pho, Wat Phra Kaew, Wat Suthat, the royal field. The metro
-   PMTiles maxes at z15; this layer takes over to z18 for the Old
-   Town's temple geometry.
-7. **Building type colors** (sub-toggle) — switches the 3D buildings
-   from signal-yellow monochrome to a category-coloured paint
-   expression by OSM `building` tag (temple=gold, school=blue,
-   hotel=pink, museum=purple, hospital=green, commercial=paper,
-   house=light yellow, apartments=orange, industrial=gray, etc.).
-8. **3D terrain** (AWS Terrarium DEM, free, no key) — toggleable
-   `setTerrain({ source, exaggeration: 1.5 })`. Bangkok is mostly
-   flat but Khao San / old town sit on a ~5 m ridge and the
-   neighbouring provinces have real hills.
-9. **Live traffic** (iTIC / Longdo) — proxy at `/api/traffic`.
-10. **Rail lines** (BTS / MRT / ARL / SRT) — 9 lines in official colors.
-11. **Boat routes & piers** — four maintained passenger corridors and
-    16 named piers across the Chao Phraya, Khlong Saen Saep and the
-    Tha Tien–Wat Arun crossing. Dotted lines mean scheduled orientation
-    geometry, explicitly not live vessel tracking or navigation channels.
-12. **Canals & rivers** (Chao Phraya + 3,026 khlongs).
-13. **Air quality** (Open-Meteo CAMS) — heatmap of PM2.5 from an
-    8×8 grid over the Bangkok bbox, EPA-style colour ramp.
-14. **Rain radar** (RainViewer) — most-recent past frame from
-    `api.rainviewer.com/public/weather-maps.json`, 5-min client
-    cache, opacity 0.65.
-15. **Current wind field** (Open-Meteo) — 36 current 10 m model cells
-    across Bangkok, rendered as clickable downwind arrows with speed
-    colours and gust values. This is a forecast-model field, explicitly
-    not presented as a street-level sensor network.
-16. **Land price (ราคาประเมิน)** — Treasury Department 2024–2028
-    assessment, aggregated from 2.28M parcels to 477 UTMMAP3 zones.
-    Each zone is a point on the map coloured by average appraisal
-    price (500–435,000 ฿/sq.wah). Six-step ramp from cream to dark
-    amber.
-17. **Live incidents** (Longdo / iTIC event feed, D1-backed) — red
-    "!" pins for breaking city events with reporter-supplied
-    coordinates. Source: `https://event.longdo.com/feed/json` — real
-    lat/lng from the reporter, no geocoding guesswork. Pinned
-    incidents are filtered two ways: only `accident | flood | fire |
-    trafficjam | roadclosed | rain | earthquake | protest | warning`
-    icons get a pin (diversion roadworks are dropped — the feed is
-    dominated by multi-month diversions, not breaking news), and any
-    event whose source-declared window exceeds 24h is dropped on
-    duration as standing infrastructure. A pin lives 60 minutes
-    from first sight or until the source's own stop time, whichever
-    comes first. Persisted to D1 (not proxied) because the upstream
-    is a rolling 20-item window for all of Thailand; a 5-minute cron
-    in `wrangler.cron.toml` keeps the store fresh between visitors.
-    Endpoint: `/api/city-events`.
-18. **Buzz** (Bangkok Post + Khaosod English RSS, D1-backed) — amber
-    "●" pins for "what the city is talking about": motor shows,
-    concerts, gatherings, the things that draw crowds and wreck
-    traffic. **No fabricated coordinates.** A pin only exists when a
-    real place name from `public/bkk-venues.geojson` (599 OSM venues
-    + 13 curated areas) is found in the article's headline or
-    summary; the matching phrase is stored on every row so any pin
-    can be audited back to the words that put it there. Articles
-    that match nothing get no pin — they are simply not stored.
-    `precision` is either `venue` (a specific named place — IMPACT
-    Arena, BITEC) or `area` (a neighbourhood — Silom, Chatuchak);
-    the client labels both, so nobody reads an area pin as a street
-    address. 14-day rolling window. Endpoint: `/api/news-events`.
-19. **Curated landmarks** (`public/bkk-landmarks.geojson`) —
-    100 curated features: 73 ancient monuments & historic cores (Victory
-    Monument 50 m shaft, Phu Khao Thong 45 m, Phra Sumen Fort 60 m, Grand
-    Palace) plus 27 verified modern skyline icons with cited heights and
-    accurate pins (MahaNakhon 314 m, Baiyoke II 304 m, State Tower 247 m,
-    One Bangkok 215 m, Sathorn Unique 185 m planned). Unverified or
-    misplaced features are quarantined in `public/bkk-landmarks-quarantine.geojson`.
-    Rendered as 3D fill-extrusions with the buildings stack. Always on
-    with buildings; not a separate toggle. The Rattanakosin Old Town detail
-    PMTiles (`bkk-heritage-detail.geojson`, 3.8 MB) takes over at z14+ to
-    show the temple geometry of the Grand Palace, Wat Pho, Wat Phra Kaew,
-    and the royal field.
+**Why is the PMTiles in R2?**  
+The static assets binding returns the whole object and ignores `Range`. The `pmtiles` client needs ranges. The Worker proxies R2.
 
-BKKx aesthetic: signal yellow stays the only saturated color in the
-frame — **except alarm red** on the incidents layer (the one
-breaking-news color) and **amber** on the Buzz layer (the one
-discourse color). Sharp edges. No rounded corners. No shadows.
+**Does traffic work without a Longdo key?**  
+Yes. `/api/traffic` returns HTTP 200, `configured: false`, and no `features`. The map uses `public/bkk-traffic-sample.geojson` and labels the levels as mock.
 
-## Why this is separate from the public BKKx site
+**Are the flood polygons official?**  
+No. Five schematic envelopes, CC0 in the file, not for evacuation, insurance, or planning. Lit streets mean a report was snapped nearby, not that the road was surveyed.
 
-The public BKKx atlas at `bkk.nonarkara.org` is hosted on the OpenAI
-Codex hosting platform, which is great for a marketing site but
-doesn't let us deploy from a Mavis session. This repo is the
-**data and infrastructure** counterpart:
+**Are the boats live?**  
+No. Four corridors and sixteen piers are scheduled orientation.
 
-- **Reusable data files** (`bkk-areas.json`, the OSM GeoJSON) — pull
-  these from any other project on any host.
-- **Cloudflare Workers + R2** — gives us a deploy target we control
-  end to end. Future: stream 3D Tiles from R2 to the viewer.
-- **Private repo** — building extrusions can carry a per-block
-  curated layer (e.g. Chula's campus) without leaking it on the
-  public site.
+**Can I underwrite a property from `/api/risk`?**  
+No. It is a civic demo score. Land-price numbers are a media summary of Treasury draft data, not the gazette.
 
-## Hard rules (this project)
+**Is TimesFM running?**  
+No. The route says no inference service is connected and that arrival times and depths were not calculated.
 
-- BKKx aesthetic: signal yellow `#c9ff38` for primary signals, paper
-  `#f1efe8` for text, ink `#11120f` for the chrome. Sharp edges. No
-  rounded corners. No shadows. No blur.
-- Reusable data: every data file must be self-describing (schema,
-  version, license, source).
-- Real data only — no placeholders, no "lorem ipsum" buildings, no
-  made-up stats.
-- Data licensing: OSM data is © OpenStreetMap contributors under
-  ODbL 1.0. Esri imagery is © Esri, Maxar, Earthstar Geographics
-  (free for non-commercial use, attribution required).
-- One screen, one screen. No multi-window confusion.
+**What is the UI version versus `package.json`?**  
+`package.json` says `0.1.0`. The header badge in `public/index.html` says `v0.3.0`.
+
+**Where is the licence?**  
+There is no `LICENSE` file. OSM-derived data is ODbL regardless. See [CREDITS.md](CREDITS.md) and the data table above.
+
+## Community
+
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1
+- [SECURITY.md](SECURITY.md)
+- [CREDITS.md](CREDITS.md)
+
+Contact published on the atlas: nonsmartcity@gmail.com · <https://nonarkara.org> · <https://github.com/Nonarkara/bkk-3d-atlas>

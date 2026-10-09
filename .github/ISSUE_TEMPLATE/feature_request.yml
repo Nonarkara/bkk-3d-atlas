@@ -1,0 +1,25 @@
+name: Feature
+description: A change to the viewer, the API, or the city extract.
+title: "[feature] "
+labels: []
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: What should a visitor be able to do
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Where the data would come from
+      description: Name an existing file or a public feed. If you do not have a source yet, say so.
+    validations:
+      required: true
+  - type: textarea
+    id: out
+    attributes:
+      label: What this must not claim
+      placeholder: Not an official flood map. Not live boat positions.
+    validations:
+      required: false
