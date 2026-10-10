@@ -3552,3 +3552,13 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   .atlas-sim-toggle, .atlas-sim-close { transition: none; }
   .atlas-sim-progress-bar { transition: none; }
 }
+
+/* FloodDash CV over the camera popup's stream (public/cv/popupScreen.js).
+   The overlay matches the stream's own aspect, so boxes sit on measured
+   pixels rather than a crop of them. */
+.atlas-cctv-media { position: relative; }
+.atlas-cctv-media .atlas-cctv-video { display: block; object-fit: fill; }
+.atlas-cctv-cv { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.atlas-cctv-cvline { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+.atlas-cctv-cvline[data-state="checking"] { color: #00A3E0; }
+.atlas-cctv-cvline[data-state="possible_flooding"] { color: #ff6b5a; font-weight: 600; }

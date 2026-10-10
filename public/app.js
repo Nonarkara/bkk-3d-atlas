@@ -7,6 +7,8 @@
 // when in monochrome mode. The "type colors" mode pulls from the
 // BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
 // residential / industrial palettes).
+import { startVideoScreening } from "./cv/popupScreen.js";
+
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -776,6 +778,7 @@ const state = {
   cctvSource: null, // "live" | "sample" | null
   cctvPopup: null,
   cctvHls: null,
+  cctvScreenStop: null,
   floodSensorPopup: null,
   flood: null, // FloodDash relay payload (/api/flood/bkk)
   cctvGeojson: null, // last CCTV FeatureCollection (live or sample)
@@ -5918,7 +5921,15 @@ function setTrafficSourceBadge(source) {
   }
 }
 
+function stopCctvScreening() {
+  if (state.cctvScreenStop) {
+    try { state.cctvScreenStop(); } catch {}
+    state.cctvScreenStop = null;
+  }
+}
+
 function destroyCctvHls() {
+  stopCctvScreening();
   if (state.cctvHls) {
     try { state.cctvHls.destroy(); } catch {}
     state.cctvHls = null;
@@ -6107,7 +6118,11 @@ function openCctvPopup(map, feature) {
       <p class="atlas-cctv-kicker">Traffic CCTV · ${escapeHtml(org)}</p>
       <strong class="atlas-cctv-title">${escapeHtml(title)}</strong>
       ${floodBanner}
-      <video class="atlas-cctv-video" playsinline muted autoplay controls></video>
+      <div class="atlas-cctv-media">
+        <video class="atlas-cctv-video" playsinline muted autoplay controls></video>
+        <canvas class="atlas-cctv-cv" aria-hidden="true"></canvas>
+      </div>
+      <p class="atlas-cctv-cvline" aria-live="polite"></p>
       <div class="atlas-cctv-stream-error" hidden>
         <span>Stream unavailable in your session — iTIC runs every camera on its own port and a handful are off-air.</span>
       </div>
@@ -6168,6 +6183,15 @@ function openCctvPopup(map, feature) {
       : "Live · iTIC / Longdo";
   }
   playCctvStream(video, hls);
+  // FloodDash's camera-wall CV on the stream being watched (public/cv/).
+  // Screening only: it can say "possible flooding · inspect footage", and
+  // it never says clear.
+  const cvCanvas = popup.getElement()?.querySelector(".atlas-cctv-cv");
+  const cvLine = popup.getElement()?.querySelector(".atlas-cctv-cvline");
+  if (video && cvCanvas) {
+    stopCctvScreening();
+    state.cctvScreenStop = startVideoScreening(video, cvCanvas, cvLine);
+  }
   // iTIC runs cameras on per-host ports; some are off-air. If the
   // video element errors or stalls without ever playing, show the
   // "stream unavailable" box so the popup doesn't look broken.

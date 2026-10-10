@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test:flood": "node --test scripts/test-flood-integrity.mjs",
     "verify": "node scripts/verify-local.mjs",
-    "smoke": "node scripts/smoke-atlas-api.mjs"
+    "smoke": "node scripts/smoke-atlas-api.mjs",
+    "test:cv": "node --test scripts/cv-tests/*.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
