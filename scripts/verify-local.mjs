@@ -164,6 +164,37 @@ mustJson("public/bkk-heritage-detail.geojson", (data) => {
   else ok(`${n} Old Town footprints (${tall} ≥28 m)`);
 });
 
+// BKKx models (scripts/sync-bkkx-models.py): every box flagged hide_3d
+// must have the model that replaces it, and every roofed building's box
+// must be flagged — otherwise a building is drawn twice or not at all.
+{
+  const read = (rel) => JSON.parse(readFileSync(join(root, rel), "utf8")).features ?? [];
+  try {
+    const roofs = read("public/bkk-temple-roofs.geojson");
+    const heroes = read("public/bkk-hero-monuments.geojson");
+    const roofed = new Set(roofs.map((f) => f.properties?.source_id));
+    const heroIds = new Set(heroes.map((f) => f.properties?.hero_id));
+    let orphans = 0;
+    let doubled = 0;
+    for (const rel of ["public/bkk-heritage-detail.geojson", "public/bkk-landmarks.geojson"]) {
+      for (const f of read(rel)) {
+        const p = f.properties ?? {};
+        const by = String(p.hidden_by ?? "");
+        if (p.hide_3d === true && by) {
+          if (by.startsWith("temple-roof:") ? !roofed.has(p.id) : !heroIds.has(by)) orphans += 1;
+        } else if (rel.includes("detail") && roofed.has(p.id)) {
+          doubled += 1;
+        }
+      }
+    }
+    if (orphans) fail(`${orphans} boxes hidden for a BKKx model that is not served`);
+    if (doubled) fail(`${doubled} roofed buildings still drawn as a detail box too`);
+    if (!orphans && !doubled) ok(`${roofed.size} roofed buildings + ${heroIds.size} hero monuments, each drawn once`);
+  } catch (error) {
+    fail(`BKKx models: ${error.message} — run scripts/sync-bkkx-models.py`);
+  }
+}
+
 // Khlongs are large — warn, don't fail, so a lean laptop checkout still passes.
 const khlongs = join(root, "public/bkk-khlongs.geojson");
 if (!existsSync(khlongs)) {
@@ -262,6 +293,9 @@ for (const token of [
   "RATTANAKOSIN_HEIGHT_EXPRESSION",
   "HERITAGE_DETAIL_URL",
   "bkk-heritage-detail.geojson",
+  "TEMPLE_ROOFS_LAYER",
+  "HERO_MONUMENTS_LAYER",
+  "installModels",
 ]) {
   if (!app.includes(token)) fail(`public/app.js missing ${token}`);
   else ok(`app.js has ${token}`);

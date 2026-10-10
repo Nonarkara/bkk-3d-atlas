@@ -476,7 +476,9 @@
         "kind": "chedi",
         "height": 60,
         "base_height": 0,
-        "source": "schematic chedi · ~60 m mount silhouette"
+        "source": "schematic chedi · ~60 m mount silhouette",
+        "hide_3d": true,
+        "hidden_by": "golden-mount-chedi"
       }
     },
     {
@@ -744,7 +746,9 @@
         "building_type": "temple",
         "height": 22,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -816,7 +820,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -920,7 +926,9 @@
         "building_type": "temple",
         "height": 42,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "grand-palace-siratana-chedi"
       }
     },
     {
@@ -964,7 +972,9 @@
         "building_type": "temple",
         "height": 28,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "grand-palace-phra-mondop"
       }
     },
     {
@@ -1040,7 +1050,9 @@
         "building_type": "temple",
         "height": 32,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "grand-palace-thepbidorn"
       }
     },
     {
@@ -1096,7 +1108,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1152,7 +1166,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1208,7 +1224,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1264,7 +1282,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1320,7 +1340,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1376,7 +1398,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1432,7 +1456,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1488,7 +1514,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:prang"
       }
     },
     {
@@ -1528,7 +1556,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -1728,7 +1758,9 @@
         "building_type": "temple",
         "height": 24,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -1768,7 +1800,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -1824,7 +1858,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -1896,7 +1932,9 @@
         "building_type": "temple",
         "height": 30,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "dusit-maha-prasat"
       }
     },
     {
@@ -2152,7 +2190,9 @@
         "building_type": "temple",
         "height": 28,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "siwalai-maha-prasat"
       }
     },
     {
@@ -2232,7 +2272,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2272,7 +2314,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2344,7 +2388,9 @@
         "building_type": "temple",
         "height": 22,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2384,7 +2430,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2504,7 +2552,9 @@
         "building_type": "temple",
         "height": 33,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "loha-prasat"
       }
     },
     {
@@ -2544,7 +2594,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2592,7 +2644,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2648,7 +2702,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2704,7 +2760,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -2760,7 +2818,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -2816,7 +2876,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2856,7 +2918,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2952,7 +3016,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -2992,7 +3058,9 @@
         "building_type": "temple",
         "height": 28,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3032,7 +3100,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3084,7 +3154,9 @@
         "building_type": "temple",
         "height": 28,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "aphonphimok-prasat"
       }
     },
     {
@@ -3172,7 +3244,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3244,7 +3318,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3332,7 +3408,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3372,7 +3450,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3412,7 +3492,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -3452,7 +3534,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3492,7 +3576,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3532,7 +3618,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3572,7 +3660,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3676,7 +3766,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3780,7 +3872,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3884,7 +3978,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:chedi"
       }
     },
     {
@@ -3964,7 +4060,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -4040,7 +4138,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -4112,7 +4212,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -4168,7 +4270,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "wat-pho-dilok"
       }
     },
     {
@@ -4228,7 +4332,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "wat-pho-srisuriyothai"
       }
     },
     {
@@ -4284,7 +4390,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "wat-pho-srisanphetdayan"
       }
     },
     {
@@ -4340,7 +4448,9 @@
         "building_type": "temple",
         "height": 40,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "wat-pho-munibat"
       }
     },
     {
@@ -4436,7 +4546,9 @@
         "building_type": "temple",
         "height": 20,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {
@@ -4516,7 +4628,9 @@
         "building_type": "temple",
         "height": 16,
         "base_height": 0,
-        "source": "heritage height override"
+        "source": "heritage height override",
+        "hide_3d": true,
+        "hidden_by": "temple-roof:hall"
       }
     },
     {

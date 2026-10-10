@@ -48,6 +48,18 @@ const LANDMARKS_URL = "/bkk-landmarks.geojson";
 const LANDMARKS_SOURCE = "bkkx-landmarks";
 const LANDMARKS_LAYER = "bkkx-landmarks-extrusion";
 
+// Architectural models from BKKx (scripts/sync-bkkx-models.py copies
+// them). Temple halls get walls and tiered roofs, chedis bell stacks,
+// Wat Pho's eight prangs and Wat Arun corn-cob towers on redented
+// plans. Each replaces a detail/landmark box flagged hide_3d, so a
+// building is drawn once. Typological massing, not a measured survey.
+const TEMPLE_ROOFS_URL = "/bkk-temple-roofs.geojson";
+const TEMPLE_ROOFS_SOURCE = "bkkx-temple-roofs";
+const TEMPLE_ROOFS_LAYER = "bkkx-temple-roofs-extrusion";
+const HERO_MONUMENTS_URL = "/bkk-hero-monuments.geojson";
+const HERO_MONUMENTS_SOURCE = "bkkx-hero-monuments";
+const HERO_MONUMENTS_LAYER = "bkkx-hero-monuments-extrusion";
+
 // Building height — clamp to a sane range. OSM data occasionally
 // has corrupt building:levels tags (e.g. "12345678910111212") that
 // would otherwise produce 50-petrometre sky-pillars. Anything below
@@ -281,6 +293,15 @@ const LANDMARK_COLOR = [
   "shrine", "#e9a91a",     // warm gold — shrines comply with one-amber palette rule
   "#f5b800",
 ];
+// Model parts carry their own material colour (roof tile, gilt,
+// porcelain); night mode keeps them, they are the lit landmarks.
+const MODEL_PAINT = {
+  "fill-extrusion-color": ["coalesce", ["get", "material_color"], "#c4572c"],
+  "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
+  "fill-extrusion-base": ["coalesce", ["get", "base_height"], 0],
+  "fill-extrusion-opacity": 1,
+  "fill-extrusion-vertical-gradient": true,
+};
 const LANDMARK_PAINT = {
   "fill-extrusion-color": LANDMARK_COLOR,
   "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
@@ -803,6 +824,8 @@ const LAYER_STACK = [
   BKKX_BUILDINGS_HI_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
+  TEMPLE_ROOFS_LAYER,
+  HERO_MONUMENTS_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -1054,16 +1077,18 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, TEMPLE_ROOFS_LAYER, HERO_MONUMENTS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
       await installLandmarks(map);
+      await installModels(map);
       ensureStackOrder(map);
     },
     uninstall: (map) => {
       setLayersVisible(map, [
         BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER,
+        TEMPLE_ROOFS_LAYER, HERO_MONUMENTS_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1745,6 +1770,7 @@ function hideBaseBuildingFills(map) {
   for (const layer of layers) {
     if (layer.id === BKKX_BUILDINGS_LAYER || layer.id === BKKX_BUILDINGS_HI_LAYER) continue;
     if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER || layer.id === LANDMARKS_LAYER) continue;
+    if (layer.id === TEMPLE_ROOFS_LAYER || layer.id === HERO_MONUMENTS_LAYER) continue;
     const sourceLayer = layer["source-layer"];
     const isBuildingFill =
       layer.type === "fill" &&
@@ -2010,6 +2036,8 @@ async function installLandmarks(map) {
         type: "fill-extrusion",
         source: LANDMARKS_SOURCE,
         minzoom: 10.5,
+        // A landmark box whose building BKKx re-massed yields to the model.
+        filter: ["!=", ["get", "hide_3d"], true],
         paint: LANDMARK_PAINT,
       });
     } catch (error) {
@@ -2017,6 +2045,43 @@ async function installLandmarks(map) {
     }
   } else {
     try { map.setLayoutProperty(LANDMARKS_LAYER, "visibility", "visible"); } catch {}
+  }
+}
+
+// The models only make sense over the GeoJSON detail layer: the PMTiles
+// fallback has no hide_3d flags, so its boxes would enclose the roofs.
+async function installModels(map) {
+  const detailIsGeoJson = Boolean(map.getSource(HERITAGE_DETAIL_SOURCE));
+  const models = [
+    [TEMPLE_ROOFS_SOURCE, TEMPLE_ROOFS_URL, TEMPLE_ROOFS_LAYER, 13.5,
+      "© OpenStreetMap contributors (ODbL-1.0) · BKKx typological roofs"],
+    [HERO_MONUMENTS_SOURCE, HERO_MONUMENTS_URL, HERO_MONUMENTS_LAYER, 12.8,
+      "Fine Arts Department envelope · © OpenStreetMap contributors · BKKx schematic tiering"],
+  ];
+  for (const [sourceId, url, layerId, minzoom, attribution] of models) {
+    if (!detailIsGeoJson) {
+      if (map.getLayer(layerId)) try { map.setLayoutProperty(layerId, "visibility", "none"); } catch {}
+      continue;
+    }
+    if (!map.getSource(sourceId)) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
+        map.addSource(sourceId, { type: "geojson", data: await res.json(), attribution });
+      } catch (error) {
+        console.warn("BKKx model source failed:", error);
+        continue;
+      }
+    }
+    if (!map.getLayer(layerId)) {
+      try {
+        map.addLayer({ id: layerId, type: "fill-extrusion", source: sourceId, minzoom, paint: MODEL_PAINT });
+      } catch (error) {
+        console.warn("BKKx model layer failed:", error);
+      }
+    } else {
+      try { map.setLayoutProperty(layerId, "visibility", "visible"); } catch {}
+    }
   }
 }
 
@@ -6769,6 +6834,8 @@ function applyWaterwayStatus(map) {
 // ─────────────────────────────────────────────────────────────────
 
 const INSPECT_BUILDING_LAYERS = [
+  HERO_MONUMENTS_LAYER,
+  TEMPLE_ROOFS_LAYER,
   LANDMARKS_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   BKKX_BUILDINGS_LAYER,
@@ -6803,18 +6870,22 @@ function buildingRowsFromFeature(feature) {
     ];
   }
   const p = feature.properties ?? {};
-  const type = p.kind ?? p.building ?? p.building_type ?? p.class ?? "yes";
+  const type = p.kind ?? p.building ?? p.building_type ?? p.class ?? p.roof_form ?? "yes";
   const height = p.render_height ?? p.height ?? null;
   const minH = p.render_min_height ?? p.min_height ?? p.base_height ?? null;
   const name = p.name_en || p.name || p["name:en"] || null;
-  const osmId = p.osm_id ?? p.id ?? p["@id"] ?? null;
+  const osmId = p.source_id ?? p.osm_id ?? p.id ?? p["@id"] ?? null;
   const rows = [];
   if (name) rows.push(["Name", String(name)]);
+  // BKKx model parts: say which part, and how it was shaped.
+  if (p.part_label) rows.push(["Part", String(p.part_label)]);
   rows.push(
     ["Type", String(type)],
     ["Height", height != null ? `${height} m` : "—"],
     ["Base", minH != null && Number(minH) > 0 ? `${minH} m` : "0 m"],
   );
+  const form = p.form_confidence ?? p.height_confidence;
+  if (form) rows.push(["Form", p.not_measured_survey ? `${form} — not a measured survey` : String(form)]);
   if (osmId != null) rows.push(["OSM id", String(osmId)]);
   return rows;
 }
