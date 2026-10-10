@@ -1,6 +1,6 @@
 # bkk-3d-atlas
 
-<img src="assets/hero.svg" alt="Original ink drawing: empty warm paper, one dry stroke, a river that reverses out of a black field, and uneven building strokes. Palette plate 052, Sulpher Yellow and Black, switching for dark mode." width="100%">
+<img src="assets/hero.png" alt="bkk-3d-atlas on a flat Sulpher Yellow field. Desktop and phone screenshots of the live atlas: the BKKx header, a pitched map of Bangkok, quick jump, and the layer panel." width="100%">
 
 A browser atlas of Bangkok: 432,077 OpenStreetMap buildings, rail and boats, traffic, cameras, incidents, flood reports, rain, wind, PM2.5, and a NASA aerosol layer — on Cloudflare Workers, with no install.
 
@@ -9,13 +9,11 @@ A browser atlas of Bangkok: 432,077 OpenStreetMap buildings, rail and boats, tra
 
 **Live:** <https://atlas.nonarkara.org> · API catalog: <https://atlas.nonarkara.org/api> · research note: <https://atlas.nonarkara.org/labs/paper>
 
-The hero is original. Colour is Palette plate 052. The ink and the empty field take their mood from Takehiko Inoue’s *Vagabond* and copy none of it. Credits: [CREDITS.md](CREDITS.md).
-
 ## Screenshots
 
-The picture above is `assets/hero.svg`. It draws its own paper, so it stays readable on a light or dark GitHub theme: Sulpher Yellow `#f5ecc2` with black ink, or night ground `#6c6856` with white ink, following `prefers-color-scheme`.
+The picture above is `assets/hero.png`. It is the live site, captured 2026-10-10: a 1440×900 desktop viewport and a 390×844 phone viewport, both the default landing view at <https://atlas.nonarkara.org>. The mat is flat [Palette](https://github.com/Nonarkara/palette) plate 052, Sulpher Yellow `#f5ecc2`, with a 1px rule in the plate’s black `#111314`. The name and the pitch are set in Inter. The file is a raster capture, so it does not follow `prefers-color-scheme`. The atlas chrome inside it is the dark UI. Gauge readings in the picture are whatever the site was showing at capture time. Credits: [CREDITS.md](CREDITS.md).
 
-The map itself is the live site. This repository does not commit a capture of the WebGL canvas. Open the demo and use **Quick jump** (sixteen areas in `public/bkk-areas.json`) or the layer panel.
+Open the demo and use **Quick jump** (sixteen areas in `public/bkk-areas.json`) or the layer panel.
 
 ## What it does, and who it is for
 
@@ -226,7 +224,7 @@ A short reading path if you want to learn the system rather than only run it.
 5. **The clock.** Every five minutes `scheduled` on the cron Worker ingests Longdo events, matches news against the venue gazetteer, refreshes FloodDash into `flood_state`, and snaps flood reports onto `public/flood-roads/` cells. A visitor hitting `/api/city-events` reads D1 immediately and may refresh in the background.
 6. **What a pin is allowed to mean.** Read the comments on `city_events` and `news_events` in `db/schema.sql`. Those comments are the contract: reporter coordinates, or a quoted place name, or no pin.
 
-House colours for the UI are separate from the README hero: signal yellow `#c9ff38`, paper `#f1efe8`, ink `#11120f` (`public/style.css`). The typeface is Sao Chingcha, self-hosted.
+House colours for the UI are separate from the Sulpher Yellow frame on the README screenshot: signal yellow `#c9ff38`, paper `#f1efe8`, ink `#11120f` (`public/style.css`). The typeface is Sao Chingcha, self-hosted.
 
 ## Fork it for your city
 

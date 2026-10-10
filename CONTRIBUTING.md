@@ -32,7 +32,7 @@ These are the rules already enforced in the Worker and the static files:
 - Flood envelopes in `public/bkk-flood-envelope.geojson` are schematic (`CC0-1.0` in that file) and are not a DDPM or BMA map.
 - Boat lines in `public/bkk-water-transit.geojson` are scheduled corridors, not live vessels.
 - OSM-derived files stay © OpenStreetMap contributors, ODbL 1.0. Say so in the file header when you add one.
-- UI chrome in `public/style.css` uses ink `#11120f`, paper `#f1efe8`, and signal yellow `#c9ff38`, with sharp corners. That palette is the atlas UI. It is separate from the README hero, which uses Palette plate 052.
+- UI chrome in `public/style.css` uses ink `#11120f`, paper `#f1efe8`, and signal yellow `#c9ff38`, with sharp corners. The README screenshot is framed on Palette plate 052, Sulpher Yellow `#f5ecc2`. That frame is not the atlas UI palette.
 
 ## Where to change things
 
