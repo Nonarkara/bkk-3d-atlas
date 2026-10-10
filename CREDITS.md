@@ -12,6 +12,10 @@ The name and the one-line pitch are set in [Inter](https://rsms.me/inter/) (SIL 
 
 Map tiles and civic data visible in the capture are credited in the README section [Data sources](README.md#data-sources).
 
+## Closing panel
+
+`assets/manga.jpg` is original AI-assisted art made for this project.
+
 ## Data
 
 Source names, counts, and licences for the atlas files and live feeds are in the README section [Data sources](README.md#data-sources). OSM-derived files stay under ODbL 1.0. Do not treat this credits note as a licence for the code: this repository has no `LICENSE` file.

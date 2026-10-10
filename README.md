@@ -284,6 +284,10 @@ No. The route says no inference service is connected and that arrival times and 
 **Where is the licence?**  
 There is no `LICENSE` file. OSM-derived data is ODbL regardless. See [CREDITS.md](CREDITS.md) and the data table above.
 
+<img src="assets/manga.jpg" alt="Closing panel of a rain-soaked Bangkok street, with a cat carrying a red umbrella in the foreground." width="100%">
+
+*Look closer. The rain is hiding a cat with a red umbrella, 1784, a rubber duck, and a drone.*
+
 ## Community
 
 - [CONTRIBUTING.md](CONTRIBUTING.md)
