@@ -1430,7 +1430,12 @@ const LAYERS = [
     id: "maholan-cctv",
     name: "More CCTV cameras",
     description: "Maholan aggregator · BKK + 30 km halo · ~1,700 cameras · agency feeds + user-added (unvetted)",
-    defaultOn: true,
+    // Off by default. ~1,700 red and orange dots with a 10–18 px halo were
+    // the loudest thing on the map at every zoom, ahead of the buildings,
+    // the water and the flood reports the map exists to show. A camera is a
+    // question you ask of the city, not the answer it opens with — same rule
+    // the two other camera layers (Traffic CCTV, Live views) already follow.
+    defaultOn: false,
     softUninstall: true,
     layers: [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER],
     install: async (map) => { await installMaholanCctv(map); ensureStackOrder(map); },
