@@ -8,6 +8,8 @@
 // BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
 // residential / industrial palettes).
 
+import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
+
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
   "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -803,6 +805,7 @@ const LAYER_STACK = [
   BKKX_BUILDINGS_HI_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
+  ROOF_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -1054,7 +1057,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1063,7 +1066,7 @@ const LAYERS = [
     },
     uninstall: (map) => {
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1740,6 +1743,7 @@ function hideBaseBuildingFills(map) {
   for (const layer of layers) {
     if (layer.id === BKKX_BUILDINGS_LAYER || layer.id === BKKX_BUILDINGS_HI_LAYER) continue;
     if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER || layer.id === LANDMARKS_LAYER) continue;
+    if (layer.id === ROOF_LAYER) continue;
     const sourceLayer = layer["source-layer"];
     const isBuildingFill =
       layer.type === "fill" &&
@@ -1918,6 +1922,9 @@ async function installRattanakosin(map) {
         attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx heritage detail",
       });
       usedGeoJson = true;
+      try { installHeritageRoofs(map, data); } catch (error) {
+        console.warn('Heritage roofs unavailable; original buildings retained:', error);
+      }
     } catch (error) {
       console.warn("Heritage detail GeoJSON failed, falling back to PMTiles:", error);
     }
@@ -1978,6 +1985,7 @@ function applyRattanakosinPaint(map) {
 }
 
 function uninstallRattanakosin(map) {
+  uninstallHeritageRoofs(map);
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) try { map.removeLayer(RATTANAKOSIN_BUILDINGS_LAYER); } catch {}
   if (map.getSource(HERITAGE_DETAIL_SOURCE)) try { map.removeSource(HERITAGE_DETAIL_SOURCE); } catch {}
   if (map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) try { map.removeSource(BKKX_RATTANAKOSIN_PMTILES_LAYER); } catch {}
@@ -6985,6 +6993,7 @@ function floodRiskRows(flood, risk, buildingFeature) {
 
 function pointLayersOwningClick(map, point) {
   const owners = [
+    ROOF_LAYER,
     CCTV_LAYER,
     LIVE_CAM_LAYER,
     CIVIC_POI_LAYER,
