@@ -8,6 +8,8 @@
 // BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
 // residential / industrial palettes).
 
+import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
+
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
   "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -1054,16 +1056,17 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
       await installLandmarks(map);
       ensureStackOrder(map);
+      if (map.getLayer(ROOF_LAYER)) map.moveLayer(ROOF_LAYER);
     },
     uninstall: (map) => {
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1918,6 +1921,10 @@ async function installRattanakosin(map) {
         attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx heritage detail",
       });
       usedGeoJson = true;
+      // Opt-in until real-browser appearance, terrain and phone checks pass.
+      try { if (new URLSearchParams(location.search).get('heritagePilot') === '1') installHeritageRoofs(map, data); } catch (error) {
+        console.warn('Schematic heritage roofs unavailable; original buildings retained:', error);
+      }
     } catch (error) {
       console.warn("Heritage detail GeoJSON failed, falling back to PMTiles:", error);
     }
@@ -1978,6 +1985,7 @@ function applyRattanakosinPaint(map) {
 }
 
 function uninstallRattanakosin(map) {
+  uninstallHeritageRoofs(map);
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) try { map.removeLayer(RATTANAKOSIN_BUILDINGS_LAYER); } catch {}
   if (map.getSource(HERITAGE_DETAIL_SOURCE)) try { map.removeSource(HERITAGE_DETAIL_SOURCE); } catch {}
   if (map.getSource(BKKX_RATTANAKOSIN_PMTILES_LAYER)) try { map.removeSource(BKKX_RATTANAKOSIN_PMTILES_LAYER); } catch {}
