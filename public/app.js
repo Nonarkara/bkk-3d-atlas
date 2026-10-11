@@ -6947,6 +6947,7 @@ function liveFloodRows(live) {
   if (!live) return [];
   const rows = [];
   if (live.city) rows.push(["Bangkok now", `${FLOOD_LEVEL_WORD[live.city.level] || live.city.level} · ${live.city.headEn}`]);
+  else rows.push(["Bangkok now", "Current city assessment unavailable — not an all-clear"]);
   const g = live.nearestGauge;
   rows.push(["Nearest gauge", g
     ? `${g.bandEn} · ${g.name} · ${g.distanceKm} km${g.confidence === "stale" ? " · stale" : ""}`
@@ -7718,14 +7719,15 @@ async function loadBkkLiveStrip() {
     let freshnessText;
     // "live" is a claim: only print it while the reading actually is.
     // Past 5 min the text states the age; past 60 min the dot goes stale.
-    if (ageMin < 1) freshnessText = "live · <1 min";
-    else if (ageMin < 5) freshnessText = `live · ${ageMin} min`;
+    if (!Number.isFinite(ageMin) || ageMin < 0) freshnessText = "KPI fetch age unknown";
+    else if (ageMin < 1) freshnessText = "KPI fetched · <1 min";
+    else if (ageMin < 5) freshnessText = `KPI fetched · ${ageMin} min`;
     else if (ageMin < 60) freshnessText = `${ageMin} min ago`;
     else freshnessText = `${Math.round(ageMin / 60)} h ago`;
     if (freshness) freshness.textContent = freshnessText;
     if (dot) {
       dot.classList.remove("is-stale", "is-down");
-      if (ageMin > 60) dot.classList.add("is-stale");
+      if (!Number.isFinite(ageMin) || ageMin < 0 || ageMin > 60) dot.classList.add("is-stale");
     }
   } catch (error) {
     if (dot) {
@@ -8187,7 +8189,7 @@ async function refreshMountedFloodLayers(map) {
   const freshEl = document.getElementById("atlas-flood-credit-fresh");
   if (freshEl) {
     const ageMin = minutesSince(state.lastFloodRefreshAt);
-    freshEl.textContent = ageMin == null ? "moments ago" : `${ageMin} min ago`;
+    freshEl.textContent = "see each layer's source timestamp; refresh completion is not observation time";
   }
 }
 
@@ -8221,6 +8223,19 @@ async function loadFloodRelay() {
   computeFloodCamJoin();
 }
 
+function currentFloodVerdict(flood, now = Date.now()) {
+  const v = flood?.verdict;
+  const age = (time) => {
+    if (typeof time !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(time)) return null;
+    const value = (now - Date.parse(time)) / 60000;
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  };
+  return v && flood.parts?.twin?.ok &&
+    [v.updated, flood.fetchedAt, flood.parts.twin.at].every(t => {
+      const a = age(t); return a !== null && a <= 30;
+    }) ? v : null;
+}
+
 function renderFloodVerdict(flood) {
   const root = document.getElementById("atlas-flood-verdict");
   if (!root) return;
@@ -8232,22 +8247,25 @@ function renderFloodVerdict(flood) {
       el.hidden = !text;
     }
   };
-  const v = flood?.verdict;
+  const v = currentFloodVerdict(flood);
   if (!v) {
+    const old = flood?.lastKnownVerdict ?? flood?.verdict;
     root.dataset.level = "none";
-    set("atlas-flood-verdict-level", "No reading");
-    set("atlas-flood-verdict-head", "FloodDash has not reached the atlas yet — this is not an all-clear.");
-    set("atlas-flood-verdict-reason", "");
-    set("atlas-flood-verdict-reason-th", "");
-    set("atlas-flood-verdict-meta", FLOOD_DUTY);
+    root.classList.toggle("is-stale", Boolean(old));
+    set("atlas-flood-verdict-level", old ? "Historical warning" : "No current reading");
+    set("atlas-flood-verdict-head", "Current conditions unknown · ยังยืนยันสถานการณ์ปัจจุบันไม่ได้ — not an all-clear.");
+    set("atlas-flood-verdict-time", old ? `Previous verdict timestamp: ${old.updated || 'unknown'}` : "");
+    set("atlas-flood-verdict-reason", old ? `Previous assessment: ${old.headEn || old.level}. ${old.reasonEn || ''}` : "");
+    set("atlas-flood-verdict-reason-th", old?.reasonTh ? `ข้อมูลย้อนหลัง: ${old.reasonTh}` : "");
+    set("atlas-flood-verdict-meta", `${old ? `Previous verdict timestamp: ${old.updated || 'unknown'} · ` : ''}Follow current official warnings; road passability remains unknown. · ${FLOOD_DUTY}`);
     return;
   }
-  const age = minutesSince(flood.fetchedAt);
-  const stale = age == null || age > 30;
+  const age = minutesSince(v.updated);
   root.dataset.level = v.level;
-  root.classList.toggle("is-stale", stale);
+  root.classList.toggle("is-stale", false);
   set("atlas-flood-verdict-level", FLOOD_LEVEL_WORD[v.level] || v.level);
   set("atlas-flood-verdict-head", `${v.headEn} · ${v.headTh}`);
+  set("atlas-flood-verdict-time", `Verdict generated: ${v.updated}`);
   set("atlas-flood-verdict-reason", v.reasonEn);
   set("atlas-flood-verdict-reason-th", v.reasonTh);
   const facts = [];
@@ -8255,7 +8273,7 @@ function renderFloodVerdict(flood) {
   if (v.stationsL4) facts.push(`${v.stationsL4} at high water`);
   if (v.rain24hMm != null) facts.push(`worst 24 h rain ${Math.round(v.rain24hMm)} mm`);
   if (v.etaHours != null) facts.push(`bank may be reached in ~${v.etaHours} h at this rise`);
-  facts.push(stale ? `last FloodDash reading ${ageWords(age)} ago` : `FloodDash · ${ageWords(age)} ago`);
+  facts.push(`FloodDash verdict generated ${ageWords(age)} ago · individual observation ages vary`);
   facts.push(FLOOD_DUTY);
   set("atlas-flood-verdict-meta", facts.join(" · "));
 }
@@ -8265,14 +8283,15 @@ function renderWaterPanel(flood) {
   if (liveLine && flood) {
     const silent = flood.gauges.filter((g) => !FLOOD_RANK[g.band]).length;
     liveLine.textContent =
-      `Right now: ${flood.gauges.length} gauges in the metro box, ${flood.gauges.length - silent} reporting, ` +
+      `Stored snapshot: ${flood.gauges.length} gauges in the metro box, ${flood.gauges.length - silent} marked reporting, ` +
       `${silent} silent or untrusted; ${Object.keys(flood.waterways).length} waterway segments judged; ` +
-      `FloodDash reading ${ageWords(minutesSince(flood.fetchedAt))} old.`;
+      `Relay fetched ${ageWords(minutesSince(flood.fetchedAt))} ago; check each observation's age.`;
   }
   const root = document.getElementById("atlas-water");
   if (!root || !flood) return;
   root.hidden = false;
-  const serious = flood.verdict && (flood.verdict.level === "prepare" || flood.verdict.level === "danger");
+  const current = currentFloodVerdict(flood);
+  const serious = current && (current.level === "prepare" || current.level === "danger");
   const details = document.getElementById("atlas-water-details");
   if (details && serious && !details.dataset.touched) details.open = true;
 
@@ -8598,6 +8617,11 @@ async function init() {
   wirePhonePanelToggle();
   loadFloodRelay();
   setInterval(loadFloodRelay, FLOOD_REFRESH_MS);
+  // Expire the on-screen verdict even when network refreshes fail or stall.
+  setInterval(() => renderFloodVerdict(state.flood), 30_000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderFloodVerdict(state.flood);
+  });
   // The situation board needs the flood-roads reading even with the layer off.
   const refreshSituation = async () => {
     if (state.map?.getSource(FLOOD_ROADS_SOURCE)) await refreshFloodRoadsLayer();

@@ -9,7 +9,7 @@ import vm from 'node:vm';
 
 // Compile the real modules with the installed compiler; no runner dependency.
 const dir = mkdtempSync(join(tmpdir(), 'atlas-flood-test-'));
-let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads, weatherSupport, unavailableHydroForecast;
+let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads, weatherSupport, unavailableHydroForecast, floodBkkResponse, liveAt, verdictFreshness;
 try {
   for (const name of ['report-freshness', 'flooddash', 'floodroads', 'roads-xref', 'weather-support']) {
     const source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
@@ -19,6 +19,7 @@ try {
   ({ buildRoadsXref } = await import(pathToFileURL(join(dir, 'roads-xref.mjs'))));
   ({ currentStreetReports, floodRoadsResponse, refreshFloodRoads } = await import(pathToFileURL(join(dir, 'floodroads.mjs'))));
   ({ weatherSupport, unavailableHydroForecast } = await import(pathToFileURL(join(dir, 'weather-support.mjs'))));
+  ({ floodBkkResponse, liveAt, verdictFreshness } = await import(pathToFileURL(join(dir, 'flooddash.mjs'))));
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
 const now = Date.parse('2026-10-01T09:00:00Z');
@@ -35,6 +36,71 @@ const roads = (features = [road()]) => ({
 });
 const gauge = (change = {}) => ({ id: 'g1', lng: 100.5, lat: 13.75, band: 'prepare', name: 'Canal', confidence: 'high', observedAt: at(0.1), ageMin: 6, ...change });
 const xref = (g, features) => buildRoadsXref(roads(features), { gauges: [g] }, now);
+
+test('city verdict API and rendered headline reject 13-day, missing, future and partial-outage timestamps', async () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const start = app.indexOf('function currentFloodVerdict('), end = app.indexOf('function renderWaterPanel(', start);
+  const elements = new Map();
+  const document = {getElementById: id => {
+    if (!elements.has(id)) elements.set(id, {dataset: {}, hidden: false, textContent: '',
+      classes: new Set(), classList: {toggle(name, on) {const el=elements.get(id); on ? el.classes.add(name) : el.classes.delete(name);}}});
+    return elements.get(id);
+  }};
+  const fixedNow = Date.now();
+  const time = minutes => new Date(fixedNow - minutes * 60000).toISOString();
+  const {render, current} = vm.runInNewContext(app.slice(start, end) + '\n({render:renderFloodVerdict,current:currentFloodVerdict})', {
+    document, Date, minutesSince: iso => (Date.now() - Date.parse(iso)) / 60000,
+    ageWords: n => `${Math.round(n)} min`, FLOOD_DUTY:'Not an official warning', FLOOD_LEVEL_WORD:{danger:'Danger',safe:'Safe'},
+  });
+  const fresh = () => ({schema:1,fetchedAt:time(1),parts:{twin:{ok:true,at:time(1)}},
+    verdict:{level:'danger',headEn:'Critical situation',headTh:'วิกฤต',reasonEn:'Test reason',updated:time(2)},
+    gauges:[],roads:{byDistrict:[],days:[]}});
+  const cases = [
+    s => {s.fetchedAt=time(13*1440);s.verdict.updated=time(13*1440);},
+    s => {s.verdict.updated=time(13*1440);},
+    s => {s.verdict.updated=null;},
+    s => {s.verdict.updated='invalid';},
+    s => {s.verdict.updated=time(-10);},
+    s => {s.verdict.updated='2026-10-11T13:00';},
+    s => {s.parts.twin.ok=false;},
+    s => {s.parts.twin.at=time(31);},
+    s => {s.fetchedAt=time(-10);},
+    s => {delete s.parts;},
+    s => {s.verdict.level='safe';s.verdict.updated=time(31);},
+  ];
+  for (const change of cases) {
+    const s=fresh(); change(s);
+    assert.equal(verdictFreshness(s, fixedNow).current,false);
+    assert.equal(current(s,fixedNow),null);
+    const p=await floodBkkResponse(s).json();
+    assert.equal(p.verdict,null);assert.equal(p.stale,true);
+    assert.deepEqual(p.lastKnownVerdict,s.verdict);
+    const point=liveAt(s,100.5,13.75,{id:null,name:null});
+    assert.equal(point.city,null);assert.deepEqual(point.lastKnownCity,s.verdict);
+    for (const payload of [s,p]) {
+      render(payload);
+      assert.equal(elements.get('atlas-flood-verdict').dataset.level,'none');
+      assert.equal(elements.get('atlas-flood-verdict-level').textContent,'Historical warning');
+      assert.match(elements.get('atlas-flood-verdict-head').textContent,/Current conditions unknown/);
+      assert.match(elements.get('atlas-flood-verdict-meta').textContent,/Previous verdict timestamp/);
+      assert.match(elements.get('atlas-flood-verdict-time').textContent,/Previous verdict timestamp/);
+    }
+  }
+  const s=fresh(),p=await floodBkkResponse(s).json();
+  assert.equal(p.verdict.level,'danger');assert.equal(p.lastKnownVerdict,null);
+  render(p);assert.equal(elements.get('atlas-flood-verdict').dataset.level,'danger');
+  assert.equal(elements.get('atlas-flood-verdict').classes.has('is-stale'),false);
+  render(null);assert.equal(elements.get('atlas-flood-verdict-level').textContent,'No current reading');
+  assert.equal(elements.get('atlas-flood-verdict').classes.has('is-stale'),false);
+});
+
+test('verdict expires with wall time and freshness boundary is exact', () => {
+  const s={fetchedAt:at(0),parts:{twin:{ok:true,at:at(0)}},verdict:{updated:at(0)}};
+  assert.equal(verdictFreshness(s, now+30*60000).current,true);
+  assert.equal(verdictFreshness(s, now+30*60000+1).current,false);
+  const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(app,/setInterval\(\(\) => renderFloodVerdict\(state.flood\), 30_000\)/);
+});
 
 test('real model weather never turns rainfall into vehicle clearance or protection deadlines', async () => {
   const original=globalThis.fetch;

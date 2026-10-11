@@ -590,6 +590,25 @@ export function ageMin(iso: string | null | undefined): number | null {
   return Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60_000)) : null;
 }
 
+/** A successful relay of another part cannot renew an old city verdict. */
+export function verdictFreshness(state: FloodState, now = Date.now()) {
+  const updated = state.verdict?.updated;
+  const age = (time: unknown) => {
+    if (typeof time !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(time)) return null;
+    const value = (now - Date.parse(time)) / 60_000;
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  };
+  const verdictAgeMin = age(updated);
+  const relayAgeMin = age(state.fetchedAt);
+  const twinAgeMin = age(state.parts?.twin?.at);
+  const current = Boolean(state.verdict && state.parts?.twin?.ok &&
+    [verdictAgeMin, relayAgeMin, twinAgeMin].every(a => a !== null && a <= STALE_AFTER_MIN));
+  return { status: current ? "current" : "unavailable", current, verdictAgeMin,
+    updatedAt: updated ?? null, maxAgeMin: STALE_AFTER_MIN,
+    basis: "FloodDash verdict generation time, not individual observation time",
+    reason: current ? null : "City verdict expired, undated, future-dated or its upstream refresh failed. This is not an all-clear." };
+}
+
 /* ------------------------------------------------------------ responses */
 
 const HEADERS = {
@@ -615,18 +634,23 @@ function unavailable(): Response {
 export function floodBkkResponse(state: FloodState | null): Response {
   if (!state) return unavailable();
   const age = ageMin(state.fetchedAt);
+  const freshness = verdictFreshness(state);
   return new Response(
     JSON.stringify({
       tool: "flood-bkk",
       version: 1,
       source: FLOODDASH_ORIGIN,
       ageMin: age,
-      stale: age == null || age > STALE_AFTER_MIN,
       duty: DUTY,
       hotline: DDPM_HOTLINE,
       bandColors: BAND_COLOR,
       reachM: REACH_M,
       ...state,
+      relayStale: age == null || age > STALE_AFTER_MIN,
+      stale: !freshness.current,
+      verdictFreshness: freshness,
+      verdict: freshness.current ? state.verdict : null,
+      lastKnownVerdict: freshness.current ? null : state.verdict,
     }),
     { headers: { "content-type": "application/json; charset=utf-8", ...HEADERS } },
   );
@@ -684,7 +708,9 @@ export function liveAt(
   return {
     source: FLOODDASH_ORIGIN,
     ageMin: ageMin(state.fetchedAt),
-    city: state.verdict,
+    city: verdictFreshness(state).current ? state.verdict : null,
+    cityFreshness: verdictFreshness(state),
+    lastKnownCity: verdictFreshness(state).current ? null : state.verdict,
     nearestGauge: nearest
       ? {
           name: nearest.g.name,

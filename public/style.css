@@ -1852,6 +1852,7 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 .atlas-flood-verdict-reason { font-size: 11.5px; line-height: 1.45; color: var(--paper); max-width: 80ch; }
 .atlas-flood-verdict-reason[lang="th"] { color: var(--ink-soft, #c0bdb1); }
+.atlas-flood-verdict-time { font-size: 10px; line-height: 1.4; color: var(--paper); overflow-wrap: anywhere; }
 .atlas-flood-verdict-meta {
   font-family: var(--font-mono);
   font-size: 10px;
