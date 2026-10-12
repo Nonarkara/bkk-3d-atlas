@@ -1,0 +1,178 @@
+# Report-only security scan.
+# Findings never fail the job. No deploy steps and no calls to the live site.
+# Code scanning is not enabled on this private personal repository
+# (GET /repos/Nonarkara/bkk-3d-atlas/code-scanning/alerts returns 403),
+# so SARIF and JSON are uploaded as a workflow artifact.
+name: Security scan
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Monday 06:17 UTC.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    name: Report-only security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check code scanning availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?per_page=1" > /tmp/code-scanning-out.txt 2> /tmp/code-scanning-err.txt
+          status=$?
+          {
+            echo "exit=${status}"
+            echo "--- stdout ---"
+            head -c 400 /tmp/code-scanning-out.txt
+            echo
+            echo "--- stderr ---"
+            head -c 400 /tmp/code-scanning-err.txt
+            echo
+          } > code-scanning-status.txt
+          if [ "$status" -eq 0 ]; then
+            echo "available" | cat - code-scanning-status.txt > /tmp/code-scanning-status.txt
+            mv /tmp/code-scanning-status.txt code-scanning-status.txt
+          else
+            echo "unavailable" | cat - code-scanning-status.txt > /tmp/code-scanning-status.txt
+            mv /tmp/code-scanning-status.txt code-scanning-status.txt
+          fi
+          exit 0
+
+      - name: Semgrep OSS
+        id: semgrep
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          set +e
+          # Semgrep OSS 1.180.0, manylinux x86_64 wheel.
+          # The filename must stay a valid wheel name or pip refuses to install it.
+          wheel_name=semgrep-1.180.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl
+          wheel_sha=16db2e2706ab814a975eeec25debfad49abba846b7c513d88e041447152f8447
+          wheel_url=https://files.pythonhosted.org/packages/7c/1f/f4af9cc92651f04ab973eac214a62ed23260da9e0696c105b4b9734da453/${wheel_name}
+          python3 - << PY
+          import hashlib, pathlib, urllib.request, sys
+          url = "${wheel_url}"
+          expected = "${wheel_sha}"
+          dest = pathlib.Path("/tmp/${wheel_name}")
+          urllib.request.urlretrieve(url, dest)
+          digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+          if digest != expected:
+              print(f"semgrep wheel hash mismatch: {digest}", file=sys.stderr)
+              sys.exit(1)
+          PY
+          install_exit=$?
+          if [ "$install_exit" -ne 0 ]; then
+            echo "exit_code=install-${install_exit}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 -m venv /tmp/semgrep-venv
+          install_exit=$?
+          if [ "$install_exit" -ne 0 ]; then
+            echo "exit_code=venv-${install_exit}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          /tmp/semgrep-venv/bin/pip install --disable-pip-version-check --no-cache-dir "/tmp/${wheel_name}"
+          install_exit=$?
+          if [ "$install_exit" -ne 0 ]; then
+            echo "exit_code=install-${install_exit}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Language packs that exist for this repo: JavaScript, TypeScript,
+          # Python. Bash and HTML have registry rulesets (r/bash, r/html) but
+          # no p/ pack. r/sql is empty. p/secrets and p/github-actions always run.
+          # Local OSS engine only: not `semgrep ci`, metrics off, no app token.
+          /tmp/semgrep-venv/bin/semgrep scan \
+            --oss-only \
+            --metrics=off \
+            --disable-version-check \
+            --quiet \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/python \
+            --config r/bash \
+            --config r/html \
+            --config p/secrets \
+            --config p/github-actions \
+            --json-output semgrep.json \
+            --sarif-output semgrep.sarif \
+            . > /tmp/semgrep.stdout 2> /tmp/semgrep.stderr
+          scan_exit=$?
+          echo "exit_code=${scan_exit}" >> "$GITHUB_OUTPUT"
+          if [ ! -s semgrep.json ]; then
+            echo "Semgrep did not write semgrep.json (exit ${scan_exit})."
+          fi
+          exit 0
+
+      - name: Trivy filesystem scan
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: json
+          output: trivy.json
+          exit-code: "0"
+          cache: "false"
+          hide-progress: "true"
+          timeout: 20m
+          cache-dir: /tmp/trivy-cache
+          trivy-config: .github/trivy.yaml
+
+      - name: Convert Trivy JSON to SARIF
+        id: trivy-sarif
+        if: always()
+        run: |
+          set +e
+          if [ -s trivy.json ] && command -v trivy >/dev/null 2>&1; then
+            trivy convert --format sarif --output trivy.sarif trivy.json
+            echo "outcome=$?" >> "$GITHUB_OUTPUT"
+          else
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Redact results and write job summary
+        if: always()
+        env:
+          SEMGREP_EXIT: ${{ steps.semgrep.outputs.exit_code }}
+          TRIVY_JSON_OUTCOME: ${{ steps.trivy.outcome }}
+          TRIVY_SARIF_OUTCOME: ${{ steps.trivy-sarif.outputs.outcome }}
+        run: |
+          set +e
+          python3 .github/security-summary.py
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            rm -f semgrep.json semgrep.sarif trivy.json trivy.sarif security-findings.json security-summary.md
+            printf '%s\n' '# Security scan (report-only)' '' 'Summary script failed. Raw reports were deleted so secret values are not uploaded.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 0
+
+      - name: Upload redacted SARIF and JSON
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: security-reports
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            semgrep.json
+            semgrep.sarif
+            trivy.json
+            trivy.sarif
+            security-findings.json
+            security-summary.md

@@ -1,0 +1,4 @@
+# Nested key from `trivy --generate-default-config`.
+# wrangler and miniflare are devDependencies; Trivy skips those by default.
+pkg:
+  include-dev-deps: true

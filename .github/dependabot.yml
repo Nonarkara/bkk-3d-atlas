@@ -1,0 +1,26 @@
+# Dependency update PRs. Ecosystems present in this repo:
+# - npm at the repository root (package.json, package-lock.json)
+# - GitHub Actions (.github/workflows)
+# Python scripts do not have a requirements.txt, pyproject.toml, or Pipfile,
+# so there is no pip manifest for Dependabot to follow.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
