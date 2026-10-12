@@ -10,8 +10,9 @@
 # auto-injected per zone dashboard setting) is explicitly allowed —
 # unlisted it would be blocked, silently killing the live web analytics.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org https://fonts.gstatic.com data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains

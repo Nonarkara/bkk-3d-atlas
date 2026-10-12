@@ -2,6 +2,10 @@ name = "bkk-3d-atlas"
 # Pin account so a local `wrangler deploy` cannot silently land on the
 # wrong Cloudflare account (custom domain stays on this one).
 account_id = "74ad6bf8dfaaccf82de6f0847f7d2d54"
+# The custom domain is the only public hostname. workers.dev and preview
+# URLs would serve the same API outside the zone's WAF and rate limits.
+workers_dev = false
+preview_urls = false
 main = "src/index.ts"
 compatibility_date = "2026-05-15"
 compatibility_flags = ["nodejs_compat"]

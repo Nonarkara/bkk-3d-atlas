@@ -482,6 +482,48 @@ else ok("db/schema.sql present");
 if (!existsSync(join(root, "scripts/ingest-bma-open-data.py"))) fail("missing scripts/ingest-bma-open-data.py");
 else ok("scripts/ingest-bma-open-data.py present");
 
+const guard = readFileSync(join(root, "src/edge-guard.ts"), "utf8");
+if (!guard.includes("content-security-policy")) fail("edge-guard.ts missing Content-Security-Policy");
+else ok("responses can set Content-Security-Policy");
+if (!guard.includes("script-src 'self'")) fail("CSP must keep script-src on first-party and pinned CDNs");
+else ok("CSP script-src does not allow unsafe-inline");
+{
+  const headersFile = readFileSync(join(root, "public/_headers"), "utf8");
+  const arrayBody = (guard.match(/export const CONTENT_SECURITY_POLICY = \[([\s\S]*?)\]\.join/) || ["", ""])[1];
+  const directives = [...arrayBody.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const policy = directives.join("; ");
+  if (!policy || !headersFile.includes(policy)) {
+    fail("public/_headers CSP drifted from src/edge-guard.ts CONTENT_SECURITY_POLICY");
+  } else ok("public/_headers and edge-guard.ts share one CSP");
+}
+if (app.includes("onerror=")) fail("public/app.js still has an inline onerror handler; CSP would block it");
+else ok("app.js has no inline event handlers");
+if (worker.includes("ctx.waitUntil(ingestNewsEvents")) fail("request path still ingests news on every GET");
+else ok("news ingest is not started from the request path");
+if (worker.includes("ingestCityEvents(env, request)")) fail("request path still ingests city events");
+else ok("city-event ingest is not started from the request path");
+if (!worker.includes("claimCronSlot")) fail("cron Worker missing overlap lock");
+else ok("cron pass takes an overlap lock");
+if (!worker.includes('SELECT * FROM city_events WHERE first_seen_at >= ?1')) fail("city_events read is unbounded");
+else ok("city_events read is bounded by the event TTL");
+if (!/workers_dev\s*=\s*false/.test(wranglerToml) || !/preview_urls\s*=\s*false/.test(wranglerToml)) {
+  fail("wrangler.toml must set workers_dev = false and preview_urls = false");
+} else ok("request Worker disables workers.dev and preview URLs");
+for (const workflowName of ["verify.yml", "deploy-cloudflare.yml"]) {
+  const workflowText = readFileSync(join(root, ".github/workflows", workflowName), "utf8");
+  if (!/permissions:\s*\n\s*contents:\s*read/.test(workflowText)) {
+    fail(`${workflowName} missing least-privilege permissions: contents: read`);
+  } else ok(`${workflowName} sets permissions.contents to read`);
+  const uses = [...workflowText.matchAll(/uses:\s*([^\s#]+)/g)].map((m) => m[1]);
+  if (uses.length === 0) fail(`${workflowName} has no actions`);
+  for (const use of uses) {
+    if (!/@[0-9a-f]{40}$/.test(use)) fail(`${workflowName} action is not pinned to a commit SHA: ${use}`);
+    else ok(`${workflowName} pins ${use.split("@")[0]}`);
+  }
+}
+if (worker.includes("message: String(error)")) fail("a client error still echoes String(error)");
+else ok("client errors do not echo raw exception text");
+
 console.log(notes.join("\n"));
 if (errors.length) {
   console.error("\n" + errors.join("\n"));

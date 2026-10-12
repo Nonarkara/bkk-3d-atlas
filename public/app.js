@@ -5524,8 +5524,7 @@ function openMaholanCctvPopup(map, feature) {
            src="${escapeHtml(proxySnap)}"
            alt="Live snapshot · ${safeName}"
            loading="lazy"
-           data-snap-loaded-at="${Date.now()}"
-           onerror="this.dataset.snapFailed='1';this.alt='Snapshot unavailable for ${safeName}';" />
+           data-snap-loaded-at="${Date.now()}" />
       <p class="atlas-cctv-status" lang="th">
         ${safeRegion}${safeSource ? ` · ${safeSource}` : ""} ·
         <a href="#" class="atlas-cctv-snap-refresh" data-snap="${escapeHtml(proxySnap)}">↻ refresh snapshot</a>
@@ -5563,6 +5562,10 @@ function openMaholanCctvPopup(map, feature) {
     ageEl.textContent = `· snapshot ${min < 60 ? min + " min ago" : Math.round(min / 60) + " h ago"}`;
   };
   if (img) {
+    img.addEventListener("error", () => {
+      img.dataset.snapFailed = "1";
+      img.alt = `Snapshot unavailable for ${String(p.name || p.id || "")}`;
+    });
     // The proxy passes X-Image-Time on a HEAD-ish fetch. Browser
     // <img> doesn't expose response headers, so we ask for the snap
     // metadata with a tiny fetch + range: 0-0 won't help — instead

@@ -9,9 +9,9 @@ import vm from 'node:vm';
 
 // Compile the real modules with the installed compiler; no runner dependency.
 const dir = mkdtempSync(join(tmpdir(), 'atlas-flood-test-'));
-let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads, weatherSupport, unavailableHydroForecast, floodBkkResponse, liveAt, verdictFreshness;
+let buildRoadsXref, currentStreetReports, floodRoadsResponse, refreshFloodRoads, weatherSupport, unavailableHydroForecast, floodBkkResponse, liveAt, verdictFreshness, guardMethod, withSecurityHeaders, CONTENT_SECURITY_POLICY, hitLimit;
 try {
-  for (const name of ['report-freshness', 'flooddash', 'floodroads', 'roads-xref', 'weather-support']) {
+  for (const name of ['report-freshness', 'flooddash', 'floodroads', 'roads-xref', 'weather-support', 'edge-guard']) {
     const source = readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
     const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
     writeFileSync(join(dir, `${name}.mjs`), compiled.replace(/from "\.\/([^".]+)"/g, 'from "./$1.mjs"'));
@@ -20,6 +20,7 @@ try {
   ({ currentStreetReports, floodRoadsResponse, refreshFloodRoads } = await import(pathToFileURL(join(dir, 'floodroads.mjs'))));
   ({ weatherSupport, unavailableHydroForecast } = await import(pathToFileURL(join(dir, 'weather-support.mjs'))));
   ({ floodBkkResponse, liveAt, verdictFreshness } = await import(pathToFileURL(join(dir, 'flooddash.mjs'))));
+  ({ guardMethod, withSecurityHeaders, CONTENT_SECURITY_POLICY, hitLimit } = await import(pathToFileURL(join(dir, 'edge-guard.mjs'))));
 } finally { rmSync(dir, { recursive: true, force: true }); }
 
 const now = Date.parse('2026-10-01T09:00:00Z');
@@ -183,6 +184,10 @@ test('weather KPIs never turn missing or negative rainfall into dry readings', a
   const fn = vm.runInNewContext(js+'\nproxyBkkRainKpi',{
     BKK_RAIN1D_URL:'rain',BKK_RAIN3D_URL:'rain',BKK_RAIN7D_URL:'rain',BKK_TEMP_URL:'temp',BKK_WATER_CACHE_TTL_SECONDS:300,
     Response,fetchThaiwaterJson:async url=>({ok:true,data:{data:url==='temp'?[{max_temperature:null,min_temperature:'',start_date:'2026-09-28'}]:rows}}),
+    withD1Cache: async (_env, _key, _ttl, producer) => {
+      const fresh = await producer();
+      return fresh ? { payload: fresh.payload, fromCache: false, fetchedAt: fresh.upstreamFetchedAt } : null;
+    },
   });
   rows=[{rain_1d:null},{rain_1d:''},{rain_1d:-1},{rain_1d:false}];
   const missing=await (await fn({})).json();
@@ -364,4 +369,26 @@ test('road-layer status distinguishes relay age, report window and failed source
   assert.match(status, /relay 2m ago/);
   assert.match(status, /last 24 h/);
   assert.match(status, /check source: traffy/);
+});
+
+test('public writes are refused and document responses carry a strict script CSP', async () => {
+  const post = guardMethod(new Request('https://atlas.nonarkara.org/api/news-events', { method: 'POST' }));
+  assert.equal(post.status, 405);
+  assert.equal(guardMethod(new Request('https://atlas.nonarkara.org/api/presence/ping', { method: 'POST' })), null);
+  const opt = guardMethod(new Request('http://127.0.0.1:8787/api/risk', { method: 'OPTIONS' }));
+  assert.equal(opt.status, 204);
+  const secured = withSecurityHeaders(new Request('https://atlas.nonarkara.org/'), new Response('<html></html>', { headers: { 'content-type': 'text/html' } }));
+  const csp = secured.headers.get('content-security-policy');
+  assert.match(csp, /upgrade-insecure-requests/);
+  assert.doesNotMatch(csp.split('script-src')[1].split(';')[0], /unsafe-inline/);
+  assert.equal(secured.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(secured.headers.get('strict-transport-security'), /max-age=31536000/);
+  const local = withSecurityHeaders(new Request('http://127.0.0.1:8787/'), new Response('ok'));
+  assert.doesNotMatch(local.headers.get('content-security-policy'), /upgrade-insecure-requests/);
+  assert.equal(local.headers.get('strict-transport-security'), null);
+  assert.match(CONTENT_SECURITY_POLICY, /https:\/\/unpkg.com/);
+  const bucket = new Map();
+  assert.equal(hitLimit(bucket, '1.2.3.4', 2, 60_000), false);
+  assert.equal(hitLimit(bucket, '1.2.3.4', 2, 60_000), false);
+  assert.equal(hitLimit(bucket, '1.2.3.4', 2, 60_000), true);
 });

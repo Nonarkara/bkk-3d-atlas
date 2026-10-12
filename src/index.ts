@@ -34,6 +34,7 @@ import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } 
 
 import { roadsXrefResponse } from "./roads-xref";
 import { weatherSupport, unavailableHydroForecast } from "./weather-support";
+import { guardMethod, hitLimit, safeError, withSecurityHeaders } from "./edge-guard";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -128,14 +129,23 @@ let floodCache: FloodCollection | null = null;
 // stolen from JK World (world.tehx.dyndns.info/flood, presence.js).
 // Module-scoped state survives inside one isolate; resets on cold
 // start, which is honest. We do not log IPs, sessions, or referrers.
+// The map is capped so a client minting new ids cannot grow isolate
+// memory without bound. Expired rows are dropped before the cap check.
 const PRESENCE_TTL_MS = 5 * 60_000;
+const PRESENCE_MAX_SESSIONS = 2_000;
+const PRESENCE_ID = /^[A-Za-z0-9._-]{8,80}$/;
 const presenceMap = new Map<string, number>();
+const presenceHits = new Map<string, { count: number; resetAt: number }>();
 let presencePeakToday = 0;
 let presencePeakDay = new Date().toISOString().slice(0, 10);
 
-function presenceSnapshot(now: number = Date.now()): { online: number; peak: number } {
+function sweepPresence(now: number): void {
   const cutoff = now - PRESENCE_TTL_MS;
   for (const [id, t] of presenceMap) if (t < cutoff) presenceMap.delete(id);
+}
+
+function presenceSnapshot(now: number = Date.now()): { online: number; peak: number } {
+  sweepPresence(now);
   const online = presenceMap.size;
   const today = new Date(now).toISOString().slice(0, 10);
   if (today !== presencePeakDay) { presencePeakDay = today; presencePeakToday = online; }
@@ -143,21 +153,45 @@ function presenceSnapshot(now: number = Date.now()): { online: number; peak: num
   return { online, peak: presencePeakToday };
 }
 
+function notePresence(sessionId: string, now: number): void {
+  sweepPresence(now);
+  if (presenceMap.has(sessionId) || presenceMap.size < PRESENCE_MAX_SESSIONS) {
+    presenceMap.set(sessionId, now);
+  }
+}
+
 function handlePresence(request: Request): Response {
+  const noStore = { "cache-control": "no-store", "access-control-allow-origin": "*" };
   if (request.method === "POST" && new URL(request.url).pathname === "/api/presence/ping") {
-    const sessionId =
-      request.headers.get("x-atlas-session") ||
-      crypto.randomUUID();
-    presenceMap.set(sessionId, Date.now());
+    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+    if (hitLimit(presenceHits, ip, 12, 60_000)) {
+      return jsonResponse(
+        { error: "rate_limited", message: "Too many presence pings. Retry in a minute." },
+        { status: 429, headers: { ...noStore, "retry-after": "60" } },
+      );
+    }
+    const headerId = request.headers.get("x-atlas-session");
+    let sessionId: string;
+    if (headerId == null || headerId.trim() === "") {
+      sessionId = crypto.randomUUID();
+    } else if (!PRESENCE_ID.test(headerId.trim())) {
+      return jsonResponse(
+        { error: "invalid_session", message: "x-atlas-session must be 8–80 characters of letters, digits, dot, underscore, or hyphen." },
+        { status: 400, headers: noStore },
+      );
+    } else {
+      sessionId = headerId.trim();
+    }
+    notePresence(sessionId, Date.now());
     const snap = presenceSnapshot();
     return jsonResponse({ ok: true, sessionId, online: snap.online, peak: snap.peak }, {
-      headers: { "cache-control": "no-store", "access-control-allow-origin": "*" },
+      headers: noStore,
     });
   }
   if (request.method === "GET" && new URL(request.url).pathname === "/api/presence") {
     const snap = presenceSnapshot();
     return jsonResponse({ online: snap.online, peak: snap.peak }, {
-      headers: { "cache-control": "no-store", "access-control-allow-origin": "*" },
+      headers: noStore,
     });
   }
   return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, POST" } });
@@ -212,13 +246,42 @@ async function fetchUpstream(url: string | URL, init: RequestInit = {}): Promise
 // `flood_state` table the relay already uses; the schema needs no
 // migration.
 // ─────────────────────────────────────────────────────────────────
+type D1CacheHit<T> = { payload: T; fromCache: boolean; fetchedAt: string };
+
 async function withD1Cache<T>(
   env: Env,
   key: string,
   ttlSeconds: number,
   producer: () => Promise<{ payload: T; upstreamFetchedAt: string } | null>,
-): Promise<{ payload: T; fromCache: boolean; fetchedAt: string } | null> {
+): Promise<D1CacheHit<T> | null> {
   const cacheKey = `water-cache:${key}`;
+  // The map lives on the function so a cold isolate keeps one table,
+  // and the flood-integrity harness can eval this function alone.
+  const box = withD1Cache as typeof withD1Cache & {
+    inflight?: Map<string, Promise<D1CacheHit<unknown> | null>>;
+  };
+  const inflight = box.inflight ??= new Map();
+  // Coalesce concurrent misses. Without this, a cache expiry under
+  // load fires one upstream call per in-flight request.
+  const pending = inflight.get(cacheKey);
+  if (pending) return pending as Promise<D1CacheHit<T> | null>;
+  const run = readOrRefreshD1Cache(env, cacheKey, ttlSeconds, producer);
+  inflight.set(cacheKey, run as Promise<D1CacheHit<unknown> | null>);
+  try {
+    return await run;
+  } finally {
+    if (inflight.get(cacheKey) === (run as Promise<D1CacheHit<unknown> | null>)) {
+      inflight.delete(cacheKey);
+    }
+  }
+}
+
+async function readOrRefreshD1Cache<T>(
+  env: Env,
+  cacheKey: string,
+  ttlSeconds: number,
+  producer: () => Promise<{ payload: T; upstreamFetchedAt: string } | null>,
+): Promise<D1CacheHit<T> | null> {
   // Cheap read; index lookup on PK.
   const row = await env.CIVIC_DB.prepare(
     "SELECT payload, fetched_at, attempted_at FROM flood_state WHERE key = ?",
@@ -272,7 +335,7 @@ async function withD1Cache<T>(
   } catch (e) {
     // D1 write failed — log but don't fail the request. We still have
     // the fresh payload; the next caller will pay the upstream cost.
-    console.warn(`withD1Cache(${key}): write failed`, String(e));
+    console.warn(`withD1Cache(${cacheKey}): write failed`, safeError(e));
   }
   return { payload: fresh.payload, fromCache: false, fetchedAt };
 }
@@ -560,7 +623,33 @@ async function lookupRisk(request: Request, env: Env): Promise<Response> {
   );
 }
 
+// PM2.5 is a ~1 km model grid. Caching full-precision coordinates let
+// every distinct click open a new Open-Meteo subrequest.
+const PM25_CACHE_TTL_MS = 5 * 60_000;
+const PM25_CACHE_MAX = 8_000;
+const pm25Cache = new Map<string, { value: number | null; at: number }>();
+const pm25Inflight = new Map<string, Promise<number | null>>();
+
 async function fetchPointPm25(lat: number, lng: number): Promise<number | null> {
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const hit = pm25Cache.get(key);
+  if (hit && Date.now() - hit.at < PM25_CACHE_TTL_MS) return hit.value;
+  const pending = pm25Inflight.get(key);
+  if (pending) return pending;
+  const run = fetchPointPm25Uncached(Number(lat.toFixed(2)), Number(lng.toFixed(2)))
+    .then((value) => {
+      if (pm25Cache.size >= PM25_CACHE_MAX) pm25Cache.clear();
+      pm25Cache.set(key, { value, at: Date.now() });
+      return value;
+    })
+    .finally(() => {
+      if (pm25Inflight.get(key) === run) pm25Inflight.delete(key);
+    });
+  pm25Inflight.set(key, run);
+  return run;
+}
+
+async function fetchPointPm25Uncached(lat: number, lng: number): Promise<number | null> {
   try {
     const aqUrl =
       `https://air-quality-api.open-meteo.com/v1/air-quality` +
@@ -630,47 +719,35 @@ function camerasToGeoJson(cameras: LongdoCamera[]) {
   };
 }
 
-async function proxyCctv(_request: Request, _env: Env): Promise<Response> {
-  try {
+async function proxyCctv(_request: Request, env: Env): Promise<Response> {
+  const cached = await withD1Cache(env, "itic-cctv", CCTV_CACHE_TTL_SECONDS, async () => {
     const upstream = await fetchUpstream(LONGDO_CCTV_FEED, {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
     });
-    if (!upstream.ok) {
-      return jsonResponse(
-        {
-          error: "cctv_upstream_error",
-          status: upstream.status,
-          message: `iTIC camera feed returned ${upstream.status}. Client will fall back to /bkk-cctv.geojson.`,
-        },
-        { status: 502 },
-      );
-    }
+    if (!upstream.ok) return null;
     const cameras = (await upstream.json()) as LongdoCamera[];
-    if (!Array.isArray(cameras)) {
-      return jsonResponse(
-        { error: "cctv_bad_payload", message: "Camera feed was not a JSON array." },
-        { status: 502 },
-      );
-    }
-    const geojson = camerasToGeoJson(cameras);
-    return new Response(JSON.stringify(geojson), {
-      status: 200,
-      headers: {
-        "content-type": "application/geo+json; charset=utf-8",
-        "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
-        "x-bkkx-source": "iTIC/Longdo camera feed",
-        "access-control-allow-origin": "*",
-      },
-    });
-  } catch (error) {
+    if (!Array.isArray(cameras)) return null;
+    return { payload: camerasToGeoJson(cameras), upstreamFetchedAt: new Date().toISOString() };
+  });
+  if (!cached) {
     return jsonResponse(
       {
-        error: "cctv_fetch_failed",
-        message: String(error),
+        error: "cctv_upstream_error",
+        message: "iTIC camera feed is unavailable. Client will fall back to /bkk-cctv.geojson.",
       },
       { status: 502 },
     );
   }
+  return new Response(JSON.stringify(cached.payload), {
+    status: 200,
+    headers: {
+      "content-type": "application/geo+json; charset=utf-8",
+      "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
+      "x-bkkx-source": cached.fromCache ? "iTIC/Longdo camera feed (D1 cache hit)" : "iTIC/Longdo camera feed (D1 cache miss)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
+      "access-control-allow-origin": "*",
+    },
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -778,26 +855,34 @@ async function fetchThaiwaterJson(url: string): Promise<{ ok: true; data: any } 
     }
     return { ok: true, data: await upstream.json() };
   } catch (err) {
-    return { ok: false, status: 502, message: String(err) };
+    console.warn("thaiwater fetch failed", safeError(err));
+    return { ok: false, status: 502, message: "ThaiWater request failed." };
   }
 }
 
-async function proxyBkkRainStations(_request: Request): Promise<Response> {
-  const fetched = await fetchThaiwaterJson(BKK_RAIN24_URL);
-  if (!fetched.ok) {
-    return jsonResponse({ error: "bkk_rain_upstream_error", ...fetched }, { status: fetched.status });
+async function proxyBkkRainStations(_request: Request, env: Env): Promise<Response> {
+  const cached = await withD1Cache(env, "bkk-rain-stations", BKK_WATER_CACHE_TTL_SECONDS, async () => {
+    const fetched = await fetchThaiwaterJson(BKK_RAIN24_URL);
+    if (!fetched.ok) return null;
+    const rows = fetched.data?.data;
+    if (!Array.isArray(rows)) return null;
+    return { payload: bkkRainStationsToGeoJson(rows), upstreamFetchedAt: new Date().toISOString() };
+  });
+  if (!cached) {
+    return jsonResponse(
+      { error: "bkk_rain_upstream_error", message: "ThaiWater rain gauges are unavailable." },
+      { status: 502 },
+    );
   }
-  const rows = fetched.data?.data;
-  if (!Array.isArray(rows)) {
-    return jsonResponse({ error: "bkk_rain_bad_payload", message: "ThaiWater did not return rain24.data." }, { status: 502 });
-  }
-  const geojson = bkkRainStationsToGeoJson(rows);
-  return new Response(JSON.stringify(geojson), {
+  return new Response(JSON.stringify(cached.payload), {
     status: 200,
     headers: {
       "content-type": "application/geo+json; charset=utf-8",
       "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
-      "x-bkkx-source": "ThaiWater v3 · provinces/rain24?province_code=10",
+      "x-bkkx-source": cached.fromCache
+        ? "ThaiWater v3 · provinces/rain24?province_code=10 (D1 cache hit)"
+        : "ThaiWater v3 · provinces/rain24?province_code=10 (D1 cache miss)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
       "access-control-allow-origin": "*",
     },
   });
@@ -815,7 +900,8 @@ function weatherNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-async function proxyBkkRainKpi(_request: Request): Promise<Response> {
+async function proxyBkkRainKpi(_request: Request, env: Env): Promise<Response> {
+  const cached = await withD1Cache(env, "bkk-rain-kpi", BKK_WATER_CACHE_TTL_SECONDS, async () => {
   const [rain1dRes, rain3dRes, rain7dRes, tempRes] = await Promise.all([
     fetchThaiwaterJson(BKK_RAIN1D_URL),
     fetchThaiwaterJson(BKK_RAIN3D_URL),
@@ -823,13 +909,7 @@ async function proxyBkkRainKpi(_request: Request): Promise<Response> {
     fetchThaiwaterJson(BKK_TEMP_URL),
   ]);
 
-  const fail = (name: string, res: { status: number; message: string }) => ({
-    name, ...res,
-  });
-  if (!rain1dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain1d", rain1dRes) }, { status: rain1dRes.status });
-  if (!rain3dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain3d", rain3dRes) }, { status: rain3dRes.status });
-  if (!rain7dRes.ok) return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("rain7d", rain7dRes) }, { status: rain7dRes.status });
-  if (!tempRes.ok)  return jsonResponse({ error: "bkk_kpi_upstream_error", fail: fail("temperature", tempRes) }, { status: tempRes.status });
+  if (!rain1dRes.ok || !rain3dRes.ok || !rain7dRes.ok || !tempRes.ok) return null;
 
   const pickWorst = (rows: any[]): { mm: number | null; station?: { name: string; amphoe: string; lat: number; lng: number } } => {
     let worst: { mm: number | null; station?: any } = { mm: null };
@@ -876,12 +956,23 @@ async function proxyBkkRainKpi(_request: Request): Promise<Response> {
     temperature: temp,
     attribution: "ThaiWater v3 API · provinces/rain{1,3,7}d + temperature_maxmin_thisweek · province_code=10",
   };
-  return new Response(JSON.stringify(body), {
+  return { payload: body, upstreamFetchedAt: body.fetchedAt };
+  });
+  if (!cached) {
+    return jsonResponse(
+      { error: "bkk_kpi_upstream_error", message: "ThaiWater provincial KPI feeds are unavailable." },
+      { status: 502 },
+    );
+  }
+  return new Response(JSON.stringify(cached.payload), {
     status: 200,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": `public, max-age=${BKK_WATER_CACHE_TTL_SECONDS}`,
-      "x-bkkx-source": "ThaiWater v3 · BKK provincial KPI strip",
+      "x-bkkx-source": cached.fromCache
+        ? "ThaiWater v3 · BKK provincial KPI strip (D1 cache hit)"
+        : "ThaiWater v3 · BKK provincial KPI strip (D1 cache miss)",
+      "x-bkkx-cache": cached.fromCache ? "HIT" : "MISS",
       "access-control-allow-origin": "*",
     },
   });
@@ -1371,7 +1462,15 @@ async function proxyBkkCanalGates(request: Request, env: Env): Promise<Response>
 // ─────────────────────────────────────────────────────────────────
 const MAHOLAN_SNAP_BASE = "https://cctv.maholan.net/api/snap";
 const MAHOLAN_SNAP_MAX_WIDTH = 1280;
+const snapHits = new Map<string, { count: number; resetAt: number }>();
 async function proxyCctvSnapshot(request: Request, url: URL): Promise<Response> {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  if (hitLimit(snapHits, ip, 60, 60_000)) {
+    return new Response("rate limited", {
+      status: 429,
+      headers: { "retry-after": "60", "cache-control": "no-store" },
+    });
+  }
   const id = decodeURIComponent(url.pathname.slice("/api/snap/".length)).trim();
   if (!id || !/^[A-Za-z0-9._-]{1,64}$/.test(id)) {
     return new Response("invalid camera id", { status: 400 });
@@ -2369,28 +2468,16 @@ async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: 
   return { scanned: events.length, stored, skipped };
 }
 
-/** Live breaking events as GeoJSON. Ingest runs in the background so the
- * visitor reads D1 immediately; the cron keeps it warm every 5 min. */
+/** Live breaking events as GeoJSON. The cron Worker is the only ingest
+ * path — a public GET must not fan out to Longdo or write D1. */
 
-// In-isolate throttle for background ingests (resets on cold start). With
-// the 60s edge cache on the response this bounds upstream hammering even
-// under concurrent visitors.
-let lastCityIngestMs = 0;
-const CITY_INGEST_EVERY_MS = 120_000;
-
-async function listCityEvents(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
-  // Ingest in the background (news-events pattern): the visitor reads D1
-  // immediately and concurrent visitors no longer parallel-hammer the
-  // upstream feed in the request path.
-  ctx?.waitUntil((async () => {
-    if (Date.now() - lastCityIngestMs < CITY_INGEST_EVERY_MS) return;
-    lastCityIngestMs = Date.now();
-    await ingestCityEvents(env, request).catch(() => {});
-  })());
-
-  const { results } = await env.CIVIC_DB.prepare("SELECT * FROM city_events").all<CityEventRow>();
+async function listCityEvents(_request: Request, env: Env, _ctx?: ExecutionContext): Promise<Response> {
   const nowMs = Date.now();
   const ttlMs = EVENT_TTL_MINUTES * 60 * 1000;
+  const since = new Date(nowMs - ttlMs).toISOString();
+  const { results } = await env.CIVIC_DB.prepare(
+    "SELECT * FROM city_events WHERE first_seen_at >= ?1",
+  ).bind(since).all<CityEventRow>();
 
   const live = results.filter((row) => {
     const firstSeen = Date.parse(row.first_seen_at);
@@ -2434,7 +2521,7 @@ async function listCityEvents(request: Request, env: Env, ctx?: ExecutionContext
       attribution: "Longdo / iTIC public event feed — live Thai road & city incidents",
       disclaimer:
         "Live incident reports (accidents, floods, jams, closures) with reporter-supplied coordinates — not a complete record of everything happening in Bangkok, and not verified by BKKx. Long-running roadworks are excluded so genuinely breaking events stay visible.",
-      ingestMode: "background · throttled to one per 2 min · cron every 5 min",
+      ingestMode: "cron only · every 5 min · request path does not ingest",
       features,
     },
     { headers: { "cache-control": `public, max-age=${CITY_EVENT_CACHE_TTL_SECONDS}` } },
@@ -2669,18 +2756,13 @@ async function ingestNewsEvents(env: Env, request: Request): Promise<{ scanned: 
 /** Geolocated news as GeoJSON, one feature per VENUE (not per article),
  * carrying its mention count — that count is the "trending" signal the
  * client sizes markers by. */
-async function listNewsEvents(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
-  // Do NOT block the response on ingestion. Polling five upstream sources
-  // took 6.3s even in parallel, which is unacceptable for a layer toggle.
-  // The 5-minute cron is the real ingest path; this just nudges a refresh
-  // in the background and serves whatever D1 already holds (~50ms).
-  if (ctx) {
-    ctx.waitUntil(ingestNewsEvents(env, request).catch(() => {}));
-  }
-
+async function listNewsEvents(_request: Request, env: Env, _ctx?: ExecutionContext): Promise<Response> {
+  // Reads D1 only. Venue matching is hundreds of milliseconds of CPU and
+  // five upstream fetches; the request Worker is capped at 200 ms, and a
+  // public GET must not be able to start that work. The cron Worker ingests.
   const since = new Date(Date.now() - NEWS_WINDOW_DAYS * 86400_000).toISOString();
   const { results } = await env.CIVIC_DB.prepare(
-    `SELECT * FROM news_events WHERE first_seen_at >= ?1 ORDER BY first_seen_at DESC`,
+    `SELECT * FROM news_events WHERE first_seen_at >= ?1 ORDER BY first_seen_at DESC LIMIT 4000`,
   ).bind(since).all<{
     id: string; title: string; url: string; source: string | null;
     published_at: string | null; summary: string | null;
@@ -2767,15 +2849,7 @@ const TRAFFIC_RATE_WINDOW_MS = 60_000;
 const trafficHits = new Map<string, { count: number; resetAt: number }>();
 
 function trafficRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = trafficHits.get(ip);
-  if (!entry || now > entry.resetAt) {
-    if (trafficHits.size > 10_000) trafficHits.clear();
-    trafficHits.set(ip, { count: 1, resetAt: now + TRAFFIC_RATE_WINDOW_MS });
-    return false;
-  }
-  entry.count++;
-  return entry.count > TRAFFIC_RATE_LIMIT;
+  return hitLimit(trafficHits, ip, TRAFFIC_RATE_LIMIT, TRAFFIC_RATE_WINDOW_MS);
 }
 
 async function proxyTraffic(request: Request, env: Env): Promise<Response> {
@@ -2830,10 +2904,12 @@ async function proxyTraffic(request: Request, env: Env): Promise<Response> {
       },
     });
   } catch (error) {
+    // Never echo the thrown message: the upstream URL carries LONGDO_KEY.
+    console.warn("longdo traffic fetch failed", safeError(error));
     return jsonResponse(
       {
         error: "longdo_fetch_failed",
-        message: String(error),
+        message: "iTIC/Longdo traffic feed could not be read. Falling back to static sample.",
       },
       { status: 502 },
     );
@@ -3615,7 +3691,9 @@ async function atlasScoreboard(request: Request, env: Env): Promise<Response> {
         },
         googleWeather: {
           source: "Open-Meteo model weather and hourly precipitation; legacy Google route name",
-          live: Boolean(env.GOOGLE_MAPS_API_KEY || env.GOOGLE_WEATHER_API_KEY),
+          // The route does not call Google. Do not report whether optional
+          // Google secrets are configured on the Worker.
+          live: true,
           endpoint: "/api/weather/google",
           cacheSeconds: GOOGLE_WEATHER_CACHE_TTL_SECONDS,
         },
@@ -3709,8 +3787,7 @@ function apiCatalog(request: Request): Response {
   );
 }
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api" || url.pathname === "/api/") {
       return apiCatalog(request);
@@ -3726,7 +3803,7 @@ export default {
     }
     if (url.pathname === "/api/flood/roads") {
       return floodRoadsResponse(await loadFloodRoads(env, () => floodRoadDeps(env, request, ctx)).catch((error) => {
-        console.warn("flood-roads load failed:", String(error));
+        console.warn("flood-roads load failed:", safeError(error));
         return null;
       }));
     }
@@ -3734,10 +3811,10 @@ export default {
       return floodBkkResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
     }
     if (url.pathname === "/api/water/bkk/rain-stations") {
-      return proxyBkkRainStations(request);
+      return proxyBkkRainStations(request, env);
     }
     if (url.pathname === "/api/water/bkk/kpi") {
-      return proxyBkkRainKpi(request);
+      return proxyBkkRainKpi(request, env);
     }
     if (url.pathname === "/api/water/bkk/incidents") {
       return proxyBkkIncidents(request, env, ctx);
@@ -3842,6 +3919,68 @@ export default {
       return env.ASSETS.fetch(new Request(fallback, request));
     }
     return env.ASSETS.fetch(request);
+}
+
+const CRON_LOCK_KEY = "cron-lock";
+const CRON_LOCK_STALE_MS = 10 * 60_000;
+let cronInFlight = false;
+
+/** Skip a stacked five-minute run while another pass still holds the lock.
+ * A crashed pass leaves `running: true`; the lock expires after 10 min
+ * so the next tick can proceed. */
+async function claimCronSlot(env: Env): Promise<boolean> {
+  if (cronInFlight) return false;
+  const nowIso = new Date().toISOString();
+  try {
+    const row = await env.CIVIC_DB.prepare(
+      "SELECT payload, attempted_at FROM flood_state WHERE key = ?",
+    ).bind(CRON_LOCK_KEY).first<{ payload: string; attempted_at: string }>();
+    if (row) {
+      let running = false;
+      try { running = JSON.parse(row.payload).running === true; } catch { running = false; }
+      const age = Date.now() - Date.parse(row.attempted_at);
+      if (running && Number.isFinite(age) && age < CRON_LOCK_STALE_MS) return false;
+    }
+    await env.CIVIC_DB.prepare(
+      `INSERT INTO flood_state (key, payload, fetched_at, attempted_at, error)
+       VALUES (?1, ?2, ?3, ?3, NULL)
+       ON CONFLICT(key) DO UPDATE SET payload = ?2, fetched_at = ?3, attempted_at = ?3, error = NULL`,
+    ).bind(CRON_LOCK_KEY, JSON.stringify({ running: true }), nowIso).run();
+  } catch (error) {
+    console.warn("cron lock failed open", safeError(error));
+  }
+  cronInFlight = true;
+  return true;
+}
+
+async function releaseCronSlot(env: Env): Promise<void> {
+  cronInFlight = false;
+  const nowIso = new Date().toISOString();
+  try {
+    await env.CIVIC_DB.prepare(
+      `INSERT INTO flood_state (key, payload, fetched_at, attempted_at, error)
+       VALUES (?1, ?2, ?3, ?3, NULL)
+       ON CONFLICT(key) DO UPDATE SET payload = ?2, fetched_at = ?3, attempted_at = ?3, error = NULL`,
+    ).bind(CRON_LOCK_KEY, JSON.stringify({ running: false }), nowIso).run();
+  } catch (error) {
+    console.warn("cron lock release failed", safeError(error));
+  }
+}
+
+async function purgeExpiredEvents(env: Env): Promise<void> {
+  const cityCutoff = new Date(Date.now() - 2 * 24 * 3600_000).toISOString();
+  const newsCutoff = new Date(Date.now() - NEWS_WINDOW_DAYS * 24 * 3600_000).toISOString();
+  await env.CIVIC_DB.batch([
+    env.CIVIC_DB.prepare("DELETE FROM city_events WHERE first_seen_at < ?1").bind(cityCutoff),
+    env.CIVIC_DB.prepare("DELETE FROM news_events WHERE first_seen_at < ?1").bind(newsCutoff),
+  ]);
+}
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const denied = guardMethod(request);
+    if (denied) return withSecurityHeaders(request, denied);
+    return withSecurityHeaders(request, await routeRequest(request, env, ctx));
   },
 
   /** Cron-driven ingest, on the bkk-3d-atlas-cron Worker only
@@ -3852,30 +3991,39 @@ export default {
    * trigger — the pass is hundreds of milliseconds of CPU, above that
    * Worker's 200 ms cap. */
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!(await claimCronSlot(env))) {
+      console.log("cron skipped; another pass holds the lock");
+      return;
+    }
     ctx.waitUntil(
       (async () => {
         try {
-          // Any absolute origin works — it only resolves the ASSETS binding
-          // for the districts GeoJSON used to tag each event's district.
-          const req = new Request("https://atlas.nonarkara.org/");
-          const result = await ingestCityEvents(env, req);
-          console.log("city-events cron ingest", JSON.stringify(result));
-          const news = await ingestNewsEvents(env, req);
-          console.log("news-events cron ingest", JSON.stringify(news));
-        } catch (error) {
-          console.warn("city-events cron ingest failed:", String(error));
-        }
-        try {
-          const state = await refreshFloodDash(env, await floodDeps(env, new Request("https://atlas.nonarkara.org/")));
-          console.log("flooddash relay", state?.fetchedAt ?? "no state", JSON.stringify(state?.parts ?? null));
-        } catch (error) {
-          console.warn("flooddash relay failed:", String(error));
-        }
-        try {
-          const req = new Request("https://atlas.nonarkara.org/");
-          await refreshFloodRoads(env, await floodRoadDeps(env, req, ctx));
-        } catch (error) {
-          console.warn("flood-roads refresh failed:", String(error));
+          try {
+            // Any absolute origin works — it only resolves the ASSETS binding
+            // for the districts GeoJSON used to tag each event's district.
+            const req = new Request("https://atlas.nonarkara.org/");
+            const result = await ingestCityEvents(env, req);
+            console.log("city-events cron ingest", JSON.stringify(result));
+            const news = await ingestNewsEvents(env, req);
+            console.log("news-events cron ingest", JSON.stringify(news));
+            await purgeExpiredEvents(env);
+          } catch (error) {
+            console.warn("city-events cron ingest failed:", safeError(error));
+          }
+          try {
+            const state = await refreshFloodDash(env, await floodDeps(env, new Request("https://atlas.nonarkara.org/")));
+            console.log("flooddash relay", state?.fetchedAt ?? "no state", JSON.stringify(state?.parts ?? null));
+          } catch (error) {
+            console.warn("flooddash relay failed:", safeError(error));
+          }
+          try {
+            const req = new Request("https://atlas.nonarkara.org/");
+            await refreshFloodRoads(env, await floodRoadDeps(env, req, ctx));
+          } catch (error) {
+            console.warn("flood-roads refresh failed:", safeError(error));
+          }
+        } finally {
+          await releaseCronSlot(env);
         }
       })(),
     );

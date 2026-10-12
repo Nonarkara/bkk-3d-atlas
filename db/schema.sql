@@ -50,9 +50,9 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
 -- an event stay on the map for its full life instead of blinking out when
 -- the upstream window rolls past it.
 --
--- Populated by the 5-minute cron trigger in wrangler.toml (handler:
--- `scheduled` in src/index.ts), with a fallback re-ingest on every
--- /api/city-events call so a cold visitor still sees current data.
+-- Populated only by the 5-minute cron on bkk-3d-atlas-cron (handler:
+-- `scheduled` in src/index.ts). Public GETs read this table; they do
+-- not ingest. Rows older than two days are deleted by that same cron.
 CREATE TABLE IF NOT EXISTS city_events (
   id TEXT PRIMARY KEY,              -- Longdo eid
   title_th TEXT,
