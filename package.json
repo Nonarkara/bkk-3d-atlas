@@ -14,11 +14,11 @@
     "smoke": "node scripts/smoke-atlas-api.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261008.1",
-    "typescript": "5.9.3",
+    "@cloudflare/workers-types": "5.20261009.1",
+    "typescript": "7.0.2",
     "wrangler": "4.149.0"
   },
   "dependencies": {
-    "pmtiles": "^4.4.1"
+    "pmtiles": "^4.5.0"
   }
 }
