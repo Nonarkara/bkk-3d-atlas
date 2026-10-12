@@ -1,0 +1,25 @@
+name: Data correction
+description: A pin, count, licence line, or feed attribution is wrong.
+title: "[data] "
+labels: []
+body:
+  - type: input
+    id: file
+    attributes:
+      label: File or endpoint
+      placeholder: public/bkk-landmarks.geojson or /api/risk
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What the repo says
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source you checked
+      description: Link the upstream record, OSM object, or official page. Do not paste a guess.
+    validations:
+      required: true

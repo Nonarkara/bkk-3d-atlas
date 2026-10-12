@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Live atlas
+    url: https://atlas.nonarkara.org
+    about: The deployed viewer and /api catalog.
+  - name: Security
+    url: https://github.com/Nonarkara/bkk-3d-atlas/blob/main/SECURITY.md
+    about: Report a vulnerability by email. Do not open a public issue for it.
