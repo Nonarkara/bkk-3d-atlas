@@ -47,6 +47,24 @@ def dump(data: dict, like: bytes) -> bytes:
     return (text + ("\n" if like.endswith(b"\n") else "")).encode("utf-8")
 
 
+CAP_KEYS = ("height", "render_height", "type_default_height", "height_cap")
+
+
+def bkkx_caps(path: pathlib.Path) -> dict[str, dict]:
+    """id -> capped height fields (BKKx scripts/cap-default-heights.py).
+
+    A category default (14 m for any `chapel`) applied to a 5 m pavilion made
+    pillars taller than the hall beside them; BKKx caps such defaults to the
+    footprint and records the original. Same ids here, so the same values.
+    """
+    caps = {}
+    for f in json.loads(path.read_text("utf-8"))["features"]:
+        p = f.get("properties") or {}
+        if "height_cap" in p:
+            caps[str(p.get("id"))] = {k: p[k] for k in CAP_KEYS if k in p}
+    return caps
+
+
 def bkkx_flags(path: pathlib.Path) -> dict[str, str]:
     """id -> hidden_by, for every BKKx hide this atlas also draws."""
     flags = {}
@@ -58,12 +76,20 @@ def bkkx_flags(path: pathlib.Path) -> dict[str, str]:
     return flags
 
 
-def apply_flags(raw: bytes, flags: dict[str, str]) -> tuple[bytes, int, int]:
+def apply_flags(raw: bytes, flags: dict[str, str], caps: dict[str, dict]) -> tuple[bytes, int, int]:
     data = json.loads(raw)
     hidden = cleared = 0
     for f in data["features"]:
         p = f.setdefault("properties", {})
         fid = str(p.get("id"))
+        if fid in caps:
+            p.update(caps[fid])
+        elif "height_cap" in p and "type_default_height" in p:
+            # A cap BKKx no longer applies: restore the original default.
+            p["height"] = p.pop("type_default_height")
+            if "render_height" in p:
+                p["render_height"] = p["height"]
+            p.pop("height_cap", None)
         if fid in flags:
             if p.get("hide_3d") is not True or p.get("hidden_by") != flags[fid]:
                 p["hide_3d"] = True
@@ -97,10 +123,11 @@ def main() -> int:
 
     for name in FLAGGED_FILES:
         flags = bkkx_flags(src / name)
+        caps = bkkx_caps(src / name)
         raw = (PUBLIC / name).read_bytes()
-        out, hidden, cleared = apply_flags(raw, flags)
+        out, hidden, cleared = apply_flags(raw, flags, caps)
         missing = len(flags) - hidden
-        print(f"{name}: {hidden} boxes yield to a model, {cleared} stale flags cleared"
+        print(f"{name}: {hidden} boxes yield to a model, {len(caps)} default heights capped, {cleared} stale flags cleared"
               + (f", {missing} BKKx ids not in this file" if missing else ""))
         if out != raw:
             stale.append(name)
