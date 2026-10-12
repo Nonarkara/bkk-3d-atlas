@@ -49,6 +49,7 @@ const RATTANAKOSIN_BUILDINGS_LAYER = "bkkx-rattanakosin-buildings";
 const LANDMARKS_URL = "/bkk-landmarks.geojson";
 const LANDMARKS_SOURCE = "bkkx-landmarks";
 const LANDMARKS_LAYER = "bkkx-landmarks-extrusion";
+const WIRE_LANDMARKS_LAYER = "bkkx-wireframe-landmarks";
 
 // Building height — clamp to a sane range. OSM data occasionally
 // has corrupt building:levels tags (e.g. "12345678910111212") that
@@ -806,6 +807,7 @@ const LAYER_STACK = [
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
   ROOF_LAYER,
+  WIRE_LANDMARKS_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -1085,6 +1087,19 @@ const LAYERS = [
       { color: "#fb923c", label: "apartments" },
       { color: "#6b7280", label: "industrial" },
       { color: "#c9ff38", label: "untagged" },
+    ],
+  },
+  {
+    id: "wire-landmarks",
+    name: "Landmarks",
+    description: "Schematic ink drawings of eight monuments",
+    defaultOn: false,
+    softUninstall: false,
+    layers: [WIRE_LANDMARKS_LAYER],
+    install: (map) => installWireframeLandmarks(map),
+    uninstall: (map) => uninstallWireframeLandmarks(map),
+    legend: [
+      { color: "#f5ecc2", label: "Sulpher Yellow · Palette plate 052" },
     ],
   },
   {
@@ -2026,6 +2041,26 @@ async function installLandmarks(map) {
 function uninstallLandmarks(map) {
   if (map.getLayer(LANDMARKS_LAYER)) try { map.removeLayer(LANDMARKS_LAYER); } catch {}
   if (map.getSource(LANDMARKS_SOURCE)) try { map.removeSource(LANDMARKS_SOURCE); } catch {}
+}
+
+// Wireframe monuments. The module and Three.js download only after this
+// runs, and a toggle-off during that download does not leave the layer up.
+let wireframeModulePromise = null;
+let wireframeToken = 0;
+
+async function installWireframeLandmarks(map) {
+  const token = ++wireframeToken;
+  wireframeModulePromise = wireframeModulePromise || import("/wireframe-landmarks.js");
+  const mod = await wireframeModulePromise;
+  if (token !== wireframeToken) return;
+  await mod.installWireframeLandmarks(map);
+  if (token !== wireframeToken) mod.uninstallWireframeLandmarks(map);
+}
+
+function uninstallWireframeLandmarks(map) {
+  wireframeToken++;
+  if (!wireframeModulePromise) return;
+  wireframeModulePromise.then((mod) => mod.uninstallWireframeLandmarks(map));
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -6992,6 +7027,9 @@ function floodRiskRows(flood, risk, buildingFeature) {
 }
 
 function pointLayersOwningClick(map, point) {
+  if (typeof map.__bkkxWireHit === "function" && map.__bkkxWireHit(point)) {
+    return [{ properties: { wireframe: true } }];
+  }
   const owners = [
     ROOF_LAYER,
     CCTV_LAYER,
@@ -8735,6 +8773,9 @@ async function init() {
     addPinLayers(map);
     wireInspect(map);
     if (initialArea) setActiveArea(initialArea.id);
+    if (new URLSearchParams(location.search).get("landmarks") === "1") {
+      setLayerToggle(map, "wire-landmarks", true);
+    }
   });
 
   window.addEventListener("hashchange", () => {

@@ -7,6 +7,7 @@
  *   npm run verify
  */
 import { readFileSync, existsSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -481,6 +482,24 @@ if (!existsSync(join(root, "db/schema.sql"))) fail("missing db/schema.sql");
 else ok("db/schema.sql present");
 if (!existsSync(join(root, "scripts/ingest-bma-open-data.py"))) fail("missing scripts/ingest-bma-open-data.py");
 else ok("scripts/ingest-bma-open-data.py present");
+
+mustExist("public/wireframe-geometry.js");
+mustExist("public/wireframe-landmarks.js");
+mustExist("public/vendor/three.module.js", { maxMb: 2 });
+mustExist("public/vendor/three.module.LICENSE");
+mustExist("THIRD_PARTY.md");
+{
+  const landmarkTest = spawnSync(process.execPath, ["--test", join(root, "scripts/test-wireframe-landmarks.mjs")], {
+    encoding: "utf8",
+  });
+  if (landmarkTest.status !== 0) {
+    fail("wireframe landmark tests failed");
+    if (landmarkTest.stdout) console.error(landmarkTest.stdout);
+    if (landmarkTest.stderr) console.error(landmarkTest.stderr);
+  } else {
+    ok("wireframe landmark geometry, palette, and lazy-load checks");
+  }
+}
 
 console.log(notes.join("\n"));
 if (errors.length) {

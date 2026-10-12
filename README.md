@@ -17,7 +17,7 @@ Open the demo and use **Quick jump** (sixteen areas in `public/bkk-areas.json`) 
 
 ## What it does, and who it is for
 
-The viewer is a static page in `public/`. MapLibre draws Esri imagery, OpenFreeMap roads, and building extrusions. A click reads height and building type, and can ask `/api/risk` for a civic score. Presets stack the city with rain, wind, heat, air quality, or flood without tearing the WebGL sources down.
+The viewer is a static page in `public/`. MapLibre draws Esri imagery, OpenFreeMap roads, and building extrusions. A click reads height and building type, and can ask `/api/risk` for a civic score. Presets stack the city with rain, wind, heat, air quality, or flood without tearing the WebGL sources down. The Landmarks toggle stays off until it is asked, then lazy-loads ink drawings of the Chakri Maha Prasat, the Wat Phra Kaew terrace, Wat Arun, the Democracy Monument, the Giant Swing, and the Golden Mount.
 
 It is for:
 
@@ -87,7 +87,7 @@ flowchart LR
 
 | Piece | What the repo uses |
 | --- | --- |
-| Viewer | Vanilla HTML, CSS, and ES modules in `public/`. No bundler. MapLibre GL 4.7.1 and `hls.js` 1.5.17 from CDNs. `pmtiles` 4.4.1 (`package.json` and the page). |
+| Viewer | Vanilla HTML, CSS, and ES modules in `public/`. No bundler. MapLibre GL 4.7.1 and `hls.js` 1.5.17 from CDNs. `pmtiles` 4.4.1 (`package.json` and the page). The Landmarks layer vendors a Three.js r186 subset at `public/vendor/three.module.js` and loads it only when toggled. |
 | Map | OpenFreeMap dark style, Esri World Imagery, AWS Terrarium DEM (`elevation-tiles-prod`) for the terrain toggle. |
 | Worker | TypeScript on Cloudflare Workers, `nodejs_compat`, compatibility date `2026-05-15`. Wrangler 4.92.0. |
 | Store | R2 bucket `bkk-tiles` for PMTiles. D1 database `bkkx-civic-data` (`db/schema.sql`). |
@@ -146,6 +146,7 @@ Counts below are the feature counts and headers in `public/`, or constants in `s
 | 20 boat features (4 corridors, 16 piers in the scoreboard) | `public/bkk-water-transit.geojson` | Chao Phraya Express Boat, Chao Phraya Tourist Boat, Government Contact Center note on Khlong Saen Saep | Not recorded as a licence id. Geometry is maintained orientation, not live positions. |
 | 599 venues | `public/bkk-venues.geojson` | OpenStreetMap via Overpass, plus curated areas | ODbL 1.0 |
 | 115 landmark extrusions; 43 held in quarantine | `public/bkk-landmarks.geojson` (`version` 2026-09-26), `public/bkk-landmarks-quarantine.geojson` | File text: OSM footprints, schematic heritage heights, curated skyline icons. The Fine Arts Department register (571 monuments) is the other site, not this file. | Not given a licence id on the landmark file. OSM footprints remain ODbL. |
+| 8 wireframe landmarks | `public/wireframe-geometry.js`, drawn by `public/wireframe-landmarks.js` when the Landmarks toggle is on | Original line geometry. Coordinates from Wikipedia or the OSM footprints already in this repo. Reference photos are listed in [CREDITS.md](CREDITS.md) and are not shipped. | Code in this repo. Photos stay on Wikimedia Commons under the licences named in the credits. |
 | 1,963 traffic sample segments, mock levels | `public/bkk-traffic-sample.geojson` | OpenStreetMap via Overpass. Live replacement is iTIC / Longdo. | ODbL 1.0 for the geometry. Levels are mock. |
 | Live traffic | `/api/traffic` → `https://traffic.longdo.com/api/feed/itsth` | iTIC Foundation / Longdo. Historical archive linked from the previous README: <https://itic.longdo.com/opendata/>, described there as CC-BY 4.0 for the 2017–2023 dumps. | Live feed needs `LONGDO_KEY`. |
 | 85 traffic cameras | `public/bkk-cctv.geojson`, `/api/cctv` | iTIC Foundation / Longdo, including Department of Highways cameras carried on that platform | Not recorded here |
