@@ -18,7 +18,7 @@ Map tiles and civic data visible in the capture are credited in the README secti
 
 ## Grand Palace stand-in
 
-`public/models/grand-palace.glb` is an original schematic built from OpenStreetMap footprints in `public/bkk-heritage-detail.geojson` (© OpenStreetMap contributors, ODbL 1.0). Heights are the atlas's existing illustrative tags. It is not a survey, a scan, or an official Fine Arts Department model. The file has no third-party texture.
+`public/models/grand-palace.glb` is an original schematic built from OpenStreetMap footprints in `public/bkk-heritage-detail.geojson` (© OpenStreetMap contributors, ODbL 1.0). Each court building stays on its own footprint. The ubosot and the chapel halls use stacked roof tiers and chofa, the chedi use a bell and a ringed spire, the mondop a stepped pyramid, and the prasat a prang on its cross-shaped plan. Heights are the atlas's existing illustrative tags. It is not a survey, a scan, or an official Fine Arts Department model. The file has no third-party texture.
 
 ## Data
 

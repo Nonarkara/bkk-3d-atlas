@@ -18,7 +18,8 @@ import {
   triangulateXZ,
 } from '../public/building-massing.js';
 import { GRAND_PALACE_SLOT } from '../public/grand-palace-slot.js';
-import { buildPalaceDraft, readGlbJson } from './palace-standin.mjs';
+import { buildPalaceDraft, hallTierPlan, palaceFormFor, readGlbJson, CHEDI_BELL, addTieredHall, addBellChedi, addMondop, addPrang } from './palace-standin.mjs';
+import { MeshDraft } from '../public/building-massing.js';
 
 test('roof choice follows roof:shape, then a short residential default', () => {
   assert.equal(roofChoice({ 'roof:shape': 'gabled', building: 'office' }, 120), 'pitched');
@@ -120,6 +121,71 @@ test('hiding filter keeps the base extrusion filter and lists ids', () => {
   assert.equal(filterHidingIds(base, []), base);
 });
 
+test('temple silhouettes stack, bell, taper, and stay on the plan', () => {
+  const plan = hallTierPlan(3);
+  for (let i = 1; i < plan.scales.length; i++) {
+    assert.ok(plan.scales[i] < plan.scales[i - 1]);
+    assert.ok(plan.rises[i] / plan.scales[i] > plan.rises[i - 1] / plan.scales[i - 1]);
+  }
+  const bellMax = Math.max(...CHEDI_BELL);
+  assert.ok(bellMax > CHEDI_BELL[0] && bellMax > CHEDI_BELL[CHEDI_BELL.length - 1]);
+  assert.equal(palaceFormFor('bkk-building-23482983'), 'hall');
+  assert.equal(palaceFormFor('bkk-building-782453374'), 'hall');
+  assert.equal(palaceFormFor('bkk-building-23482988'), 'chedi');
+  assert.equal(palaceFormFor('bkk-building-23482989'), 'mondop');
+  assert.equal(palaceFormFor('bkk-building-23482990'), 'prang');
+  assert.equal(palaceFormFor('bkk-building-782214624'), 'block');
+
+  const rect = [[-10, -4], [10, -4], [10, 4], [-10, 4]];
+  const hall = new MeshDraft();
+  addTieredHall(hall, rect, 20);
+  const hallGold = hall.finish('gold').positions;
+  const maxAbsX = (y0, y1) => {
+    let reach = 0;
+    for (let i = 0; i < hallGold.length; i += 3) {
+      if (hallGold[i + 1] < y0 || hallGold[i + 1] > y1) continue;
+      reach = Math.max(reach, Math.abs(hallGold[i]));
+    }
+    return reach;
+  };
+  assert.ok(hallGold.some((value, index) => index % 3 === 0 && hallGold[index] > 10));
+  assert.ok(hallGold.some((value, index) => index % 3 === 0 && hallGold[index] < -10));
+  assert.ok(maxAbsX(15, 21) < maxAbsX(6, 11), 'upper roof tier is shorter than the eave');
+
+  function bandRadius(positions, y0, y1) {
+    let radius = 0;
+    for (let i = 0; i < positions.length; i += 3) {
+      const y = positions[i + 1];
+      if (y < y0 || y > y1) continue;
+      radius = Math.max(radius, Math.hypot(positions[i], positions[i + 2]));
+    }
+    return radius;
+  }
+  const square = [[-6, -6], [6, -6], [6, 6], [-6, 6]];
+  const chedi = new MeshDraft();
+  addBellChedi(chedi, square, 40);
+  const chediGold = chedi.finish('gold').positions;
+  const bulge = bandRadius(chediGold, 10, 18);
+  const neck = bandRadius(chediGold, 28, 34);
+  assert.ok(bulge > neck, `bell ${bulge} should be wider than the spire ${neck}`);
+  assert.ok(bandRadius(chediGold, 38, 40) < 1.2);
+
+  const mondop = new MeshDraft();
+  addMondop(mondop, square, 28);
+  const mondopAll = [...mondop.finish('gold').positions, ...mondop.finish('steel').positions];
+  assert.ok(bandRadius(mondopAll, 0, 4) > 5);
+  assert.ok(bandRadius(mondopAll, 22, 28) < bandRadius(mondopAll, 0, 4) * 0.45);
+
+  const cross = [[2, 8], [2, 2], [8, 2], [8, -2], [2, -2], [2, -8], [-2, -8], [-2, -2], [-8, -2], [-8, 2], [-2, 2], [-2, 8]];
+  const prang = new MeshDraft();
+  addPrang(prang, cross, 32);
+  const prangAll = [...prang.finish('gold').positions, ...prang.finish('steel').positions];
+  const arms = bandRadius(prangAll, 0, 6);
+  const cob = bandRadius(prangAll, 24, 32);
+  assert.ok(arms > 7, `cross arms ${arms}`);
+  assert.ok(cob < arms * 0.45, `prang ${cob} against arms ${arms}`);
+});
+
 test('palace slot matches the ubosot centroid and real heritage ids', () => {
   const heritage = JSON.parse(readFileSync(new URL('../public/bkk-heritage-detail.geojson', import.meta.url)));
   const ubosot = heritage.features.find((feature) => feature.properties?.id === GRAND_PALACE_SLOT.anchorFeatureId);
@@ -130,14 +196,20 @@ test('palace slot matches the ubosot centroid and real heritage ids', () => {
   const ids = new Set(heritage.features.map((feature) => feature.properties?.id));
   for (const id of GRAND_PALACE_SLOT.hideIds) assert.ok(ids.has(id), id);
   assert.ok(palaceHideKeys().includes('23482983'));
-  const { used, missing, draft } = buildPalaceDraft(heritage);
+  const { used, missing, draft, forms } = buildPalaceDraft(heritage);
   assert.deepEqual(missing, []);
   assert.equal(used.length, GRAND_PALACE_SLOT.hideIds.length);
+  assert.equal(forms['bkk-building-23482983'], 'hall');
+  assert.equal(forms['bkk-building-23482988'], 'chedi');
+  assert.equal(forms['bkk-building-23482989'], 'mondop');
+  assert.equal(forms['bkk-building-23482990'], 'prang');
   const gold = draft.finish('gold');
-  const shade = draft.finish('shade');
+  const steel = draft.finish('steel');
+  const paper = draft.finish('paper');
   assert.ok(gold.positions.length > 0);
-  assert.ok(shade.positions.length > 0);
-  const all = [...gold.positions, ...shade.positions, ...draft.finish('paper').positions];
+  assert.ok(steel.positions.length > 0);
+  assert.ok(paper.positions.length > 0);
+  const all = [...gold.positions, ...steel.positions, ...paper.positions];
   assert.ok(all.every(Number.isFinite));
   let maxAbs = 0;
   let maxY = 0;

@@ -348,7 +348,7 @@ export function pointInRing(x, y, ring) {
   return inside;
 }
 
-function longAxis(ring) {
+export function longAxis(ring) {
   let cx = 0;
   let cz = 0;
   for (const point of ring) { cx += point[0]; cz += point[1]; }
