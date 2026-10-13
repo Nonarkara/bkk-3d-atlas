@@ -7,6 +7,7 @@
  *   npm run verify
  */
 import { readFileSync, existsSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -481,6 +482,35 @@ if (!existsSync(join(root, "db/schema.sql"))) fail("missing db/schema.sql");
 else ok("db/schema.sql present");
 if (!existsSync(join(root, "scripts/ingest-bma-open-data.py"))) fail("missing scripts/ingest-bma-open-data.py");
 else ok("scripts/ingest-bma-open-data.py present");
+
+const glbPath = join(root, "public/models/grand-palace.glb");
+if (!existsSync(glbPath)) fail("missing public/models/grand-palace.glb");
+else {
+  const glb = readFileSync(glbPath);
+  const mb = glb.length / 1024 / 1024;
+  if (glb.toString("utf8", 0, 4) !== "glTF") fail("grand-palace.glb is not a GLB");
+  else if (mb > 3) fail(`grand-palace.glb is ${mb.toFixed(2)} MB — over the 3 MB budget`);
+  else ok(`grand-palace.glb (${(glb.length / 1024).toFixed(0)} KB)`);
+  const jsonLength = glb.readUInt32LE(12);
+  const json = glb.subarray(20, 20 + jsonLength).toString("utf8");
+  if (!json.includes("Approximate model, not an official survey")) fail("grand-palace.glb missing the stand-in note");
+  else ok("grand-palace.glb carries the stand-in note");
+  if (!json.includes("OpenStreetMap")) fail("grand-palace.glb missing OSM credit");
+  else ok("grand-palace.glb credits OpenStreetMap");
+}
+if (!html.includes("three@0.170.0")) fail("index.html missing pinned three.js 0.170.0 import map");
+else ok("index.html pins three.js 0.170.0");
+if (!html.includes('id="atlas-massing-note"') || !html.includes("Approximate model, not an official survey")) {
+  fail("index.html missing the Grand Palace stand-in note");
+} else ok("index.html has the Grand Palace stand-in note");
+const massingSrc = readFileSync(join(root, "public/building-massing.js"), "utf8");
+if (!app.includes("installBuildingMassing") || !massingSrc.includes("MASSING_MIN_ZOOM = 16") || !massingSrc.includes("await import('three')")) {
+  fail("building massing is not wired");
+} else ok("building massing is wired and three.js stays lazy");
+const massingTest = spawnSync(process.execPath, ["--test", "scripts/test-building-massing.mjs"], { cwd: root, encoding: "utf8" });
+if (massingTest.status !== 0) {
+  fail(`building massing tests failed\n${massingTest.stdout || ""}\n${massingTest.stderr || ""}`);
+} else ok("building massing tests passed");
 
 console.log(notes.join("\n"));
 if (errors.length) {

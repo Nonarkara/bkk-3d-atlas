@@ -16,6 +16,10 @@ Map tiles and civic data visible in the capture are credited in the README secti
 
 `assets/manga.jpg` is original AI-assisted art made for this project.
 
+## Grand Palace stand-in
+
+`public/models/grand-palace.glb` is an original schematic built from OpenStreetMap footprints in `public/bkk-heritage-detail.geojson` (© OpenStreetMap contributors, ODbL 1.0). Heights are the atlas's existing illustrative tags. It is not a survey, a scan, or an official Fine Arts Department model. The file has no third-party texture.
+
 ## Data
 
 Source names, counts, and licences for the atlas files and live feeds are in the README section [Data sources](README.md#data-sources). OSM-derived files stay under ODbL 1.0. Do not treat this credits note as a licence for the code: this repository has no `LICENSE` file.

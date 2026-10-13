@@ -9,6 +9,13 @@
 // residential / industrial palettes).
 
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
+import {
+  installBuildingMassing,
+  massingFeatureAt,
+  MASSING_LAYER,
+  reapplyMassingFilters,
+  suspendBuildingMassing,
+} from './building-massing.js';
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -806,6 +813,7 @@ const LAYER_STACK = [
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
   ROOF_LAYER,
+  MASSING_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -1057,16 +1065,20 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
       await installLandmarks(map);
+      try { installBuildingMassing(map, BUILDING_EXTRUSION_FILTER); } catch (error) {
+        console.warn("Building massing unavailable; extrusions retained:", error);
+      }
       ensureStackOrder(map);
     },
     uninstall: (map) => {
+      suspendBuildingMassing(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1891,6 +1903,7 @@ function applyBuildingPaint(map) {
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) {
     applyRattanakosinPaint(map);
   }
+  try { reapplyMassingFilters(map); } catch {}
 }
 
 function uninstallBuildings(map) {
@@ -6849,7 +6862,7 @@ function clearInspect(map) {
 
 async function runInspect(map, event) {
   const { lng, lat } = event.lngLat;
-  const feature = pickBuildingFeature(map, event.point);
+  const feature = massingFeatureAt(event.lngLat) || pickBuildingFeature(map, event.point);
   setInspectMarker(map, [lng, lat]);
 
   const card = document.getElementById("atlas-inspect-card");
@@ -6878,9 +6891,11 @@ async function runInspect(map, event) {
   ]);
   fillInspectDl(floodEl, [...liveFloodRows(risk?.live), ...floodRiskRows(flood, risk, feature)]);
   if (noteEl) {
-    noteEl.textContent = risk?.live
+    const floodNote = risk?.live
       ? `Live rows: FloodDash — ${FLOOD_DUTY}. Schematic rows are civic demos, not official DDPM/BMA maps.`
       : "No live FloodDash reading here — not an all-clear. Schematic rows are civic demos, not official DDPM/BMA maps.";
+    const modelNote = feature?.properties?.accuracy;
+    noteEl.textContent = modelNote ? `${floodNote} ${modelNote}` : floodNote;
   }
 
   const section = document.getElementById("atlas-inspect");
