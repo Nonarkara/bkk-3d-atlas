@@ -576,21 +576,12 @@
             <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-cctv" />
               <span class="atlas-layer-name">
-                <strong>Traffic CCTV</strong>
-                <small id="toggle-cctv-detail">iTIC / Longdo · public road cameras</small>
+                <strong>Cameras</strong>
+                <small id="toggle-cctv-detail">iTIC · government agencies · others — all on one switch</small>
               </span>
               <span class="atlas-layer-state" id="toggle-cctv-state" aria-live="polite">off</span>
             </label>
-          </li>
-          <li>
-            <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-live-cams" />
-              <span class="atlas-layer-name">
-                <strong>Live views</strong>
-                <small id="toggle-live-cams-detail">YouTube streams + 1 bookmark</small>
-              </span>
-              <span class="atlas-layer-state" id="toggle-live-cams-state" aria-live="polite">off</span>
-            </label>
+            <div class="atlas-legend" id="legend-cctv" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -612,6 +603,17 @@
               </span>
               <span class="atlas-layer-state" id="toggle-districts-state" aria-live="polite">off</span>
             </label>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-airbnb" />
+              <span class="atlas-layer-name">
+                <strong>Airbnb listings</strong>
+                <small id="toggle-airbnb-detail">Inside Airbnb · Bangkok snapshot</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-airbnb-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-airbnb" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -734,17 +736,6 @@
               <span class="atlas-layer-state" id="toggle-roads-flooded-state" aria-live="polite">off</span>
             </label>
             <div class="atlas-legend" id="legend-roads-flooded" hidden></div>
-          </li>
-          <li>
-            <label class="atlas-layer-toggle">
-              <input type="checkbox" id="toggle-maholan-cctv" />
-              <span class="atlas-layer-name">
-                <strong>More CCTV cameras</strong>
-                <small id="toggle-maholan-cctv-detail">Maholan aggregator · BKK + 30 km halo · ~1,700 cameras · agency feeds + user-added (unvetted)</small>
-              </span>
-              <span class="atlas-layer-state" id="toggle-maholan-cctv-state" aria-live="polite">off</span>
-            </label>
-            <div class="atlas-legend" id="legend-maholan-cctv" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">

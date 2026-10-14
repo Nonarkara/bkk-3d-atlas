@@ -512,6 +512,19 @@ if (massingTest.status !== 0) {
   fail(`building massing tests failed\n${massingTest.stdout || ""}\n${massingTest.stderr || ""}`);
 } else ok("building massing tests passed");
 
+// The three.js import map is an inline script; the CSP allows it only by
+// hash. Edit the map without updating public/_headers and the massing layer
+// dies silently in production (it did, 2026-10-14).
+{
+  const { createHash } = await import("node:crypto");
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  const map = html.match(/<script type="importmap">([\s\S]*?)<\/script>/);
+  const headers = readFileSync(join(root, "public/_headers"), "utf8");
+  const hash = map ? `'sha256-${createHash("sha256").update(map[1]).digest("base64")}'` : null;
+  if (hash && !headers.includes(hash)) fail(`CSP does not allow the import map — add ${hash} to script-src in public/_headers`);
+  else ok("CSP allows the three.js import map by hash");
+}
+
 console.log(notes.join("\n"));
 if (errors.length) {
   console.error("\n" + errors.join("\n"));

@@ -634,6 +634,13 @@ const RAIN_STATION_URL = "/bkk-rain-stations.geojson";
 // route does the join + weight calculation; this layer paints the
 // resulting points as a MapLibre heatmap so the atlas flood edition
 // can answer "where are the bad roads right now" without camera colors.
+// Airbnb listings — Inside Airbnb's Bangkok snapshot (scripts/build-airbnb.py).
+const AIRBNB_SOURCE = "bkkx-airbnb";
+const AIRBNB_HEAT_LAYER = "bkkx-airbnb-heat";
+const AIRBNB_LAYER = "bkkx-airbnb-dots";
+const AIRBNB_URL = "/bkk-airbnb.geojson";
+const AIRBNB_ROOM = { E: "Entire home / apartment", P: "Private room", S: "Shared room", H: "Hotel room" };
+
 const INCIDENT_SOURCE = "bkkx-bkk-incidents";
 const INCIDENT_HEAT_LAYER = "bkkx-bkk-incident-heat";
 const INCIDENT_DOT_LAYER = "bkkx-bkk-incident-dots";
@@ -819,6 +826,8 @@ const LAYER_STACK = [
   "bkkx-roads-motorway",
   LAND_PRICE_FILL_LAYER,
   LAND_PRICE_LINE_LAYER,
+  AIRBNB_HEAT_LAYER,
+  AIRBNB_LAYER,
   CIVIC_DENSITY_FILL_LAYER,
   CIVIC_DENSITY_LINE_LAYER,
   DISTRICT_LAYER,
@@ -1015,6 +1024,7 @@ function updateStackChips() {
     traffic: "Traffic",
     cctv: "CCTV",
     "live-cams": "Live",
+    airbnb: "Airbnb",
     khlongs: "Khlongs",
     districts: "Districts",
     terrain: "Terrain",
@@ -1136,17 +1146,33 @@ const LAYERS = [
     uninstall: (map) => setLayersVisible(map, [TRAFFIC_LAYER], false),
   },
   {
+    // Every camera on one switch (2026-10-14): iTIC road cameras, the
+    // Maholan list of agency and other cameras, and the curated live views.
+    // Off by default — 1,700 dots are a layer you ask for, not a backdrop.
     id: "cctv",
-    name: "Traffic CCTV",
-    description: "iTIC / Longdo · public road cameras",
+    name: "Cameras",
+    description: "iTIC · government agencies · others",
     defaultOn: false,
     softUninstall: true,
-    layers: [CCTV_HALO_LAYER, CCTV_LAYER],
-    install: async (map) => { await loadCctvData(map, { preferLive: true }); ensureStackOrder(map); },
+    layers: [CCTV_HALO_LAYER, CCTV_LAYER, MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER, LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER],
+    install: async (map) => {
+      await Promise.all([loadCctvData(map, { preferLive: true }), installMaholanCctv(map), installLiveCams(map)]);
+      // Each loader writes its own status; the switch shows one line for all.
+      if (state.maholanCctv) setLayerStatus("cctv", cameraStatus(state.maholanCctv));
+      ensureStackOrder(map);
+    },
     uninstall: (map) => {
       closeCctvPopup();
-      setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER], false);
+      closeMaholanCctvPopup();
+      closeLiveCamPopup();
+      setLayersVisible(map, [CCTV_HALO_LAYER, CCTV_LAYER, MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER, LIVE_CAM_HALO_LAYER, LIVE_CAM_LAYER], false);
     },
+    legend: [
+      { color: "#c9ff38", label: "iTIC · official road cameras (live video)" },
+      { color: "#5ec8ff", label: "government · BMA, highways, water, disaster, municipal" },
+      { color: "#c084fc", label: "other · user-added, relays, YouTube live views" },
+      { color: "#4b4d45", label: "faint = sent no picture at last check" },
+    ],
   },
   {
     id: "live-cams",
@@ -1442,10 +1468,11 @@ const LAYERS = [
     ],
   },
   {
+    // Shown and hidden through the "cctv" Cameras switch; no toggle of its own.
     id: "maholan-cctv",
     name: "More CCTV cameras",
     description: "Maholan aggregator · BKK + 30 km halo · ~1,700 cameras · agency feeds + user-added (unvetted)",
-    defaultOn: true,
+    defaultOn: false,
     softUninstall: true,
     layers: [MAHOLAN_CCTV_HALO_LAYER, MAHOLAN_CCTV_LAYER],
     install: async (map) => { await installMaholanCctv(map); ensureStackOrder(map); },
@@ -1468,6 +1495,25 @@ const LAYERS = [
     layers: [DISTRICT_LAYER],
     install: async (map) => { await installDistricts(map); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [DISTRICT_LAYER], false),
+  },
+  {
+    id: "airbnb",
+    name: "Airbnb listings",
+    description: "Inside Airbnb · Bangkok snapshot",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [AIRBNB_HEAT_LAYER, AIRBNB_LAYER],
+    install: async (map) => { await installAirbnb(map); ensureStackOrder(map); },
+    uninstall: (map) => {
+      closeAirbnbPopup();
+      setLayersVisible(map, [AIRBNB_HEAT_LAYER, AIRBNB_LAYER], false);
+    },
+    legend: [
+      { color: "#f472b6", label: "entire home / apartment" },
+      { color: "#fbcfe8", label: "private room" },
+      { color: "#a8a29e", label: "shared or hotel room" },
+      { color: "#4b4d45", label: "faint = no review in the last 12 months" },
+    ],
   },
   {
     id: "land-price",
@@ -4073,6 +4119,12 @@ async function loadFloodRoadsPayload() {
   const payload = await fetchJson(FLOOD_ROADS_URL);
   if (payload?.tool === "flood-roads") {
     state.floodRoads = payload;
+    // The street ↔ camera join needs the iTIC list even with the Cameras
+    // switch off; read it quietly, draw nothing.
+    if (!state.cctvGeojson) {
+      const cams = await fetchLiveCctv();
+      if (cams && !state.cctvGeojson) state.cctvGeojson = cams;
+    }
     computeFloodCamJoin();
     renderSituation(payload);
   }
@@ -4536,6 +4588,90 @@ async function refreshFloodRoadsLayer() {
   map.getSource(FLOOD_HEAT_SOURCE)?.setData(payload.heat);
   renderFloodStreets(payload);
   setLayerStatus("flood-roads", `${payload.counts.stretches} road stretches · ${payload.counts.closed} closed · ${floodRoadsAgeText(payload)}`);
+}
+
+function closeAirbnbPopup() {
+  if (state.airbnbPopup) {
+    try { state.airbnbPopup.remove(); } catch {}
+    state.airbnbPopup = null;
+  }
+}
+
+function openAirbnbPopup(map, event) {
+  const f = event.features?.[0];
+  if (!f) return;
+  const p = f.properties || {};
+  const n = (v) => (v == null || v === "null" || v === "" ? null : Number(v));
+  const price = n(p.p), mn = n(p.mn), av = n(p.av), h = n(p.h);
+  const snapshot = state.airbnbSnapshot ?? "";
+  const rows = [
+    price != null ? `฿${price.toLocaleString("en-US")} a night (asking price on ${snapshot})` : "Price not listed",
+    mn != null ? `Minimum stay ${mn} night${mn > 1 ? "s" : ""}${mn >= 30 ? " · monthly" : ""}` : null,
+    `${n(p.n12) ?? 0} review${n(p.n12) === 1 ? "" : "s"} in the last 12 months · ${n(p.n) ?? 0} in all${p.lr && p.lr !== "null" ? ` · last ${escapeHtml(p.lr)}` : ""}`,
+    av != null ? `Open ${av} of the next 365 days` : null,
+    h != null ? (h > 1 ? `Host runs ${h} listings in Bangkok` : "Host's only listing") : null,
+    String(p.lic) === "1" ? "Licence number given" : "No licence number given",
+  ].filter(Boolean);
+  closeAirbnbPopup();
+  state.airbnbPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px", className: "atlas-cctv-popup", offset: 8 })
+    .setLngLat(f.geometry.coordinates)
+    .setHTML(`
+      <div class="atlas-cctv-card">
+        <p class="atlas-cctv-kicker" style="color:#f472b6">Airbnb listing</p>
+        <strong class="atlas-cctv-title">${escapeHtml(AIRBNB_ROOM[p.r] ?? "Listing")}</strong>
+        ${rows.map((r) => `<p class="atlas-cctv-status">${escapeHtml(r)}</p>`).join("")}
+        <p class="atlas-gauge-duty">Inside Airbnb, ${escapeHtml(snapshot)} · CC BY 4.0 · place shifted up to ~150 m by Airbnb · a listing is not proof the room is let</p>
+      </div>`)
+    .addTo(map);
+}
+
+async function installAirbnb(map) {
+  if (!map.getSource(AIRBNB_SOURCE)) {
+    const gj = await fetchJson(AIRBNB_URL);
+    if (!gj?.features?.length) {
+      setLayerStatus("airbnb", "unavailable · listing file failed");
+      return;
+    }
+    state.airbnbSnapshot = gj.snapshot;
+    map.addSource(AIRBNB_SOURCE, { type: "geojson", data: gj });
+    const active = gj.features.filter((f) => f.properties.n12 > 0).length;
+    setLayerStatus("airbnb", `${gj.count.toLocaleString("en-US")} listings · ${active.toLocaleString("en-US")} reviewed in the last year · Inside Airbnb ${gj.snapshot}`);
+  }
+  const recent = [">", ["get", "n12"], 0];
+  if (!map.getLayer(AIRBNB_HEAT_LAYER)) {
+    map.addLayer({
+      id: AIRBNB_HEAT_LAYER,
+      type: "heatmap",
+      source: AIRBNB_SOURCE,
+      maxzoom: 14,
+      paint: {
+        "heatmap-weight": ["case", recent, 1, 0.3],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 10, 0.35, 13, 1],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 13, 16],
+        "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"],
+          0, "rgba(0,0,0,0)", 0.2, "rgba(244,114,182,0.2)", 0.5, "rgba(244,114,182,0.45)", 0.8, "rgba(251,207,232,0.7)", 1, "rgba(255,240,248,0.85)"],
+        "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 12.5, 0.9, 14, 0],
+      },
+    });
+  }
+  if (!map.getLayer(AIRBNB_LAYER)) {
+    map.addLayer({
+      id: AIRBNB_LAYER,
+      type: "circle",
+      source: AIRBNB_SOURCE,
+      minzoom: 12.5,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 12.5, 1.8, 15, 3.5, 17, 5.5],
+        "circle-color": ["match", ["get", "r"], "E", "#f472b6", "P", "#fbcfe8", "#a8a29e"],
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 12.5, 0, 13.5, ["case", recent, 0.9, 0.28]],
+        "circle-stroke-width": 0,
+      },
+    });
+    map.on("click", AIRBNB_LAYER, (e) => { e.originalEvent?.stopPropagation?.(); openAirbnbPopup(map, e); });
+    map.on("mouseenter", AIRBNB_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", AIRBNB_LAYER, () => { map.getCanvas().style.cursor = ""; });
+  }
+  setLayersVisible(map, [AIRBNB_HEAT_LAYER, AIRBNB_LAYER], true);
 }
 
 async function installIncidents(map) {
@@ -5507,10 +5643,7 @@ function openMaholanCctvPopup(map, feature) {
   const p = feature.properties || {};
   const [lng, lat] = feature.geometry.coordinates;
   closeMaholanCctvPopup();
-  const typeColor = p.upstream_type === "hls" ? "#dc2626"
-    : p.upstream_type === "mjpeg" ? "#f97316"
-    : p.live ? "#facc15"
-    : "#7d8a9a";
+  const typeColor = p.picture === "none" ? "#7d8a9a" : p.category === "government" ? "#5ec8ff" : "#c084fc";
   const typeLabel = p.upstream_type === "hls" ? "HLS stream"
     : p.upstream_type === "mjpeg" ? "MJPEG stream"
     : p.upstream_type === "snapshot" ? "Snapshot refresh"
@@ -5523,7 +5656,7 @@ function openMaholanCctvPopup(map, feature) {
   // 'operator' labels community/unvetted (old cached payloads carry no
   // tier — an unknown must not read as a vetted operator camera).
   const isCommunity = p.tier !== "operator";
-  const tierLabel = isCommunity ? "COMMUNITY / UNKNOWN · UNVERIFIED" : "RECOGNIZED OPERATOR SOURCE";
+  const tierLabel = p.category === "government" ? "GOVERNMENT CAMERA" : isCommunity ? "COMMUNITY / UNKNOWN · UNVERIFIED" : "RECOGNIZED OPERATOR SOURCE";
   // Maholan's snap endpoint sends no Access-Control-Allow-Origin, so
   // browsers refuse to paint a direct <img>. The atlas proxies it
   // through /api/snap/<id> which adds ACAO + caches at the edge.
@@ -5533,12 +5666,12 @@ function openMaholanCctvPopup(map, feature) {
     <div class="atlas-cctv-card">
       <p class="atlas-cctv-kicker" style="color:${typeColor}">${tierLabel} · ${escapeHtml(String(p.upstream_type || "")).toUpperCase()} · ${escapeHtml(String(p.live ? "LIVE" : "OFFLINE"))}</p>
       <strong class="atlas-cctv-title">${safeName}</strong>
-      <img class="atlas-maholan-snap"
+      ${p.picture === "none" ? `<p class="atlas-cctv-status atlas-cctv-nopic">No picture from this camera at the last check${p.picture_checked_at ? ` (${escapeHtml(ageWords(minutesSince(p.picture_checked_at)))} ago)` : ""}: the operator's feed sent nothing. The dot stays so the camera's place is known.</p>` : `<img class="atlas-maholan-snap"
            src="${escapeHtml(proxySnap)}"
            alt="Live snapshot · ${safeName}"
            loading="lazy"
            data-snap-loaded-at="${Date.now()}"
-           onerror="this.dataset.snapFailed='1';this.alt='Snapshot unavailable for ${safeName}';" />
+           onerror="this.dataset.snapFailed='1';this.alt='Snapshot unavailable for ${safeName}';" />`}
       <p class="atlas-cctv-status" lang="th">
         ${safeRegion}${safeSource ? ` · ${safeSource}` : ""} ·
         <a href="#" class="atlas-cctv-snap-refresh" data-snap="${escapeHtml(proxySnap)}">↻ refresh snapshot</a>
@@ -5603,6 +5736,15 @@ function openMaholanCctvPopup(map, feature) {
   state.maholanCctvPopup = popup;
 }
 
+/** One line for the Cameras switch: how many actually show a picture. */
+function cameraStatus(fc) {
+  const f = (fc?.features ?? []).filter((x) => x.properties?.category !== "itic");
+  const ok = f.filter((x) => x.properties?.picture === "ok").length;
+  const none = f.filter((x) => x.properties?.picture === "none").length;
+  const itic = state.cctvGeojson?.features?.length ?? 0;
+  return `${itic} iTIC + ${f.length} agency & other cameras · ${ok} sending a picture · ${none} silent · ${f.length - ok - none} not yet checked`;
+}
+
 function wireMaholanCctvInteractions(map) {
   if (map.__bkkxMaholanCctvWired) return;
   map.__bkkxMaholanCctvWired = true;
@@ -5623,6 +5765,7 @@ async function installMaholanCctv(map) {
     return;
   }
   const geojson = await fetchJson(MAHOLAN_CCTV_URL);
+  if (geojson) state.maholanCctv = geojson;
   if (!geojson?.features?.length) {
     setLayerStatus("maholan-cctv", "unavailable · Maholan feed empty — not an all-clear");
     return;
@@ -5646,13 +5789,13 @@ async function installMaholanCctv(map) {
       source: MAHOLAN_CCTV_SOURCE,
       minzoom: 8,
       filter: ["all",
-        ["==", ["get", "live"], true],
-        ["==", ["get", "upstream_type"], "hls"],
+        ["==", ["get", "picture"], "ok"],
+        ["!=", ["get", "category"], "itic"],
       ],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 10, 13, 14, 16, 18],
-        "circle-color": "#dc2626",
-        "circle-opacity": 0.22,
+        "circle-color": ["match", ["get", "category"], "government", "#5ec8ff", "#c084fc"],
+        "circle-opacity": 0.18,
         "circle-stroke-width": 0,
         "circle-color-transition": { duration: 1500, delay: 0 },
         "circle-opacity-transition": { duration: 1500, delay: 0 },
@@ -5663,23 +5806,20 @@ async function installMaholanCctv(map) {
       type: "circle",
       source: MAHOLAN_CCTV_SOURCE,
       minzoom: 7,
+      // iTIC cameras are drawn by the iTIC layer, which plays their video.
+      filter: ["!=", ["get", "category"], "itic"],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 3, 11, 4.5, 13, 6, 16, 8],
         // HLS live → red, MJPEG live → orange, snapshot → yellow,
         // offline → grey. Matches the layer's legend so a person can
         // decode it from the chip alone.
-        "circle-color": [
-          "match", ["get", "upstream_type"],
-          "hls", ["case", ["==", ["get", "live"], true], "#dc2626", "#7d8a9a"],
-          "mjpeg", ["case", ["==", ["get", "live"], true], "#f97316", "#7d8a9a"],
-          "snapshot", "#facc15",
-          ["case", ["==", ["get", "live"], true], "#facc15", "#7d8a9a"],
-        ],
+        // Who runs it: government blue, other violet. Whether it shows a
+        // picture (the cron's check): full, unchecked, or faint.
+        "circle-color": ["match", ["get", "category"], "government", "#5ec8ff", "#c084fc"],
         "circle-stroke-color": "#11120f",
         "circle-stroke-width": 1,
-        // match labels must be numbers/strings — a boolean label is
-        // rejected by MapLibre's validator, so this is a case, not a match.
-        "circle-opacity": ["case", ["==", ["get", "live"], true], 0.92, 0.45],
+        "circle-opacity": ["match", ["get", "picture"], "ok", 0.95, "none", 0.22, 0.6],
+        "circle-stroke-opacity": ["match", ["get", "picture"], "none", 0.25, 1],
         "circle-color-transition": { duration: 1500, delay: 0 },
         "circle-opacity-transition": { duration: 1500, delay: 0 },
       },
@@ -5688,10 +5828,7 @@ async function installMaholanCctv(map) {
     const counts = geojson.counts ?? {};
     const total = counts.total ?? geojson.features.length;
     const live = counts.live ?? 0;
-    setLayerStatus(
-      "maholan-cctv",
-      `Maholan CCTV · ${total} cameras in halo · ${live} reported live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} community/unknown (unverified)`,
-    );
+    setLayerStatus("cctv", cameraStatus(geojson));
   } catch (error) {
     console.warn("Maholan CCTV layer failed:", error);
     setLayerStatus("maholan-cctv", "unavailable · layer failed");
@@ -6523,7 +6660,7 @@ async function installLiveCams(map) {
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 6, 16, 8],
         "circle-color": "#11120f",
-        "circle-stroke-color": "#c9ff38",
+        "circle-stroke-color": "#c084fc",
         "circle-stroke-width": 1.6,
         "circle-opacity": 0.95,
       },
@@ -7014,6 +7151,7 @@ function pointLayersOwningClick(map, point) {
     CIVIC_POI_LAYER,
     FLOOD_SENSOR_LAYER,
     FLOOD_ROAD_LAYER,
+    AIRBNB_LAYER,
     WATER_TRANSIT_ROUTE_LAYER,
     WATER_TRANSIT_FERRY_LAYER,
     WATER_TRANSIT_PIER_LAYER,
@@ -7255,7 +7393,7 @@ function wireStackPresets(map) {
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: true, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, "maholan-cctv": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
@@ -8192,10 +8330,8 @@ async function refreshMountedFloodLayers(map) {
     const total = counts.total ?? data.features.length;
     const live = counts.live ?? 0;
     setLayerStatus(
-      "maholan-cctv",
-      data.features.length
-        ? `Maholan CCTV · ${total} cameras in halo · ${live} reported live (HLS ${counts.hls ?? 0} · MJPEG ${counts.mjpeg ?? 0} · snapshot ${counts.snapshot ?? 0}) · ${counts.byTier?.community ?? 0} community/unknown (unverified)`
-        : "unavailable · Maholan feed empty — not an all-clear",
+      "cctv",
+      data.features.length ? cameraStatus(data) : "unavailable · camera list empty — not an all-clear",
     );
   });
 

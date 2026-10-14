@@ -30,6 +30,7 @@ import {
   type RefreshDeps,
 } from "./flooddash";
 
+import { cameraCategory, readCamHealth, refreshCamHealth } from "./camhealth";
 import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } from "./floodroads";
 
 import { roadsXrefResponse } from "./roads-xref";
@@ -1883,7 +1884,22 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
     };
   });
   if (!cached) return jsonResponse({ error: "maholan_cctv_upstream_error" }, { status: 502 });
-  return jsonResponse(cached.payload, {
+  // Category and the cron's picture check are joined at response time, so
+  // a cached camera list never carries a stale verdict.
+  const health = await readCamHealth(env).catch(() => ({} as Awaited<ReturnType<typeof readCamHealth>>));
+  const payload = cached.payload as { features?: { properties: Record<string, unknown> }[]; counts?: Record<string, unknown> };
+  let withPicture = 0, noPicture = 0;
+  for (const f of payload.features ?? []) {
+    const p = f.properties;
+    p.category = cameraCategory(String(p.upstream_source ?? ""));
+    const h = health[String(p.id)];
+    p.picture = h ? (h.ok ? "ok" : "none") : "unknown";
+    p.picture_checked_at = h?.at ?? null;
+    if (h?.ok) withPicture++;
+    else if (h) noPicture++;
+  }
+  if (payload.counts) payload.counts.picture = { ok: withPicture, none: noPicture, unchecked: (payload.features?.length ?? 0) - withPicture - noPicture };
+  return jsonResponse(payload, {
     headers: {
       "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
       "x-bkkx-source": cached.fromCache
@@ -3876,6 +3892,14 @@ export default {
           await refreshFloodRoads(env, await floodRoadDeps(env, req, ctx));
         } catch (error) {
           console.warn("flood-roads refresh failed:", String(error));
+        }
+        try {
+          const res = await proxyMaholanCctv(new Request("https://atlas.nonarkara.org/api/water/bkk/maholan-cctv"), env);
+          const fc = (await res.json()) as { features?: { properties: { id: string } }[] };
+          const ids = (fc.features ?? []).map((f) => String(f.properties.id)).filter(Boolean);
+          if (ids.length) console.log("camera picture check", JSON.stringify(await refreshCamHealth(env, ids)));
+        } catch (error) {
+          console.warn("camera picture check failed:", String(error));
         }
       })(),
     );
