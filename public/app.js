@@ -9139,6 +9139,7 @@ async function init() {
     hash: false,
     attributionControl: { compact: true },
   });
+  wireCameraWall(map);
 
   // External fly-to (e.g. bkk's quarter chip loaded the atlas with
   // ?at=lng,lat,zoom). Fires after the map is built so the camera
@@ -9242,3 +9243,154 @@ init().catch((error) => {
     panel.prepend(note);
   }
 });
+
+// ── Camera wall ────────────────────────────────────────────────────────
+// A full-screen grid of the cameras in Bangkok, Nonthaburi and the ring
+// around them. Pattern and the streaming discipline (attach HLS only while
+// a tile is on screen, cap concurrent players) taken from FloodDash's
+// camera wall, flood.nonarkara.org — github.com/Nonarkara/FloodDash,
+// public/js/layers/cctvWall.js. iTIC tiles play video; Maholan tiles show
+// one still through /api/snap, taken when the wall opens.
+const WALL_BBOX = { minLat: 13.48, maxLat: 14.15, minLon: 100.25, maxLon: 100.98 }; // BKK + Nonthaburi + ring
+const WALL_MAX_LIVE = 12; // ponytail: hard cap, from FloodDash; raise only if bandwidth allows
+const wallPlayers = new Map(); // video → Hls | true (native)
+const wallVisible = new Set(); // videos on screen; a freed slot goes to the next one waiting
+
+function inWallBox(f) {
+  const [lon, lat] = f?.geometry?.coordinates ?? [];
+  return lat >= WALL_BBOX.minLat && lat <= WALL_BBOX.maxLat && lon >= WALL_BBOX.minLon && lon <= WALL_BBOX.maxLon;
+}
+
+async function wallCameras() {
+  const [itic, maholan] = await Promise.all([
+    state.cctvGeojson?.features?.length ? state.cctvGeojson : fetchLiveCctv(),
+    state.maholanCctv ?? fetchJson(MAHOLAN_CCTV_URL),
+  ]);
+  const video = (itic?.features ?? []).filter((f) => inWallBox(f) && f.properties?.hls).map((f) => ({
+    kind: "video", id: f.properties.id, name: f.properties.title || f.properties.id,
+    org: f.properties.org || "iTIC", hls: f.properties.hls, coords: f.geometry.coordinates,
+  }));
+  const rank = { ok: 0, unknown: 1, indeterminate: 1 };
+  const stills = (maholan?.features ?? [])
+    .filter((f) => inWallBox(f) && f.properties?.picture !== "none")
+    .sort((a, b) => (rank[a.properties.picture] ?? 2) - (rank[b.properties.picture] ?? 2))
+    .map((f) => ({
+      kind: "still", id: f.properties.id, name: f.properties.name || f.properties.id,
+      org: f.properties.upstream_source || "Maholan", checked: f.properties.picture === "ok",
+      category: f.properties.category, viewer: f.properties.viewer_url, coords: f.geometry.coordinates,
+    }));
+  return [...video, ...stills];
+}
+
+function wallDetach(video) {
+  const p = wallPlayers.get(video);
+  if (p && p !== true) { try { p.destroy(); } catch {} }
+  wallPlayers.delete(video);
+  video.removeAttribute("src");
+  try { video.load(); } catch {}
+  for (const v of wallVisible) if (!wallPlayers.has(v) && !v.dataset.failed) { wallAttach(v); break; }
+}
+
+function wallAttach(video) {
+  const badge = video.parentElement.querySelector(".atlas-wall-state");
+  if (wallPlayers.has(video) || video.dataset.failed) return;
+  if (wallPlayers.size >= WALL_MAX_LIVE) { badge.textContent = `Video · waiting for a free slot (${WALL_MAX_LIVE} play at once)`; return; }
+  const src = video.dataset.hls;
+  badge.textContent = "Video · loading";
+  const failed = () => { video.dataset.failed = "1"; badge.textContent = "Video unavailable · not an all-clear"; wallDetach(video); };
+  const Hls = window.Hls;
+  if (Hls && Hls.isSupported()) {
+    const hls = new Hls({ enableWorker: false, lowLatencyMode: false, maxBufferLength: 8 });
+    hls.on(Hls.Events.ERROR, (_e, d) => { if (d?.fatal) failed(); });
+    hls.loadSource(src);
+    hls.attachMedia(video);
+    wallPlayers.set(video, hls);
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = src;
+    wallPlayers.set(video, true);
+  } else return failed();
+  video.play().catch(() => {});
+  video.addEventListener("playing", () => { badge.textContent = "Video · check the time on the image"; }, { once: true });
+}
+
+function wallTile(c) {
+  const name = escapeHtml(c.name.replace(/^\(กรุงเทพมหานคร\)\s*/, ""));
+  const org = escapeHtml(c.org);
+  if (c.kind === "video") {
+    return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}">
+      <div class="atlas-wall-media"><video muted playsinline autoplay data-hls="${escapeHtml(c.hls)}"></video>
+      <span class="atlas-wall-state">Video · loading when on screen</span><span class="atlas-wall-cat atlas-wall-cat-itic">iTIC</span></div>
+      <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org}</small></figcaption></figure>`;
+  }
+  const cat = { itic: "iTIC", government: "Gov", other: "Other" }[c.category] || "Other";
+  return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}">
+    <div class="atlas-wall-media"><img loading="lazy" alt="" referrerpolicy="no-referrer" src="/api/snap/${encodeURIComponent(c.id)}?w=320" />
+    <span class="atlas-wall-state">${c.checked ? "Still" : "Still · picture not yet confirmed"}</span><span class="atlas-wall-cat atlas-wall-cat-${escapeHtml(c.category || "other")}">${cat}</span></div>
+    <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org}${c.viewer ? ` · <a href="${escapeHtml(c.viewer)}" target="_blank" rel="noopener">viewer ↗</a>` : ""}</small></figcaption></figure>`;
+}
+
+function wireCameraWall(map) {
+  const root = document.createElement("section");
+  root.className = "atlas-wall";
+  root.hidden = true;
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-label", "Camera wall");
+  root.innerHTML = `<header class="atlas-wall-head">
+      <div><p class="atlas-eyebrow">Bangkok · Nonthaburi · surroundings</p><h2>Camera wall</h2>
+      <small class="atlas-wall-count" aria-live="polite">Loading cameras…</small></div>
+      <button type="button" class="atlas-wall-close">Close</button></header>
+    <div class="atlas-wall-grid"></div>
+    <p class="atlas-wall-credit">Video plays only while a tile is on screen, ${WALL_MAX_LIVE} at most. Stills are taken when the wall opens. A dark tile is not an all-clear. Wall pattern from <a href="https://flood.nonarkara.org" target="_blank" rel="noopener">FloodDash</a>; cameras from iTIC and the Maholan registry.</p>`;
+  document.body.appendChild(root);
+  const grid = root.querySelector(".atlas-wall-grid");
+  const count = root.querySelector(".atlas-wall-count");
+  let observer = null;
+  let lastFocus = null;
+
+  const close = () => {
+    if (root.hidden) return;
+    observer?.disconnect();
+    wallVisible.clear();
+    for (const v of [...wallPlayers.keys()]) wallDetach(v);
+    grid.innerHTML = "";
+    root.hidden = true;
+    document.body.classList.remove("atlas-wall-open");
+    lastFocus?.focus?.({ preventScroll: true });
+  };
+  const open = async () => {
+    lastFocus = document.activeElement;
+    root.hidden = false;
+    document.body.classList.add("atlas-wall-open");
+    root.querySelector(".atlas-wall-close").focus();
+    count.textContent = "Loading cameras…";
+    const cams = await wallCameras();
+    if (root.hidden) return;
+    const v = cams.filter((c) => c.kind === "video").length;
+    count.textContent = cams.length
+      ? `${cams.length} cameras · ${v} video · ${cams.length - v} stills`
+      : "No cameras reachable right now · not an all-clear";
+    grid.innerHTML = cams.map(wallTile).join("");
+    grid.querySelectorAll("img").forEach((img) => img.addEventListener("error", () => {
+      img.parentElement.querySelector(".atlas-wall-state").textContent = "No picture · not an all-clear";
+      img.remove();
+    }, { once: true }));
+    observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { wallVisible.add(e.target); wallAttach(e.target); }
+        else { wallVisible.delete(e.target); if (wallPlayers.has(e.target)) wallDetach(e.target); }
+      }
+    }, { root: grid, rootMargin: "100px" });
+    grid.querySelectorAll("video").forEach((el) => observer.observe(el));
+  };
+
+  root.querySelector(".atlas-wall-close").addEventListener("click", close);
+  grid.addEventListener("click", (e) => {
+    const go = e.target.closest(".atlas-wall-go");
+    if (!go) return;
+    close();
+    map.flyTo({ center: [Number(go.dataset.lon), Number(go.dataset.lat)], zoom: 16.5, pitch: 55 });
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !root.hidden) close(); });
+  document.querySelectorAll("[data-wall-open]").forEach((el) => el.addEventListener("click", (e) => { e.preventDefault(); open(); }));
+}

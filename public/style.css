@@ -3759,3 +3759,66 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   .atlas-sim-toggle, .atlas-sim-close { transition: none; }
   .atlas-sim-progress-bar { transition: none; }
 }
+
+/* Camera wall — full-screen grid (pattern from FloodDash). */
+.atlas-wall { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; background: #0d0e0b; color: var(--paper); }
+.atlas-wall[hidden] { display: none; }
+body.atlas-wall-open { overflow: hidden; }
+.atlas-wall-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.atlas-wall-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.04em; }
+.atlas-wall-head .atlas-eyebrow { margin: 0; }
+.atlas-wall-count { color: var(--muted); font-size: 13px; }
+.atlas-wall-close { min-height: 44px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, 0.22); background: transparent; color: var(--paper); font-weight: 800; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.atlas-wall-close:hover, .atlas-wall-close:focus-visible { border-color: var(--signal); }
+.atlas-wall-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); align-content: start; }
+@media (min-width: 760px) { .atlas-wall-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .atlas-wall-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.atlas-wall-tile { margin: 0; background: #0d0e0b; min-width: 0; }
+.atlas-wall-media { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+.atlas-wall-media video, .atlas-wall-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.atlas-wall-state, .atlas-wall-cat { position: absolute; padding: 2px 6px; font-size: 11px; background: rgba(13, 14, 11, 0.82); color: var(--paper); }
+.atlas-wall-state { left: 0; bottom: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-wall-cat { right: 0; top: 0; font-weight: 800; }
+.atlas-wall-cat-itic { color: #c9ff38; }
+.atlas-wall-cat-government { color: #5ec8ff; }
+.atlas-wall-cat-other { color: #c084fc; }
+.atlas-wall-tile figcaption { padding: 4px 8px 8px; font-size: 11px; color: var(--muted); }
+.atlas-wall-tile figcaption a { color: var(--muted); }
+.atlas-wall-go { display: block; width: 100%; min-height: 44px; padding: 0; border: 0; background: none; color: var(--paper); font: inherit; font-size: 13px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.atlas-wall-go:hover, .atlas-wall-go:focus-visible { color: var(--signal); }
+.atlas-wall-credit { margin: 0; padding: 10px 16px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
+.atlas-wall-credit a { color: var(--paper); }
+
+/* Map first (2026-10-14). The header and the live strip were taking 431 of
+   900 px on desktop, which left the map — the point of the page — under
+   half. Header becomes one line; the strip is capped and scrolls inside;
+   the actions sit straight under the verdict so they never scroll away;
+   long reasons clamp to two lines (full text stays in the DOM). */
+.atlas-flood-verdict-line { order: 0; }
+.atlas-flood-verdict-actions { order: 1; }
+.atlas-flood-verdict > :not(.atlas-flood-verdict-line):not(.atlas-flood-verdict-actions) { order: 2; }
+.atlas-flood-verdict-reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.atlas-flood-verdict-reason[hidden] { display: none; }
+@media (min-width: 1001px) {
+  .atlas-header { padding: 6px clamp(16px, 2vw, 32px); gap: 16px; }
+  .atlas-brand { flex-direction: row; align-items: center; gap: 8px; }
+  .atlas-header-meta { flex-direction: row; align-items: baseline; gap: 12px; }
+  .atlas-header-meta > .atlas-eyebrow { display: none; }
+  .atlas-header-meta .atlas-title { font-size: 20px; margin: 0; white-space: nowrap; }
+  .atlas-header-meta small { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .atlas-page { grid-template-rows: auto minmax(0, 1fr) minmax(132px, 210px); }
+}
+@media (max-width: 720px) {
+  .atlas-page { grid-template-rows: auto 66dvh auto auto; }
+}
+@media (max-width: 720px) {
+  /* Five buttons squeezed into one row clipped every label. Full-size buttons, 44 px tall, in a row that scrolls sideways. */
+  .atlas-flood-verdict-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .atlas-flood-verdict-btn { flex: 0 0 auto; min-height: 44px; padding: 0 12px; font-size: 11px; overflow: visible; }
+}
