@@ -1,9 +1,9 @@
 // Bake the Grand Palace / Wat Phra Kaew schematic GLB from OSM footprints
 // already in bkk-heritage-detail.geojson. Each building stays on its own
-// ring and centroid. The silhouettes are parametric Thai types chosen from
-// the footprint's OSM id — roof tiers, a bell stupa, a mondop spire, a prang.
-// They are not traced from photographs. Heights are the atlas tags.
-// No textures. Gold is the roof, finial, and spire accent only.
+// ring and centroid. Roof pitch, tier count, chofa, bell, mondop and prang
+// proportions follow the CC photographs listed in CREDITS.md. The mesh is
+// not a trace of those photographs. No textures. Gold is the roof, finial,
+// and spire accent only.
 //
 //   node scripts/palace-standin.mjs
 
@@ -30,7 +30,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const PALACE_FORM_BY_ID = {
   'bkk-building-23482983': 'hall', // พระอุโบสถ
   'bkk-building-229771451': 'hall', // หอพระคันธารราษฎร์
-  'bkk-building-82541135': 'hall', // gallery along the court
+  'bkk-building-82541135': 'gallery', // phra rabiang, two roof tiers
   'bkk-building-782453374': 'hall',
   'bkk-building-782453375': 'hall',
   'bkk-building-782453376': 'hall',
@@ -62,13 +62,20 @@ export const PALACE_FORM_BY_ID = {
   'bkk-building-23482990': 'prang', // ปราสาทพระเทพบิดร
 };
 
+// Scales shrink each tier. Pitches steepen, in degrees, across the short side.
+// The ubosot reference shows three overlapping tiers; the gallery shows two.
 export const HALL_TIER_PLAN = {
-  2: { scales: [1, 0.58], rises: [1, 1.6] },
-  3: { scales: [1, 0.7, 0.44], rises: [1, 1.45, 1.95] },
+  2: { scales: [1, 0.64], pitches: [48, 56] },
+  3: { scales: [1, 0.72, 0.48], pitches: [46, 52, 58] },
 };
 
+export const GALLERY_TIER_PLAN = { scales: [1, 0.66], pitches: [40, 48] };
+
+// How far up the lower slope the next eave begins, so the tiers overlap.
+export const ROOF_OVERLAP = 0.42;
+
 // Bell radius fractions from the foot of the bell to the neck. The middle is widest.
-export const CHEDI_BELL = [0.58, 0.9, 1, 0.84, 0.52, 0.3];
+export const CHEDI_BELL = [0.52, 0.74, 0.92, 1, 0.9, 0.66, 0.4];
 
 export function palaceFormFor(id) {
   return PALACE_FORM_BY_ID[id] ?? 'block';
@@ -95,23 +102,35 @@ function centerOf(ring) {
   return [x / ring.length, z / ring.length];
 }
 
-function minRadius(ring) {
-  const [cx, cz] = centerOf(ring);
-  let radius = Infinity;
-  for (const point of ring) radius = Math.min(radius, Math.hypot(point[0] - cx, point[1] - cz));
-  return radius;
-}
-
-function ringSpan(ring) {
+function axisSpan(ring) {
   const axis = longAxis(ring);
   let minA = Infinity;
   let maxA = -Infinity;
+  let minP = Infinity;
+  let maxP = -Infinity;
   for (const point of ring) {
     const along = (point[0] - axis.cx) * axis.ax + (point[1] - axis.cz) * axis.az;
+    const across = (point[0] - axis.cx) * axis.px + (point[1] - axis.cz) * axis.pz;
     minA = Math.min(minA, along);
     maxA = Math.max(maxA, along);
+    minP = Math.min(minP, across);
+    maxP = Math.max(maxP, across);
   }
-  return { axis, long: maxA - minA };
+  return { axis, long: maxA - minA, wide: maxP - minP };
+}
+
+function planWidth(ring) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const point of ring) {
+    minX = Math.min(minX, point[0]);
+    maxX = Math.max(maxX, point[0]);
+    minZ = Math.min(minZ, point[1]);
+    maxZ = Math.max(maxZ, point[1]);
+  }
+  return Math.min(maxX - minX, maxZ - minZ);
 }
 
 function circleRing(cx, cz, radius, segments) {
@@ -150,12 +169,13 @@ function connectRings(draft, material, lower, y0, upper, y1) {
 }
 
 function addChofa(draft, origin, outward, size) {
+  // Hook: out and up, then the head curls back toward the roof.
   const spine = [
     [0, 0],
-    [0.28, 0.42],
-    [0.7, 1.05],
-    [1.05, 1.55],
-    [0.62, 1.92],
+    [0.22, 0.48],
+    [0.7, 1.15],
+    [1.05, 1.75],
+    [0.42, 2.28],
   ];
   const side = { x: -outward.z, z: outward.x };
   const half = Math.max(0.22, size * 0.34);
@@ -184,6 +204,42 @@ function addChofa(draft, origin, outward, size) {
   }
 }
 
+function addBaiRaka(draft, ring, ridgeY, size) {
+  const axis = longAxis(ring);
+  let minT = Infinity;
+  let maxT = -Infinity;
+  for (const point of ring) {
+    const along = (point[0] - axis.cx) * axis.ax + (point[1] - axis.cz) * axis.az;
+    minT = Math.min(minT, along);
+    maxT = Math.max(maxT, along);
+  }
+  const span = maxT - minT;
+  if (span < 6) return;
+  const count = Math.max(5, Math.min(9, Math.round(span / 5)));
+  const inset = span * 0.14;
+  const along = { x: axis.ax, z: axis.az };
+  const side = { x: -axis.az, z: axis.ax };
+  for (let i = 0; i < count; i++) {
+    const t = minT + inset + ((span - inset * 2) * (i + 0.5)) / count;
+    const x = axis.cx + axis.ax * t;
+    const z = axis.cz + axis.az * t;
+    const height = size * (0.75 + 0.25 * Math.sin((i / (count - 1)) * Math.PI));
+    const half = Math.max(0.12, size * 0.28);
+    draft.tri(
+      'gold',
+      { x: x - along.x * half, y: ridgeY, z: z - along.z * half },
+      { x: x + along.x * half, y: ridgeY, z: z + along.z * half },
+      { x, y: ridgeY + height, z },
+    );
+    draft.tri(
+      'gold',
+      { x: x + side.x * half * 0.45, y: ridgeY, z: z + side.z * half * 0.45 },
+      { x: x - side.x * half * 0.45, y: ridgeY, z: z - side.z * half * 0.45 },
+      { x, y: ridgeY + height, z },
+    );
+  }
+}
+
 function addTierChofa(draft, ring, ridgeY, size) {
   const axis = longAxis(ring);
   let minT = Infinity;
@@ -197,42 +253,40 @@ function addTierChofa(draft, ring, ridgeY, size) {
   addChofa(draft, { x: axis.cx + axis.ax * minT, y: ridgeY, z: axis.cz + axis.az * minT }, { x: -axis.ax, z: -axis.az }, size);
 }
 
-export function addTieredHall(draft, ring, height) {
-  const tiers = height >= 16 && ringSpan(ring).long >= 14 ? 3 : 2;
-  const plan = hallTierPlan(tiers);
-  const tip = Math.min(Math.max(height * 0.16, 0.9), height * 0.22);
-  const wallTop = height * 0.34;
-  const budget = Math.max(height - tip - wallTop, height * 0.2);
-  const riseSum = plan.rises.reduce((sum, value) => sum + value, 0);
-  draft.walls('steel', ring, 0, wallTop);
-  let y = wallTop;
-  for (let i = 0; i < tiers; i++) {
-    const rise = budget * (plan.rises[i] / riseSum);
-    const ridge = i === tiers - 1 ? height - tip : y + rise;
+export function addTieredHall(draft, ring, height, planOverride) {
+  const span = axisSpan(ring);
+  const plan = planOverride ?? hallTierPlan(span.wide >= 24 && span.long >= 40 ? 3 : 2);
+  const wallTop = Math.max(2.4, Math.min(span.wide * 0.28, 8, Math.max(height, 2.4) * 0.45));
+  draft.walls('steel', scaleAbout(ring, 0.86), 0, wallTop);
+  let eaveY = wallTop;
+  for (let i = 0; i < plan.scales.length; i++) {
     const scaled = scaleAbout(ring, plan.scales[i]);
-    if (i > 0) draft.walls('steel', scaled, Math.max(wallTop, y - 0.2), y);
-    addGableRoof(draft, 'gold', 'steel', scaled, y, ridge);
-    const finial = (tip / 1.92) * (i === tiers - 1 ? 1 : 0.62);
+    const half = (span.wide / 2) * plan.scales[i];
+    const rise = Math.max(half * Math.tan(plan.pitches[i] * Math.PI / 180), 1.2);
+    const ridge = eaveY + rise;
+    addGableRoof(draft, 'gold', 'steel', scaled, eaveY, ridge);
+    const finial = Math.min(Math.max(half * 0.15, 0.38), 1.55);
     addTierChofa(draft, scaled, ridge, finial);
-    y = ridge;
+    addBaiRaka(draft, scaled, ridge, Math.min(finial * 0.85, 1.15));
+    eaveY += rise * ROOF_OVERLAP;
   }
 }
 
 export function addBellChedi(draft, ring, height) {
   const [cx, cz] = centerOf(ring);
-  const foot = minRadius(ring);
-  const base = height * 0.16;
-  const steps = foot < 4 ? 2 : 3;
+  const width = planWidth(ring);
+  const base = height * 0.22;
+  const steps = width < 8 ? 2 : 3;
   for (let i = 0; i < steps; i++) {
-    const scaled = scaleAbout(ring, 1 - i * 0.08);
+    const scaled = scaleAbout(ring, 1 - i * 0.07);
     const y0 = (base / steps) * i;
     const y1 = (base / steps) * (i + 1);
     draft.walls('gold', scaled, y0, y1);
     draft.cap('gold', scaled, y1);
   }
-  const segments = foot < 5 ? 6 : 8;
-  const bellRadius = foot * 0.7;
-  const bellTop = height * 0.56;
+  const segments = width < 10 ? 6 : 8;
+  const bellRadius = width * 0.34;
+  const bellTop = height * 0.58;
   let previous = null;
   let previousY = base;
   CHEDI_BELL.forEach((fraction, index) => {
@@ -242,48 +296,53 @@ export function addBellChedi(draft, ring, height) {
     previous = loop;
     previousY = y;
   });
-  const harm = Math.max(bellRadius * 0.28, 0.35);
-  const harmTop = height * 0.64;
+  const harm = Math.max(bellRadius * 0.34, 0.4);
+  const harmTop = height * 0.66;
   const harmRing = squareRing(cx, cz, harm);
   draft.walls('gold', harmRing, bellTop, harmTop);
   draft.cap('gold', harmRing, harmTop);
-  const spireRings = foot < 5 ? 4 : 6;
-  let radius = bellRadius * 0.34;
+  const spireRings = width < 10 ? 5 : 8;
+  let radius = bellRadius * 0.42;
   const spireSpan = height - harmTop;
   for (let i = 0; i < spireRings; i++) {
-    const y0 = harmTop + spireSpan * (i / (spireRings + 1));
-    const y1 = harmTop + spireSpan * ((i + 1) / (spireRings + 1));
+    const y0 = harmTop + spireSpan * (i / (spireRings + 0.35));
+    const y1 = harmTop + spireSpan * ((i + 0.82) / (spireRings + 0.35));
     const mid = y0 + (y1 - y0) * 0.45;
-    connectRings(draft, 'gold', circleRing(cx, cz, radius * 0.72, segments), y0, circleRing(cx, cz, radius, segments), mid);
-    connectRings(draft, 'gold', circleRing(cx, cz, radius, segments), mid, circleRing(cx, cz, radius * 0.7, segments), y1);
-    radius *= 0.74;
+    const disc = Math.max(radius, 0.08);
+    connectRings(draft, 'gold', circleRing(cx, cz, disc * 0.86, segments), y0, circleRing(cx, cz, disc, segments), mid);
+    connectRings(draft, 'gold', circleRing(cx, cz, disc, segments), mid, circleRing(cx, cz, disc * 0.78, segments), y1);
+    radius *= 0.72;
   }
-  const tipY = harmTop + spireSpan * (spireRings / (spireRings + 1));
-  const tip = circleRing(cx, cz, Math.max(radius, 0.12), segments);
+  const tipY = harmTop + spireSpan * (spireRings / (spireRings + 0.35));
+  const tip = circleRing(cx, cz, Math.max(radius, 0.06), segments);
   const apex = { x: cx, y: height, z: cz };
   for (let i = 0; i < segments; i++) {
     const a = tip[i];
     const b = tip[(i + 1) % segments];
-    draft.tri('gold', { x: a[0], y: tipY, z: a[1] }, { x: b[0], y: tipY, z: b[1] }, apex);
+    draft.tri('gold', { x: a[0], y: Math.min(tipY, height), z: a[1] }, { x: b[0], y: Math.min(tipY, height), z: b[1] }, apex);
   }
 }
 
 export function addMondop(draft, ring, height) {
-  const base = height * 0.3;
-  draft.walls('steel', ring, 0, base * 0.55);
-  draft.cap('paper', ring, base * 0.55);
-  const plinth = scaleAbout(ring, 0.84);
-  draft.walls('steel', plinth, base * 0.55, base);
+  const tiers = height >= 18 ? 7 : 4;
+  const base = height * 0.22;
+  draft.walls('steel', ring, 0, base * 0.62);
+  draft.cap('paper', ring, base * 0.62);
+  const plinth = scaleAbout(ring, 0.82);
+  draft.walls('steel', plinth, base * 0.62, base);
   draft.cap('paper', plinth, base);
-  const scales = [0.68, 0.5, 0.34, 0.2, 0.09];
-  const rises = [0.75, 0.9, 1.1, 1.3, 1.55];
+  const scales = [];
+  const rises = [];
+  for (let i = 0; i < tiers; i++) {
+    scales.push(0.78 * (0.72 ** i));
+    rises.push(0.8 + i * 0.28);
+  }
   const riseSum = rises.reduce((sum, value) => sum + value, 0);
   let y = base;
   const budget = height - base;
-  for (let i = 0; i < scales.length; i++) {
+  for (let i = 0; i < tiers; i++) {
     const scaled = scaleAbout(ring, scales[i]);
-    const top = y + budget * (rises[i] / riseSum);
-    if (i === scales.length - 1) {
+    if (i === tiers - 1) {
       const [cx, cz] = centerOf(scaled);
       const apex = { x: cx, y: height, z: cz };
       for (let k = 0; k < scaled.length; k++) {
@@ -293,6 +352,7 @@ export function addMondop(draft, ring, height) {
       }
       break;
     }
+    const top = y + budget * (rises[i] / riseSum);
     draft.walls('gold', scaled, y, top);
     draft.cap('paper', scaled, top);
     y = top;
@@ -300,31 +360,32 @@ export function addMondop(draft, ring, height) {
 }
 
 export function addPrang(draft, ring, height) {
-  const body = height * 0.32;
+  const body = height * 0.26;
   draft.walls('steel', ring, 0, body);
   draft.cap('paper', ring, body);
   const [cx, cz] = centerOf(ring);
   let reach = 0;
   for (const point of ring) reach = Math.max(reach, Math.hypot(point[0] - cx, point[1] - cz));
   const segments = 8;
-  const cobs = 6;
-  let radius = Math.max(reach * 0.22, 1.2);
+  const cobs = 7;
+  let radius = Math.max(reach * 0.16, 1.1);
   const span = height - body;
   for (let i = 0; i < cobs; i++) {
-    const y0 = body + span * (i / (cobs + 0.6));
-    const y1 = body + span * ((i + 1) / (cobs + 0.6));
-    const mid = y0 + (y1 - y0) * 0.5;
-    connectRings(draft, 'gold', circleRing(cx, cz, radius, segments), y0, circleRing(cx, cz, radius * 1.16, segments), mid);
-    connectRings(draft, 'gold', circleRing(cx, cz, radius * 1.16, segments), mid, circleRing(cx, cz, radius * 0.82, segments), y1);
-    radius *= 0.82;
+    const y0 = body + span * (i / (cobs + 0.45));
+    const y1 = body + span * ((i + 0.86) / (cobs + 0.45));
+    const mid = y0 + (y1 - y0) * 0.48;
+    const bulge = 1.08 + (1 - i / cobs) * 0.2;
+    connectRings(draft, 'gold', circleRing(cx, cz, radius, segments), y0, circleRing(cx, cz, radius * bulge, segments), mid);
+    connectRings(draft, 'gold', circleRing(cx, cz, radius * bulge, segments), mid, circleRing(cx, cz, radius * 0.78, segments), y1);
+    radius *= 0.78;
   }
-  const tipY = body + span * (cobs / (cobs + 0.6));
-  const tip = circleRing(cx, cz, Math.max(radius, 0.15), segments);
+  const tipY = body + span * (cobs / (cobs + 0.45));
+  const tip = circleRing(cx, cz, Math.max(radius, 0.08), segments);
   const apex = { x: cx, y: height, z: cz };
   for (let i = 0; i < segments; i++) {
     const a = tip[i];
     const b = tip[(i + 1) % segments];
-    draft.tri('gold', { x: a[0], y: tipY, z: a[1] }, { x: b[0], y: tipY, z: b[1] }, apex);
+    draft.tri('gold', { x: a[0], y: Math.min(tipY, height), z: a[1] }, { x: b[0], y: Math.min(tipY, height), z: b[1] }, apex);
   }
 }
 
@@ -357,8 +418,14 @@ export function buildPalaceDraft(heritage) {
     }
     const kind = palaceFormFor(id);
     forms[id] = kind;
-    if (kind === 'hall') addTieredHall(draft, ring, height);
-    else if (kind === 'chedi') addBellChedi(draft, ring, height);
+    if (kind === 'gallery') addTieredHall(draft, ring, height, GALLERY_TIER_PLAN);
+    else if (kind === 'hall') addTieredHall(draft, ring, height);
+    else if (kind === 'chedi') {
+      const width = planWidth(ring);
+      const proportional = width * 2.65;
+      const chediHeight = height > proportional * 1.35 ? proportional : height;
+      addBellChedi(draft, ring, chediHeight);
+    }
     else if (kind === 'mondop') addMondop(draft, ring, height);
     else if (kind === 'prang') addPrang(draft, ring, height);
     else addBlock(draft, ring, height);

@@ -125,12 +125,13 @@ test('temple silhouettes stack, bell, taper, and stay on the plan', () => {
   const plan = hallTierPlan(3);
   for (let i = 1; i < plan.scales.length; i++) {
     assert.ok(plan.scales[i] < plan.scales[i - 1]);
-    assert.ok(plan.rises[i] / plan.scales[i] > plan.rises[i - 1] / plan.scales[i - 1]);
+    assert.ok(plan.pitches[i] > plan.pitches[i - 1]);
   }
   const bellMax = Math.max(...CHEDI_BELL);
   assert.ok(bellMax > CHEDI_BELL[0] && bellMax > CHEDI_BELL[CHEDI_BELL.length - 1]);
   assert.equal(palaceFormFor('bkk-building-23482983'), 'hall');
   assert.equal(palaceFormFor('bkk-building-782453374'), 'hall');
+  assert.equal(palaceFormFor('bkk-building-82541135'), 'gallery');
   assert.equal(palaceFormFor('bkk-building-23482988'), 'chedi');
   assert.equal(palaceFormFor('bkk-building-23482989'), 'mondop');
   assert.equal(palaceFormFor('bkk-building-23482990'), 'prang');
@@ -140,17 +141,24 @@ test('temple silhouettes stack, bell, taper, and stay on the plan', () => {
   const hall = new MeshDraft();
   addTieredHall(hall, rect, 20);
   const hallGold = hall.finish('gold').positions;
-  const maxAbsX = (y0, y1) => {
+  let hallMaxY = 0;
+  for (let i = 1; i < hallGold.length; i += 3) hallMaxY = Math.max(hallMaxY, hallGold[i]);
+  const maxAbsZ = (y0, y1) => {
     let reach = 0;
     for (let i = 0; i < hallGold.length; i += 3) {
-      if (hallGold[i + 1] < y0 || hallGold[i + 1] > y1) continue;
-      reach = Math.max(reach, Math.abs(hallGold[i]));
+      const y = hallGold[i + 1];
+      if (y < y0 || y > y1) continue;
+      reach = Math.max(reach, Math.abs(hallGold[i + 2]));
     }
     return reach;
   };
-  assert.ok(hallGold.some((value, index) => index % 3 === 0 && hallGold[index] > 10));
-  assert.ok(hallGold.some((value, index) => index % 3 === 0 && hallGold[index] < -10));
-  assert.ok(maxAbsX(15, 21) < maxAbsX(6, 11), 'upper roof tier is shorter than the eave');
+  assert.ok(hallGold.some((value, index) => index % 3 === 0 && value > 10));
+  assert.ok(hallGold.some((value, index) => index % 3 === 0 && value < -10));
+  assert.ok(hallMaxY > 7, `hall roof should rise steeply, got ${hallMaxY}`);
+  assert.ok(
+    maxAbsZ(hallMaxY * 0.75, hallMaxY) < maxAbsZ(0, hallMaxY * 0.4),
+    'upper roof tier is narrower than the lower eave',
+  );
 
   function bandRadius(positions, y0, y1) {
     let radius = 0;
@@ -200,6 +208,7 @@ test('palace slot matches the ubosot centroid and real heritage ids', () => {
   assert.deepEqual(missing, []);
   assert.equal(used.length, GRAND_PALACE_SLOT.hideIds.length);
   assert.equal(forms['bkk-building-23482983'], 'hall');
+  assert.equal(forms['bkk-building-82541135'], 'gallery');
   assert.equal(forms['bkk-building-23482988'], 'chedi');
   assert.equal(forms['bkk-building-23482989'], 'mondop');
   assert.equal(forms['bkk-building-23482990'], 'prang');

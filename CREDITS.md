@@ -18,7 +18,19 @@ Map tiles and civic data visible in the capture are credited in the README secti
 
 ## Grand Palace stand-in
 
-`public/models/grand-palace.glb` is an original schematic built from OpenStreetMap footprints in `public/bkk-heritage-detail.geojson` (© OpenStreetMap contributors, ODbL 1.0). Each court building stays on its own footprint. The ubosot and the chapel halls use stacked roof tiers and chofa, the chedi use a bell and a ringed spire, the mondop a stepped pyramid, and the prasat a prang on its cross-shaped plan. Heights are the atlas's existing illustrative tags. It is not a survey, a scan, or an official Fine Arts Department model. The file has no third-party texture.
+`public/models/grand-palace.glb` is an original schematic built from OpenStreetMap footprints in `public/bkk-heritage-detail.geojson` (© OpenStreetMap contributors, ODbL 1.0). Each court building stays on its own footprint and centroid. The ubosot uses three steep overlapping roof tiers with chofa and bai raka, the phra rabiang gallery uses two, the chedi use a bell and a ringed spire, the mondop a square stepped pyramid, and the prasat a corn-cob prang on its cross-shaped plan. Heights of the stupas, mondop, and prasat follow the atlas's existing illustrative tags; hall roof pitch is taken from the photographs below so the silhouette stays steep on the real footprint. It is not a survey, a scan, or an official Fine Arts Department model. The file has no third-party texture and no traced photograph.
+
+These Wikimedia Commons photographs were used only as proportion and silhouette references. They are not textures, and the mesh is not a capture of them.
+
+| Structure | Photograph | Author | Licence | URL |
+| --- | --- | --- | --- | --- |
+| Ubosot (ordination hall), three roof tiers | Temple du Bouddha d'émeraude ou Wat Phra Kaeo 3 "Chapelle" royale 1 | Bienvenue en Thaïlande | CC BY-SA 4.0 | <https://commons.wikimedia.org/wiki/File:Temple_du_Bouddha_d%27%C3%A9meraude_ou_Wat_Phra_Kaeo_3_%22Chapelle%22_royale_1.jpg> |
+| Chofa finial | Chofah of ubosot Wat Phra Kaeo | Heinrich Damm (User:Hdamm) | CC BY 2.0 | <https://commons.wikimedia.org/wiki/File:Chofahwatpkaeo05.jpg> |
+| Phra Si Rattana Chedi | Phra Sri Ratana Chedi2 | ScorpianPK | CC BY-SA 3.0 | <https://commons.wikimedia.org/wiki/File:Phra_Sri_Ratana_Chedi2.JPG> |
+| Chedi, mondop, and prasat together | Phra Sri Ratana Chedi, Phra Mondop and Prasat Phra Thep Bidon at Wat Phra Kaew | Christophe95 | CC BY-SA 4.0 | <https://commons.wikimedia.org/wiki/File:Phra_Sri_Ratana_Chedi,_Phra_Mondop_and_Prasat_Phra_Thep_Bidon_at_Wat_Phra_Kaew.jpg> |
+| Phra Mondop | Phra Mondop, Wat Phra Kaew (1) | Radosław Botev | CC BY 3.0 pl | <https://commons.wikimedia.org/wiki/File:Phra_Mondop,_Wat_Phra_Kaew_(1).jpg> |
+| Prasat Phra Thep Bidon | Prasat Phra Thep Bidon 06.23 | Supanut Arunoprayote | CC BY 4.0 | <https://commons.wikimedia.org/wiki/File:Prasat_Phra_Thep_Bidon_06.23.jpg> |
+| Phra rabiang galleries | Phra Rabiang gallery telling the mythical story Ramakien (รามเกียรติ์) | 2008guangzhou | CC BY-SA 3.0 | <https://commons.wikimedia.org/wiki/File:Phra_Rabiang_gallery_telling_the_mythical_story_Ramakien_(%E0%B8%A3%E0%B8%B2%E0%B8%A1%E0%B9%80%E0%B8%81%E0%B8%B5%E0%B8%A2%E0%B8%A3%E0%B8%95%E0%B8%B4%E0%B9%8C).JPG> |
 
 ## Data
 
