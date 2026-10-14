@@ -287,12 +287,13 @@ async function checkFloodBkk() {
   const { ok, status, body, ms } = await fetchJson("/api/flood/bkk");
   if (!ok || status !== 200) return logFail("GET /api/flood/bkk", `status=${status}`);
   assert(body.tool === "flood-bkk", `tool=${body.tool}`);
-  assert(typeof body.verdict === "object" && body.verdict !== null, "missing verdict object");
-  assert(typeof body.verdict.level === "string", "missing verdict.level");
+  const verdict = body.verdict ?? body.lastKnownVerdict;
+  assert(typeof verdict === "object" && verdict !== null, "missing verdict or lastKnownVerdict object");
+  assert(typeof verdict.level === "string", "missing verdict.level");
   assert(Array.isArray(body.gauges), "gauges not an array");
   assert(typeof body.waterways === "object" && body.waterways !== null, "waterways not an object");
   assert(typeof body.hotline === "string", "missing hotline");
-  logOk("GET /api/flood/bkk", ms, `verdict=${body.verdict.level} (${body.verdict.score}/100) gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
+  logOk("GET /api/flood/bkk", ms, `verdict=${verdict.level} (${verdict.score}/100)${body.stale ? " [stale-expired]" : ""} gauges=${body.gauges.length} waterways=${Object.keys(body.waterways).length}`);
 }
 
 // BMA Drainage bulletin — the city's own gate telemetry, anchored to
