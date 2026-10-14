@@ -1888,17 +1888,26 @@ async function proxyMaholanCctv(request: Request, env: Env): Promise<Response> {
   // a cached camera list never carries a stale verdict.
   const health = await readCamHealth(env).catch(() => ({} as Awaited<ReturnType<typeof readCamHealth>>));
   const payload = cached.payload as { features?: { properties: Record<string, unknown> }[]; counts?: Record<string, unknown> };
-  let withPicture = 0, noPicture = 0;
+  let withPicture = 0, noPicture = 0, indeterminate = 0;
   for (const f of payload.features ?? []) {
     const p = f.properties;
     p.category = cameraCategory(String(p.upstream_source ?? ""));
     const h = health[String(p.id)];
-    p.picture = h ? (h.ok ? "ok" : "none") : "unknown";
+    // ok === null means the check itself could not tell (refused, timed
+    // out). That is not evidence the camera is dead, so it reads as
+    // "unknown" and the dot is drawn at normal brightness.
+    p.picture = h ? (h.ok === null ? "unknown" : h.ok ? "ok" : "none") : "unknown";
     p.picture_checked_at = h?.at ?? null;
-    if (h?.ok) withPicture++;
-    else if (h) noPicture++;
+    if (h?.ok === true) withPicture++;
+    else if (h?.ok === false) noPicture++;
+    else if (h) indeterminate++;
   }
-  if (payload.counts) payload.counts.picture = { ok: withPicture, none: noPicture, unchecked: (payload.features?.length ?? 0) - withPicture - noPicture };
+  if (payload.counts) payload.counts.picture = {
+    ok: withPicture,
+    none: noPicture,
+    unchecked: (payload.features?.length ?? 0) - withPicture - noPicture - indeterminate,
+    indeterminate,
+  };
   return jsonResponse(payload, {
     headers: {
       "cache-control": `public, max-age=${CCTV_CACHE_TTL_SECONDS}`,
