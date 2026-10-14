@@ -99,6 +99,63 @@ export type Gauge = {
   waterwayName: string | null;
 };
 
+export type CanalChange = {
+  dir: string; median: number | null; likely: [number, number] | null;
+  method: string | null; skill: number | null; proven: boolean | null;
+};
+export type CanalGauge = {
+  code: string; nameTh: string; nameEn: string | null; lng: number; lat: number;
+  agency: string | null; river: string | null; amphoe: string | null;
+  status: string; band: string; pctBank: number | null; freeboardM: number | null;
+  levelMsl: number | null; bankMsl: number | null; obsTime: string | null; ageMin: number | null; stale: boolean;
+  observed24Cm: number | null; change24: CanalChange | null; change48: CanalChange | null;
+  bankChance24: string | null; bankChance48: string | null;
+};
+
+export const FLOOD2026_ORIGIN = "https://flood.autobahn.bot";
+// flood2026 status → the band vocabulary the waterways already speak.
+// critical = measured over the bank; warning = near it.
+const F26_BAND: Record<string, string> = { critical: "observed-overflow", warning: "evacuate", watch: "watch", normal: "safe" };
+
+function toCanalChange(c: Json | undefined): CanalChange | null {
+  if (!c || typeof c !== "object") return null;
+  const likely = Array.isArray(c.likely) && c.likely.length === 2 ? [num(c.likely[0]), num(c.likely[1])] : null;
+  return {
+    dir: String(c.dir ?? "unsure"), median: num(c.median),
+    likely: likely && likely[0] != null && likely[1] != null ? (likely as [number, number]) : null,
+    method: (c.method as string) ?? null, skill: num(c.skill),
+    // "persistence" = no model beat "no change" here; proven:false = not yet confirmed.
+    proven: typeof c.proven === "boolean" ? c.proven : null,
+  };
+}
+
+function toCanalGauge(s: Json): CanalGauge | null {
+  const lat = num(s.lat), lng = num(s.lon);
+  if (lat == null || lng == null || lat < BBOX.minLat || lat > BBOX.maxLat || lng < BBOX.minLon || lng > BBOX.maxLon) return null;
+  const stale = s.stale === true || !s.status || s.status === "unknown";
+  const status = stale ? "unknown" : String(s.status);
+  const o24 = s.observed24 as Json | undefined;
+  return {
+    code: String(s.code), nameTh: String(s.name_th ?? s.code), nameEn: (s.name_en as string) || null, lng, lat,
+    agency: (s.agency as string) ?? null, river: (s.river as string) ?? null, amphoe: (s.amphoe as string) ?? null,
+    status, band: F26_BAND[status] ?? "no-signal",
+    pctBank: num(s.pct_bank), freeboardM: num(s.freeboard_m), levelMsl: num(s.level_msl), bankMsl: num(s.bank_msl),
+    obsTime: (s.obs_time as string) ?? null, ageMin: num(s.age_min), stale,
+    observed24Cm: o24 ? num(o24.change_cm) : null,
+    change24: toCanalChange(s.change24 as Json), change48: toCanalChange(s.change48 as Json),
+    bankChance24: (s.bank_chance24 as string) ?? null, bankChance48: (s.bank_chance48 as string) ?? null,
+  };
+}
+
+async function getFlood2026(): Promise<Json> {
+  const res = await fetch(`${FLOOD2026_ORIGIN}/api/stations`, {
+    headers: { accept: "application/json", "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org)" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`flood2026 /api/stations HTTP ${res.status}`);
+  return (await res.json()) as Json;
+}
+
 export type FloodState = {
   schema: 1;
   fetchedAt: string;
@@ -160,7 +217,12 @@ export type FloodState = {
       status: string;
     }[];
   };
-  parts: Record<"twin" | "snapshot" | "dds", { ok: boolean; at: string | null; error: string | null }>;
+  parts: Record<"twin" | "snapshot" | "dds", { ok: boolean; at: string | null; error: string | null }> & {
+    flood2026?: { ok: boolean; at: string | null; error: string | null };
+  };
+  /** BKK FloodWatch (flood.autobahn.bot, MIT): ~220 Bangkok canal and river
+   *  gauges — all 199 BMA canal gauges — with backtested forecasts. */
+  canalGauges?: CanalGauge[];
 };
 
 /* ----------------------------------------------------------------- store */
@@ -394,10 +456,11 @@ export async function refreshFloodDash(
   }
 
   const now = new Date().toISOString();
-  const [twin, snapshot, dds] = await Promise.allSettled([
+  const [twin, snapshot, dds, f26] = await Promise.allSettled([
     getJson("/api/twin"),
     getJson("/api/snapshot"),
     getJson("/api/dds/briefing"),
+    getFlood2026(),
   ]);
   const old = prev?.payload;
   const fail = (r: PromiseSettledResult<Json>) => (r.status === "rejected" ? String(r.reason) : null);
@@ -432,8 +495,15 @@ export async function refreshFloodDash(
       twin: { ok: twin.status === "fulfilled", at: twin.status === "fulfilled" ? now : (old?.parts.twin.at ?? null), error: fail(twin) },
       snapshot: { ok: snapshot.status === "fulfilled", at: snapshot.status === "fulfilled" ? now : (old?.parts.snapshot.at ?? null), error: fail(snapshot) },
       dds: { ok: dds.status === "fulfilled", at: dds.status === "fulfilled" ? now : (old?.parts.dds.at ?? null), error: fail(dds) },
+      flood2026: { ok: f26.status === "fulfilled", at: f26.status === "fulfilled" ? now : (old?.parts.flood2026?.at ?? null), error: fail(f26) },
     },
+    canalGauges: old?.canalGauges ?? [],
   };
+  if (f26.status === "fulfilled") {
+    state.canalGauges = ((f26.value.stations as Json[]) ?? [])
+      .map(toCanalGauge)
+      .filter((g): g is CanalGauge => g !== null);
+  }
 
   if (twin.status === "fulfilled") {
     const t = twin.value;
@@ -491,7 +561,13 @@ export async function refreshFloodDash(
         maxLat,
       });
     }
-    state.waterways = waterways.length ? joinWaterways(state.gauges, waterways) : {};
+    // Waterway colour from both gauge networks: FloodDash's judged gauges and
+    // flood2026's canal gauges (all 199 BMA ones). Most severe wins.
+    const canalAsGauges = (state.canalGauges ?? []).map((c) => ({
+      ...state.gauges[0], id: `f26-${c.code}`, lng: c.lng, lat: c.lat, name: c.nameEn ?? c.nameTh, nameTh: c.nameTh,
+      river: c.river, band: c.band, confidence: c.stale ? "absent" : "fresh", waterwayId: null, waterwayName: null,
+    })) as Gauge[];
+    state.waterways = waterways.length ? joinWaterways([...state.gauges, ...canalAsGauges], waterways) : {};
   }
 
   if (dds.status === "fulfilled") {
@@ -728,4 +804,30 @@ export function liveAt(
     roadReportDays: state.roads.days,
     duty: DUTY,
   };
+}
+
+/** /api/flood/canals — flood2026's Bangkok canal gauges, relayed. */
+export function floodCanalsResponse(state: FloodState | null): Response {
+  const gauges = state?.canalGauges ?? [];
+  const at = state?.parts.flood2026?.at ?? null;
+  const body = {
+    type: "FeatureCollection",
+    name: "bkk-canal-gauges",
+    source: `${FLOOD2026_ORIGIN}/api/stations`,
+    attribution: "BKK FloodWatch (flood.autobahn.bot, MIT, github.com/bejranonda/flood2026) · HII, BMA Drainage (KlongMap), RID",
+    disclaimer: "Not an official warning. A gauge measures the canal against its bank, not a street. Forecasts are flood2026's, shown only as it qualifies them. DDPM 1784 · BMA 1555.",
+    fetchedAt: at,
+    ageMin: ageMin(at),
+    error: state?.parts.flood2026?.error ?? null,
+    count: gauges.length,
+    features: gauges.map((g) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [g.lng, g.lat] },
+      properties: { ...g, change24: g.change24 ? JSON.stringify(g.change24) : null, change48: g.change48 ? JSON.stringify(g.change48) : null, color: BAND_COLOR[g.band] ?? BAND_COLOR["no-signal"] },
+    })),
+  };
+  return new Response(JSON.stringify(body), {
+    status: gauges.length ? 200 : 503,
+    headers: { "content-type": "application/geo+json; charset=utf-8", "cache-control": "public, max-age=60", "access-control-allow-origin": "*" },
+  });
 }

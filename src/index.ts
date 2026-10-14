@@ -21,6 +21,7 @@
 // individual tiles, so we proxy through R2 which supports Range natively.
 
 import {
+  floodCanalsResponse,
   floodBkkResponse,
   floodSensorsResponse,
   FLOODDASH_ORIGIN,
@@ -3748,6 +3749,9 @@ export default {
     }
     if (url.pathname === "/api/flood-sensors") {
       return floodSensorsResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
+    }
+    if (url.pathname === "/api/flood/canals") {
+      return floodCanalsResponse(await loadFloodState(env, () => floodDeps(env, request)).catch(() => null));
     }
     if (url.pathname === "/api/flood/roads") {
       return floodRoadsResponse(await loadFloodRoads(env, () => floodRoadDeps(env, request, ctx)).catch((error) => {

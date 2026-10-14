@@ -678,6 +678,12 @@ const RAIN_STATION_URL = "/bkk-rain-stations.geojson";
 // route does the join + weight calculation; this layer paints the
 // resulting points as a MapLibre heatmap so the atlas flood edition
 // can answer "where are the bad roads right now" without camera colors.
+// Canal gauges — BKK FloodWatch (flood2026, MIT) relayed by /api/flood/canals:
+// ~220 Bangkok gauges incl. all 199 BMA canal gauges, with backtested forecasts.
+const CANAL_SOURCE = "bkkx-canal-gauges";
+const CANAL_LAYER = "bkkx-canal-gauge-dots";
+const CANAL_URL = "/api/flood/canals";
+
 // Airbnb listings — Inside Airbnb's Bangkok snapshot (scripts/build-airbnb.py).
 const AIRBNB_SOURCE = "bkkx-airbnb";
 const AIRBNB_HEAT_LAYER = "bkkx-airbnb-heat";
@@ -872,6 +878,7 @@ const LAYER_STACK = [
   LAND_PRICE_LINE_LAYER,
   AIRBNB_HEAT_LAYER,
   AIRBNB_LAYER,
+  CANAL_LAYER,
   CIVIC_DENSITY_FILL_LAYER,
   CIVIC_DENSITY_LINE_LAYER,
   DISTRICT_LAYER,
@@ -1539,6 +1546,23 @@ const LAYERS = [
     layers: [DISTRICT_LAYER],
     install: async (map) => { await installDistricts(map); ensureStackOrder(map); },
     uninstall: (map) => setLayersVisible(map, [DISTRICT_LAYER], false),
+  },
+  {
+    id: "canal-gauges",
+    name: "Canal gauges",
+    description: "BKK FloodWatch · 199 BMA canal gauges + HII · forecasts",
+    defaultOn: false,
+    softUninstall: true,
+    layers: [CANAL_LAYER],
+    install: async (map) => { await installCanalGauges(map); ensureStackOrder(map); },
+    uninstall: (map) => { closeCanalPopup(); setLayersVisible(map, [CANAL_LAYER], false); },
+    legend: [
+      { color: FLOOD_BAND_COLOR["observed-overflow"], label: "over the bank (measured)" },
+      { color: FLOOD_BAND_COLOR.evacuate, label: "near the bank" },
+      { color: FLOOD_BAND_COLOR.watch, label: "watch" },
+      { color: WATERWAY_CALM, label: "room to spare" },
+      { color: FLOOD_BAND_COLOR["no-signal"], label: "no recent reading" },
+    ],
   },
   {
     id: "airbnb",
@@ -4852,6 +4876,81 @@ function openAirbnbPopup(map, event) {
     .addTo(map);
 }
 
+function closeCanalPopup() {
+  if (state.canalPopup) { try { state.canalPopup.remove(); } catch {} state.canalPopup = null; }
+}
+
+const CANAL_STATUS = { critical: "OVER THE BANK", warning: "NEAR THE BANK", watch: "WATCH", normal: "ROOM TO SPARE", unknown: "NO RECENT READING" };
+
+/** A forecast row, only as strong as flood2026 says it is. */
+function canalForecastLine(label, raw) {
+  let c = null;
+  try { c = raw && raw !== "null" ? JSON.parse(raw) : null; } catch {}
+  if (!c) return null;
+  if (c.method === "persistence") return `${label}: no model beats “no change” at this gauge — read the measured trend`;
+  const cm = (v) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)} cm`;
+  const range = c.likely ? ` (likely ${cm(c.likely[0])} to ${cm(c.likely[1])})` : "";
+  const tag = c.proven === false ? " · not yet confirmed" : "";
+  return `${label}: ${c.dir}${c.median != null ? `, ${cm(c.median)}` : ""}${range}${tag}`;
+}
+
+function openCanalPopup(map, e) {
+  const f = e.features?.[0];
+  if (!f) return;
+  const p = f.properties || {};
+  const n = (v) => (v == null || v === "null" || v === "" ? null : Number(v));
+  const pct = n(p.pctBank), free = n(p.freeboardM), o24 = n(p.observed24Cm), age = n(p.ageMin);
+  const lines = [
+    pct != null ? `${pct}% of the bank height${free != null ? ` · ${free >= 0 ? `${free.toFixed(2)} m below the bank` : `${Math.abs(free).toFixed(2)} m over it`}` : ""}` : null,
+    o24 != null ? `Last 24 h: ${o24 >= 0 ? "rose" : "fell"} ${Math.abs(o24)} cm` : null,
+    canalForecastLine("Next 24 h", p.change24),
+    canalForecastLine("Next 48 h", p.change48),
+    p.bankChance24 && p.bankChance24 !== "null" ? `Chance of reaching the bank: ${p.bankChance24} in 24 h · ${p.bankChance48} in 48 h` : null,
+    age != null ? `Read ${ageWords(age + (minutesSince(state.canalFetchedAt) ?? 0))} ago · ${p.agency ?? ""}` : null,
+  ].filter(Boolean);
+  closeCanalPopup();
+  state.canalPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "310px", className: "atlas-cctv-popup", offset: 8 })
+    .setLngLat(f.geometry.coordinates)
+    .setHTML(`<div class="atlas-cctv-card atlas-gauge-card">
+      <p class="atlas-cctv-kicker">Canal gauge · ${escapeHtml(p.code ?? "")}</p>
+      <strong class="atlas-cctv-title" lang="th">${escapeHtml(p.nameTh ?? "")}</strong>
+      ${p.river && p.river !== "null" ? `<p class="atlas-cctv-status" lang="th">${escapeHtml(p.river)}${p.amphoe && p.amphoe !== "null" ? ` · ${escapeHtml(p.amphoe)}` : ""}</p>` : ""}
+      <p class="atlas-gauge-band" style="--band:${escapeHtml(p.color ?? "#6b6d63")}"><span class="atlas-gauge-swatch" aria-hidden="true"></span><span>${escapeHtml(CANAL_STATUS[p.status] ?? p.status ?? "")}</span></p>
+      ${lines.map((l) => `<p class="atlas-cctv-status">${escapeHtml(l)}</p>`).join("")}
+      <p class="atlas-gauge-duty">A gauge measures the canal against its bank, not a street · BKK FloodWatch (flood.autobahn.bot, MIT) · ${escapeHtml(FLOOD_DUTY)}</p>
+    </div>`)
+    .addTo(map);
+}
+
+async function installCanalGauges(map) {
+  const gj = await fetchJson(CANAL_URL);
+  if (!gj?.features?.length) { setLayerStatus("canal-gauges", "unavailable · no BKK FloodWatch reading — not an all-clear"); return; }
+  state.canalFetchedAt = gj.fetchedAt;
+  const src = map.getSource(CANAL_SOURCE);
+  if (src) src.setData(gj); else map.addSource(CANAL_SOURCE, { type: "geojson", data: gj });
+  if (!map.getLayer(CANAL_LAYER)) {
+    map.addLayer({
+      id: CANAL_LAYER,
+      type: "circle",
+      source: CANAL_SOURCE,
+      layout: { "circle-sort-key": ["match", ["get", "status"], "critical", 4, "warning", 3, "watch", 2, "normal", 1, 0] },
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, ["match", ["get", "status"], "critical", 5, "warning", 4.5, 3.2], 15, ["match", ["get", "status"], "critical", 9, "warning", 8, 6]],
+        "circle-color": ["case", ["==", ["get", "status"], "unknown"], "rgba(0,0,0,0)", ["get", "color"]],
+        "circle-stroke-color": ["case", ["==", ["get", "status"], "unknown"], "#c8c9c0", "#0d0e0b"],
+        "circle-stroke-width": 1.2,
+      },
+    });
+    map.on("click", CANAL_LAYER, (e) => { e.originalEvent?.stopPropagation?.(); openCanalPopup(map, e); });
+    map.on("mouseenter", CANAL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", CANAL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+  }
+  setLayersVisible(map, [CANAL_LAYER], true);
+  const c = {};
+  for (const f of gj.features) c[f.properties.status] = (c[f.properties.status] ?? 0) + 1;
+  setLayerStatus("canal-gauges", `${gj.count} gauges · ${c.critical ?? 0} over the bank · ${c.warning ?? 0} near it · ${ageWords(gj.ageMin)} ago`);
+}
+
 async function installAirbnb(map) {
   if (!map.getSource(AIRBNB_SOURCE)) {
     const gj = await fetchJson(AIRBNB_URL);
@@ -7379,6 +7478,7 @@ function pointLayersOwningClick(map, point) {
     FLOOD_SENSOR_LAYER,
     FLOOD_ROAD_LAYER,
     AIRBNB_LAYER,
+    CANAL_LAYER,
     WATER_TRANSIT_ROUTE_LAYER,
     WATER_TRANSIT_FERRY_LAYER,
     WATER_TRANSIT_PIER_LAYER,
@@ -7620,7 +7720,7 @@ function wireStackPresets(map) {
       // the drainage infrastructure surfaces (canal gates, flooded roads,
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
-      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+      flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "canal-gauges": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
     }[preset];
     if (!wants) return;
