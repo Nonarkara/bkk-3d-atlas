@@ -57,30 +57,70 @@ const LANDMARKS_URL = "/bkk-landmarks.geojson";
 const LANDMARKS_SOURCE = "bkkx-landmarks";
 const LANDMARKS_LAYER = "bkkx-landmarks-extrusion";
 
-// Building height — clamp to a sane range. OSM data occasionally
-// has corrupt building:levels tags (e.g. "12345678910111212") that
-// would otherwise produce 50-petrometre sky-pillars. Anything below
-// 0 or above 500 m falls back to the building-type default.
-//
-// Pure `case` form (no `let`) — simpler and harder to get wrong.
-// The `let` form bit me once (a 3-element return renders as 0/1),
-// so the structure here is intentionally minimal.
+// Building height — clamp to a sane range. OSM data frequently has
+// building:levels, building_levels or levels without an explicit height tag.
+// We evaluate in order:
+// 1. Explicit tagged render_height / height (between 1 m and 500 m)
+// 2. Tagged levels (building:levels, building_levels, levels) * 3.15 m floor height (between 1 and 160 levels)
+// 3. Typology-aware height default based on building/building_type
+// 4. Default 8.5 m for untagged / generic footprints
+const HEIGHT_NUM = ["to-number", ["coalesce", ["get", "render_height"], ["get", "height"], 0], 0];
+const LEVELS_NUM = ["to-number", ["coalesce", ["get", "building:levels"], ["get", "building_levels"], ["get", "levels"], 0], 0];
+
 const HEIGHT_GET = [
   "case",
   ["all",
-    [">=", ["coalesce", ["get", "render_height"], ["get", "height"], 0], 1],
-    ["<=", ["coalesce", ["get", "render_height"], ["get", "height"], 0], 500],
+    [">=", HEIGHT_NUM, 1],
+    ["<=", HEIGHT_NUM, 500],
   ],
-  ["coalesce", ["get", "render_height"], ["get", "height"], 9],
-  9,
+  HEIGHT_NUM,
+  ["all",
+    [">=", LEVELS_NUM, 1],
+    ["<=", LEVELS_NUM, 160],
+  ],
+  ["*", LEVELS_NUM, 3.15],
+  ["match", ["coalesce", ["get", "building"], ["get", "building_type"], ""],
+    "hotel", 28,
+    "office", 25,
+    "hospital", 22,
+    "apartments", 21,
+    "condominium", 24,
+    "dormitory", 18,
+    "commercial", 14,
+    "retail", 14,
+    "supermarket", 12,
+    "mall", 20,
+    "university", 16,
+    "college", 16,
+    "school", 12,
+    "kindergarten", 8,
+    "temple", 14,
+    "pagoda", 24,
+    "monastery", 14,
+    "government", 18,
+    "civic", 15,
+    "train_station", 14,
+    "transportation", 14,
+    "industrial", 10,
+    "warehouse", 10,
+    "factory", 10,
+    "house", 8.5,
+    "residential", 8.5,
+    "terrace", 8.5,
+    "detached", 8.5,
+    8.5,
+  ],
 ];
 // Base must stay strictly below height — base >= height makes MapLibre
 // emit degenerate roof triangles that read as sawteeth.
 const MIN_HEIGHT_RAW = [
-  "coalesce",
-  ["get", "render_min_height"],
-  ["get", "min_height"],
-  ["get", "base_height"],
+  "to-number",
+  ["coalesce",
+    ["get", "render_min_height"],
+    ["get", "min_height"],
+    ["get", "base_height"],
+    0,
+  ],
   0,
 ];
 const MIN_HEIGHT_GET = [
@@ -93,13 +133,17 @@ const MIN_HEIGHT_GET = [
 const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
 const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
 
-// Old Town: when OSM has no real height (stuck on the 9 m default),
-// lift temples / shophouse fabric so Rattanakosin reads as a city
-// of wats and 2–3 storey rows, not a flat plate. Real tagged heights
-// still win. Landmark overlays add the tall chedis / Victory Monument.
+// Old Town: when OSM has no real height or levels tag, lift temples and
+// shophouse fabric so Rattanakosin reads as a city of wats and 2–3 storey rows,
+// not a flat plate. Real tagged heights and levels still win.
+const HAS_TAGGED_HEIGHT = [
+  "any",
+  ["all", [">=", HEIGHT_NUM, 1], ["<=", HEIGHT_NUM, 500]],
+  ["all", [">=", LEVELS_NUM, 1], ["<=", LEVELS_NUM, 160]],
+];
 const RATTANAKOSIN_HEIGHT_EXPRESSION = [
   "case",
-  ["!=", HEIGHT_GET, 9], HEIGHT_GET,
+  HAS_TAGGED_HEIGHT, HEIGHT_GET,
   ["match", ["coalesce", ["get", "building"], ["get", "building_type"], ""],
     "temple", 18,
     "pagoda", 36,
@@ -4518,6 +4562,181 @@ function stop72hSimulation(hideHud = true) {
         ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20, 13, 42, 16, 95]);
     } catch {}
   }
+// ─────────────────────────────────────────────────────────────────
+// Chao Phraya Basin Hydraulic Profile & Tidal Lock Cross-Section
+// Connects live water levels (m MSL) from Gulf of Thailand to Bang Sai C.29A
+// ─────────────────────────────────────────────────────────────────
+
+const BASIN_KEY_STATIONS = [
+  {
+    key: "paknam",
+    name: "Pak Nam · Gulf Datum",
+    nameTh: "ปากน้ำ (สมุทรปราการ)",
+    km: "km 0",
+    x: 65,
+    regex: /ปากน้ำ|สมุทรปราการ|C\.53|Pak Nam/i,
+    nominalBank: 2.0,
+    nominalMsl: 0.85,
+  },
+  {
+    key: "memorial",
+    name: "Memorial Bridge",
+    nameTh: "สะพานพระพุทธยอดฟ้า (C.4)",
+    km: "km 48",
+    x: 195,
+    regex: /สะพานพระพุทธยอดฟ้า|สะพานพุทธ|Memorial|C\.4\b/i,
+    nominalBank: 2.8,
+    nominalMsl: 1.45,
+  },
+  {
+    key: "nonthaburi",
+    name: "Nonthaburi Pier",
+    nameTh: "ท่าน้ำนนทบุรี (C.13)",
+    km: "km 65",
+    x: 335,
+    regex: /ท่าน้ำนนทบุรี|นนทบุรี|Nonthaburi|C\.13\b/i,
+    nominalBank: 2.6,
+    nominalMsl: 1.75,
+  },
+  {
+    key: "bangsai",
+    name: "Bang Sai Gateway",
+    nameTh: "บางไทร (C.29A)",
+    km: "km 112",
+    x: 475,
+    regex: /บางไทร|Bang Sai|C\.29A|C\.29\b/i,
+    nominalBank: 3.4,
+    nominalMsl: 2.30,
+  },
+];
+
+function renderBasinProfile(featuresOrGauges = []) {
+  const hud = document.getElementById("atlas-basin-hud");
+  if (!hud) return;
+  const list = Array.isArray(featuresOrGauges) ? featuresOrGauges : [];
+  
+  const stations = BASIN_KEY_STATIONS.map((st) => {
+    const match = list.find((item) => {
+      const p = item.properties || item;
+      const title = `${p.name || ""} ${p.nameTh || ""} ${p.id || ""}`;
+      return st.regex.test(title);
+    });
+    const p = match?.properties || match || {};
+    const liveWl = p.waterlevelMsl != null && p.waterlevelMsl !== "null" && p.waterlevelMsl !== "" ? Number(p.waterlevelMsl) : null;
+    const liveBank = p.minBank != null && p.minBank !== "null" && p.minBank !== "" ? Number(p.minBank) : null;
+    const free = p.freeboardM != null && p.freeboardM !== "null" && p.freeboardM !== "" ? Number(p.freeboardM) : null;
+    const rise = p.riseMH != null && p.riseMH !== "null" && p.riseMH !== "" ? Number(p.riseMH) : null;
+    const band = p.band || "safe";
+    const bandEn = p.bandEn || "SAFE";
+    
+    return {
+      ...st,
+      wl: liveWl != null ? liveWl : st.nominalMsl,
+      isLive: liveWl != null,
+      bank: liveBank != null ? liveBank : st.nominalBank,
+      freeboard: free != null ? free : (liveBank != null && liveWl != null ? liveBank - liveWl : st.nominalBank - st.nominalMsl),
+      rise,
+      band,
+      bandEn,
+    };
+  });
+
+  const getY = (val) => Math.max(15, Math.min(130, 120 - val * 25));
+
+  const pts = stations.map((s) => ({ x: s.x, y: getY(s.wl) }));
+  const bankPts = stations.map((s) => ({ x: s.x, y: getY(s.bank) }));
+
+  let waterPath = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i];
+    const p1 = pts[i + 1];
+    const cx = (p0.x + p1.x) / 2;
+    waterPath += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+  }
+
+  const waterAreaPath = `${waterPath} L ${pts[pts.length - 1].x} 120 L ${pts[0].x} 120 Z`;
+
+  let bankPath = `M ${bankPts[0].x} ${bankPts[0].y}`;
+  for (let i = 1; i < bankPts.length; i++) {
+    bankPath += ` L ${bankPts[i].x} ${bankPts[i].y}`;
+  }
+
+  const waterLineEl = document.getElementById("atlas-basin-water-line");
+  const waterAreaEl = document.getElementById("atlas-basin-water-area");
+  const bankLineEl = document.getElementById("atlas-basin-bank-line");
+  const markersEl = document.getElementById("atlas-basin-markers");
+  const badgeEl = document.getElementById("atlas-basin-lock-badge");
+  const metricsEl = document.getElementById("atlas-basin-metrics");
+
+  if (waterLineEl) waterLineEl.setAttribute("d", waterPath);
+  if (waterAreaEl) waterAreaEl.setAttribute("d", waterAreaPath);
+  if (bankLineEl) bankLineEl.setAttribute("d", bankPath);
+
+  const mem = stations.find((s) => s.key === "memorial");
+  const pak = stations.find((s) => s.key === "paknam");
+  const isLock = (mem?.wl >= 1.50) || (pak?.wl >= 1.40);
+
+  if (badgeEl) {
+    if (isLock) {
+      badgeEl.textContent = "Tidal Lock · น้ำทะเลหนุน";
+      badgeEl.className = "atlas-basin-badge is-lock";
+    } else {
+      badgeEl.textContent = "Gravity Flow · ระบายน้ำปกติ";
+      badgeEl.className = "atlas-basin-badge is-flow";
+    }
+  }
+
+  if (markersEl) {
+    markersEl.innerHTML = stations.map((s, idx) => {
+      const p = pts[idx];
+      const dotColor = s.wl >= s.bank ? "#ef4444" : s.wl >= 1.8 ? "#f59e0b" : "#38bdf8";
+      return `
+        <circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${dotColor}" stroke="#11120f" stroke-width="1.5" />
+        <text x="${p.x}" y="${Math.max(16, p.y - 8)}" text-anchor="middle" fill="${dotColor}" font-family="var(--font-mono)" font-size="9" font-weight="700">
+          +${s.wl.toFixed(2)}m
+        </text>
+        <text x="${p.x}" y="138" text-anchor="middle" fill="#a4a69b" font-family="var(--font-mono)" font-size="8">
+          ${s.km}
+        </text>
+      `;
+    }).join("");
+  }
+
+  if (metricsEl) {
+    metricsEl.innerHTML = stations.map((s) => {
+      const freeText = s.freeboard != null
+        ? (s.freeboard < 0 ? `${Math.abs(s.freeboard).toFixed(2)}m over bank` : `${s.freeboard.toFixed(2)}m to bank`)
+        : "bank crest unknown";
+      const isOver = s.freeboard != null && s.freeboard < 0;
+      const riseText = s.rise != null ? (s.rise >= 0 ? ` ↑+${(s.rise * 100).toFixed(0)}cm/h` : ` ↓${(s.rise * 100).toFixed(0)}cm/h`) : "";
+      return `
+        <div class="atlas-basin-card">
+          <p class="atlas-basin-card-km">${s.km}${s.isLive ? "" : " · nominal"}</p>
+          <strong class="atlas-basin-card-name" title="${escapeHtml(s.nameTh)}">${escapeHtml(s.name)}</strong>
+          <p class="atlas-basin-card-val">+${s.wl.toFixed(2)} <small style="font-size:9px">m MSL</small><span style="font-size:10px;color:var(--muted)">${riseText}</span></p>
+          <p class="atlas-basin-card-free${isOver ? " is-over" : ""}">${freeText}</p>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+function toggleBasinProfile() {
+  const hud = document.getElementById("atlas-basin-hud");
+  if (!hud) return;
+  const isHidden = hud.hidden;
+  hud.hidden = !isHidden;
+  if (isHidden) {
+    if (!hud.querySelector("#atlas-basin-metrics")?.children?.length) {
+      renderBasinProfile(state.flood?.gauges || []);
+    }
+    document.getElementById("atlas-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function closeBasinProfile() {
+  const hud = document.getElementById("atlas-basin-hud");
+  if (hud) hud.hidden = true;
 }
 
 function wireSimulationControls(map) {
@@ -4532,6 +4751,12 @@ function wireSimulationControls(map) {
   });
   document.getElementById("atlas-sim-close")?.addEventListener("click", () => {
     stop72hSimulation(true);
+  });
+  document.getElementById("atlas-flood-verdict-profile")?.addEventListener("click", () => {
+    toggleBasinProfile();
+  });
+  document.getElementById("atlas-basin-close")?.addEventListener("click", () => {
+    closeBasinProfile();
   });
   document.getElementById("atlas-sim-progressbar")?.addEventListener("click", (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -8362,6 +8587,7 @@ async function loadFloodRelay() {
   if (payload?.tool === "flood-bkk") state.flood = payload;
   renderFloodVerdict(payload?.tool === "flood-bkk" ? payload : state.flood);
   renderWaterPanel(state.flood);
+  renderBasinProfile(state.flood?.gauges || []);
   applyWaterwayStatus(state.map);
   // Keep the gauge layer on the same reading as the verdict.
   const src = state.map?.getSource(FLOOD_SENSOR_SOURCE);
@@ -8374,6 +8600,7 @@ async function loadFloodRelay() {
       // refreshes; only new readings are added.
       const movers = recordGaugeTrends(data.features);
       renderGaugeTrendPanel(movers);
+      renderBasinProfile(data.features);
     }
   }
   // Canal gates, DDS roads, emergency points and incident heat stay mounted

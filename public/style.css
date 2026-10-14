@@ -2090,6 +2090,196 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   }
 }
 
+/* Chao Phraya Basin Hydraulic Profile & Tidal Lock Cross-Section HUD */
+.atlas-basin-hud {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: min(92%, 580px);
+  z-index: 24;
+  background: rgba(13, 14, 11, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 0;
+  padding: 14px 16px;
+  color: var(--paper);
+  font-family: var(--font-body);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.atlas-basin-hud[hidden] {
+  display: none !important;
+}
+.atlas-basin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+}
+.atlas-basin-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.atlas-basin-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px #38bdf8;
+}
+.atlas-basin-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.atlas-basin-sub {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.atlas-basin-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.atlas-basin-badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+.atlas-basin-badge.is-lock {
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.2);
+  color: #ff9d54;
+}
+.atlas-basin-badge.is-flow {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  color: #7dd3fc;
+}
+.atlas-basin-close {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--paper);
+  border-radius: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease-out;
+}
+.atlas-basin-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.atlas-basin-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 145px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.atlas-basin-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.atlas-basin-grid-label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  fill: var(--muted);
+}
+.atlas-basin-ground-ref {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  fill: #eab308;
+  letter-spacing: 0.04em;
+}
+.atlas-basin-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.atlas-basin-card {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+.atlas-basin-card-km {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--muted);
+  margin: 0 0 1px;
+  text-transform: uppercase;
+}
+.atlas-basin-card-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--paper);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.atlas-basin-card-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: #38bdf8;
+  margin: 0;
+}
+.atlas-basin-card-free {
+  font-size: 9px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.atlas-basin-card-free.is-over {
+  color: #f87171;
+  font-weight: 700;
+}
+.atlas-basin-note {
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 6px;
+}
+@media (max-width: 640px) {
+  .atlas-basin-hud {
+    top: auto;
+    bottom: 50px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 10px 12px;
+  }
+  .atlas-basin-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Water now panel */
 .atlas-water {
   padding-bottom: 14px;

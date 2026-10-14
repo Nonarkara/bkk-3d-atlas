@@ -127,6 +127,59 @@
           </div>
         </div>
       </aside>
+
+      <!-- Chao Phraya Basin Hydraulic Profile & Tidal Lock Cross-Section -->
+      <aside class="atlas-basin-hud" id="atlas-basin-hud" aria-label="Chao Phraya hydraulic cross-section and tidal lock" hidden>
+        <div class="atlas-basin-header">
+          <div class="atlas-basin-title-wrap">
+            <span class="atlas-basin-dot" aria-hidden="true"></span>
+            <div>
+              <strong class="atlas-basin-title">Chao Phraya Hydraulic Profile</strong>
+              <small class="atlas-basin-sub">แม่น้ำเจ้าพระยา · ปากน้ำ → สะพานพุทธ → ท่าน้ำนนท์ → บางไทร</small>
+            </div>
+          </div>
+          <div class="atlas-basin-controls">
+            <span class="atlas-basin-badge" id="atlas-basin-lock-badge">Reading…</span>
+            <button type="button" class="atlas-basin-close" id="atlas-basin-close" aria-label="Close hydraulic profile">✕</button>
+          </div>
+        </div>
+        <div class="atlas-basin-body" id="atlas-basin-body">
+          <div class="atlas-basin-chart-wrap">
+            <svg class="atlas-basin-svg" id="atlas-basin-svg" viewBox="0 0 540 145" preserveAspectRatio="none" role="img" aria-label="Hydraulic elevation slice from Gulf of Thailand to Bang Sai C.29A">
+              <defs>
+                <linearGradient id="basinWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.38" />
+                  <stop offset="100%" stop-color="#0284c7" stop-opacity="0.06" />
+                </linearGradient>
+              </defs>
+              <g class="atlas-basin-grid">
+                <line x1="45" y1="120" x2="525" y2="120" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="40" y="123" text-anchor="end" class="atlas-basin-grid-label">0 m</text>
+                
+                <line x1="45" y1="95" x2="525" y2="95" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="40" y="98" text-anchor="end" class="atlas-basin-grid-label">+1 m</text>
+                
+                <line x1="45" y1="70" x2="525" y2="70" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="40" y="73" text-anchor="end" class="atlas-basin-grid-label">+2 m</text>
+                
+                <line x1="45" y1="45" x2="525" y2="45" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="40" y="48" text-anchor="end" class="atlas-basin-grid-label">+3 m</text>
+              </g>
+              <line x1="120" y1="95" x2="400" y2="95" stroke="#eab308" stroke-width="1" stroke-dasharray="3 3" opacity="0.6" />
+              <text x="260" y="90" text-anchor="middle" class="atlas-basin-ground-ref">Central BKK Ground (+1.0 m MSL)</text>
+              
+              <path id="atlas-basin-water-area" d="" fill="url(#basinWaterGrad)" />
+              <path id="atlas-basin-water-line" d="" fill="none" stroke="#38bdf8" stroke-width="2.5" />
+              <path id="atlas-basin-bank-line" d="" fill="none" stroke="#a4a69b" stroke-width="1.5" stroke-dasharray="4 3" />
+              <g id="atlas-basin-markers"></g>
+            </svg>
+          </div>
+          <div class="atlas-basin-metrics" id="atlas-basin-metrics"></div>
+          <p class="atlas-basin-note" id="atlas-basin-note">
+            Chao Phraya hydraulic elevation profile referenced to Mean Sea Level (m MSL). When Gulf tide or river elevation at Memorial Bridge exceeds +1.5 m MSL, gravity drainage is constrained and BMA flood tunnels engage. Data via FloodDash (HII / RID / BMA).
+          </p>
+        </div>
+      </aside>
     </div>
 
     <section
@@ -158,6 +211,9 @@
           <button type="button" class="atlas-flood-verdict-btn" id="atlas-flood-verdict-show">Show the water</button>
           <button type="button" class="atlas-flood-verdict-btn atlas-flood-sim-btn" id="atlas-flood-verdict-sim" title="Explore a scripted 72-hour scenario; timings and map intensity are illustrative">
             <span class="atlas-sim-btn-icon" aria-hidden="true">▶</span> Scenario tour
+          </button>
+          <button type="button" class="atlas-flood-verdict-btn atlas-flood-profile-btn" id="atlas-flood-verdict-profile" title="View Chao Phraya river hydraulic elevation profile and Gulf tidal lock status">
+            River profile ⤢
           </button>
           <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
         </div>
@@ -1447,6 +1503,7 @@
               <li><time datetime="2026-09-28">26–28 Sep</time><span>Cross-referenced road flood ground truth: 2,300+ Traffy Fondue citizen reports merged with BMA DDS bulletins and verified against FloodDash gauges within 250 m. Maholan community CCTV snapshot proxying with honest SVGs.</span></li>
               <li><time datetime="2026-10-02">1–2 Oct</time><span>Crisis flood heatmap ramp with dynamic pulse shader, honest version indicator (<code>#atlas-version</code>), and the 72-hour 30-second simulation tour.</span></li>
               <li><time datetime="2026-10-04">4 Oct</time><span>Weather and preparedness panel prototype. Current integration uses real weather model data; road safety remains unknown and TimesFM inference is not connected.</span></li>
+              <li><time datetime="2026-10-14">14 Oct</time><span>Tableau Public Bangkok survey (3,263 workbooks audited; sub-provincial data exhausted; Inside Airbnb adopted; HII 17-year satellite flood climatology followed to data.go.th root). 3D building height precision upgraded via <code>building:levels * 3.15m</code> and typology matrices without payload increase. Chao Phraya Basin Hydraulic Profile HUD (Pak Nam to Bang Sai C.29A) with real-time Gulf tidal lock calculation.</span></li>
             </ol>
             <p>
               The pattern that repeats: ship the layer, then take out whatever
