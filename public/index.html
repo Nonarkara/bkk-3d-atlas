@@ -14,6 +14,15 @@
   <meta name="apple-mobile-web-app-title" content="BKKx Atlas" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous" />
+  <!-- three.js r0.170.0 is fetched only when app.js dynamic-imports it at zoom 16. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
   <link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
   <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
   <link rel="preconnect" href="https://camera.longdo.com" crossorigin />
@@ -64,6 +73,7 @@
     </header>
 
     <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok">
+      <p id="atlas-massing-note" class="atlas-massing-note" hidden>Grand Palace stand-in · Approximate model, not an official survey. Footprints © OpenStreetMap contributors, ODbL.</p>
       <!-- Illustrative scenario tour, separate from live observations. -->
       <aside class="atlas-sim-hud" id="atlas-sim-hud" aria-label="Illustrative 72-hour flood scenario" hidden>
         <div class="atlas-sim-top">

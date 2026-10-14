@@ -10,6 +10,8 @@
     "deploy:live": "bash scripts/deploy-live.sh",
     "typecheck": "tsc --noEmit",
     "test:flood": "node --test scripts/test-flood-integrity.mjs",
+    "test:massing": "node --test scripts/test-building-massing.mjs",
+    "build:palace": "node scripts/palace-standin.mjs",
     "verify": "node scripts/verify-local.mjs",
     "smoke": "node scripts/smoke-atlas-api.mjs"
   },
