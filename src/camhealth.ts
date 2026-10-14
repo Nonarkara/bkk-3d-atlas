@@ -24,17 +24,20 @@ export async function readCamHealth(env: Env): Promise<CamHealth> {
 }
 
 /** A real picture: an image type that is not the SVG placeholder, and not a sliver of bytes. */
-async function hasPicture(id: string): Promise<boolean> {
+// null = could not tell (refused, rate-limited, timed out): leave the camera
+// unchecked rather than paint a working camera as silent.
+async function hasPicture(id: string): Promise<boolean | null> {
   try {
     const r = await fetch(`${SNAP}/${encodeURIComponent(id)}?w=96`, {
       headers: { "user-agent": "BKKx-3D-Atlas/1.0 (+https://atlas.nonarkara.org) camera check" },
       signal: AbortSignal.timeout(12_000),
     });
     const type = r.headers.get("content-type") ?? "";
+    if (r.status === 429 || r.status === 403 || r.status >= 500) return null;
     if (!r.ok || !/^image\/(jpeg|png|webp|gif)/.test(type)) return false;
     return (await r.arrayBuffer()).byteLength > 800;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -49,7 +52,8 @@ export async function refreshCamHealth(env: Env, ids: string[]): Promise<{ check
     const res = await Promise.all(part.map(hasPicture));
     const at = new Date().toISOString();
     part.forEach((id, k) => {
-      health[id] = { ok: res[k], at };
+      if (res[k] === null) return;
+      health[id] = { ok: res[k] as boolean, at };
       if (res[k]) ok++;
     });
   }
