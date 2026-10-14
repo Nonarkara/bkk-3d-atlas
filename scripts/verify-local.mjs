@@ -512,6 +512,14 @@ if (massingTest.status !== 0) {
   fail(`building massing tests failed\n${massingTest.stdout || ""}\n${massingTest.stderr || ""}`);
 } else ok("building massing tests passed");
 
+// app.js is loaded as type="module". A missing brace once parsed in script
+// mode, passed review, and took the whole map down in browsers (2026-10-14).
+{
+  const parse = spawnSync(process.execPath, ["--check", join(root, "public/app.js")], { cwd: root, encoding: "utf8" });
+  if (parse.status !== 0) fail(`public/app.js does not parse as a module\n${parse.stderr}`);
+  else ok("public/app.js parses as an ES module");
+}
+
 // The three.js import map is an inline script; the CSP allows it only by
 // hash. Edit the map without updating public/_headers and the massing layer
 // dies silently in production (it did, 2026-10-14).

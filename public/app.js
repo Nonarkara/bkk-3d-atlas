@@ -4562,6 +4562,8 @@ function stop72hSimulation(hideHud = true) {
         ["interpolate", ["exponential", 1.6], ["zoom"], 10, 20, 13, 42, 16, 95]);
     } catch {}
   }
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Chao Phraya Basin Hydraulic Profile & Tidal Lock Cross-Section
 // Connects live water levels (m MSL) from Gulf of Thailand to Bang Sai C.29A
