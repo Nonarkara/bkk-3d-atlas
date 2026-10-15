@@ -7511,7 +7511,7 @@ function liveFloodRows(live) {
   if (live.city) rows.push(["Bangkok now", `${FLOOD_LEVEL_WORD[live.city.level] || live.city.level} · ${live.city.headEn}`]);
   else rows.push(["Bangkok now", "Current city assessment unavailable — not an all-clear"]);
   const g = live.nearestGauge;
-  const gaugeAge = g?.observedAt ? minutesSince(g.observedAt) : null;
+  const gaugeAge = /(?:Z|[+-]\d{2}:\d{2})$/.test(g?.observedAt || '') ? minutesSince(g.observedAt) : null;
   const gaugeCurrent = gaugeAge !== null && gaugeAge >= 0 && gaugeAge <= 120 && g?.confidence !== 'stale';
   rows.push(["Nearest gauge", g
     ? `${gaugeCurrent ? g.bandEn : 'Stale or time unknown'} · ${g.name} · ${g.distanceKm} km · observed ${g.observedAt || 'time unknown'}`

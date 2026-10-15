@@ -14,6 +14,7 @@ test('missing, future and stale evidence never gives an all-clear or dry forecas
     assert.match(JSON.stringify(rows),/Missing rain data does not mean dry/);
   }
   assert.match(JSON.stringify(placeBriefing(null,null,now)),/conditions here are unknown/);
+  assert.doesNotMatch(JSON.stringify(placeBriefing(null,{nearestGauge:{bandEn:'SAFE',observedAt:'2026-10-15T06:00:00'}},now)),/SAFE/);
 });
 test('forecast is dated model output; zero survives and expired/missing data stays unknown',()=>{
   const weather={observationTimeUtc:at(10),hourlyNowcast:[{validAtUtc:at(-30),precipitationMm:0}]};

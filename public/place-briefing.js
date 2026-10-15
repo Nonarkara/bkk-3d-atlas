@@ -10,7 +10,7 @@ export function placeBriefing(point, live, now = Date.now(), weather = null) {
     ? `${live.city.headEn} · generated ${live.city.updated} · FloodDash; not a street assessment`
     : 'Current city assessment unavailable. This is not an all-clear.']);
   const g = live?.nearestGauge;
-  const observed = Date.parse(g?.observedAt || '');
+  const observed = /(?:Z|[+-]\d{2}:\d{2})$/.test(g?.observedAt || '') ? Date.parse(g.observedAt) : NaN;
   const age = Number.isFinite(observed) && now >= observed ? Math.floor((now - observed) / 60000) : null;
   rows.push(['Nearby water · ระดับน้ำใกล้เคียง', g
     ? `${g.name} · ${g.distanceKm} km · ${age !== null && age <= 120 && g.confidence !== 'stale' ? g.bandEn : 'Reading stale or time unknown'} · observed ${g.observedAt || 'time unknown'} · FloodDash / upstream gauge. Not water depth at this point.`
