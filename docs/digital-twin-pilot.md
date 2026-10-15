@@ -16,6 +16,8 @@ Apple RealityKit Object Capture is available on this Mac. `scripts/reconstruct-l
 4. `npm run reconstruct:landmark -- /absolute/path/manifest.json /absolute/path/candidate.usdz` validates intake, stages only the listed photographs, rechecks their hashes, compiles the local Swift runner and asks RealityKit for medium-detail reconstruction. It refuses existing outputs and publication into `public/`. Temporary staged copies and executable are removed on normal exit.
 5. Inspect the candidate for holes, distorted roofs, moving objects and texture artefacts. Measure scale against an independently sourced dimension, align axes and geographic anchor, record the method and uncertainty. Convert to GLB, simplify, generate distance-based detail, and verify phone performance before proposing publication. These promotion steps remain pending a real candidate.
 
+Audit hardening: the runner uses a frozen snapshot of the once-validated manifest; it never re-reads approvals during staging. Reconstruction writes to a private temporary USDZ first, then publishes the candidate with exclusive creation. Existing files and dangling symlinks are refused. This is a local workflow guard, not isolation from a malicious process with the same filesystem permissions.
+
 Source: [Apple's photogrammetry command-line guide](https://developer.apple.com/documentation/realitykit/creating-a-photogrammetry-command-line-app). Existing map contract: `public/grand-palace-slot.js` (metres, Y-up, east +X, south +Z; <3 MB target). Preserve original extrusions until a replacement has loaded successfully. Candidate models must not become hydraulic obstacles merely because they look detailed.
 
 ## Traffic experiment
@@ -33,6 +35,8 @@ Model documentation: [TensorFlow COCO-SSD](https://github.com/tensorflow/tfjs-mo
 | Model/runtime files | On-device inference | Downloaded from jsDelivr and upstream weight host | Browser cache policy; model remains in tab memory for reuse |
 
 This is a technical minimisation register, not a legal compliance determination or a new licence to redistribute camera imagery.
+
+The UI has a 45-second deadline covering both model loading and inference. A timeout cannot cancel a TensorFlow GPU task: the shared inference lock remains held until the real task settles, including across wall close/reopen. Late or hidden-page results are not displayed. Reload after a failed or stuck model download. The loaded detector is deliberately cached in tab memory for reuse; it is not a per-camera tracker.
 
 ## Validation and promotion gate
 

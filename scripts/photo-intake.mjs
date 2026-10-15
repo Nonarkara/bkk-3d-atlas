@@ -5,11 +5,16 @@ import { resolve, relative, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export async function validatePhotoSet(manifestPath) {
+  return (await loadValidatedPhotoSet(manifestPath)).summary;
+}
+
+export async function loadValidatedPhotoSet(manifestPath) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   if (!['wat-arun', 'grand-palace'].includes(manifest.landmark)) throw new Error('Unknown pilot landmark');
   if (!Array.isArray(manifest.photos) || manifest.photos.length < 20) throw new Error('Need at least 20 overlapping photographs; this is an intake floor, not proof of coverage');
   const root = await realpath(dirname(manifestPath));
   const hashes = new Set();
+  const approved = [];
   for (const photo of manifest.photos) {
     if (!photo.file || !photo.author || !photo.source || !photo.license || !/^[a-f0-9]{64}$/.test(photo.sha256 || '')) throw new Error('Each photograph needs file, author, source, license and SHA256');
     const source = new URL(photo.source);
@@ -24,9 +29,13 @@ export async function validatePhotoSet(manifestPath) {
     if (hash !== photo.sha256) throw new Error('Photo hash mismatch');
     if (hashes.has(hash)) throw new Error('Duplicate photograph');
     hashes.add(hash);
+    approved.push(Object.freeze({ path, sha256: hash }));
   }
   if (manifest.coverageReviewed !== true || manifest.licenseReviewed !== true) throw new Error('Human review of overlap and license obligations required');
-  return { landmark: manifest.landmark, photographs: hashes.size, status: 'intake-valid-not-reconstructed' };
+  return Object.freeze({
+    summary: Object.freeze({ landmark: manifest.landmark, photographs: hashes.size, status: 'intake-valid-not-reconstructed' }),
+    photos: Object.freeze(approved),
+  });
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { console.log(JSON.stringify(await validatePhotoSet(resolve(process.argv[2] || 'missing-manifest.json')), null, 2)); }

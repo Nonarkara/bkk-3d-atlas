@@ -15,6 +15,13 @@ export function trafficSummary(predictions, width, height) {
 }
 
 let modelPromise;
+let activeAnalysis = null; // One actual inference at a time, including across wall reopenings.
+export function withDeadline(task, milliseconds = 45000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Analysis timed out')), milliseconds);
+    Promise.resolve(task).then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+  });
+}
 function loadScript(src, ready) {
   if (ready()) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -32,7 +39,7 @@ async function model() {
     await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', () => !!window.tf);
     await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', () => !!window.cocoSsd);
     return window.cocoSsd.load({ base: 'lite_mobilenet_v2' });
-  })().catch(error => { modelPromise = null; throw error; });
+  })(); // A failed/hung model requires reload; do not pile up weight downloads.
   return modelPromise;
 }
 
@@ -50,29 +57,47 @@ export function installTrafficPilot(root, { enabled = false } = {}) {
     output.textContent = 'Unvalidated pilot · model download on request · frames stay in this browser.';
     const run = async () => {
       if (closed || busy || document.hidden) return;
+      if (activeAnalysis) { output.textContent = 'Another local analysis is still running · wait or reload this page'; return; }
       const image = tile.querySelector('img');
       if (!image?.complete || !image.naturalWidth) { output.textContent = 'Picture unavailable · no traffic conclusion'; return; }
       busy = true; button.disabled = true;
       output.textContent = 'Loading / analysing locally…';
-      let canvas;
+      let interrupted = false, expired = false;
+      const onHidden = () => {
+        if (document.hidden) {
+          interrupted = true;
+          output.textContent = 'Analysis interrupted while page hidden · request again when ready';
+        }
+      };
+      document.addEventListener('visibilitychange', onHidden);
       try {
-        const detector = await model();
-        if (closed || document.hidden) return;
-        canvas = document.createElement('canvas');
-        const scale = Math.min(1, 640 / image.naturalWidth);
-        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-        // Explicitly fail on cross-origin/tainted media instead of returning zero.
-        ctx.getImageData(0, 0, 1, 1);
-        const result = trafficSummary(await detector.detect(canvas, 100, 0.6), canvas.width, canvas.height);
-        if (closed || document.hidden) return;
+        const task = (async () => {
+          const detector = await model();
+          if (closed || interrupted || expired || document.hidden) return null;
+          const canvas = document.createElement('canvas');
+          try {
+            const scale = Math.min(1, 640 / image.naturalWidth);
+            canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            // Fail on tainted media instead of returning zero.
+            ctx.getImageData(0, 0, 1, 1);
+            return trafficSummary(await detector.detect(canvas, 100, 0.6), canvas.width, canvas.height);
+          } finally { canvas.width = 0; canvas.height = 0; }
+        })();
+        activeAnalysis = task;
+        // Release only when the underlying task ends, NOT when its UI deadline
+        // expires: a timed-out GPU task must not spawn concurrent retries.
+        task.then(() => { if (activeAnalysis === task) activeAnalysis = null; }, () => { if (activeAnalysis === task) activeAnalysis = null; });
+        const result = await withDeadline(task);
+        if (closed || interrupted || document.hidden || !result) return;
         output.textContent = `Experimental: ${result.total} possible vehicles in this picture (${Object.entries(result.counts).map(([k,v]) => `${k}: ${v}`).join(', ')}). Analysed ${new Date().toLocaleTimeString()}; capture time unknown. May miss or misclassify vehicles. Not a congestion, speed or road-clearance assessment.`;
       } catch {
-        if (!closed) output.textContent = 'Analysis unavailable · no traffic conclusion';
+        expired = true;
+        if (!closed && !interrupted) output.textContent = 'Analysis unavailable or timed out · reload to retry · no traffic conclusion';
       } finally {
-        if (canvas) { canvas.width = 0; canvas.height = 0; }
+        document.removeEventListener('visibilitychange', onHidden);
         busy = false;
         if (!closed) button.disabled = false;
       }
