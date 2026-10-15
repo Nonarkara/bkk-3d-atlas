@@ -893,6 +893,7 @@ body.is-night .atlas-header {
   border: 1px solid var(--signal);
   background: rgba(201, 255, 56, 0.06);
 }
+.atlas-inspect-card[hidden] { display: none; }
 .atlas-inspect-coords {
   margin: 0;
   font-family: var(--font-mono);
