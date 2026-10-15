@@ -16,6 +16,9 @@ export function trafficSummary(predictions, width, height) {
 
 let modelPromise;
 let activeAnalysis = null; // One actual inference at a time, including across wall reopenings.
+export function runtimeReady(tf) {
+  return typeof tf?.loadGraphModel === 'function' && typeof tf?.browser?.fromPixels === 'function';
+}
 export function withDeadline(task, milliseconds = 45000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Analysis timed out')), milliseconds);
@@ -36,8 +39,8 @@ function loadScript(src, ready) {
 }
 async function model() {
   if (!modelPromise) modelPromise = (async () => {
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', () => !!window.tf);
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', () => !!window.cocoSsd);
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', () => runtimeReady(window.tf));
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', () => typeof window.cocoSsd?.load === 'function');
     return window.cocoSsd.load({ base: 'lite_mobilenet_v2' });
   })(); // A failed/hung model requires reload; do not pile up weight downloads.
   return modelPromise;

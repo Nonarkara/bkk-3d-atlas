@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm, mkdir, symlink } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { trafficSummary, installTrafficPilot, withDeadline } from '../public/traffic-vision.js';
+import { trafficSummary, installTrafficPilot, withDeadline, runtimeReady } from '../public/traffic-vision.js';
 import { validatePhotoSet, loadValidatedPhotoSet } from './photo-intake.mjs';
 import { candidateOutput, publishCandidate } from './reconstruction-output.mjs';
 
@@ -22,11 +22,16 @@ test('zero detections remain experimental, not a road clearance verdict', () => 
 test('ordinary camera wall never loads traffic model or needs DOM access', () => {
   assert.doesNotThrow(()=>installTrafficPilot(null)());
 });
+test('a truthy partial TensorFlow global is not a ready detector runtime', () => {
+  assert.equal(runtimeReady({}),false);
+  assert.equal(runtimeReady({browser:{fromPixels(){}}}),false);
+  assert.equal(runtimeReady({loadGraphModel(){},browser:{fromPixels(){}}}),true);
+});
 test('release URLs invalidate both the entry module and its changed CV import', async () => {
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
-  assert.match(html,/src="\/app\.js\?v=twin-audit-20261015"/);
-  assert.match(app,/traffic-vision\.js\?v=twin-audit-20261015/);
+  assert.match(html,/src="\/app\.js\?v=twin-audit-20261015-2"/);
+  assert.match(app,/traffic-vision\.js\?v=twin-audit-20261015-2/);
 });
 test('photo intake rejects small sets and verifies hashes before reconstruction', async () => {
   const dir=await mkdtemp(join(tmpdir(),'bkk-photo-intake-'));
@@ -103,7 +108,7 @@ test('closing and reopening cannot overlap inference; hiding invalidates pending
     return {querySelectorAll:()=>[tile],nodes};
   };
   globalThis.document=doc;
-  globalThis.window={tf:{},cocoSsd:{load:()=>new Promise(resolve=>{finishModel=resolve;})}};
+  globalThis.window={tf:{loadGraphModel(){},browser:{fromPixels(){}}},cocoSsd:{load:()=>new Promise(resolve=>{finishModel=resolve;})}};
   try {
     const first=root(),closeFirst=installTrafficPilot(first,{enabled:true});
     const loading=first.nodes[0].click();

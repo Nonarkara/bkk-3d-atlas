@@ -40,6 +40,8 @@ The UI has a 45-second deadline covering both model loading and inference. A tim
 
 The October 15 audit also versioned the entry script and CV import, with revalidation headers on both files. An edge SHA match alone did not prove the browser had executed the new module: a returning browser ran the cached old import during verification. Keep versioned imports current on subsequent CV releases.
 
+The real phone test then found `loadGraphModel is not a function`. A truthy partial TensorFlow global was accepted by the old loader. Readiness now checks `loadGraphModel` and `browser.fromPixels`, not object presence; a CDN-bundle VM experiment reproduced that failure and confirmed that loading the full runtime repairs the partial object. The origin of the partial global in the browser was not established.
+
 ## Validation and promotion gate
 
 Automated tests check class filtering, malformed detections, unknown capture age, default-off operation, photo-set minimum and tamper rejection. They do not measure detector accuracy. Swift SDK type-check is not a reconstruction test.
