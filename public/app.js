@@ -8435,7 +8435,7 @@ async function refreshSourcesHealthPanel() {
   }
   if (headEl) {
     const c = payload.counts || {};
-    headEl.textContent = `Upstream feeds · FloodDash · ${c.total ?? payload.items.length} (ok ${c.ok ?? 0} · degraded ${c.degraded ?? 0} · skipped ${c.skipped ?? 0})${payload.fetchedAt ? ` · ${ageWords(minutesSince(payload.fetchedAt))} ago` : ""}`;
+    headEl.textContent = `Ingest health · FloodDash · ${c.total ?? payload.items.length} (ok ${c.ok ?? 0} · degraded ${c.degraded ?? 0} · stale ${c.stale ?? 0} · skipped ${c.skipped ?? 0})${payload.fetchedAt ? ` · snapshot ${ageWords(minutesSince(payload.fetchedAt))} ago` : ""} · Not sensor freshness`;
   }
   // Show the worst first (the renderer already sorted them). Cap at
   // 18 for a tight grid; the full list lives in the panel source.

@@ -36,6 +36,7 @@ import { floodRoadsResponse, loadFloodRoads, refreshFloodRoads, type RoadDeps } 
 
 import { roadsXrefResponse } from "./roads-xref";
 import { weatherSupport, unavailableHydroForecast } from "./weather-support";
+import { sourceHealth } from "./source-health";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -2041,22 +2042,9 @@ async function proxySourcesHealth(request: Request, env: Env): Promise<Response>
     const data = await direct.json() as { sources?: Record<string, any>; now?: string; system_counts?: any };
     const sources = data.sources || {};
     const items: any[] = [];
-    let ok = 0, fail = 0, never = 0;
     for (const [key, info] of Object.entries(sources)) {
       const i = info as any;
       const failures = Number(i.failures) || 0;
-      const lastError = String(i.lastError || "");
-      const lastOk = i.lastOk ? Date.parse(i.lastOk) : NaN;
-      const ageMin = Number.isFinite(lastOk) ? Math.max(0, Math.round((Date.now() - lastOk) / 60000)) : null;
-      let status: string;
-      if (!i.lastRun || lastError.startsWith("skipped")) status = "skipped";
-      else if (failures > 0) status = "degraded";
-      else if (ageMin == null) status = "stale";
-      else if (ageMin > 180) status = "stale";
-      else status = "ok";
-      if (status === "ok") ok++;
-      else if (status === "skipped") never++;
-      else fail++;
       items.push({
         key,
         label_th: i.label_th || "",
@@ -2066,21 +2054,14 @@ async function proxySourcesHealth(request: Request, env: Env): Promise<Response>
         last_run: i.lastRun || null,
         last_ok: i.lastOk || null,
         last_error: i.lastError || null,
-        age_min: ageMin,
-        status,
       });
     }
-    items.sort((a, b) => {
-      const order: Record<string, number> = { degraded: 0, stale: 1, skipped: 2, ok: 3 };
-      return (order[a.status] ?? 9) - (order[b.status] ?? 9) || (a.age_min ?? 9999) - (b.age_min ?? 9999);
-    });
     return {
       payload: {
         tool: "sources-health",
         version: 1,
         fetchedAt: data.now ?? new Date().toISOString(),
         system_counts: data.system_counts || null,
-        counts: { total: items.length, ok, degraded: fail, stale: fail, skipped: never },
         attribution: "FloodDash ingest health (flood.nonarkara.org/api/snapshot) · 40 upstream feeds",
         items,
       },
@@ -2088,7 +2069,7 @@ async function proxySourcesHealth(request: Request, env: Env): Promise<Response>
     };
   });
   if (!cached) return jsonResponse({ error: "sources_health_upstream_error" }, { status: 502 });
-  return jsonResponse(cached.payload, {
+  return jsonResponse(sourceHealth(cached.payload), {
     headers: {
       "cache-control": `public, max-age=${BKK_INCIDENTS_CACHE_TTL_SECONDS}`,
       "x-bkkx-source": cached.fromCache

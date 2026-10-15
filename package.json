@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:flood": "node --test scripts/test-flood-integrity.mjs",
     "test:history": "node --test scripts/test-hii-history.mjs",
+    "test:sources": "node --test scripts/test-source-health.mjs",
     "build:history": "node scripts/build-hii-history.mjs",
     "test:massing": "node --test scripts/test-building-massing.mjs",
     "build:palace": "node scripts/palace-standin.mjs",
