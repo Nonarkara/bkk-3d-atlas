@@ -9514,6 +9514,7 @@ function wireCameraWall(map) {
       img.remove();
     }, { once: true }));
     observer = new IntersectionObserver((entries) => {
+      if (root.hidden || thisRequest !== requestId) return;
       for (const e of entries) {
         if (e.isIntersecting) { wallVisible.add(e.target); wallAttach(e.target); }
         else { wallVisible.delete(e.target); if (wallPlayers.has(e.target)) wallDetach(e.target); }

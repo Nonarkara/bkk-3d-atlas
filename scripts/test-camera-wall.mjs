@@ -63,12 +63,14 @@ test('close and reopen ignores old catalogue response and disconnects every obse
       getElementById:()=>null,querySelector:()=>page,
       body:{appendChild(){},classList:{add(){},remove(){}}},
       addEventListener(){},querySelectorAll:()=>[opener]},
-    IntersectionObserver:class{constructor(){this.disconnected=false;observers.push(this);}observe(){}disconnect(){this.disconnected=true;}},
+    IntersectionObserver:class{constructor(callback){this.callback=callback;this.disconnected=false;observers.push(this);}observe(){}disconnect(){this.disconnected=true;}},
     fetchLiveCctv:()=>new Promise(resolve=>requests.push(resolve)),fetchJson:async()=>({features:[]})});
-  vm.runInContext(app.slice(app.indexOf('const WALL_BBOX'))+'\nwireCameraWall({});',ctx);
+  vm.runInContext(app.slice(app.indexOf('const WALL_BBOX'))+'\nwireCameraWall({});this.visibleCount=()=>wallVisible.size;',ctx);
   opener.click({preventDefault(){}});assert.equal(page.inert,true);
   close.click();assert.equal(page.inert,false);opener.click({preventDefault(){}});
   requests[1]({features:[]});await new Promise(setImmediate);
   requests[0]({features:[]});await new Promise(setImmediate);
   close.click();assert.equal(observers.length,1);assert.ok(observers.every(o=>o.disconnected));assert.equal(page.inert,false);
+  observers[0].callback([{isIntersecting:true,target:new Video()}]);
+  assert.equal(ctx.visibleCount(),0,'queued observer delivery cannot revive a closed wall');
 });
