@@ -93,8 +93,9 @@ export function installTrafficPilot(root, { enabled = false } = {}) {
         const result = await withDeadline(task);
         if (closed || interrupted || document.hidden || !result) return;
         output.textContent = `Experimental: ${result.total} possible vehicles in this picture (${Object.entries(result.counts).map(([k,v]) => `${k}: ${v}`).join(', ')}). Analysed ${new Date().toLocaleTimeString()}; capture time unknown. May miss or misclassify vehicles. Not a congestion, speed or road-clearance assessment.`;
-      } catch {
+      } catch (error) {
         expired = true;
+        console.warn('BKKx traffic pilot unavailable', error);
         if (!closed && !interrupted) output.textContent = 'Analysis unavailable or timed out · reload to retry · no traffic conclusion';
       } finally {
         document.removeEventListener('visibilitychange', onHidden);

@@ -38,6 +38,8 @@ This is a technical minimisation register, not a legal compliance determination 
 
 The UI has a 45-second deadline covering both model loading and inference. A timeout cannot cancel a TensorFlow GPU task: the shared inference lock remains held until the real task settles, including across wall close/reopen. Late or hidden-page results are not displayed. Reload after a failed or stuck model download. The loaded detector is deliberately cached in tab memory for reuse; it is not a per-camera tracker.
 
+The October 15 audit also versioned the entry script and CV import, with revalidation headers on both files. An edge SHA match alone did not prove the browser had executed the new module: a returning browser ran the cached old import during verification. Keep versioned imports current on subsequent CV releases.
+
 ## Validation and promotion gate
 
 Automated tests check class filtering, malformed detections, unknown capture age, default-off operation, photo-set minimum and tamper rejection. They do not measure detector accuracy. Swift SDK type-check is not a reconstruction test.

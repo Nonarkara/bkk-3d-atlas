@@ -22,6 +22,12 @@ test('zero detections remain experimental, not a road clearance verdict', () => 
 test('ordinary camera wall never loads traffic model or needs DOM access', () => {
   assert.doesNotThrow(()=>installTrafficPilot(null)());
 });
+test('release URLs invalidate both the entry module and its changed CV import', async () => {
+  const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
+  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(html,/src="\/app\.js\?v=twin-audit-20261015"/);
+  assert.match(app,/traffic-vision\.js\?v=twin-audit-20261015/);
+});
 test('photo intake rejects small sets and verifies hashes before reconstruction', async () => {
   const dir=await mkdtemp(join(tmpdir(),'bkk-photo-intake-'));
   const path=join(dir,'manifest.json');
