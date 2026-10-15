@@ -32,6 +32,10 @@ These Wikimedia Commons photographs were used only as proportion and silhouette 
 | Prasat Phra Thep Bidon | Prasat Phra Thep Bidon 06.23 | Supanut Arunoprayote | CC BY 4.0 | <https://commons.wikimedia.org/wiki/File:Prasat_Phra_Thep_Bidon_06.23.jpg> |
 | Phra rabiang galleries | Phra Rabiang gallery telling the mythical story Ramakien (รามเกียรติ์) | 2008guangzhou | CC BY-SA 3.0 | <https://commons.wikimedia.org/wiki/File:Phra_Rabiang_gallery_telling_the_mythical_story_Ramakien_(%E0%B8%A3%E0%B8%B2%E0%B8%A1%E0%B9%80%E0%B8%81%E0%B8%B5%E0%B8%A2%E0%B8%A3%E0%B8%95%E0%B8%B4%E0%B9%8C).JPG> |
 
-## Data
+## Experimental traffic vision
+
+The opt-in traffic pilot uses [TensorFlow.js](https://github.com/tensorflow/tfjs) and [TensorFlow COCO-SSD](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd), Apache-2.0. Runtime versions and limitations are documented in `docs/digital-twin-pilot.md`. No new camera ownership or imagery licence is implied.
+
+## Data sources
 
 Source names, counts, and licences for the atlas files and live feeds are in the README section [Data sources](README.md#data-sources). OSM-derived files stay under ODbL 1.0. Do not treat this credits note as a licence for the code: this repository has no `LICENSE` file.

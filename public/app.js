@@ -19,6 +19,7 @@ import {
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
+import { installTrafficPilot } from './traffic-vision.js';
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -9441,7 +9442,8 @@ function wallTile(c) {
   }
   const cat = { itic: "iTIC", government: "Gov", other: "Other" }[c.category] || "Other";
   const tier = c.tier === 'operator' ? 'Operator source' : c.tier === 'community' ? 'Community · unvetted' : 'Provenance unverified';
-  return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}">
+  const trafficCandidate = c.tier === 'operator' && /แยก|ถนน|intersection|junction|\broad\b/i.test(c.name) && !/ระดับน้ำ|water level|gauge/i.test(c.name);
+  return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}" data-traffic-eligible="${trafficCandidate ? 'true' : 'false'}">
     <div class="atlas-wall-media"><img loading="lazy" alt="Camera still: ${name} · capture time unverified" referrerpolicy="no-referrer" src="/api/snap/${encodeURIComponent(c.id)}?w=320" />
     <span class="atlas-wall-state">${c.checked ? "Still · capture time unverified" : "Still · picture and capture time unverified"}</span><span class="atlas-wall-cat atlas-wall-cat-${escapeHtml(c.category || "other")}">${cat}</span></div>
     <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org} · ${tier}${c.viewer && safeHttpUrl(c.viewer) !== '#' ? ` · <a href="${escapeHtml(safeHttpUrl(c.viewer))}" target="_blank" rel="noopener">viewer ↗</a>` : ""}</small></figcaption></figure>`;
@@ -9473,12 +9475,14 @@ function wireCameraWall(map) {
   let observer = null;
   let lastFocus = null;
   let requestId = 0;
+  let disposeTrafficPilot = () => {};
   const page = document.querySelector('.atlas-page');
   let pageWasInert = false;
 
   const close = () => {
     if (root.hidden) return;
     requestId++;
+    disposeTrafficPilot();
     observer?.disconnect();
     wallVisible.clear();
     for (const v of [...wallPlayers.keys()]) wallDetach(v);
@@ -9509,6 +9513,10 @@ function wireCameraWall(map) {
       ? `${cams.length} cameras · ${v} video · ${cams.length - v} stills`
       : "No cameras reachable right now · not an all-clear";
     grid.innerHTML = cams.map(wallTile).join("");
+    // Research-only until manually evaluated on Bangkok camera footage.
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('trafficPilot') === '1') {
+      disposeTrafficPilot = installTrafficPilot(grid, { enabled: true });
+    }
     grid.querySelectorAll("img").forEach((img) => img.addEventListener("error", () => {
       img.parentElement.querySelector(".atlas-wall-state").textContent = "No picture · not an all-clear";
       img.remove();
