@@ -18,6 +18,7 @@ import {
 } from './building-massing.js';
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
+import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -3716,7 +3717,7 @@ async function installFlood(map) {
   }
   let geojson;
   try {
-    const res = await fetch(FLOOD_DATA_URL, { cache: "force-cache" });
+    const res = await fetch(FLOOD_DATA_URL, { cache: "force-cache", signal: AbortSignal.timeout(10000) });
     if (!res.ok) {
       setLayerStatus("flood", "unavailable · geojson failed");
       return;
@@ -7342,7 +7343,21 @@ function setInspectMarker(map, lngLat) {
     .addTo(map);
 }
 
+let inspectSequence = 0;
+let currentPlace = null;
+function renderPlaceEvidence() {
+  if (!currentPlace) return;
+  const {point,live,lng,lat,weather} = currentPlace;
+  const rows = placeBriefing(point,live,Date.now(),weather);
+  const roads = nearbyRoadReports(state.floodRoads?.roads,lng,lat);
+  rows.splice(3,0,['Nearby road reports · รายงานน้ำท่วม', roads.length
+    ? roads.map(r=>`${r.feature.properties.road || 'Unnamed road'} · ${r.distanceM} m · reported ${r.feature.properties.latest} · Traffy / iTIC via FloodDash`).join('; ')
+    : 'No current reports in the loaded data within 500 m. Coverage may be incomplete; unreported roads are unknown, not dry.']);
+  fillInspectDl(document.getElementById('atlas-place-briefing'),rows);
+}
 function clearInspect(map) {
+  inspectSequence++;
+  currentPlace = null;
   const card = document.getElementById("atlas-inspect-card");
   const hint = document.getElementById("atlas-inspect-hint");
   if (card) card.hidden = true;
@@ -7355,6 +7370,8 @@ function clearInspect(map) {
 }
 
 async function runInspect(map, event) {
+  const sequence = ++inspectSequence;
+  currentPlace = null;
   const { lng, lat } = event.lngLat;
   const feature = massingFeatureAt(event.lngLat) || pickBuildingFeature(map, event.point);
   setInspectMarker(map, [lng, lat]);
@@ -7369,6 +7386,13 @@ async function runInspect(map, event) {
 
   if (hint) hint.hidden = true;
   if (card) card.hidden = false;
+  const briefing = document.getElementById('atlas-place-briefing');
+  const placeStatus = document.getElementById('atlas-place-status');
+  const cameras = document.getElementById('atlas-place-cameras');
+  if (placeStatus) placeStatus.textContent = 'Checking nearby evidence… · กำลังตรวจสอบ';
+  fillInspectDl(briefing, placeBriefing(null, null));
+  if (cameras) cameras.replaceChildren();
+  revealTask('atlas-inspect');
   if (coordsEl) {
     coordsEl.textContent = `${lng.toFixed(5)}° E, ${lat.toFixed(5)}° N`;
   }
@@ -7379,10 +7403,30 @@ async function runInspect(map, event) {
     apiLink.href = `/api/risk?lng=${lng.toFixed(5)}&lat=${lat.toFixed(5)}`;
   }
 
-  const [flood, risk] = await Promise.all([
+  const [flood, risk, point, weather] = await Promise.all([
     floodHitAt(lng, lat),
     fetchRisk(lng.toFixed(5), lat.toFixed(5)),
+    fetch(`/api/atlas/at-this-point?lng=${lng}&lat=${lat}`, {signal:AbortSignal.timeout(12000)})
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/weather/google?lng=${lng}&lat=${lat}`, {signal:AbortSignal.timeout(14000)})
+      .then(r=>r.ok?r.json():null).catch(()=>null),
   ]);
+  if (sequence !== inspectSequence) return;
+  currentPlace = {point,live:risk?.live,lng,lat,weather};
+  renderPlaceEvidence();
+  if (placeStatus) placeStatus.textContent = `Briefing checked ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · source observation times differ.${!point || !risk?.live ? ' Some evidence is unavailable.' : ''}`;
+  for (const camera of nearestCameras(state.cctvGeojson, lng, lat)) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'atlas-place-camera';
+    button.textContent = `Camera · ${camera.feature.properties?.name || camera.feature.properties?.title || 'Nearby camera'} · ${camera.distanceM} m · catalogue, image freshness unverified`;
+    button.addEventListener('click', () => {
+      if (window.matchMedia('(max-width:720px)').matches) document.querySelector('[data-close-sheet]')?.click();
+      map.easeTo({center:camera.feature.geometry.coordinates,zoom:Math.max(map.getZoom(),15),duration:window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:500});
+      openCctvPopup(map, camera.feature);
+    });
+    cameras?.append(button);
+  }
+  if (cameras && !cameras.childElementCount) cameras.textContent = 'Nearby cameras not loaded or none in the loaded catalogue within 1.5 km. This is not proof that no cameras exist.';
   fillInspectDl(floodEl, [...liveFloodRows(risk?.live), ...floodRiskRows(flood, risk, feature)]);
   if (noteEl) {
     const floodNote = risk?.live
@@ -7395,7 +7439,7 @@ async function runInspect(map, event) {
   const section = document.getElementById("atlas-inspect");
   if (section) {
     if (section.tagName === "DETAILS") section.open = true;
-    section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: "nearest" });
   }
 }
 
@@ -7403,6 +7447,7 @@ async function fetchRisk(lng, lat) {
   try {
     const res = await fetch(`/api/risk?lng=${encodeURIComponent(lng)}&lat=${encodeURIComponent(lat)}`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(12000),
     });
     if (res.ok) return await res.json();
   } catch { /* client compose below */ }
@@ -7421,7 +7466,7 @@ async function fetchPointPm25Client(lat, lng) {
   try {
     const url =
       `${AQI_API}?latitude=${lat}&longitude=${lng}&hourly=pm2_5&forecast_days=1&domains=cams_global`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
     const data = await res.json();
     const values = data?.hourly?.pm2_5;
@@ -7466,13 +7511,15 @@ function liveFloodRows(live) {
   if (live.city) rows.push(["Bangkok now", `${FLOOD_LEVEL_WORD[live.city.level] || live.city.level} · ${live.city.headEn}`]);
   else rows.push(["Bangkok now", "Current city assessment unavailable — not an all-clear"]);
   const g = live.nearestGauge;
+  const gaugeAge = g?.observedAt ? minutesSince(g.observedAt) : null;
+  const gaugeCurrent = gaugeAge !== null && gaugeAge >= 0 && gaugeAge <= 120 && g?.confidence !== 'stale';
   rows.push(["Nearest gauge", g
-    ? `${g.bandEn} · ${g.name} · ${g.distanceKm} km${g.confidence === "stale" ? " · stale" : ""}`
+    ? `${gaugeCurrent ? g.bandEn : 'Stale or time unknown'} · ${g.name} · ${g.distanceKm} km · observed ${g.observedAt || 'time unknown'}`
     : "none reporting within 15 km"]);
   if (live.district) {
     const r = live.roadReports;
     rows.push([`Roads · ${live.district}`, r
-      ? `${r.reports} DDS report${r.reports > 1 ? "s" : ""}${r.maxDepthCm != null ? `, to ${r.maxDepthCm} cm` : ""}`
+      ? `${r.reports} DDS report${r.reports > 1 ? "s" : ""}${r.maxDepthCm != null ? `, to ${r.maxDepthCm} cm` : ""} · bulletin dates ${(live.roadReportDays || []).join(', ') || 'unknown'}; not current clearance`
       : "none reported in DDS"]);
   }
   return rows;
@@ -7520,6 +7567,15 @@ function pointLayersOwningClick(map, point) {
 }
 
 function wireInspect(map) {
+  setInterval(renderPlaceEvidence,30000);
+  document.getElementById('atlas-inspect-centre')?.addEventListener('click', () => {
+    const lngLat = map.getCenter();
+    runInspect(map, {lngLat, point:map.project(lngLat)});
+  });
+  document.querySelectorAll('[data-task]').forEach(link => { link.disabled = false; link.addEventListener('click', event => {
+    event.preventDefault();
+    revealTask(link.dataset.task === 'place' ? 'atlas-inspect' : link.dataset.task === 'water' ? 'atlas-water' : 'atlas-areas');
+  }); });
   map.on("click", (event) => {
     // Interactive overlays own the click instead of also opening building inspect.
     if (pointLayersOwningClick(map, event.point).length) return;
@@ -7542,6 +7598,24 @@ function wireInspect(map) {
 
   const clearBtn = document.getElementById("atlas-inspect-clear");
   if (clearBtn) clearBtn.addEventListener("click", () => clearInspect(map));
+}
+
+function revealTask(id) {
+  const section = document.getElementById(id);
+  if (!section) return;
+  const panel = document.getElementById('atlas-panel');
+  if (panel?.contains(section)) panel.setAttribute('aria-hidden','false');
+  if (window.matchMedia('(max-width:720px)').matches && panel?.contains(section) && !panel.classList.contains('is-open')) {
+    document.getElementById('atlas-panel-toggle')?.click();
+  }
+  if (section.tagName === 'DETAILS') section.open = true;
+  if (id === 'atlas-water') {
+    section.hidden = false;
+    const details = document.getElementById('atlas-water-details');
+    if (details) details.open = true;
+  }
+  section.scrollIntoView({block:'nearest', behavior:'auto'});
+  section.querySelector('summary')?.focus({preventScroll:true});
 }
 
 // ─────────────────────────────────────────────────────────────────

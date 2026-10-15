@@ -58,8 +58,9 @@
         <small>432,077 buildings · boats + rail · CCTV · flood sensors · traffic · wind · AQI · rain radar <span class="atlas-presence" id="atlas-presence" hidden aria-live="polite" title="Anonymous per-tab counter · pings every 60 s · pattern from JK World"></span></small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
-        <a href="#atlas-areas">Quick jump</a>
-        <a href="#atlas-inspect">Inspect</a>
+        <a href="#atlas-areas" data-task="explore">Explore Bangkok</a>
+        <a href="#atlas-inspect" data-task="place">Check a place</a>
+        <a href="#atlas-water" data-task="water">Understand the water</a>
         <button type="button" class="atlas-nav-about" data-wall-open>Camera wall</button>
         <button type="button" class="atlas-nav-about" data-about-open>
           About
@@ -74,6 +75,11 @@
     </header>
 
     <div id="atlas-map" class="atlas-map" aria-label="3D map of Bangkok">
+      <nav class="atlas-place-tasks" aria-label="Start with a question">
+        <button type="button" data-task="place" disabled>Check a place</button>
+        <button type="button" data-task="water" disabled>Water now</button>
+        <button type="button" data-task="explore" disabled>Explore</button>
+      </nav>
       <p id="atlas-massing-note" class="atlas-massing-note" hidden>Grand Palace stand-in · Approximate model, not an official survey. Footprints © OpenStreetMap contributors, ODbL.</p>
       <!-- Illustrative scenario tour, separate from live observations. -->
       <aside class="atlas-sim-hud" id="atlas-sim-hud" aria-label="Illustrative 72-hour flood scenario" hidden>
@@ -457,9 +463,9 @@
            ::before pseudo can't be a real button, so this row is
            rendered for real and given data-close-sheet so the
            click handler in wirePhonePanelToggle can find it. -->
-      <div class="atlas-sheet-close" data-close-sheet aria-label="Close situation board">
+      <button type="button" class="atlas-sheet-close" data-close-sheet aria-label="Close situation board">
         Situation board · close ↧
-      </div>
+      </button>
       <!-- Trusted flood news (2026-09-29) — sits BEFORE the Operate bar
            so a person opening the atlas during a flood sees the
            headlines before anything else. Source: FloodDash's curated
@@ -500,8 +506,8 @@
           <div class="atlas-panel-content">
             <ul class="atlas-water-key">
               <li><strong>Line width</strong> — how far the waterway runs: the Chao Phraya, then the long khlongs like Saen Saep and Prem Prachakon, then local canals.</li>
-              <li><strong>Moving dashes</strong> — the normal drainage direction. Tidal reaches and pumped canals can run the other way.</li>
-              <li><strong>Colour</strong> — what the nearest gauge says, carried 1.5 km along the same waterway (straight-line). Blue means no gauge concern there, or no gauge at all.</li>
+              <li><strong>Moving dashes</strong> — illustrative normal drainage direction, not measured velocity or a hydraulic simulation. Tidal reaches and pumped canals can reverse.</li>
+              <li><strong>Colour</strong> — nearby gauge context carried up to 1.5 km along a waterway (straight-line). Blue can mean no gauge coverage; it does not establish dry streets or safe travel. Tap a gauge to check its observation time.</li>
             </ul>
             <p class="atlas-eyebrow atlas-eyebrow-sub" id="atlas-water-streets-head">Streets with flood reports</p>
             <ul class="atlas-water-list" id="atlas-water-streets"></ul>
@@ -537,21 +543,25 @@
       <!-- Collapsible Section 4: Inspect -->
       <details class="atlas-panel-section atlas-inspect" id="atlas-inspect" aria-live="polite">
         <summary>
-          <span class="atlas-eyebrow">Inspect</span>
-          <span class="atlas-panel-heading">Click any building / road</span>
+          <span class="atlas-eyebrow">Check a place · ดูพื้นที่</span>
+          <span class="atlas-panel-heading">Nearby evidence, not a safe-route verdict</span>
         </summary>
         <div class="atlas-panel-content">
           <p class="atlas-inspect-blurb" id="atlas-inspect-hint">
-            Tap the map for OSM height/type, the nearest live gauge and DDS road reports.
+            Tap the map, or check its centre below. Read what is observed, what is reference data, and what remains unknown.
           </p>
+          <button type="button" class="atlas-inspect-clear" id="atlas-inspect-centre">Check map centre · ดูจุดกลางแผนที่</button>
           <div class="atlas-inspect-card" id="atlas-inspect-card" hidden>
             <p class="atlas-inspect-coords" id="atlas-inspect-coords"></p>
+            <p id="atlas-place-status" role="status"></p>
+            <dl class="atlas-inspect-stats atlas-place-briefing" id="atlas-place-briefing"></dl>
+            <div id="atlas-place-cameras"></div>
             <div>
               <p class="atlas-eyebrow atlas-eyebrow-sub">Building</p>
               <dl class="atlas-inspect-stats" id="atlas-inspect-building"></dl>
             </div>
             <div class="atlas-inspect-flood" id="atlas-inspect-flood-wrap">
-              <p class="atlas-eyebrow atlas-eyebrow-sub">Flood &amp; risk</p>
+              <p class="atlas-eyebrow atlas-eyebrow-sub">Advanced · current context &amp; Labs schematic risk</p>
               <dl class="atlas-inspect-stats" id="atlas-inspect-flood"></dl>
             </div>
             <p class="atlas-inspect-note" id="atlas-inspect-note"></p>

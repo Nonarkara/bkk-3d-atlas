@@ -796,7 +796,8 @@ export function liveAt(
           bandEn: nearest.g.bandEn,
           action: nearest.g.action,
           confidence: nearest.g.confidence,
-          ageMin: nearest.g.ageMin,
+          observedAt: nearest.g.observedAt,
+          ageMin: ageMin(nearest.g.observedAt),
         }
       : null,
     district: district.name,

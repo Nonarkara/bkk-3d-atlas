@@ -3763,6 +3763,23 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 
 /* Camera wall — full-screen grid (pattern from FloodDash). */
+.atlas-place-briefing { display: block; }
+.atlas-place-briefing dt { margin-top: 14px; color: var(--paper); font-weight: 700; }
+.atlas-place-briefing dd { margin: 4px 0 0; line-height: 1.55; overflow-wrap: anywhere; text-align: left; font-weight: 400; }
+.atlas-place-briefing dt:first-child { margin-top: 0; }
+.atlas-header-meta { min-width: 0; }
+@media (max-width:1440px) { .atlas-header-nav [data-task] { display: none; } }
+.atlas-place-camera { display: block; width: 100%; min-height: 44px; padding: 10px; margin: 8px 0; text-align: left; background: transparent; color: var(--paper); border: 1px solid var(--line); font: inherit; }
+.atlas-place-camera:focus-visible, .atlas-place-tasks button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+#atlas-place-status, #atlas-place-cameras { font-size: 12px; line-height: 1.5; }
+#atlas-inspect-centre { min-height: 44px; margin-bottom: 10px; }
+.atlas-place-tasks { position: absolute; top: 12px; left: 12px; z-index: 4; display: flex; max-width: calc(100% - 70px); background: var(--ink, #11120f); border: 1px solid var(--line); }
+.atlas-place-tasks button { min-height: 44px; padding: 8px 12px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--paper); font: inherit; font-size: 12px; cursor: pointer; }
+.atlas-sheet-close { width: 100%; color: var(--paper); font: inherit; text-align: left; min-height: 44px; }
+@media (max-width:720px) {
+  .atlas-place-tasks { top: 8px; left: 8px; }
+  .atlas-place-tasks button { padding: 6px 9px; font-size: 11px; }
+}
 .atlas-wall { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; background: #0d0e0b; color: var(--paper); }
 .atlas-wall[hidden] { display: none; }
 body.atlas-wall-open { overflow: hidden; }
