@@ -1,0 +1,1254 @@
+{
+  "schema": 1,
+  "tier": "reference",
+  "period": "2005–2021",
+  "source": "https://data.hii.or.th/dataset/flood-area",
+  "resource": "https://data.hii.or.th/dataset/e007d93b-5a9b-4d6f-9090-5cdd26922aa7/resource/50e6987b-c01f-4fd5-99e2-2bccf9f18268/download/monthly-flood-risk-area.csv",
+  "publisher": "Hydro-Informatics Institute (HII), using GISTDA satellite flood history",
+  "sourceModified": "2025-10-27T16:46:22.924307",
+  "retrievedAt": "2026-10-15T02:23:06.299Z",
+  "license": "Creative Commons Attribution Non-Commercial",
+  "licenseUrl": null,
+  "sha256": "1ea1d158b7c4c4156d41b83ab811fd9ce13fd7b9b2f5a80d0e58b1e7ae751956",
+  "boundarySha256": "28a6fd1e356b543d3451963faa37b4b0e28a75c5f8ecf1ec950c20a2c360bd59",
+  "boundarySource": "OpenStreetMap, 50 khet; geometry unchanged, not an official DOPA boundary layer",
+  "join": "Exact Thai district name bridge, validated one-to-one; then HII AMPHOE_CODE, never TAMBON_T-to-khet",
+  "caveat": "Seasonal history, not live inundation, forecast, depth or road safety. District colour is the highest band among reported subdistricts for that month. Missing records are unassessed, not low risk; subdistrict coverage is incomplete.",
+  "sourceRowCount": 27023,
+  "bangkokRowCount": 352,
+  "reportedSubdistrictCount": 158,
+  "months": [
+    6,
+    9,
+    10,
+    11,
+    12
+  ],
+  "districts": [
+    {
+      "code": "1001",
+      "nameTh": "เขตพระนคร",
+      "months": {
+        "10": {
+          "low": 10,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 10,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 12,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 12,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92053
+    },
+    {
+      "code": "1013",
+      "nameTh": "เขตสัมพันธวงศ์",
+      "months": {
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92056
+    },
+    {
+      "code": "1008",
+      "nameTh": "เขตป้อมปราบศัตรูพ่าย",
+      "months": {
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92058
+    },
+    {
+      "code": "1004",
+      "nameTh": "เขตบางรัก",
+      "months": {
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92061
+    },
+    {
+      "code": "1007",
+      "nameTh": "เขตปทุมวัน",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92063
+    },
+    {
+      "code": "1037",
+      "nameTh": "เขตราชเทวี",
+      "months": {
+        "10": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92064
+    },
+    {
+      "code": "1014",
+      "nameTh": "เขตพญาไท",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92068
+    },
+    {
+      "code": "1002",
+      "nameTh": "เขตดุสิต",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 92069
+    },
+    {
+      "code": "1029",
+      "nameTh": "เขตบางซื่อ",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 1639285
+    },
+    {
+      "code": "1030",
+      "nameTh": "เขตจตุจักร",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 1639286
+    },
+    {
+      "code": "1036",
+      "nameTh": "เขตดอนเมือง",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 1639287
+    },
+    {
+      "code": "1041",
+      "nameTh": "เขตหลักสี่",
+      "months": {
+        "9": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 1639288
+    },
+    {
+      "code": "1005",
+      "nameTh": "เขตบางเขน",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 1,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938030
+    },
+    {
+      "code": "1026",
+      "nameTh": "เขตดินแดง",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938031
+    },
+    {
+      "code": "1017",
+      "nameTh": "เขตห้วยขวาง",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938032
+    },
+    {
+      "code": "1033",
+      "nameTh": "เขตคลองเตย",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938033
+    },
+    {
+      "code": "1038",
+      "nameTh": "เขตลาดพร้าว",
+      "months": {
+        "9": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938034
+    },
+    {
+      "code": "1042",
+      "nameTh": "เขตสายไหม",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 2,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938035
+    },
+    {
+      "code": "1039",
+      "nameTh": "เขตวัฒนา",
+      "months": {
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2938036
+    },
+    {
+      "code": "1006",
+      "nameTh": "เขตบางกะปิ",
+      "months": {
+        "9": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2939952
+    },
+    {
+      "code": "1016",
+      "nameTh": "เขตบางกอกใหญ่",
+      "months": {
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2939953
+    },
+    {
+      "code": "1019",
+      "nameTh": "เขตตลิ่งชัน",
+      "months": {
+        "10": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 6,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2939954
+    },
+    {
+      "code": "1048",
+      "nameTh": "เขตทวีวัฒนา",
+      "months": {
+        "6": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2939955
+    },
+    {
+      "code": "1045",
+      "nameTh": "เขตวังทองหลาง",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2939956
+    },
+    {
+      "code": "1025",
+      "nameTh": "เขตบางพลัด",
+      "months": {
+        "10": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2942281
+    },
+    {
+      "code": "1020",
+      "nameTh": "เขตบางกอกน้อย",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2942282
+    },
+    {
+      "code": "1023",
+      "nameTh": "เขตหนองแขม",
+      "months": {
+        "9": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2942283
+    },
+    {
+      "code": "1040",
+      "nameTh": "เขตบางแค",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2946804
+    },
+    {
+      "code": "1027",
+      "nameTh": "เขตบึงกุ่ม",
+      "months": {
+        "9": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2946805
+    },
+    {
+      "code": "1043",
+      "nameTh": "เขตคันนายาว",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 0,
+          "medium": 1,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2946806
+    },
+    {
+      "code": "1022",
+      "nameTh": "เขตภาษีเจริญ",
+      "months": {
+        "11": {
+          "low": 6,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2946807
+    },
+    {
+      "code": "1046",
+      "nameTh": "เขตคลองสามวา",
+      "months": {
+        "6": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 0,
+          "medium": 5,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 5,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 5,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 2997412
+    },
+    {
+      "code": "1047",
+      "nameTh": "เขตบางนา",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146412
+    },
+    {
+      "code": "1010",
+      "nameTh": "เขตมีนบุรี",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 0,
+          "medium": 2,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146413
+    },
+    {
+      "code": "1032",
+      "nameTh": "เขตประเวศ",
+      "months": {
+        "6": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146414
+    },
+    {
+      "code": "1044",
+      "nameTh": "เขตสะพานสูง",
+      "months": {
+        "9": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146415
+    },
+    {
+      "code": "1009",
+      "nameTh": "เขตพระโขนง",
+      "months": {
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146642
+    },
+    {
+      "code": "1034",
+      "nameTh": "เขตสวนหลวง",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3146643
+    },
+    {
+      "code": "1035",
+      "nameTh": "เขตจอมทอง",
+      "months": {
+        "10": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147007
+    },
+    {
+      "code": "1024",
+      "nameTh": "เขตราษฎร์บูรณะ",
+      "months": {
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147008
+    },
+    {
+      "code": "1049",
+      "nameTh": "เขตทุ่งครุ",
+      "months": {
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147104
+    },
+    {
+      "code": "1018",
+      "nameTh": "เขตคลองสาน",
+      "months": {
+        "10": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 4,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 4,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147280
+    },
+    {
+      "code": "1015",
+      "nameTh": "เขตธนบุรี",
+      "months": {
+        "11": {
+          "low": 7,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 7,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147281
+    },
+    {
+      "code": "1050",
+      "nameTh": "เขตบางบอน",
+      "months": {
+        "11": {
+          "low": 1,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 1,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147312
+    },
+    {
+      "code": "1021",
+      "nameTh": "เขตบางขุนเทียน",
+      "months": {
+        "6": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        },
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147313
+    },
+    {
+      "code": "1028",
+      "nameTh": "เขตสาทร",
+      "months": {
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147425
+    },
+    {
+      "code": "1031",
+      "nameTh": "เขตบางคอแหลม",
+      "months": {
+        "11": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147455
+    },
+    {
+      "code": "1012",
+      "nameTh": "เขตยานนาวา",
+      "months": {
+        "11": {
+          "low": 2,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 2,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147456
+    },
+    {
+      "code": "1011",
+      "nameTh": "เขตลาดกระบัง",
+      "months": {
+        "6": {
+          "low": 3,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 3,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 6,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 2,
+          "medium": 4,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 6,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 6,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 6,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147500
+    },
+    {
+      "code": "1003",
+      "nameTh": "เขตหนองจอก",
+      "months": {
+        "6": {
+          "low": 8,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 8,
+          "maxReportedBand": "low"
+        },
+        "9": {
+          "low": 8,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 8,
+          "maxReportedBand": "low"
+        },
+        "10": {
+          "low": 0,
+          "medium": 8,
+          "high": 0,
+          "reportedSubdistricts": 8,
+          "maxReportedBand": "medium"
+        },
+        "11": {
+          "low": 8,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 8,
+          "maxReportedBand": "low"
+        },
+        "12": {
+          "low": 8,
+          "medium": 0,
+          "high": 0,
+          "reportedSubdistricts": 8,
+          "maxReportedBand": "low"
+        }
+      },
+      "osmId": 3147501
+    }
+  ]
+}

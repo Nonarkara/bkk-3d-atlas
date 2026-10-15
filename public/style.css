@@ -1,3 +1,5 @@
+#hii-history-controls select { width: 100%; min-height: 44px; background: #11120f; color: #f1efe8; border: 1px solid #666966; font: inherit; padding: 6px; }
+
 /* BKKx 3D Atlas — sharp edges, no rounded corners, no shadows.
    Mirrors the BKKx public site aesthetic: ink, paper, signal yellow.
    Atlas-specific UI sits in .atlas-*; everything else follows the

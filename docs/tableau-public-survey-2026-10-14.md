@@ -1,5 +1,11 @@
 # Tableau Public "Bangkok" survey — deep pass, 2026-10-14
 
+> Audit correction, 2026-10-15: Bangkok has **50 khet**, not 154. The HII
+> records are khwaeng/subdistrict-months. Administrative conclusions and joins
+> are corrected below from the actual HII CSV. Tableau search totals remain
+> the previous agent's reported results; this audit did not independently
+> reproduce all 3,263 workbooks or establish universal absence of useful data.
+
 Supersedes the first pass. This one exhausts the search and follows each lead to its
 original source.
 
@@ -33,8 +39,9 @@ This is the honest result, and it is a negative one.
 Both are ~30-view student projects with no description, no stated source, and no
 identifiable refresh path. They cannot be integrated honestly.
 
-Everything else sub-national is **province-level** (77 provinces). Bangkok is one
-province, so province data cannot be placed on a Bangkok map.
+The other inspected sub-national candidates were reported as province-level.
+Bangkok-wide values can provide city context, but cannot resolve differences
+between its districts without a separate valid disaggregation method.
 
 The top of the view counts is not about the city's ground at all:
 
@@ -87,9 +94,9 @@ EPPO's own decks disagree with each other — one shows 849 chargers nationally,
 
 `ER.H2O.INTR.PC` is a **country** indicator: 181 economies, annual, no sub-national
 resolution. The Atlas needs a value per khet. The underlying physical quantity
-(Thailand's total internal renewable water) is a single national constant; dividing it
-by population produces a per-capita figure that is mathematically identical for every
-district inside the country.
+(Thailand's internal renewable water) and its denominator are national aggregates.
+The published value provides no district-level allocation; dividing by arbitrary
+district populations would not create observed local water availability.
 
 Mapping it would be decoration. Rejected.
 
@@ -105,62 +112,70 @@ refreshable and citable. Following it produced the one strong lead in this whole
 ### HII national flood-risk classification — recommended
 
 **Source:** สถาบันสารสนเทศทรัพยากรน้ำ (องค์การมหาชน) — National Water Resources
-Information Center, a public organisation under the Ministry of Natural Resources and
-Environment.
+Information Center. Publisher: Hydro-Informatics Institute (HII); the catalogue's
+organization metadata lists the Ministry of Higher Education, Science, Research and Innovation.
 
-- Portal: `data.hii.or.th`, dataset `flood-area`, modified 2025-11-25
+- Portal: `data.hii.or.th`, dataset `flood-area`. API metadata retrieved
+  2026-10-15 says `metadata_modified: 2025-10-27T16:46:22.924307`;
+  the earlier claimed 2025-11-25 date was not reproduced.
 - File: `monthly-flood-risk-area.csv`, 27,023 rows, 6.1 MB
 - Method: shapefiles analysed from **GISTDA (สทอภ.) satellite imagery, BE 2548–2564
   (2005–2021)**, per tambon, classified into three bands
 - Columns: `Month`, `GEOCODE`, `TAMBON_T/E`, `AMPHOE_CODE/T/E`, `PROV_CODE/T/E`,
   `COUNT 17 YEAR`, `CRITERIA`, `RISK`
 - Bands: `1-3 ครั้งในรอบ 17 ปี` → low, `4-8` → medium, `9-17` → high
-- Coverage: 75 provinces; **158 Bangkok khet**, present in months 6, 9, 10, 11, 12
+- Bangkok coverage verified 2026-10-15: **352 subdistrict-month records, 158 distinct
+  khwaeng, across all 50 khet**, in months 6, 9, 10, 11, 12.
+- Licence: **Creative Commons Attribution Non-Commercial**, version unspecified
+  in the retrieved metadata. Do not describe this as unrestricted open data.
 
-Verified Bangkok split: **329 low, 23 medium, 0 high.** The 23 medium-risk khet are
+Verified Bangkok row split: **329 low, 23 medium, 0 high.** These are
+subdistrict-month records, not 23 medium-risk khet. Names among the records are
 exactly Bangkok's known flood ground — Nong Chok, Lam Toiting, Khok Faet, Lam Phak Chi,
 Tha Raeng, Min Buri, Khlong Sam Prawet, Sam Wa Tok/Tawan Ok, Sai Mai, Khan Na Yao,
-O Ngoen, Bang Chan, Saen Saep. That correspondence is strong evidence the classification
-is real rather than noise.
+O Ngoen, Bang Chan, Saen Saep. Familiar place names are not independent validation
+of satellite classification or current street-flood conditions.
 
 **Honest framing required.** Despite the "monthly" in the filename, this is **not a live
 observation**. It is a *seasonal risk climatology* — how often each tambon flooded over
 a 17-year satellite record, keyed to calendar month. It must never be presented as
 "this month the water is here." There is no observation date, no gauge, no depth.
 
-**It replaces fabricated geometry.** `public/bkk-flood-envelope.geojson` is five
+**It is not a like-for-like geometry replacement.** `public/bkk-flood-envelope.geojson` is five
 hand-drawn polygons that state their own status:
 
 > "Schematic sandbox inspired by 2011 Chao Phraya floods + chronic monsoon drainage
 > failures. Replace with DDPM/BMA official extents when available."
 > "NOT for evacuation, insurance underwriting, or official planning."
 
-Swapping hand-drawn envelopes for an official national classification is a genuine
-upgrade in honesty, even though the official verdict (mostly low) differs from the
-schematic's alarming corridors. That tension is itself worth surfacing: the national
-satellite classification misses Bangkok's urban drainage and riverine flooding, which
-is a real limitation of basin-scale remote sensing.
+The CSV contains classifications, not inundation polygons. Show it as a separate
+historical reference, with aggregation and missing coverage explicit. It cannot
+establish live road clearance or validate the schematic corridors. The schematic
+remains a labelled Labs option and is excluded from the Live Pulse preset.
 
-## The blocker: Atlas has no official khet layer
+## Corrected administrative join — no 154-khet layer needed
 
 `public/bkk-districts.geojson` is **50 features**, sourced from OpenStreetMap
 (`admin_level=6`, relation 92277), keyed by **OSM relation IDs** (92053, 92056, …).
 
-Bangkok has **154 khet** (158 in this dataset). And the two naming schemes disagree —
-only 34 of the 50 names match HII's official khet names, because OSM's layer mixes
-tambon-level and district-level units the way tourism references do.
+Bangkok has **50 khet**. HII's `AMPHOE_CODE` contains all 50 four-digit district
+codes (1001–1050); `GEOCODE` is a six-digit khwaeng/subdistrict identifier.
+Comparing `TAMBON_T` to district names was comparing different administrative levels.
+All **50** atlas Thai district names match HII's `AMPHOE_T` exactly.
 
-So the HII data cannot be joined today. The enabling work is:
+The implemented, reproducible join is:
 
-1. Fetch a **154-khet official boundary layer** carrying DOPA `GEOCODE` (100101…105001).
-2. Join `GEOCODE` → HII `RISK` per calendar month.
-3. Render as a district-level choropleth with the climatology caveat in the UI.
+1. Validate an exact, one-to-one Thai district-name bridge to `AMPHOE_CODE`.
+2. Preserve the atlas's OSM IDs and all boundary coordinates; do not call them official DOPA geometry.
+3. Group subdistrict records by district code and calendar month, retaining band counts.
+4. Colour by the highest band among **reported** khwaeng, with a month selector.
+   Missing district-months are unassessed, never assumed low or dry.
 
-Step 1 also fixes a structural gap Atlas has been carrying: a "districts" layer that is
-neither 154 khet nor consistently sub-district.
+This is a district-level summary of partial historical subdistrict coverage, not
+a khwaeng boundary map. The importer fails on ambiguous names, duplicates or parent-code mismatches.
 
 ## Recommendation
 
-Take the HII flood-risk data and the official 154-khet boundary layer. Do not take
-anything else from Tableau Public. Airbnb remains the single genuine win from this
-platform, and it came from Inside Airbnb, not from the workbook.
+Use the HII history as a separate, attributed non-commercial reference layer.
+Do not invent a 154-khet layer or silently replace current flood reports with history.
+The Tableau findings are research leads, not proof that other useful workbooks do not exist.

@@ -17,6 +17,8 @@ import {
   suspendBuildingMassing,
 } from './building-massing.js';
 
+import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
+
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
   "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -882,6 +884,7 @@ const LAYER_STACK = [
   CIVIC_DENSITY_FILL_LAYER,
   CIVIC_DENSITY_LINE_LAYER,
   DISTRICT_LAYER,
+  HII_HISTORY_LAYER,
   KHLONG_RIVER_LAYER,
   KHLONG_CANAL_LAYER,
   KHLONG_FLOW_LAYER,
@@ -1085,6 +1088,7 @@ function updateStackChips() {
     "city-events": "Live !",
     "news-events": "Buzz",
     flood: "Flood",
+    "hii-history": "History · not live",
     "flood-sensors": "Gauges",
     heat: "Heat",
     aqi: "AQI",
@@ -1345,7 +1349,7 @@ const LAYERS = [
   },
   {
     id: "flood",
-    name: "Flood envelope",
+    name: "Labs · schematic flood envelope",
     description: "Schematic 2011-style corridors",
     defaultOn: false,
     softUninstall: true,
@@ -1356,6 +1360,33 @@ const LAYERS = [
       { color: "#1d4ed8", label: "high severity corridor" },
       { color: "#3d74c4", label: "medium" },
       { color: "#93c5fd", label: "low / drain pocket" },
+    ],
+  },
+  {
+    id: 'hii-history',
+    name: 'HII seasonal flood history',
+    description: '2005–2021 satellite history · calendar month · not live',
+    defaultOn: false,
+    softUninstall: true,
+    layers: [HII_HISTORY_LAYER],
+    install: async map => {
+      try {
+        await installHiiHistory(map,setLayerStatus,event=>pointLayersOwningClick(map,event.point).some(f=>f.layer.id!==HII_HISTORY_LAYER));
+      } catch(error) {
+        setLayerStatus('hii-history','unavailable · historical dataset could not be loaded');
+        throw error;
+      }
+      ensureStackOrder(map);
+    },
+    uninstall: map => {
+      setLayersVisible(map,[HII_HISTORY_LAYER],false);
+      document.getElementById('hii-history-controls').hidden=true;
+    },
+    legend: [
+      {color:'#88a9b5',label:'highest reported band: low (1–3 events in 17 years)'},
+      {color:'#c8a565',label:'highest reported band: medium (4–8)'},
+      {color:'#a95b70',label:'highest reported band: high (9–17)'},
+      {color:'#666966',label:'no record for this month — unassessed, not dry'},
     ],
   },
   {
@@ -7471,6 +7502,7 @@ function floodRiskRows(flood, risk, buildingFeature) {
 
 function pointLayersOwningClick(map, point) {
   const owners = [
+    HII_HISTORY_LAYER,
     ROOF_LAYER,
     CCTV_LAYER,
     LIVE_CAM_LAYER,
@@ -7721,7 +7753,7 @@ function wireStackPresets(map) {
       // FloodDash emergency points). The schematic envelope stays off —
       // it is not today's water.
       flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "canal-gauges": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: true, terrain: false, night: false },
+      pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: false, terrain: false, night: false },
     }[preset];
     if (!wants) return;
     state.nightMode = !!wants.night;
