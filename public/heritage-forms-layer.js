@@ -313,6 +313,29 @@ export async function installHeritageForms(map, features) {
   runtime.chunks = ensureChunkStore(runtime.forms, runtime.chunks);
   if (!runtime.forms.length) return;
 
+  // ?debug only. Reading this module's runtime from an injected
+  // import('/heritage-forms-layer.js') can hand back a different instance than
+  // the one app.js loaded, which is how a broken layer once looked healthy.
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug')) {
+    if (window.__atlas) {
+      window.__atlas.formsDiag = () => {
+        let boundsOk = true;
+        let cells = -1;
+        try { cells = visibleCells(map.getBounds()).size; } catch { boundsOk = false; }
+        return {
+          forms: runtime.forms?.length ?? 0,
+          chunks: runtime.chunks?.size ?? 0,
+          built: runtime.builtChunks ?? 0,
+          active: runtime.active,
+          hasPump: typeof runtime.startPumping === 'function',
+          boundsOk,
+          cellsInView: cells,
+          zoom: Number(map.getZoom().toFixed(1)),
+        };
+      };
+    }
+  }
+
   const activate = async () => {
     if (runtime.layer || !map.getLayer || !map.getCanvas()) return;
     try {
