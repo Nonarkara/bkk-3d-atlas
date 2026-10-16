@@ -21,9 +21,9 @@ import {
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
-import { installTrafficPilot } from './traffic-vision.js?v=twin-audit-20261015-2';
+import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261016-1792149945-d31ccbc';
 // Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
-const ATLAS_BUILD = "dev";
+const ATLAS_BUILD = "bkk-atlas-20261016-1792149945-d31ccbc";
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
