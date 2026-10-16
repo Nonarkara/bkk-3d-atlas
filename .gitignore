@@ -22,3 +22,4 @@ out/
 #     --file=/tmp/bkk-buildings/bangkok-buildings-h.pmtiles --remote
 public/*.pmtiles
 
+.deploy-locked

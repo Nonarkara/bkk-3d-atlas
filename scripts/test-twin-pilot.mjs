@@ -25,8 +25,11 @@ test('ordinary camera wall never loads traffic model or needs DOM access', () =>
 test('release URLs invalidate both the entry module and its changed CV import', async () => {
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
-  assert.match(html,/src="\/app\.js\?v=twin-audit-20261015-2"/);
-  assert.match(app,/traffic-vision\.js\?v=twin-audit-20261015-2/);
+  // One release tag everywhere (scripts/stamp-build-id.mjs): entry module, its CV import, the badge.
+  const entry=html.match(/src="\/app\.js\?v=([^"]+)"/)[1];
+  assert.equal(app.match(/traffic-vision\.js\?v=([^']+)'/)[1],entry);
+  const build=app.match(/const ATLAS_BUILD = "([^"]+)";/)[1];
+  assert.ok(build===entry||build==='dev','ATLAS_BUILD matches the stamped entry, or is an unreleased dev tree');
 });
 test('photo intake rejects small sets and verifies hashes before reconstruction', async () => {
   const dir=await mkdtemp(join(tmpdir(),'bkk-photo-intake-'));

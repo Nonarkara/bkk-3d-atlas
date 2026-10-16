@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node --test scripts/test-*.mjs",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy --config wrangler.cron.toml && wrangler deploy",
+    "deploy": "bash scripts/deploy-live.sh",
     "deploy:live": "bash scripts/deploy-live.sh",
     "typecheck": "tsc --noEmit",
     "test:flood": "node --test scripts/test-flood-integrity.mjs",
@@ -22,7 +22,9 @@
     "test:massing": "node --test scripts/test-building-massing.mjs",
     "build:palace": "node scripts/palace-standin.mjs",
     "verify": "node scripts/verify-local.mjs",
-    "smoke": "node scripts/smoke-atlas-api.mjs"
+    "smoke": "node scripts/smoke-atlas-api.mjs",
+    "release": "bash scripts/deploy-live.sh",
+    "stamp": "node scripts/stamp-build-id.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261008.1",
