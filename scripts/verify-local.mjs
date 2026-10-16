@@ -410,10 +410,10 @@ if (!cronToml.includes("CIVIC_DB") || !cronToml.includes('binding = "ASSETS"')) 
   ok("cron Worker binds CIVIC_DB and ASSETS");
 }
 {
-  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  const deploy = pkg.scripts?.deploy ?? "";
+  // npm run deploy / release run scripts/deploy-live.sh; the order lives there.
+  const deploy = readFileSync(join(root, "scripts/deploy-live.sh"), "utf8");
   const cronDeploy = "wrangler deploy --config wrangler.cron.toml";
-  if (!deploy.includes(cronDeploy) || deploy.indexOf(cronDeploy) > deploy.indexOf("&& wrangler deploy")) {
+  if (!deploy.includes(cronDeploy) || deploy.indexOf(cronDeploy) > deploy.indexOf("npx wrangler deploy\n")) {
     fail("npm run deploy must upload wrangler.cron.toml before the request Worker");
   } else {
     ok("npm run deploy uploads the cron Worker first");
