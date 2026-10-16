@@ -20,7 +20,11 @@ export const FORMS_LAYER = 'bkkx-heritage-forms';
 export const FORMS_MIN_ZOOM = 15;
 const SHOPHOUSE_URL = '/bkk-shophouse-candidates.geojson';
 
-const runtime = { map: null, layer: null, forms: null, active: false, installed: false, shophouseSkipped: 0 };
+const runtime = {
+  map: null, layer: null, forms: null, chunks: new Map(),
+  active: false, installed: false, shophouseSkipped: 0,
+  builtChunks: 0, startPumping: null, pumpNow: null,
+};
 
 const KIND_LABEL = {
   hall: 'Viharn / ubosot hall',
@@ -70,6 +74,52 @@ function buildGeometry(THREE, forms) {
   return geometry;
 }
 
+// ── Spatial chunking ────────────────────────────────────────────────────────
+// One merged mesh for all 1,080 forms cost 84 ms of main thread on the first
+// zoom-in and then drew 93k triangles every frame with nothing culled — a hard
+// stall on a phone. Chunks are built on demand near the camera and disposed
+// once the camera leaves, so a cold start pays a few milliseconds per frame
+// and only what is on screen is ever submitted.
+const CHUNK_DEG = 0.0025; // ~275 m. Measured over the real form set this is the
+// knee: 0.004 leaves one chunk with 263 forms, 0.0025 caps it at 128.
+const CHUNKS_PER_FRAME = 2;
+const KEEP_RADIUS = 3;   // cells beyond the viewport before a chunk is dropped
+
+function chunkCentroid(f) {
+  let x = 0;
+  let y = 0;
+  for (const [lng, lat] of f.ring) { x += lng; y += lat; }
+  return [x / f.ring.length, y / f.ring.length];
+}
+
+export function chunkKeyFor(lng, lat, deg = CHUNK_DEG) {
+  return `${Math.floor(lng / deg)}:${Math.floor(lat / deg)}`;
+}
+
+export function groupIntoChunks(forms, deg = CHUNK_DEG) {
+  const cells = new Map();
+  for (const f of forms) {
+    const [x, y] = chunkCentroid(f);
+    const k = chunkKeyFor(x, y, deg);
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(f);
+  }
+  return cells;
+}
+
+/** Cells covering the viewport plus a margin, so panning does not thrash. */
+export function visibleCells(bounds, deg = CHUNK_DEG) {
+  const w = bounds.getWest();
+  const s = bounds.getSouth();
+  const e = bounds.getEast();
+  const n = bounds.getNorth();
+  const out = new Set();
+  for (let i = Math.floor(w / deg) - 1; i <= Math.floor(e / deg) + 1; i++) {
+    for (let j = Math.floor(s / deg) - 1; j <= Math.floor(n / deg) + 1; j++) out.add(`${i}:${j}`);
+  }
+  return out;
+}
+
 function describe(form) {
   if (form.kind === 'shophouse') {
     const sh = form.shophouse ?? {};
@@ -105,15 +155,67 @@ function createLayer(THREE, forms) {
   let renderer = null;
   const scene = new THREE.Scene();
   const camera = new THREE.Camera();
-  const geometry = buildGeometry(THREE, forms);
   // Faces are wound both ways and the Mercator flip mirrors them; draw both sides.
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-  scene.add(new THREE.Mesh(geometry, material));
   // Late-afternoon light from the south-west — the Chao Phraya side.
   const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
   sun.position.set(-0.6, -0.8, 1.2).normalize();
   scene.add(sun);
   scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x3a3326, 1.1));
+
+  const chunks = runtime.chunks;
+  let pump = 0;
+
+  /** Build a couple of missing chunks per frame; never block the main thread. */
+  function pumpChunks(map) {
+    const need = visibleCells(map.getBounds());
+    const pending = [];
+    for (const key of need) {
+      const cell = chunks.get(key);
+      if (cell && !cell.mesh) pending.push(key);
+    }
+    for (const key of pending.slice(0, CHUNKS_PER_FRAME)) {
+      const cell = chunks.get(key);
+      if (!cell || cell.mesh) continue;
+      const geo = buildGeometry(THREE, cell.forms);
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.frustumCulled = false; // the shared model matrix is not the default one
+      scene.add(mesh);
+      cell.mesh = mesh;
+      cell.geo = geo;
+    }
+    // Drop chunks the camera has left well behind, with hysteresis so a
+    // boundary jitter cannot thrash a build/dispose cycle.
+    if (need.size && chunks.size > need.size * 2) {
+      for (const [key, cell] of chunks) {
+        if (need.has(key) || !cell.mesh) continue;
+        if (cell.usedTick === pump) continue;
+        scene.remove(cell.mesh);
+        cell.geo.dispose();
+        cell.mesh = null;
+        cell.geo = null;
+      }
+      for (const key of [...chunks.keys()]) if (!chunks.get(key).mesh) chunks.delete(key);
+    }
+    runtime.builtChunks = [...chunks.values()].filter((c) => c.mesh).length;
+  }
+
+  function startPumping(map) {
+    pumpChunks(map);
+    if (pump) cancelAnimationFrame(pump);
+    const tick = () => {
+      const need = visibleCells(map.getBounds());
+      let missing = 0;
+      for (const key of need) { const c = chunks.get(key); if (c && !c.mesh) missing++; }
+      for (const key of need) { const c = chunks.get(key); if (c) c.usedTick = pump; }
+      pumpChunks(map);
+      if (missing > CHUNKS_PER_FRAME) pump = requestAnimationFrame(tick);
+      else pump = 0;
+    };
+    pump = requestAnimationFrame(tick);
+  }
+  runtime.startPumping = startPumping;
+  runtime.pumpNow = () => pumpChunks(map);
 
   return {
     id: FORMS_LAYER,
@@ -132,7 +234,17 @@ function createLayer(THREE, forms) {
       renderer.render(scene, camera);
     },
     onRemove() {
-      geometry.dispose();
+      for (const cell of chunks.values()) {
+        if (cell.mesh) scene.remove(cell.mesh);
+        cell.geo?.dispose();
+        cell.mesh = null;
+        cell.geo = null;
+      }
+      chunks.clear();
+      if (pump) cancelAnimationFrame(pump);
+      pump = 0;
+      runtime.startPumping = null;
+      runtime.pumpNow = null;
       material.dispose();
       renderer = null;
     },
@@ -175,6 +287,7 @@ export async function installHeritageForms(map, features) {
       console.warn('Shophouse candidates unavailable; Thai forms retained:', error);
     }
     runtime.forms = forms;
+    runtime.chunks = groupIntoChunks(forms);
   }
   if (!runtime.forms.length) return;
 
@@ -195,6 +308,11 @@ export async function installHeritageForms(map, features) {
     // stacking two roofs on Wat Phra Kaew.
     if (map.getLayer(ROOF_LAYER)) {
       try { map.setLayoutProperty(ROOF_LAYER, 'visibility', 'none'); } catch { /* not added yet */ }
+    }
+    // Build only the chunks near the camera, a couple per frame.
+    runtime.startPumping?.(map);
+    for (const ev of ['moveend', 'zoomend']) {
+      map.on(ev, () => { if (runtime.active) runtime.startPumping?.(map); });
     }
   };
 
@@ -225,6 +343,8 @@ export function uninstallHeritageForms(map) {
   }
   runtime.layer = null;
   runtime.map = null;
+  runtime.chunks.clear();
+  runtime.builtChunks = 0;
 }
 
 export function heritageFormsCount() {

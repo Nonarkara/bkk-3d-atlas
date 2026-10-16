@@ -527,11 +527,30 @@ if (
   !formsUsable
 ) {
   fail("Thai heritage forms are not wired");
-} else ok("Thai heritage forms are wired, lazy and MapLibre-4 safe");
+} else ok("Thai heritage forms are wired, lazy and chunked");
 const formsTest = spawnSync(process.execPath, ["--test", "scripts/test-heritage-forms.mjs"], { cwd: root, encoding: "utf8" });
 if (formsTest.status !== 0) {
   fail(`heritage forms tests failed\n${formsTest.stdout || ""}\n${formsTest.stderr || ""}`);
 } else ok("heritage forms tests passed");
+
+// MapLibre floor. GHSA-jrc7-96c5-q579 (CVE-2026-85061) is a critical XSS in
+// DOM.sanitize(): affected <= 6.4.0, patched in 6.4.1. The atlas self-hosts the
+// library, so nothing forces an upgrade — a stale vendor directory would ship
+// a zero-click XSS with no package manager to catch it. Pin the floor here.
+const vendorMatch = html.match(/vendor\/maplibre-([0-9]+)\.([0-9]+)\.([0-9]+)\//);
+if (!vendorMatch) {
+  fail("cannot determine the vendored MapLibre version");
+} else {
+  const major = Number(vendorMatch[1]);
+  const minor = Number(vendorMatch[2]);
+  const patch = Number(vendorMatch[3]);
+  const atLeastPatched = major > 6 || (major === 6 && (minor > 4 || (minor === 4 && patch >= 1)));
+  if (!atLeastPatched) {
+    fail(`vendored MapLibre ${vendorMatch[0]} is vulnerable to GHSA-jrc7-96c5-q579; 6.4.1 is the floor`);
+  } else {
+    ok(`vendored MapLibre ${major}.${minor}.${patch} clears GHSA-jrc7-96c5-q579`);
+  }
+}
 
 // app.js is loaded as type="module". A missing brace once parsed in script
 // mode, passed review, and took the whole map down in browsers (2026-10-14).

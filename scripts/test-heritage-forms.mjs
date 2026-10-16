@@ -184,3 +184,55 @@ test('a shophouse does not borrow temple vocabulary', () => {
   // Plinth is the only colour the two may share; gold pediments must not appear.
   assert.ok(shared.length <= 1, `shophouse reused temple colours: ${shared.join(' | ')}`);
 });
+
+// ── Chunking: the perf guard ────────────────────────────────────────────────
+// A single merged mesh for every form cost 84 ms on the first zoom-in and drew
+// 93k triangles per frame with nothing culled. Chunking is what stops that
+// coming back, so the budget is asserted, not assumed.
+import { groupIntoChunks, visibleCells, chunkKeyFor } from '../public/heritage-forms-layer.js';
+
+const ALL_FORMS = [
+  ...detail.features.map(classify),
+  ...shopData.features.map(classifyShophouse),
+].filter(Boolean);
+
+test('chunking keeps every form and splits the dense Old Town', () => {
+  const cells = groupIntoChunks(ALL_FORMS);
+  const total = [...cells.values()].reduce((n, arr) => n + arr.length, 0);
+  assert.equal(total, ALL_FORMS.length, 'chunking lost or duplicated a form');
+  assert.ok(cells.size > 8, `expected several chunks, got ${cells.size}`);
+  const worst = Math.max(...[...cells.values()].map((a) => a.length));
+  assert.ok(worst < ALL_FORMS.length / 4, `one chunk holds ${worst} of ${ALL_FORMS.length}`);
+});
+
+test('a chunk is structurally small enough to build in a frame', () => {
+  // Asserting wall-clock here is a coin flip: this suite is also spawned as a
+  // subprocess while a machine is busy, and it failed 3 times in 9 runs while
+  // the code was unchanged. The bound that actually guarantees the cost is
+  // structural — forms per chunk — so assert that, and report the timing.
+  const MAX_FORMS_PER_CHUNK = 160;
+  let worstMs = 0;
+  let worstCount = 0;
+  for (const [, forms] of groupIntoChunks(ALL_FORMS)) {
+    assert.ok(forms.length <= MAX_FORMS_PER_CHUNK, `chunk holds ${forms.length} forms`);
+    const t0 = performance.now();
+    for (const f of forms) buildForm(f);
+    const ms = performance.now() - t0;
+    if (forms.length > worstCount) { worstCount = forms.length; worstMs = ms; }
+  }
+  // Informational only — never an assertion.
+  const cells = groupIntoChunks(ALL_FORMS);
+  console.log(`    ${cells.size} chunks; largest ${worstCount} forms built in ${worstMs.toFixed(1)} ms`);
+  assert.ok(cells.size >= 30, `expected the form set to stay split, got ${cells.size} chunks`);
+});
+
+test('the viewport selects chunks and always includes the origin cell', () => {
+  const fakeBounds = {
+    getWest: () => 100.49, getEast: () => 100.51,
+    getSouth: () => 13.74, getNorth: () => 13.76,
+  };
+  const cells = visibleCells(fakeBounds);
+  assert.ok(cells.has(chunkKeyFor(100.5, 13.75)), 'the camera cell must be built');
+  assert.ok(cells.size >= 9, `viewport should span several cells, got ${cells.size}`);
+  assert.ok(!cells.has(chunkKeyFor(101.4, 13.75)), 'distant cells must not be built');
+});
