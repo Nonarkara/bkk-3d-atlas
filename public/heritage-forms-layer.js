@@ -188,11 +188,15 @@ function createLayer(THREE, forms) {
   function pumpChunks(map) {
     let need;
     try { need = visibleCells(map.getBounds()); } catch { return; }
+    runtime.pumpRuns = (runtime.pumpRuns || 0) + 1;
     const pending = [];
+    let known = 0;
     for (const key of need) {
       const cell = chunks.get(key);
+      if (cell) known++;
       if (cell && !cell.mesh) pending.push(key);
     }
+    runtime.lastPump = { need: need.size, known, pending: pending.length, chunks: chunks.size };
     for (const key of pending.slice(0, CHUNKS_PER_FRAME)) {
       const cell = chunks.get(key);
       if (!cell || cell.mesh) continue;
@@ -328,6 +332,8 @@ export async function installHeritageForms(map, features) {
           built: runtime.builtChunks ?? 0,
           active: runtime.active,
           hasPump: typeof runtime.startPumping === 'function',
+          pumpRuns: runtime.pumpRuns || 0,
+          lastPump: runtime.lastPump || null,
           boundsOk,
           cellsInView: cells,
           zoom: Number(map.getZoom().toFixed(1)),
