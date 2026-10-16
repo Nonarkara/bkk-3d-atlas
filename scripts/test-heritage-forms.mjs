@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { classify, buildForm, ORIGIN } from '../public/heritage-forms.js';
+import { classify, classifyShophouse, buildForm, ORIGIN } from '../public/heritage-forms.js';
 import { classifyAll } from '../public/heritage-forms-layer.js';
 
 const detail = JSON.parse(
@@ -106,4 +106,81 @@ test('one malformed footprint does not lose the rest', () => {
     feature({ name: 'พระอุโบสถ', building: 'temple', height: 20 }),
   ];
   assert.equal(classifyAll(broken).length, 2);
+});
+// ── Shophouse row candidates ───────────────────────────────────────────────
+const shopFile = new URL('../public/bkk-shophouse-candidates.geojson', import.meta.url);
+const shopData = JSON.parse(readFileSync(shopFile, 'utf8'));
+
+function shopFeature(overrides) {
+  return {
+    type: 'Feature',
+    properties: {
+      overture_id: 'test-1', name: 'Tanao Road rows', cluster_name: 'Tanao Road rows',
+      num_floors: 3, height_basis: 'overture-storeys', height_m: null,
+      candidate_strength: 'strong morphology', review_status: 'unverified candidate',
+      not_heritage_designation: true, detail_box_id: 'bkk-building-123', ...overrides,
+    },
+    geometry: { type: 'Polygon', coordinates: [[[100.5, 13.75], [100.50005, 13.75], [100.50005, 13.75005], [100.5, 13.75005], [100.5, 13.75]]] },
+  };
+}
+
+test('a candidate with a real storey count becomes a shophouse', () => {
+  const s = classifyShophouse(shopFeature({}));
+  assert.equal(s.kind, 'shophouse');
+  assert.equal(s.shophouse.floors, 3);
+  assert.equal(s.height, 3 * 3.15);
+  assert.ok(s.heightSource.includes('assumed storey'));
+});
+
+test('a candidate with no recorded storey height is refused, never zeroed', () => {
+  // These were screened on a modal storey height that was never written down.
+  // Rendering them would put an invented number on a real building.
+  assert.equal(classifyShophouse(shopFeature({ num_floors: null })), null);
+  assert.equal(classifyShophouse(shopFeature({ height_basis: 'modal-storeys', num_floors: null })), null);
+  assert.equal(classifyShophouse(shopFeature({ height_basis: 'modal-storeys', num_floors: 2 })), null);
+});
+
+test('a shophouse is never dressed as confirmed heritage', () => {
+  const s = classifyShophouse(shopFeature({}));
+  assert.equal(s.confidence, 'inferred');
+  assert.equal(s.shophouse.notHeritage, true);
+  assert.equal(s.shophouse.review, 'unverified candidate');
+});
+
+test('absurd storey counts are refused rather than drawn', () => {
+  assert.equal(classifyShophouse(shopFeature({ num_floors: 0 })), null);
+  assert.equal(classifyShophouse(shopFeature({ num_floors: 40 })), null);
+  assert.equal(classifyShophouse(shopFeature({ num_floors: Number.NaN })), null);
+});
+
+test('the real candidate file renders only where a storey count exists', () => {
+  const all = shopData.features.length;
+  const forms = shopData.features.map(classifyShophouse).filter(Boolean);
+  const withFloors = shopData.features.filter((f) => f.properties.height_basis === 'overture-storeys').length;
+  assert.ok(forms.length > 500, `expected a real row of shophouses, got ${forms.length}`);
+  assert.ok(forms.length <= withFloors, 'a form must never exist without a recorded storey count');
+  assert.ok(forms.length < all, 'candidates without a storey count must be skipped, not all-or-nothing');
+  for (const f of forms) {
+    assert.equal(f.kind, 'shophouse');
+    assert.ok(f.height > 0, 'height must never be zero');
+    assert.equal(f.shophouse.floors, Math.round(f.height / 3.15));
+  }
+});
+
+test('every shophouse builds finite geometry', () => {
+  for (const f of shopData.features.map(classifyShophouse).filter(Boolean)) {
+    const m = buildForm(f);
+    assert.ok(m.positions.length > 0, `${f.id} produced an empty shophouse`);
+    assert.ok(m.positions.every(Number.isFinite), `${f.id} produced a non-finite vertex`);
+  }
+});
+
+test('a shophouse does not borrow temple vocabulary', () => {
+  const s = classifyShophouse(shopFeature({}));
+  const shop = buildForm(s);
+  const hall = buildForm(classify(feature({ name: 'พระวิหารยอด', building: 'temple', height: 9.45 })));
+  const keys = (m) => new Set(Array.from({ length: m.colors.length / 3 }, (_, i) => m.colors.slice(i * 3, i * 3 + 3).join(',')));
+  const shared = [...keys(shop)].filter((c) => keys(hall).has(c));
+  // Plinth is the only colour the two may share; gold pediments must not appear.
+  assert.ok(shared.length <= 1, `shophouse reused temple colours: ${shared.join(' | ')}`);
 });

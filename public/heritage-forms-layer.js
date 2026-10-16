@@ -13,13 +13,14 @@
 // "inferred" (only building type and shape do). Clicking one says which, and
 // says that the profile is a typological reading rather than a measurement.
 
-import { buildForm, classify, ORIGIN } from './heritage-forms.js';
+import { buildForm, classify, classifyShophouse, ORIGIN } from './heritage-forms.js';
 import { ROOF_LAYER } from './heritage-roofs.js';
 
 export const FORMS_LAYER = 'bkkx-heritage-forms';
 export const FORMS_MIN_ZOOM = 15;
+const SHOPHOUSE_URL = '/bkk-shophouse-candidates.geojson';
 
-const runtime = { map: null, layer: null, forms: null, active: false, installed: false };
+const runtime = { map: null, layer: null, forms: null, active: false, installed: false, shophouseSkipped: 0 };
 
 const KIND_LABEL = {
   hall: 'Viharn / ubosot hall',
@@ -30,6 +31,7 @@ const KIND_LABEL = {
   prasat: 'Prasat',
   throne: 'Throne hall',
   fort: 'Fort',
+  shophouse: 'Shophouse row unit',
 };
 
 /**
@@ -69,6 +71,16 @@ function buildGeometry(THREE, forms) {
 }
 
 function describe(form) {
+  if (form.kind === 'shophouse') {
+    const sh = form.shophouse ?? {};
+    return [
+      form.name || 'Shophouse row candidate',
+      `${sh.floors ?? '?'} storeys · ${Math.round(form.height)} m (assumed storey height)`,
+      `Corridor: ${sh.cluster ?? 'unknown'} · ${sh.strength ?? 'unknown strength'}`,
+      `<b>Unverified candidate.</b> Detected by morphology screen, not a heritage survey.`,
+      'Not a designated heritage structure. Not evidence for protection, value or demolition.',
+    ].join('<br>');
+  }
   const named = form.confidence === 'named';
   return [
     form.name || '(unnamed building)',
@@ -148,7 +160,24 @@ function nearestForm(lngLat) {
 export async function installHeritageForms(map, features) {
   if (!map || !Array.isArray(features)) return;
   runtime.map = map;
-  if (!runtime.forms) runtime.forms = classifyAll(features);
+  if (!runtime.forms) {
+    const forms = classifyAll(features);
+    // Shophouse candidates are a separate, newer file. If it fails, the Thai
+    // forms still render — losing the rows must not cost the temples.
+    try {
+      const res = await fetch(SHOPHOUSE_URL);
+      if (!res.ok) throw new Error(`shophouse candidates HTTP ${res.status}`);
+      const shop = await res.json();
+      const shophouses = (shop.features ?? [])
+        .map((f) => { try { return classifyShophouse(f); } catch { return null; } })
+        .filter(Boolean);
+      runtime.shophouseSkipped = (shop.features?.length ?? 0) - shophouses.length;
+      forms.push(...shophouses);
+    } catch (error) {
+      console.warn('Shophouse candidates unavailable; Thai forms retained:', error);
+    }
+    runtime.forms = forms;
+  }
   if (!runtime.forms.length) return;
 
   const activate = async () => {
@@ -202,4 +231,9 @@ export function uninstallHeritageForms(map) {
 
 export function heritageFormsCount() {
   return runtime.forms ? runtime.forms.length : 0;
+}
+
+/** Candidates left out because no storey count was recorded. */
+export function shophouseSkippedCount() {
+  return runtime.shophouseSkipped;
 }

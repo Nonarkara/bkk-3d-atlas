@@ -37,7 +37,12 @@ const C = {
   // green border tile
   gold: [0.84, 0.66, 0.2],
   ceramic: [0.84, 0.82, 0.77],
-  shade: [0.62, 0.6, 0.56]
+  shade: [0.62, 0.6, 0.56],
+  // Shophouses are not temple architecture. Warm lime plaster, a dark band at
+  // every floor line, plain glazed tile. No gold, no chofa, no skirt tile.
+  shopWall: [0.79, 0.68, 0.52],
+  shopBand: [0.36, 0.29, 0.25],
+  shopRoof: [0.29, 0.25, 0.23]
 };
 class Builder {
   positions = [];
@@ -203,6 +208,38 @@ function gableTier(b, r, hl, hw, zEave, zRidge, chofa, roofCol, zCap) {
     }
   }
 }
+/**
+ * A shophouse row unit: narrow frontage, plastered wall banded at each floor,
+ * and a plain tiled gable with the ridge along the long axis.
+ *
+ * Deliberately not temple vocabulary — no chofa, no gold pediment, no skirt
+ * tile. Those would make an ordinary commercial building read as a wat.
+ */
+function shophouse(b, r, z0, H, floors) {
+  const zPl = z0 + Math.min(0.4, 0.05 * H);
+  b.prism(rectRing(r, r.hl, r.hw), z0, zPl, C.plinth);
+  const wallTop = z0 + 0.78 * H;
+  b.prism(rectRing(r, r.hl * 0.98, r.hw * 0.92), zPl, wallTop, C.shopWall);
+  // The string course at each floor line is what makes a row read as a row.
+  const n = Math.max(1, Math.min(4, floors || 2));
+  for (let i = 1; i < n; i++) {
+    const z = z0 + (wallTop - z0) * (i / n);
+    b.band(
+      rectRing(r, r.hl * 1.005, r.hw * 0.95), rectRing(r, r.hl * 0.98, r.hw * 0.92),
+      z - 0.16, z + 0.16, C.shopBand,
+    );
+  }
+  const hl = r.hl * 0.99, hw = r.hw * 0.93;
+  const e = (u, v, z) => [...at(r, u, v), z];
+  const zRidge = z0 + H;
+  b.quad(e(-hl, -hw, wallTop), e(hl, -hw, wallTop), e(hl, 0, zRidge), e(-hl, 0, zRidge), C.shopRoof);
+  b.quad(e(hl, hw, wallTop), e(-hl, hw, wallTop), e(-hl, 0, zRidge), e(hl, 0, zRidge), C.shopRoof);
+  // Close the gable ends in plaster, not gold.
+  for (const s of [-1, 1]) {
+    const u = s * hl;
+    b.tri(e(u, -hw, wallTop), e(u, hw, wallTop), e(u, 0, zRidge), C.shopWall);
+  }
+}
 function hall(b, r, z0, H, tiers, open = false) {
   const zPl = z0 + Math.min(1.2, 0.06 * H);
   b.prism(rectRing(r, r.hl, r.hw), z0, zPl, C.plinth);
@@ -338,6 +375,9 @@ function buildForm(spec) {
     case "fort":
       fort(b, local, r, z0, H);
       break;
+    case "shophouse":
+      shophouse(b, r, z0, H, spec.tiers);
+      break;
   }
   return { positions: b.positions, colors: b.colors };
 }
@@ -436,6 +476,59 @@ function classify(f) {
   if (s.vertices >= 8 && s.aspect < 1.2 && s.fill > 0.68 && s.fill < 0.86 && s.area <= 900) return spec("chedi");
   return null;
 }
+/**
+ * Shophouse row candidates → shophouse forms.
+ *
+ * These are morphology-detected row units from BKKx's Overture screen, NOT a
+ * heritage survey. Every one is `review_status: "unverified candidate"` and
+ * `not_heritage_designation: true`, so they are always "inferred" and never
+ * "named" here.
+ *
+ * Only candidates that carry a real Overture storey count are rendered. The
+ * rest were screened on a modal storey height that was never written down, so
+ * their height is unknown; inventing one would put a fabricated number on a
+ * building. Unknown stays unknown — they are skipped, not zeroed.
+ *
+ * Height = storeys × STOREY_M, where STOREY_M is the same 3.15 m the atlas
+ * already uses for building massing. That is an assumption, and the spec says
+ * so in `heightSource` so a click can admit it.
+ */
+const STOREY_M = 3.15;
+function classifyShophouse(f) {
+  const p = f.properties ?? {};
+  const ring = outerRing(f);
+  if (!ring || ring.length < 4) return null;
+  const floors = Number(p.num_floors);
+  if (!Number.isFinite(floors) || floors < 1 || floors > 6) return null;
+  if (p.height_basis !== "overture-storeys") return null;
+  const s = shapeOf(ring);
+  if (s.area < 8 || s.area > 900) return null;
+  return {
+    id: String(p.overture_id ?? p.id ?? ""),
+    kind: "shophouse",
+    name: p.name ?? p.cluster_name ?? null,
+    nameEn: null,
+    ring,
+    base: 0,
+    height: floors * STOREY_M,
+    tiers: Math.round(floors),
+    spires: 0,
+    finish: "white",
+    confidence: "inferred",
+    heightSource: `overture-storeys x ${STOREY_M} m (assumed storey)`,
+    heightConfidence: null,
+    osmId: String(p.detail_box_id ?? "").replace(/^bkk-building-/, "") || null,
+    replaces: { detail: [], hero: [] },
+    shophouse: {
+      cluster: p.cluster_name ?? null,
+      strength: p.candidate_strength ?? null,
+      review: p.review_status ?? "unverified candidate",
+      notHeritage: p.not_heritage_designation === true,
+      floors,
+    },
+  };
+}
+
 function heroForms(heroFeatures, detailByOsm) {
   const groups = /* @__PURE__ */ new Map();
   for (const f of heroFeatures) {
@@ -509,6 +602,7 @@ export {
   ORIGIN,
   buildForm,
   classify,
+  classifyShophouse,
   earClip,
   fitRect,
   heroForms,
