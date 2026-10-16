@@ -3,10 +3,11 @@
 // each entry owns its source(s), paint, and toggle behavior.
 //
 // Sharp edges only. No rounded corners on the chrome.
-// Signal yellow `#c9ff38` is reserved for the primary buildings layer
-// when in monochrome mode. The "type colors" mode pulls from the
-// BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
-// residential / industrial palettes).
+// Signal yellow `#c9ff38` means live signal (2026-10-16, owner's choice):
+// ordinary building fabric is warm grey `#9a9a90`, so 432,077 buildings no
+// longer compete with flood, rail and camera layers. The "type colors" mode
+// (BUILDING_COLOR_BY_TYPE) colours only distinct types; houses, sheds and
+// untagged fabric stay grey.
 
 import './maplibre-global.js'; // must stay first: sets window.maplibregl (v6, self-hosted)
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
@@ -197,9 +198,9 @@ const BUILDING_OPACITY_WEATHER = [
   17, 0.95,
 ];
 
-// 3D buildings — monochrome (signal yellow) for the default atlas mode.
+// 3D buildings — monochrome (warm grey) for the default atlas mode.
 const BUILDING_PAINT_MONOCHROME = {
-  "fill-extrusion-color": "#c9ff38",
+  "fill-extrusion-color": "#9a9a90",
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
   "fill-extrusion-base": BUILDING_MIN_HEIGHT_EXPRESSION,
   "fill-extrusion-opacity": BUILDING_OPACITY_BY_ZOOM,
@@ -263,14 +264,14 @@ const BUILDING_COLOR_BY_TYPE = [
   "manufacture", "#6b7280",
   "data_center", "#52525b",
   // residential variants
-  "house", "#d4ff5b",
-  "residential", "#d4ff5b",
-  "detached", "#d4ff5b",
-  "terrace", "#d4ff5b",
-  "semidetached_house", "#d4ff5b",
-  "townhouse", "#d4ff5b",
-  "bungalow", "#d4ff5b",
-  "hut", "#d4ff5b",
+  "house", "#a8a89e",
+  "residential", "#a8a89e",
+  "detached", "#a8a89e",
+  "terrace", "#a8a89e",
+  "semidetached_house", "#a8a89e",
+  "townhouse", "#a8a89e",
+  "bungalow", "#a8a89e",
+  "hut", "#a8a89e",
   "apartments", "#fb923c",
   "dormitory", "#fb923c",
   "condominium", "#fb923c",
@@ -283,12 +284,12 @@ const BUILDING_COLOR_BY_TYPE = [
   "carport", "#525252",
   "fuel", "#a3a3a3",
   // storage / outbuildings
-  "shed", "#c9ff38",
-  "roof", "#c9ff38",
-  "stilt_house", "#d4ff5b",
-  "construction", "#c9ff38",
+  "shed", "#9a9a90",
+  "roof", "#9a9a90",
+  "stilt_house", "#a8a89e",
+  "construction", "#9a9a90",
   // default
-  "#c9ff38",
+  "#9a9a90",
 ];
 
 const BUILDING_PAINT_BY_TYPE = {
@@ -309,7 +310,7 @@ const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-vertical-gradient": true,
 };
 const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
-  "fill-extrusion-color": "#c9ff38",
+  "fill-extrusion-color": "#9a9a90",
   "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
   "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
   "fill-extrusion-opacity": 1,
@@ -1164,10 +1165,10 @@ const LAYERS = [
       { color: "#ec4899", label: "hotel" },
       { color: "#a855f7", label: "museum" },
       { color: "#fef3c7", label: "commercial / shophouse" },
-      { color: "#d4ff5b", label: "house" },
+      { color: "#a8a89e", label: "house" },
       { color: "#fb923c", label: "apartments" },
       { color: "#6b7280", label: "industrial" },
-      { color: "#c9ff38", label: "untagged" },
+      { color: "#9a9a90", label: "untagged" },
     ],
   },
   {
