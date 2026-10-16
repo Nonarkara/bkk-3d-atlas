@@ -25,12 +25,13 @@ export function withDeadline(task, milliseconds = 45000) {
     Promise.resolve(task).then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
-function loadScript(src, ready) {
+function loadScript(src, integrity, ready) {
   if (ready()) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     const timer = setTimeout(() => { script.remove(); reject(new Error('Model download timed out')); }, 30000);
     script.src = src;
+    script.integrity = integrity; // pinned: a changed CDN file refuses to run
     script.crossOrigin = 'anonymous';
     script.onload = () => { clearTimeout(timer); ready() ? resolve() : reject(new Error('Model runtime unavailable')); };
     script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error('Model download unavailable')); };
@@ -39,8 +40,8 @@ function loadScript(src, ready) {
 }
 async function model() {
   if (!modelPromise) modelPromise = (async () => {
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', () => runtimeReady(window.tf));
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', () => typeof window.cocoSsd?.load === 'function');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', 'sha384-vE8hbVJ4lezako5rlvE7bY0BVzWlFhZncPlckrqNwcUQpVtgbENTgZ8TBbnPjZre', () => runtimeReady(window.tf));
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', 'sha384-7qLdgfEQyO9ZQi9ArRHigK+IBto4XPk468jAqc+fnsXaZIcMAhQeLwzggRK7aESl', () => typeof window.cocoSsd?.load === 'function');
     return window.cocoSsd.load({ base: 'lite_mobilenet_v2' });
   })(); // A failed/hung model requires reload; do not pile up weight downloads.
   return modelPromise;

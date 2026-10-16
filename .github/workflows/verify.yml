@@ -17,9 +17,4 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - run: npm run typecheck
-      - run: npm run test:flood
-      - run: npm run test:history
-      - run: npm run test:sources
-      - run: npm run test:place
-      - run: npm run test:wall
-      - run: npm run test:twin
+      - run: npm test # every scripts/test-*.mjs, so a new suite cannot be skipped
