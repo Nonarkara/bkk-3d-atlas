@@ -79,6 +79,14 @@
         <button type="button" data-task="place" disabled>Check a place</button>
         <button type="button" data-task="water" disabled>Water now</button>
         <button type="button" data-task="explore" disabled>Explore</button>
+        <!-- Lenses: the panel's presets, one tap from the map (Jakarta atlas pattern). -->
+        <span class="atlas-lens-divider" aria-hidden="true"></span>
+        <button type="button" class="atlas-lens is-active" aria-pressed="true" data-preset="city" title="Buildings, rail, boats, traffic, canals and flood gauges">City</button>
+        <button type="button" class="atlas-lens" aria-pressed="false" data-preset="flood" title="Canals, judged gauges, reported flooded roads, gates and emergency points. Reports, not measured depth">Flood watch</button>
+        <button type="button" class="atlas-lens" aria-pressed="false" data-preset="rain" title="Rain radar and wind. Radar is precipitation aloft, not water on the street">Rain now</button>
+        <button type="button" class="atlas-lens" aria-pressed="false" data-preset="cameras" title="Every public camera layer: iTIC, government and other sources">Cameras</button>
+        <button type="button" class="atlas-lens" aria-pressed="false" data-preset="pulse" title="Everything live at once">Live pulse</button>
+        <button type="button" class="atlas-lens" aria-pressed="false" data-preset="aerosol" title="Satellite aerosol and wind. A column measure, not ground-level PM2.5">Satellite air</button>
       </nav>
       <p id="atlas-massing-note" class="atlas-massing-note" hidden>Grand Palace stand-in · Approximate model, not an official survey. Footprints © OpenStreetMap contributors, ODbL.</p>
       <!-- Illustrative scenario tour, separate from live observations. -->
@@ -589,6 +597,7 @@
             <button type="button" class="atlas-preset-btn" data-preset="rain">Rain now</button>
             <button type="button" class="atlas-preset-btn" data-preset="flood">Flood watch</button>
             <button type="button" class="atlas-preset-btn" data-preset="aerosol">Satellite air</button>
+            <button type="button" class="atlas-preset-btn" data-preset="cameras">Cameras</button>
           </div>
           <div class="atlas-stack-chips" id="atlas-stack-chips" hidden aria-live="polite"></div>
 

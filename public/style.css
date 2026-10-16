@@ -3862,3 +3862,13 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-about-family { display: flex; }
   .atlas-page { grid-template-rows: auto calc(100svh - 59px - 96px) auto auto; }
 }
+
+/* Lens strip: the task bar continues into the presets. One row that scrolls
+   sideways on a phone; the cut-off last lens is the signifier that it does. */
+.atlas-place-tasks { overflow-x: auto; scrollbar-width: none; }
+.atlas-place-tasks::-webkit-scrollbar { display: none; }
+.atlas-place-tasks button { flex: 0 0 auto; white-space: nowrap; }
+.atlas-lens-divider { flex: 0 0 1px; align-self: stretch; background: var(--signal); opacity: 0.6; }
+.atlas-place-tasks .atlas-lens { color: var(--muted); }
+.atlas-place-tasks .atlas-lens:hover, .atlas-place-tasks .atlas-lens:focus-visible { color: var(--paper); }
+.atlas-place-tasks .atlas-lens.is-active { color: var(--ink); background: var(--signal); }

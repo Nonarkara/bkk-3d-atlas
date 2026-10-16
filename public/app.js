@@ -7820,16 +7820,20 @@ async function setLayerToggle(map, layerId, on) {
 }
 
 function wireStackPresets(map) {
-  const root = document.getElementById("atlas-stack-presets");
-  if (!root) return;
-  root.addEventListener("click", async (event) => {
+  // The panel presets and the lens strip on the map are the same control:
+  // either one applies the preset and both show which is active.
+  const roots = [document.getElementById("atlas-stack-presets"), document.querySelector(".atlas-place-tasks")].filter(Boolean);
+  if (!roots.length) return;
+  const onClick = async (event) => {
     const btn = event.target.closest("[data-preset]");
     if (!btn) return;
     const preset = btn.dataset.preset;
-    root.querySelectorAll("[data-preset]").forEach((el) => {
-      el.classList.toggle("is-active", el === btn);
+    document.querySelectorAll("[data-preset]").forEach((el) => {
+      const active = el.dataset.preset === preset;
+      el.classList.toggle("is-active", active);
+      if (el.classList.contains("atlas-lens")) el.setAttribute("aria-pressed", String(active));
     });
-    const wants = {
+    const presets = {
       city: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: false, khlongs: true, "flood-sensors": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       rain: { buildings: true, rail: true, "water-transit": false, traffic: false, cctv: false, khlongs: false, "flood-sensors": false, rain: true, wind: true, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       aerosol: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": false, rain: false, wind: true, aqi: false, aerosol: true, heat: false, flood: false, terrain: false, night: false },
@@ -7840,8 +7844,14 @@ function wireStackPresets(map) {
       // it is not today's water.
       flood: { buildings: true, rail: false, "water-transit": false, traffic: false, cctv: false, khlongs: true, "flood-sensors": true, "flood-roads": true, "canal-gauges": true, "flood-incidents": false, "canal-gates": true, "roads-flooded": false, "emergency-points": true, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
       pulse: { buildings: true, rail: true, "water-transit": true, traffic: true, cctv: true, khlongs: true, "flood-sensors": true, rain: true, wind: true, aqi: true, aerosol: false, heat: false, flood: false, terrain: false, night: false },
-    }[preset];
-    if (!wants) return;
+      cameras: { buildings: true, rail: false, "water-transit": false, traffic: true, cctv: true, khlongs: true, "flood-sensors": false, rain: false, wind: false, aqi: false, aerosol: false, heat: false, flood: false, terrain: false, night: false },
+    };
+    if (!presets[preset]) return;
+    // Lenses are exclusive: a layer any preset manages and this one does not
+    // mention is switched off. Before, Flood watch's road and gauge layers
+    // stayed on under every lens chosen after it.
+    const managed = new Set(Object.values(presets).flatMap(Object.keys));
+    const wants = Object.fromEntries([...managed].map((id) => [id, presets[preset][id] ?? false]));
     state.nightMode = !!wants.night;
     applyNightMode(map);
     // Water reads only when the buildings step back to monochrome.
@@ -7855,13 +7865,16 @@ function wireStackPresets(map) {
       map.setPaintProperty("bkkx-roads-motorway", "line-opacity", preset === "flood" ? 0.25 : 1);
     }
     if (wants.buildings) await setLayerToggle(map, "buildings", true);
-    for (const [id, on] of Object.entries(wants)) {
-      if (id === "buildings" || id === "night") continue;
-      await setLayerToggle(map, id, on);
-    }
+    // In parallel: one after another, a lens took the sum of every layer's
+    // load (Cameras showed its cameras ~14 s after the tap). Stack order is
+    // re-applied below, so finishing order does not matter.
+    await Promise.all(Object.entries(wants)
+      .filter(([id]) => id !== "buildings" && id !== "night")
+      .map(([id, on]) => setLayerToggle(map, id, on)));
     ensureStackOrder(map);
     updateStackChips();
-  });
+  };
+  roots.forEach((root) => root.addEventListener("click", onClick));
   state.presetsWired = true;
   if (state.pendingFloodWatch) showTheWater();
   if (state.pendingFloodSim) start72hSimulation(map);
