@@ -12,6 +12,13 @@
 // Requires a Chrome already running with --remote-debugging-port. Set
 // CHROME_DEBUG_PORT if it is not 9573. Exits non-zero if any layer that is
 // expected to be visible draws no pixels.
+//
+// The percentage is a threshold, not a metric. A wider window at the same
+// zoom/pitch shows more map around the same buildings, so the same layer
+// measures differently: bkkx-heritage-forms reads 1.83% at 756x469 and 0.66%
+// at 1600x1000. Both are far above noise and both mean the same thing. Do not
+// read a change in this number as a regression without re-running on the same
+// window — compare against the 0.05% floor, not against a previous run.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
