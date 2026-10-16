@@ -24,7 +24,7 @@ export const FORMS_MIN_ZOOM = 15;
 const SHOPHOUSE_URL = '/bkk-shophouse-forms.geojson';
 
 const runtime = {
-  map: null, layer: null, forms: null, chunks: new Map(),
+  map: null, layer: null, forms: null, chunks: new Map(), built: new Map(),
   active: false, installed: false, shophouseSkipped: 0,
   builtChunks: 0, startPumping: null, pumpNow: null,
 };
@@ -97,6 +97,25 @@ function chunkCentroid(f) {
 
 export function chunkKeyFor(lng, lat, deg = CHUNK_DEG) {
   return `${Math.floor(lng / deg)}:${Math.floor(lat / deg)}`;
+}
+
+/**
+ * Which visible cells still need a mesh.
+ *
+ * groupIntoChunks returns Map<key, Form[]>; built state lives in a parallel
+ * map. Reading `cell.forms` off the array gave undefined, and the resulting
+ * `for (const f of undefined)` threw inside requestAnimationFrame where
+ * nothing catches it — a pump that reported zero builds and no error at all.
+ */
+export function pendingCells(chunks, built, need) {
+  const keys = [];
+  let unknown = 0;
+  for (const key of need) {
+    const forms = chunks.get(key);
+    if (!forms) { unknown++; continue; }
+    if (!built.has(key)) keys.push(key);
+  }
+  return { keys, unknown };
 }
 
 export function groupIntoChunks(forms, deg = CHUNK_DEG) {
@@ -181,7 +200,8 @@ function createLayer(THREE, forms) {
   scene.add(sun);
   scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x3a3326, 1.1));
 
-  const chunks = runtime.chunks;
+  const chunks = runtime.chunks;   // Map<key, Form[]>
+  const built = runtime.built;      // Map<key, {mesh, geo, usedTick}>
   let pump = 0;
 
   /** Build a couple of missing chunks per frame; never block the main thread. */
@@ -189,38 +209,33 @@ function createLayer(THREE, forms) {
     let need;
     try { need = visibleCells(map.getBounds()); } catch { return; }
     runtime.pumpRuns = (runtime.pumpRuns || 0) + 1;
-    const pending = [];
-    let known = 0;
-    for (const key of need) {
-      const cell = chunks.get(key);
-      if (cell) known++;
-      if (cell && !cell.mesh) pending.push(key);
-    }
-    runtime.lastPump = { need: need.size, known, pending: pending.length, chunks: chunks.size };
-    for (const key of pending.slice(0, CHUNKS_PER_FRAME)) {
-      const cell = chunks.get(key);
-      if (!cell || cell.mesh) continue;
-      const geo = buildGeometry(THREE, cell.forms);
+    const pending = pendingCells(chunks, built, need);
+    runtime.lastPump = { need: need.size, known: need.size - pending.unknown, pending: pending.keys.length, chunks: chunks.size };
+    for (const key of pending.keys.slice(0, CHUNKS_PER_FRAME)) {
+      const forms = chunks.get(key);
+      if (!forms || built.has(key)) continue;
+      const geo = buildGeometry(THREE, forms);
       const mesh = new THREE.Mesh(geo, material);
       mesh.frustumCulled = false; // the shared model matrix is not the default one
       scene.add(mesh);
-      cell.mesh = mesh;
-      cell.geo = geo;
+      built.set(key, { mesh, geo, usedTick: pump });
     }
     // Drop chunks the camera has left well behind, with hysteresis so a
     // boundary jitter cannot thrash a build/dispose cycle.
-    if (need.size && chunks.size > need.size * 2) {
-      for (const [key, cell] of chunks) {
-        if (need.has(key) || !cell.mesh) continue;
-        if (cell.usedTick === pump) continue;
-        scene.remove(cell.mesh);
-        cell.geo.dispose();
-        cell.mesh = null;
-        cell.geo = null;
-      }
-      for (const key of [...chunks.keys()]) if (!chunks.get(key).mesh) chunks.delete(key);
+    for (const key of need) {
+      const rec = built.get(key);
+      if (rec) rec.usedTick = pump;
     }
-    runtime.builtChunks = [...chunks.values()].filter((c) => c.mesh).length;
+    if (built.size > need.size * 2) {
+      for (const [key, rec] of built) {
+        if (need.has(key)) continue;
+        if (rec.usedTick === pump) continue;
+        scene.remove(rec.mesh);
+        rec.geo.dispose();
+        built.delete(key);
+      }
+    }
+    runtime.builtChunks = built.size;
   }
 
   function startPumping(map) {
@@ -229,9 +244,7 @@ function createLayer(THREE, forms) {
     const tick = () => {
       let need;
       try { need = visibleCells(map.getBounds()); } catch { pump = 0; return; }
-      let missing = 0;
-      for (const key of need) { const c = chunks.get(key); if (c && !c.mesh) missing++; }
-      for (const key of need) { const c = chunks.get(key); if (c) c.usedTick = pump; }
+      const missing = pendingCells(chunks, built, need).keys.length;
       pumpChunks(map);
       if (missing > CHUNKS_PER_FRAME) pump = requestAnimationFrame(tick);
       else pump = 0;
@@ -258,13 +271,11 @@ function createLayer(THREE, forms) {
       renderer.render(scene, camera);
     },
     onRemove() {
-      for (const cell of chunks.values()) {
-        if (cell.mesh) scene.remove(cell.mesh);
-        cell.geo?.dispose();
-        cell.mesh = null;
-        cell.geo = null;
+      for (const rec of built.values()) {
+        scene.remove(rec.mesh);
+        rec.geo.dispose();
       }
-      chunks.clear();
+      built.clear();
       if (pump) cancelAnimationFrame(pump);
       pump = 0;
       runtime.startPumping = null;
@@ -395,6 +406,7 @@ export function uninstallHeritageForms(map) {
   runtime.layer = null;
   runtime.map = null;
   runtime.chunks.clear();
+  runtime.built.clear();
   runtime.builtChunks = 0;
 }
 

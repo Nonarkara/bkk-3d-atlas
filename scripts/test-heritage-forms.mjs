@@ -189,7 +189,7 @@ test('a shophouse does not borrow temple vocabulary', () => {
 // A single merged mesh for every form cost 84 ms on the first zoom-in and drew
 // 93k triangles per frame with nothing culled. Chunking is what stops that
 // coming back, so the budget is asserted, not assumed.
-import { groupIntoChunks, visibleCells, chunkKeyFor } from '../public/heritage-forms-layer.js';
+import { groupIntoChunks, visibleCells, chunkKeyFor, pendingCells } from '../public/heritage-forms-layer.js';
 
 const ALL_FORMS = [
   ...detail.features.map(classify),
@@ -260,4 +260,37 @@ test('a layer reinstalled after uninstall still has chunks to build', () => {
 test('an intact store is reused rather than rebuilt', () => {
   const cells = ensureChunkStore(ALL_FORMS, null);
   assert.equal(ensureChunkStore(ALL_FORMS, cells), cells, 'a populated store should be kept as-is');
+});
+
+// The pump reached for `cell.forms` on a value that is a plain array of forms.
+// `for (const f of undefined)` threw inside requestAnimationFrame, where
+// nothing catches, so the pump reported zero builds and no error. Both halves
+// of that contract are pinned here.
+test('a chunk cell is the array of forms, and the pump reads it as such', () => {
+  const store = groupIntoChunks(ALL_FORMS);
+  for (const [key, cell] of store) {
+    assert.ok(Array.isArray(cell), `chunk ${key} is not an array — the pump would read undefined`);
+    assert.ok(cell.every((f) => f && typeof f === 'object' && Array.isArray(f.ring)), `chunk ${key} holds a non-form`);
+  }
+});
+
+test('pendingCells finds exactly the visible cells with no mesh yet', () => {
+  const store = groupIntoChunks(ALL_FORMS);
+  const built = new Map();
+  const all = new Set(store.keys());
+  const { keys, unknown } = pendingCells(store, built, all);
+  assert.equal(unknown, 0, 'every requested cell should exist in the store');
+  assert.equal(keys.length, all.size, 'with nothing built, every visible cell is pending');
+
+  // Build two, the way the pump does.
+  for (const k of keys.slice(0, 2)) built.set(k, { mesh: {}, geo: {} });
+  const second = pendingCells(store, built, all);
+  assert.equal(second.keys.length, all.size - 2, 'two built cells must drop out of the pending list');
+  assert.ok(!second.keys.includes(keys[0]), 'an already-built cell must not be rebuilt');
+});
+
+test('a cell that is not in the store is reported, not silently ignored', () => {
+  const store = groupIntoChunks(ALL_FORMS);
+  const { unknown } = pendingCells(store, new Map(), new Set(['nope:nope']));
+  assert.equal(unknown, 1, 'a requested cell with no forms must be visible to the caller');
 });
