@@ -13,12 +13,21 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least privilege. The default GITHUB_TOKEN can write to the repository; this
+# job only reads the tree and calls Cloudflare with an explicit secret, so it
+# needs nothing else. security.yml already set this — the workflow that actually
+# holds the deploy token did not.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
@@ -29,7 +38,10 @@ jobs:
       # Cron first, then the request Worker. Reversing that drops the
       # schedule for the gap between the two uploads.
       - name: Deploy cron Worker (bkk-3d-atlas-cron)
-        uses: cloudflare/wrangler-action@v3
+        # Was a floating `v3` tag, one line above an identically-pinned step.
+        # A tag can be moved by whoever owns the repo, and this step holds
+        # CLOUDFLARE_API_TOKEN — the exact combination the pins exist to stop.
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

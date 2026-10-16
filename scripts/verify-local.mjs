@@ -6,7 +6,7 @@
  *   node scripts/verify-local.mjs
  *   npm run verify
  */
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -587,6 +587,45 @@ if (!vendorMatch) {
     } else {
       ok(`render-check.mjs measures ${measured.length} layer ids, all declared in source`);
     }
+  }
+}
+
+// GitHub Actions hardening. security.yml set the standard — every action on a
+// commit SHA, workflow-level `permissions: contents: read`, and no leftover
+// checkout credentials. The workflow that actually holds CLOUDFLARE_API_TOKEN
+// had a floating `wrangler-action@v3` sitting directly above an identically
+// pinned step, which is exactly the kind of tag an attacker moves. A pull
+// request can reintroduce one of these at any time, so it is checked here
+// rather than trusted to review.
+{
+  const dir = join(root, ".github/workflows");
+  const files = readdirSync(dir).filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"));
+  const unpinned = [];
+  const overPermissive = [];
+  const credsLeft = [];
+  for (const f of files) {
+    const src = readFileSync(join(dir, f), "utf8");
+    for (const line of src.split("\n")) {
+      const m = line.match(/uses:\s*([^\s#]+)/);
+      if (!m) continue;
+      const ref = m[1].split("@")[1] || "";
+      if (!/^[0-9a-f]{40}$/.test(ref)) unpinned.push(`${f}: ${m[1]}`);
+    }
+    // A job-level permissions block counts; so does the workflow-level one.
+    if (!/^\s*permissions:/m.test(src)) overPermissive.push(f);
+    // security.yml sets persist-credentials: false on its checkout. Anything
+    // else that checks out code leaves a usable token in .git/config for the
+    // rest of the job to find.
+    if (/actions\/checkout@/.test(src) && !/persist-credentials:\s*false/.test(src)) credsLeft.push(f);
+  }
+  if (!files.length) {
+    fail("no workflow files found — the Actions guard has nothing to check");
+  } else {
+    if (unpinned.length) fail(`action referenced by tag, not commit SHA:\n    ${unpinned.join("\n    ")}`);
+    else ok(`all actions in ${files.length} workflow(s) pinned to a commit SHA`);
+    if (overPermissive.length) fail(`workflow(s) with no permissions block (default GITHUB_TOKEN is read/write): ${overPermissive.join(", ")}`);
+    else ok("every workflow declares least-privilege permissions");
+    if (credsLeft.length) fail(`checkout leaves credentials on disk: ${credsLeft.join(", ")}`);
   }
 }
 
