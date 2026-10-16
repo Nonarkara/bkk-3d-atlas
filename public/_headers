@@ -21,3 +21,10 @@
 
 /traffic-vision.js
   Cache-Control: no-cache
+
+# The vehicle-count pilot's model needs eval. It runs only inside this worker,
+# under its own policy; the page policy above stays eval-free.
+/vision-worker.js
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-eval'; connect-src https://storage.googleapis.com
+  Cache-Control: no-cache

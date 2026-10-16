@@ -16,34 +16,44 @@ export function trafficSummary(predictions, width, height) {
 
 let modelPromise;
 let activeAnalysis = null; // One actual inference at a time, including across wall reopenings.
-export function runtimeReady(tf) {
-  return typeof tf?.loadGraphModel === 'function' && typeof tf?.browser?.fromPixels === 'function';
-}
-export function withDeadline(task, milliseconds = 45000) {
+export function withDeadline(task, milliseconds = 90000) { // first run downloads ~1.5 MB runtime + weights
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Analysis timed out')), milliseconds);
     Promise.resolve(task).then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
-function loadScript(src, integrity, ready) {
-  if (ready()) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    const timer = setTimeout(() => { script.remove(); reject(new Error('Model download timed out')); }, 30000);
-    script.src = src;
-    script.integrity = integrity; // pinned: a changed CDN file refuses to run
-    script.crossOrigin = 'anonymous';
-    script.onload = () => { clearTimeout(timer); ready() ? resolve() : reject(new Error('Model runtime unavailable')); };
-    script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error('Model download unavailable')); };
-    document.head.appendChild(script);
-  });
+// The model runs in /vision-worker.js: TensorFlow.js needs eval, which the
+// page CSP forbids (it silently left window.tf empty, 2026-10-16). Only
+// pixels cross to the worker; the model and weights stay in this browser.
+function workerDetector() {
+  const worker = new Worker('/vision-worker.js');
+  const pending = new Map();
+  let next = 0;
+  worker.onmessage = ({ data }) => {
+    const job = pending.get(data.id);
+    if (!job) return;
+    pending.delete(data.id);
+    data.error ? job.reject(new Error(data.error)) : job.resolve(data.predictions);
+  };
+  worker.onerror = () => {
+    for (const job of pending.values()) job.reject(new Error('Model runtime unavailable'));
+    pending.clear();
+    worker.terminate();
+    modelPromise = null; // a failed runtime may be retried on the next request
+  };
+  return {
+    detect(canvas) {
+      const image = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      const id = ++next;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        worker.postMessage({ id, image });
+      });
+    },
+  };
 }
 async function model() {
-  if (!modelPromise) modelPromise = (async () => {
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', 'sha384-vE8hbVJ4lezako5rlvE7bY0BVzWlFhZncPlckrqNwcUQpVtgbENTgZ8TBbnPjZre', () => runtimeReady(window.tf));
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', 'sha384-7qLdgfEQyO9ZQi9ArRHigK+IBto4XPk468jAqc+fnsXaZIcMAhQeLwzggRK7aESl', () => typeof window.cocoSsd?.load === 'function');
-    return window.cocoSsd.load({ base: 'lite_mobilenet_v2' });
-  })(); // A failed/hung model requires reload; do not pile up weight downloads.
+  if (!modelPromise) modelPromise = Promise.resolve(workerDetector());
   return modelPromise;
 }
 

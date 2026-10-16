@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm, mkdir, symlink } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { trafficSummary, installTrafficPilot, withDeadline, runtimeReady } from '../public/traffic-vision.js';
+import { trafficSummary, installTrafficPilot, withDeadline } from '../public/traffic-vision.js';
 import { validatePhotoSet, loadValidatedPhotoSet } from './photo-intake.mjs';
 import { candidateOutput, publishCandidate } from './reconstruction-output.mjs';
 
@@ -21,11 +21,6 @@ test('zero detections remain experimental, not a road clearance verdict', () => 
 });
 test('ordinary camera wall never loads traffic model or needs DOM access', () => {
   assert.doesNotThrow(()=>installTrafficPilot(null)());
-});
-test('a truthy partial TensorFlow global is not a ready detector runtime', () => {
-  assert.equal(runtimeReady({}),false);
-  assert.equal(runtimeReady({browser:{fromPixels(){}}}),false);
-  assert.equal(runtimeReady({loadGraphModel(){},browser:{fromPixels(){}}}),true);
 });
 test('release URLs invalidate both the entry module and its changed CV import', async () => {
   const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8');
@@ -94,11 +89,14 @@ test('deadline rejects a stuck task and consumes its late rejection', async () =
 });
 
 test('closing and reopening cannot overlap inference; hiding invalidates pending results', async () => {
-  const previousDocument=globalThis.document, previousWindow=globalThis.window;
-  let finishModel, finishDetection, calls=0;
-  const detector={detect:()=>{calls++; return new Promise(resolve=>{finishDetection=resolve;});}};
+  const previousDocument=globalThis.document, previousWorker=globalThis.Worker;
+  let calls=0, worker;
+  // The model runs in /vision-worker.js; this stand-in answers when the test says so.
+  globalThis.Worker=class { constructor(url){ assert.equal(url,'/vision-worker.js'); worker=this; }
+    postMessage(message){ calls++; this.last=message.id; } terminate(){} };
+  const finishDetection=predictions=>worker.onmessage({data:{id:worker.last,predictions}});
   const doc=new EventTarget(); doc.hidden=false;
-  doc.createElement=tag=> tag==='canvas' ? {width:0,height:0,getContext:()=>({drawImage(){},getImageData(){}})} : {
+  doc.createElement=tag=> tag==='canvas' ? {width:0,height:0,getContext:()=>({drawImage(){},getImageData(){return {};}})} : {
     textContent:'',disabled:false,setAttribute(){},remove(){this.removed=true;},
     addEventListener(_type,fn){this.click=fn;},removeEventListener(){},
   };
@@ -108,24 +106,23 @@ test('closing and reopening cannot overlap inference; hiding invalidates pending
     return {querySelectorAll:()=>[tile],nodes};
   };
   globalThis.document=doc;
-  globalThis.window={tf:{loadGraphModel(){},browser:{fromPixels(){}}},cocoSsd:{load:()=>new Promise(resolve=>{finishModel=resolve;})}};
   try {
     const first=root(),closeFirst=installTrafficPilot(first,{enabled:true});
     const loading=first.nodes[0].click();
-    await new Promise(setImmediate); closeFirst(); finishModel(detector); await loading;
-    assert.equal(calls,0,'closed session never samples an image after model loading');
+    await new Promise(setImmediate); closeFirst(); finishDetection([{class:'car',score:0.9,bbox:[1,1,5,5]}]); await loading;
+    assert.doesNotMatch(first.nodes[1].textContent,/possible vehicles/,'a closed session ignores a late result');
     const second=root(),closeSecond=installTrafficPilot(second,{enabled:true});
     const inference=second.nodes[0].click(); await new Promise(setImmediate);
-    assert.equal(calls,1); closeSecond();
+    assert.equal(calls,2); closeSecond();
     const third=root(),closeThird=installTrafficPilot(third,{enabled:true});
     await third.nodes[0].click(); assert.match(third.nodes[1].textContent,/still running/);
     finishDetection([]); await inference;
-    assert.equal(calls,1,'reopening cannot allocate another GPU task');
+    assert.equal(calls,2,'reopening cannot allocate another GPU task');
     const hidden=third.nodes[0].click(); await new Promise(setImmediate);
     doc.hidden=true;doc.dispatchEvent(new Event('visibilitychange'));doc.hidden=false;
     finishDetection([]);await hidden;
     assert.match(third.nodes[1].textContent,/interrupted/);
     assert.doesNotMatch(third.nodes[1].textContent,/0 possible vehicles/);
     closeThird();
-  } finally { globalThis.document=previousDocument; globalThis.window=previousWindow; }
+  } finally { globalThis.document=previousDocument; globalThis.Worker=previousWorker; }
 });

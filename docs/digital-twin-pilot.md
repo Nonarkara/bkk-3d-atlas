@@ -47,3 +47,21 @@ The real phone test then found `loadGraphModel is not a function`. A truthy part
 Automated tests check class filtering, malformed detections, unknown capture age, default-off operation, photo-set minimum and tamper rejection. They do not measure detector accuracy. Swift SDK type-check is not a reconstruction test.
 
 Before any congestion label or default-on CV: select three stable road views, manually annotate independent frames including rain/night/occlusion, measure precision/recall and count error, document failure conditions and operator review. Sustained queues require temporally distinct frames, a calibrated road region, trustworthy capture times and motion validation. A cached still cannot establish a queue. Do not present a zero as “clear”.
+
+## Model runtime (2026-10-16)
+
+TensorFlow.js evaluates generated code, which the page CSP forbids. Until this
+date the pilot therefore never ran in production: `window.tf` loaded empty and
+every request ended "Model runtime unavailable". The model now runs in
+`public/vision-worker.js` under its own CSP (`script-src 'self' 'unsafe-eval'`,
+`connect-src https://storage.googleapis.com` for the weights); the page policy
+stays eval-free. The two libraries are self-hosted in `public/vendor/`,
+byte-identical to the jsdelivr releases:
+
+| File | sha384 |
+|---|---|
+| tfjs-4.22.0.min.js | `vE8hbVJ4lezako5rlvE7bY0BVzWlFhZncPlckrqNwcUQpVtgbENTgZ8TBbnPjZre` |
+| coco-ssd-2.2.3.min.js | `7qLdgfEQyO9ZQi9ArRHigK+IBto4XPk468jAqc+fnsXaZIcMAhQeLwzggRK7aESl` |
+
+First analysis on a fresh browser downloads the runtime and weights; the
+deadline is 90 s for that reason. Headless Chrome without a GPU took 43 s.
