@@ -236,3 +236,28 @@ test('the viewport selects chunks and always includes the origin cell', () => {
   assert.ok(cells.size >= 9, `viewport should span several cells, got ${cells.size}`);
   assert.ok(!cells.has(chunkKeyFor(101.4, 13.75)), 'distant cells must not be built');
 });
+
+// ── The toggle cycle that shipped broken ────────────────────────────────────
+// uninstall clears the chunk map but the forms stay cached. Gating the rebuild
+// on "forms are absent" therefore produced a layer holding 319 buildings and
+// zero chunks, which draws nothing and looks completely healthy in every other
+// check. Nothing caught it because nothing ran install → uninstall → install.
+import { ensureChunkStore } from '../public/heritage-forms-layer.js';
+
+test('a layer reinstalled after uninstall still has chunks to build', () => {
+  const cells = ensureChunkStore(ALL_FORMS, null);
+  assert.ok(cells.size > 8, 'a fresh store must be populated');
+  // uninstall clears the store; the forms are still cached, exactly as in the
+  // runtime. This is the state that silently rendered nothing.
+  const cleared = new Map(cells);
+  cleared.clear();
+  const afterToggle = ensureChunkStore(ALL_FORMS, cleared);
+  assert.ok(afterToggle.size > 8, 'reinstall must rebuild the store, not inherit the cleared one');
+  const total = [...afterToggle.values()].reduce((n, arr) => n + arr.length, 0);
+  assert.equal(total, ALL_FORMS.length, 'the rebuilt store must still hold every form');
+});
+
+test('an intact store is reused rather than rebuilt', () => {
+  const cells = ensureChunkStore(ALL_FORMS, null);
+  assert.equal(ensureChunkStore(ALL_FORMS, cells), cells, 'a populated store should be kept as-is');
+});

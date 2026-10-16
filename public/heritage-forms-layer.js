@@ -110,6 +110,21 @@ export function groupIntoChunks(forms, deg = CHUNK_DEG) {
   return cells;
 }
 
+/**
+ * Rebuild the chunk store whenever it is empty.
+ *
+ * The forms themselves are worth caching across a toggle, but the chunk map is
+ * cleared on uninstall — so gating the rebuild on the forms being absent leaves
+ * a layer that has 319 buildings and zero chunks and therefore draws nothing.
+ * That bug shipped once and 80 green tests did not catch it, because every
+ * test exercised classify/buildForm/grouping in isolation and none of them ran
+ * an install → uninstall → install cycle.
+ */
+export function ensureChunkStore(forms, current) {
+  if (current && current.size > 0) return current;
+  return groupIntoChunks(forms ?? []);
+}
+
 /** Cells covering the viewport plus a margin, so panning does not thrash. */
 export function visibleCells(bounds, deg = CHUNK_DEG) {
   const w = bounds.getWest();
@@ -292,8 +307,10 @@ export async function installHeritageForms(map, features) {
       console.warn('Shophouse candidates unavailable; Thai forms retained:', error);
     }
     runtime.forms = forms;
-    runtime.chunks = groupIntoChunks(forms);
   }
+  // Chunks, not forms, are what get cleared on uninstall. Rebuild whenever the
+  // map is empty, or a toggle-off/on leaves a layer that can never build a mesh.
+  runtime.chunks = ensureChunkStore(runtime.forms, runtime.chunks);
   if (!runtime.forms.length) return;
 
   const activate = async () => {
