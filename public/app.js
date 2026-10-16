@@ -8,6 +8,7 @@
 // BUILDING_COLOR_BY_TYPE expression (cultural / civic / commercial /
 // residential / industrial palettes).
 
+import './maplibre-global.js'; // must stay first: sets window.maplibregl (v6, self-hosted)
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
 import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
 import {
@@ -21,6 +22,8 @@ import {
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
 import { installTrafficPilot } from './traffic-vision.js?v=twin-audit-20261015-2';
+// Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
+const ATLAS_BUILD = "dev";
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -9200,49 +9203,13 @@ async function pingPresence() {
   }
 }
 
-// MapLibre <= 6.4.0 sanitizes attribution HTML with a loop that can skip an
-// event-handler attribute (GHSA-jrc7-96c5-q579, zero-click XSS from a
-// third-party style or TileJSON). The fix is MapLibre 6.4.1+, which is
-// ESM-only; until the atlas migrates, every source's attribution is rebuilt
-// here before the attribution control reads it: text plus http(s) links, nothing else.
-function safeAttribution(html) {
-  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
-  const out = document.createElement("span");
-  for (const node of doc.body.childNodes) {
-    const href = node.nodeName === "A" ? node.getAttribute("href") || "" : "";
-    if (/^https?:\/\//i.test(href)) {
-      const a = document.createElement("a");
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = node.textContent;
-      out.append(a);
-    } else {
-      out.append(node.textContent);
-    }
-  }
-  return out.innerHTML;
-}
-
-function installAttributionSanitizer(map) {
-  const clean = () => {
-    for (const cache of Object.values(map.style?.sourceCaches ?? {})) {
-      const source = cache.getSource?.();
-      if (typeof source?.attribution === "string" && !source.__atlasSafe) {
-        source.attribution = safeAttribution(source.attribution);
-        source.__atlasSafe = true;
-      }
-    }
-  };
-  map.on("styledata", clean);
-  map.on("sourcedata", clean);
-}
-
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
 
   renderQuickJump(state.areas);
+  const versionBadge = document.getElementById("atlas-version");
+  if (versionBadge) versionBadge.title = `Build ${ATLAS_BUILD} — the commit and time this page was released`;
   wireAboutDrawer();
   document.getElementById("atlas-share").addEventListener("click", copyDeepLink);
 
@@ -9288,13 +9255,10 @@ async function init() {
     minZoom: 10,
     maxZoom: 19,
     maxPitch: 75,
-    antialias: true,
+    canvasContextAttributes: { antialias: true }, // v5+: moved out of MapOptions
     hash: false,
-    // Added below, after the attribution sanitizer is listening (GHSA-jrc7-96c5-q579).
-    attributionControl: false,
+    attributionControl: { compact: true },
   });
-  installAttributionSanitizer(map);
-  map.addControl(new maplibregl.AttributionControl({ compact: true }));
   wireCameraWall(map);
 
   // External fly-to (e.g. bkk's quarter chip loaded the atlas with

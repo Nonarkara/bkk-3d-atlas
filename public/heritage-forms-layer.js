@@ -125,9 +125,7 @@ function createLayer(THREE, forms) {
     },
     render(gl, args) {
       if (!renderer || !runtime.active) return;
-      // MapLibre 5+ passes {defaultProjectionData}; the atlas loads 4.7.1, which
-      // passes the matrix itself. Reading only the v5 field leaves this layer blank.
-      const matrix = args?.defaultProjectionData?.mainMatrix ?? args;
+      const matrix = args?.defaultProjectionData?.mainMatrix; // MapLibre 5+ custom-layer API
       if (!matrix) return;
       camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(model);
       renderer.resetState();
