@@ -3846,3 +3846,19 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-flood-verdict-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .atlas-flood-verdict-btn { flex: 0 0 auto; min-height: 44px; padding: 0 12px; font-size: 11px; overflow: visible; }
 }
+
+/* Phone: the map owns the screen (Jakarta atlas pattern, 2026-10-16). The
+   header keeps the title and About; the sibling links live at the top of the
+   About drawer. The map takes the viewport minus a peek of the live strip, so
+   the flood verdict is still the first thing below it. */
+.atlas-about-family { display: none; }
+@media (max-width: 720px) {
+  .atlas-header-nav a[href^="https"] { display: none; }
+  .atlas-header-nav .atlas-nav-about {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
+    background: none; border: 0; color: var(--paper); font: inherit; font-weight: 700; text-transform: uppercase;
+  }
+  .atlas-header-meta .atlas-title { color: var(--paper); font-size: 13px; }
+  .atlas-about-family { display: flex; }
+  .atlas-page { grid-template-rows: auto calc(100svh - 59px - 96px) auto auto; }
+}
