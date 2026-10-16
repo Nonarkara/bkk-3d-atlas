@@ -4358,7 +4358,9 @@ function startFloodWaterMotion(map) {
   let step = 0;
   const tick = (now) => {
     state.floodMotion = requestAnimationFrame(tick);
-    if (document.hidden || now - last < 70 || !map.getLayer(FLOOD_HEAT_LAYER)) return;
+    // Also paused while the full-screen camera wall covers the map: repainting
+    // an unseen map competed with the wall's video decoding.
+    if (document.hidden || document.body.classList.contains("atlas-wall-open") || now - last < 70 || !map.getLayer(FLOOD_HEAT_LAYER)) return;
     if (map.getLayoutProperty(FLOOD_HEAT_LAYER, "visibility") === "none") return;
     last = now;
     const slosh = Math.sin(now / 1400);
@@ -7259,7 +7261,7 @@ function startWaterFlow(map) {
   if (!targetMap) return;
   let step = 0;
   state.flowTimer = setInterval(() => {
-    if (document.hidden || !targetMap.getLayer(KHLONG_FLOW_LAYER)) return;
+    if (document.hidden || document.body.classList.contains("atlas-wall-open") || !targetMap.getLayer(KHLONG_FLOW_LAYER)) return;
     if (targetMap.getLayoutProperty(KHLONG_FLOW_LAYER, "visibility") === "none") return;
     step = (step + 1) % FLOW_DASH_STEPS.length;
     targetMap.setPaintProperty(KHLONG_FLOW_LAYER, "line-dasharray", FLOW_DASH_STEPS[step]);
