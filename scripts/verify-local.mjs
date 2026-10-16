@@ -565,6 +565,31 @@ if (!vendorMatch) {
   }
 }
 
+// Every layer id render-check.mjs measures must be a real constant in the
+// source. The first run of that script reported bkkx-landmarks MISSING and I
+// went looking for a layer that had silently stopped installing — the id was
+// my typo, the real one is bkkx-landmarks-extrusion. A mistyped id reads as a
+// broken layer, which is the most expensive kind of false alarm: it sends you
+// auditing working code. Catch it here instead, where it costs nothing.
+{
+  const renderCheckPath = join(root, "scripts/render-check.mjs");
+  const sources = ["heritage-forms-layer.js", "heritage-roofs.js", "building-massing.js", "app.js"]
+    .map((f) => readFileSync(join(root, "public", f), "utf8"))
+    .join("\n");
+  const declared = new Set([...sources.matchAll(/["'`](bkkx-[a-z0-9-]+)["'`]/g)].map((m) => m[1]));
+  const measured = [...readFileSync(renderCheckPath, "utf8").matchAll(/\{ id: '([^']+)'/g)].map((m) => m[1]);
+  if (!measured.length) {
+    fail("render-check.mjs declares no layers to measure — the check has quietly stopped checking");
+  } else {
+    const bogus = measured.filter((id) => !declared.has(id));
+    if (bogus.length) {
+      fail(`render-check.mjs measures layer id(s) no source file declares: ${bogus.join(", ")}`);
+    } else {
+      ok(`render-check.mjs measures ${measured.length} layer ids, all declared in source`);
+    }
+  }
+}
+
 // app.js is loaded as type="module". A missing brace once parsed in script
 // mode, passed review, and took the whole map down in browsers (2026-10-14).
 {
