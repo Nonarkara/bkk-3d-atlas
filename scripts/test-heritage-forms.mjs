@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { classify, classifyShophouse, buildForm, ORIGIN } from '../public/heritage-forms.js';
-import { classifyAll } from '../public/heritage-forms-layer.js';
+import { classifyAll, evictOffScreenChunks, MAX_RESIDENT_CHUNKS, CHUNK_GRACE_PUMPS } from '../public/heritage-forms-layer.js';
 
 const detail = JSON.parse(
   readFileSync(new URL('../public/bkk-heritage-detail.geojson', import.meta.url), 'utf8'),
@@ -293,4 +293,107 @@ test('a cell that is not in the store is reported, not silently ignored', () => 
   const store = groupIntoChunks(ALL_FORMS);
   const { unknown } = pendingCells(store, new Map(), new Set(['nope:nope']));
   assert.equal(unknown, 1, 'a requested cell with no forms must be visible to the caller');
+});
+
+// ── resident-chunk eviction ─────────────────────────────────────────────────
+// The layer disposed nothing at all before this. Measured on the live atlas:
+// `built` sat at 22 through a pan 12 km east and a zoom out to z12, because the
+// old guard compared built chunks against *every visible cell*, most of which
+// hold no data. 22 > 42*2 is false; 22 > 1210*2 is false. The condition could
+// never be met anywhere the layer is actually used.
+
+test('eviction releases off-screen chunks once the resident set is over budget', () => {
+  const built = new Map();
+  const disposed = [];
+  const scene = { remove: (m) => disposed.push(m) };
+  for (let i = 0; i < 30; i++) built.set(`k${i}`, { mesh: `m${i}`, geo: { dispose() {} }, usedTick: i });
+
+  const need = new Set(['k29']);
+  const res = evictOffScreenChunks(built, need, 100, scene, 24);
+
+  assert.equal(res.evicted, 6, 'thirty built against a budget of 24 should release six');
+  assert.equal(built.size, 24, 'the resident set lands on the budget, not below it');
+  assert.equal(res.resident, 24);
+  assert.ok(built.has('k29'), 'the one chunk still on screen is never evicted');
+  assert.equal(disposed.length, 6, 'every evicted mesh leaves the scene');
+});
+
+test('eviction disposes the geometry of what it releases', () => {
+  const built = new Map();
+  let disposeCount = 0;
+  const scene = { remove() {} };
+  for (let i = 0; i < 26; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose: () => { disposeCount++; } }, usedTick: i });
+  evictOffScreenChunks(built, new Set(), 99, scene, 24);
+  assert.equal(disposeCount, 2, 'a released chunk must free its GPU buffers, not orphan them');
+});
+
+test('a chunk inside its grace period survives, so boundary jitter cannot thrash', () => {
+  const built = new Map();
+  const scene = { remove() {} };
+  // All over budget, but every one was used within the grace window.
+  for (let i = 0; i < 40; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose() {} }, usedTick: 100 });
+  const res = evictOffScreenChunks(built, new Set(), 100, scene, 24);
+  assert.equal(res.evicted, 0, 'nothing used this very pump may be released');
+  assert.equal(built.size, 40);
+
+  // Push the clock past the grace window and the same call releases them.
+  const later = evictOffScreenChunks(built, new Set(), 100 + CHUNK_GRACE_PUMPS + 1, scene, 24);
+  assert.ok(later.evicted > 0, 'once the grace window lapses the eviction runs');
+  assert.equal(built.size, 24);
+});
+
+test('under budget nothing is touched at all', () => {
+  const built = new Map();
+  const scene = { remove: () => { throw new Error('scene.remove must not be called under budget'); } };
+  // Exactly at the budget, not over it. One more chunk and eviction starts.
+  for (let i = 0; i < MAX_RESIDENT_CHUNKS; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose() {} }, usedTick: 0 });
+  const res = evictOffScreenChunks(built, new Set(), 1000, scene);
+  assert.equal(res.evicted, 0);
+  assert.equal(built.size, MAX_RESIDENT_CHUNKS);
+});
+
+test('eviction is oldest-use-first, so the coldest chunks go', () => {
+  const built = new Map();
+  const scene = { remove() {} };
+  // k0..k19 were used long ago, k20..k29 were used just now but are off screen.
+  for (let i = 0; i < 20; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose() {} }, usedTick: 1 });
+  for (let i = 20; i < 30; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose() {} }, usedTick: 90 });
+  evictOffScreenChunks(built, new Set(), 1000, scene, 24);
+  for (let i = 0; i < 6; i++) assert.ok(!built.has(`k${i}`), `the coldest chunk k${i} should be released`);
+  for (let i = 20; i < 30; i++) assert.ok(built.has(`k${i}`), 'recently used chunks survive');
+});
+
+test('eviction does not depend on how many cells happen to be in view', () => {
+  // This is the test the bug actually needed. `need` is every visible cell,
+  // most of which hold no forms, so it is large — 42 zoomed in over the Old
+  // Town, 1210 zoomed out to z12. An eviction policy keyed off `need.size`
+  // reads "plenty of cells in view" as "no reason to release anything", which
+  // is exactly backwards, and is why nothing was ever disposed.
+  for (const cellsInView of [42, 220, 1210]) {
+    const built = new Map();
+    const scene = { remove() {} };
+    for (let i = 0; i < 30; i++) built.set(`k${i}`, { mesh: {}, geo: { dispose() {} }, usedTick: i });
+    const need = new Set();
+    for (let i = 0; i < cellsInView; i++) need.add(`empty${i}`); // none hold data
+    const res = evictOffScreenChunks(built, need, 100, scene, 24);
+    assert.ok(res.evicted > 0,
+      `with ${cellsInView} cells in view and 30 built, the budget must still bite — it released nothing`);
+    assert.equal(built.size, 24, `the resident set lands on the budget at ${cellsInView} cells in view`);
+  }
+});
+
+test('the old guard could never have fired — this is the regression, stated', () => {
+  // Reconstructed from the measurement: 22 chunks built, against the counts of
+  // visible cells seen at each stop on a real camera walk.
+  const builtSize = 22;
+  for (const cellsInView of [42, 220, 1210]) {
+    assert.ok(!(builtSize > cellsInView * 2),
+      `the old guard built.size > need.size*2 is false at ${cellsInView} visible cells`);
+  }
+  // The old guard compared two unrelated quantities, so it needed an absurd
+  // number of empty cells to trip. The replacement asks the question the
+  // memory is actually spent in, and answers it the same way at every zoom.
+  assert.ok(builtSize <= MAX_RESIDENT_CHUNKS, 'a 22-chunk view sits under the budget and is kept');
+  assert.ok(48 > MAX_RESIDENT_CHUNKS, 'the whole 48-chunk dataset does trip the budget');
+  assert.ok(24 <= MAX_RESIDENT_CHUNKS && 24 > 20, 'and the budget sits below half the dataset');
 });

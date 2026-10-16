@@ -87,6 +87,41 @@ const CHUNK_DEG = 0.0025; // ~275 m. Measured over the real form set this is the
 // knee: 0.004 leaves one chunk with 263 forms, 0.0025 caps it at 128.
 const CHUNKS_PER_FRAME = 2;
 const KEEP_RADIUS = 3;   // cells beyond the viewport before a chunk is dropped
+// Resident-chunk budget. The previous guard was `built.size > need.size * 2`,
+// comparing built chunks against every cell in view — including the ones with
+// no data in them. Zoomed in over the Old Town that is 22 built against 42
+// cells, and zoomed out it is 22 against 1210, so the condition could never be
+// true and nothing was ever released. Measured: `built` sat at 22 through a
+// pan 12 km east and a zoom out to z12. An absolute budget is the quantity the
+// memory is actually spent in.
+export const MAX_RESIDENT_CHUNKS = 24;
+// Pumps a chunk must go unused before it is eligible. Boundary jitter must not
+// thrash a build/dispose cycle, and a chunk that merely left the viewport this
+// pump is not yet "left behind".
+export const CHUNK_GRACE_PUMPS = 3;
+
+/**
+ * Release chunks the camera has left, once the resident set is over budget.
+ *
+ * Oldest use first, never a chunk currently needed, never one inside its grace
+ * period. Mutates `built` and the three.js scene; kept free of THREE imports
+ * so the policy can be tested without a renderer.
+ */
+export function evictOffScreenChunks(built, need, tick, scene, budget = MAX_RESIDENT_CHUNKS) {
+  if (built.size <= budget) return { evicted: 0, resident: built.size };
+  const byAge = [...built.entries()].sort((a, b) => a[1].usedTick - b[1].usedTick);
+  let evicted = 0;
+  for (const [key, rec] of byAge) {
+    if (built.size <= budget) break;
+    if (need.has(key)) continue;
+    if (tick - rec.usedTick <= CHUNK_GRACE_PUMPS) continue;
+    scene.remove(rec.mesh);
+    rec.geo.dispose();
+    built.delete(key);
+    evicted += 1;
+  }
+  return { evicted, resident: built.size };
+}
 
 function chunkCentroid(f) {
   let x = 0;
@@ -203,12 +238,18 @@ function createLayer(THREE, forms) {
   const chunks = runtime.chunks;   // Map<key, Form[]>
   const built = runtime.built;      // Map<key, {mesh, geo, usedTick}>
   let pump = 0;
+  // A real monotonic counter. This used to be `pump`, the requestAnimationFrame
+  // handle — an opaque id, not a tick number, and assigned after the first
+  // pumpChunks call — so `usedTick === pump` could not mean "touched this
+  // tick" and the hysteresis it guarded never did anything.
+  let tickCount = 0;
 
   /** Build a couple of missing chunks per frame; never block the main thread. */
   function pumpChunks(map) {
     let need;
     try { need = visibleCells(map.getBounds()); } catch { return; }
     runtime.pumpRuns = (runtime.pumpRuns || 0) + 1;
+    tickCount += 1;
     const pending = pendingCells(chunks, built, need);
     runtime.lastPump = { need: need.size, known: need.size - pending.unknown, pending: pending.keys.length, chunks: chunks.size };
     for (const key of pending.keys.slice(0, CHUNKS_PER_FRAME)) {
@@ -218,23 +259,13 @@ function createLayer(THREE, forms) {
       const mesh = new THREE.Mesh(geo, material);
       mesh.frustumCulled = false; // the shared model matrix is not the default one
       scene.add(mesh);
-      built.set(key, { mesh, geo, usedTick: pump });
+      built.set(key, { mesh, geo, usedTick: tickCount });
     }
-    // Drop chunks the camera has left well behind, with hysteresis so a
-    // boundary jitter cannot thrash a build/dispose cycle.
     for (const key of need) {
       const rec = built.get(key);
-      if (rec) rec.usedTick = pump;
+      if (rec) rec.usedTick = tickCount;
     }
-    if (built.size > need.size * 2) {
-      for (const [key, rec] of built) {
-        if (need.has(key)) continue;
-        if (rec.usedTick === pump) continue;
-        scene.remove(rec.mesh);
-        rec.geo.dispose();
-        built.delete(key);
-      }
-    }
+    evictOffScreenChunks(built, need, tickCount, scene);
     runtime.builtChunks = built.size;
   }
 
@@ -344,6 +375,9 @@ export async function installHeritageForms(map, features) {
           active: runtime.active,
           hasPump: typeof runtime.startPumping === 'function',
           pumpRuns: runtime.pumpRuns || 0,
+          // Historical: a snapshot from the last pump, not the current camera.
+          // The pump is one-shot — it stops once it has caught up — so this can
+          // be arbitrarily stale. Read `built` and `cellsInView` for live state.
           lastPump: runtime.lastPump || null,
           boundsOk,
           cellsInView: cells,
