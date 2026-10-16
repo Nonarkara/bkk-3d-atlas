@@ -512,6 +512,27 @@ if (massingTest.status !== 0) {
   fail(`building massing tests failed\n${massingTest.stdout || ""}\n${massingTest.stderr || ""}`);
 } else ok("building massing tests passed");
 
+// Thai heritage forms. The classifier must stay conservative and the layer
+// must keep three.js lazy, or the Old Town silently reverts to flat boxes.
+const formsLayerSrc = readFileSync(join(root, "public/heritage-forms-layer.js"), "utf8");
+// A static `from "three"` at the top would drag three.js to every visitor.
+const threeIsLazy = /import\(['"]three['"]\)/.test(formsLayerSrc) && !/^import .*from ["']three["'];?$/m.test(formsLayerSrc);
+// Check the export surface, not a literal: esbuild hoists exports into a block.
+const formsExports = await import(new URL("../public/heritage-forms.js", import.meta.url));
+const formsUsable = typeof formsExports.classify === "function" && typeof formsExports.buildForm === "function";
+if (
+  !app.includes("installHeritageForms") ||
+  !threeIsLazy ||
+  !formsLayerSrc.includes("defaultProjectionData") ||
+  !formsUsable
+) {
+  fail("Thai heritage forms are not wired");
+} else ok("Thai heritage forms are wired, lazy and MapLibre-4 safe");
+const formsTest = spawnSync(process.execPath, ["--test", "scripts/test-heritage-forms.mjs"], { cwd: root, encoding: "utf8" });
+if (formsTest.status !== 0) {
+  fail(`heritage forms tests failed\n${formsTest.stdout || ""}\n${formsTest.stderr || ""}`);
+} else ok("heritage forms tests passed");
+
 // app.js is loaded as type="module". A missing brace once parsed in script
 // mode, passed review, and took the whole map down in browsers (2026-10-14).
 {

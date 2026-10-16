@@ -9,6 +9,7 @@
 // residential / industrial palettes).
 
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
+import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
 import {
   installBuildingMassing,
   massingFeatureAt,
@@ -1132,7 +1133,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1145,7 +1146,7 @@ const LAYERS = [
     uninstall: (map) => {
       suspendBuildingMassing(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -2085,6 +2086,10 @@ async function installRattanakosin(map) {
       try { installHeritageRoofs(map, data); } catch (error) {
         console.warn('Heritage roofs unavailable; original buildings retained:', error);
       }
+      // Real Thai forms for the classified buildings, from the same footprints.
+      try { installHeritageForms(map, data.features ?? []); } catch (error) {
+        console.warn('Heritage forms unavailable; original buildings retained:', error);
+      }
     } catch (error) {
       console.warn("Heritage detail GeoJSON failed, falling back to PMTiles:", error);
     }
@@ -2145,6 +2150,7 @@ function applyRattanakosinPaint(map) {
 }
 
 function uninstallRattanakosin(map) {
+  uninstallHeritageForms(map);
   uninstallHeritageRoofs(map);
   if (map.getLayer(RATTANAKOSIN_BUILDINGS_LAYER)) try { map.removeLayer(RATTANAKOSIN_BUILDINGS_LAYER); } catch {}
   if (map.getSource(HERITAGE_DETAIL_SOURCE)) try { map.removeSource(HERITAGE_DETAIL_SOURCE); } catch {}
