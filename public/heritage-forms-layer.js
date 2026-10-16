@@ -171,7 +171,8 @@ function createLayer(THREE, forms) {
 
   /** Build a couple of missing chunks per frame; never block the main thread. */
   function pumpChunks(map) {
-    const need = visibleCells(map.getBounds());
+    let need;
+    try { need = visibleCells(map.getBounds()); } catch { return; }
     const pending = [];
     for (const key of need) {
       const cell = chunks.get(key);
@@ -207,7 +208,8 @@ function createLayer(THREE, forms) {
     pumpChunks(map);
     if (pump) cancelAnimationFrame(pump);
     const tick = () => {
-      const need = visibleCells(map.getBounds());
+      let need;
+      try { need = visibleCells(map.getBounds()); } catch { pump = 0; return; }
       let missing = 0;
       for (const key of need) { const c = chunks.get(key); if (c && !c.mesh) missing++; }
       for (const key of need) { const c = chunks.get(key); if (c) c.usedTick = pump; }
@@ -357,4 +359,15 @@ export function heritageFormsCount() {
 /** Candidates left out because no storey count was recorded. */
 export function shophouseSkippedCount() {
   return runtime.shophouseSkipped;
+}
+
+/** Chunks currently holding a built mesh. 0 while zoomed in means chunking broke. */
+export function builtChunkCount() {
+  return runtime.builtChunks;
+}
+
+/** Chunks the camera asked for last pump. */
+export function visibleChunkCount(map) {
+  if (!map) return 0;
+  return visibleCells(map.getBounds()).size;
 }
