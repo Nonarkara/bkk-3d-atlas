@@ -9194,6 +9194,44 @@ async function pingPresence() {
   }
 }
 
+// MapLibre <= 6.4.0 sanitizes attribution HTML with a loop that can skip an
+// event-handler attribute (GHSA-jrc7-96c5-q579, zero-click XSS from a
+// third-party style or TileJSON). The fix is MapLibre 6.4.1+, which is
+// ESM-only; until the atlas migrates, every source's attribution is rebuilt
+// here before the attribution control reads it: text plus http(s) links, nothing else.
+function safeAttribution(html) {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
+  const out = document.createElement("span");
+  for (const node of doc.body.childNodes) {
+    const href = node.nodeName === "A" ? node.getAttribute("href") || "" : "";
+    if (/^https?:\/\//i.test(href)) {
+      const a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = node.textContent;
+      out.append(a);
+    } else {
+      out.append(node.textContent);
+    }
+  }
+  return out.innerHTML;
+}
+
+function installAttributionSanitizer(map) {
+  const clean = () => {
+    for (const cache of Object.values(map.style?.sourceCaches ?? {})) {
+      const source = cache.getSource?.();
+      if (typeof source?.attribution === "string" && !source.__atlasSafe) {
+        source.attribution = safeAttribution(source.attribution);
+        source.__atlasSafe = true;
+      }
+    }
+  };
+  map.on("styledata", clean);
+  map.on("sourcedata", clean);
+}
+
 async function init() {
   const data = await fetchAreas();
   state.areas = data.areas;
@@ -9246,8 +9284,11 @@ async function init() {
     maxPitch: 75,
     antialias: true,
     hash: false,
-    attributionControl: { compact: true },
+    // Added below, after the attribution sanitizer is listening (GHSA-jrc7-96c5-q579).
+    attributionControl: false,
   });
+  installAttributionSanitizer(map);
+  map.addControl(new maplibregl.AttributionControl({ compact: true }));
   wireCameraWall(map);
 
   // External fly-to (e.g. bkk's quarter chip loaded the atlas with

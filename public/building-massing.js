@@ -764,7 +764,9 @@ function createCustomLayer(libs) {
     render(gl, args) {
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
-      const matrix = args?.defaultProjectionData?.mainMatrix;
+      // MapLibre 5+ passes {defaultProjectionData}; the atlas loads 4.7.1, which
+      // passes the matrix itself. Reading only the v5 field left this layer blank.
+      const matrix = args?.defaultProjectionData?.mainMatrix ?? args;
       if (!matrix) return;
       const coord = maplibregl.MercatorCoordinate.fromLngLat(runtime.origin, runtime.altitude);
       const scale = coord.meterInMercatorCoordinateUnits();
