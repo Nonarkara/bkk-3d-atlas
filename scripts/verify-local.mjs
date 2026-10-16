@@ -528,6 +528,19 @@ if (
 ) {
   fail("Thai heritage forms are not wired");
 } else ok("Thai heritage forms are wired, lazy and chunked");
+// The shophouse render set must stay a strict subset of the published
+// candidates, and must never be larger than the layer is willing to draw.
+const slim = JSON.parse(readFileSync(join(root, "public/bkk-shophouse-forms.geojson"), "utf8"));
+const candidates = JSON.parse(readFileSync(join(root, "public/bkk-shophouse-candidates.geojson"), "utf8"));
+const undrawable = slim.features.filter((f) => f.properties.height_basis !== "overture-storeys" || !f.properties.num_floors);
+if (undrawable.length) {
+  fail(`shophouse render set carries ${undrawable.length} rows the classifier would refuse`);
+} else if (slim.featureCount !== slim.features.length) {
+  fail("shophouse render set count disagrees with its features");
+} else {
+  ok(`shophouse render set: ${slim.features.length} of ${candidates.features.length} candidates, all drawable`);
+}
+
 const formsTest = spawnSync(process.execPath, ["--test", "scripts/test-heritage-forms.mjs"], { cwd: root, encoding: "utf8" });
 if (formsTest.status !== 0) {
   fail(`heritage forms tests failed\n${formsTest.stdout || ""}\n${formsTest.stderr || ""}`);

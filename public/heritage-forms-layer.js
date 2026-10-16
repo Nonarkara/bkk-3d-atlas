@@ -18,7 +18,10 @@ import { ROOF_LAYER } from './heritage-roofs.js';
 
 export const FORMS_LAYER = 'bkkx-heritage-forms';
 export const FORMS_MIN_ZOOM = 15;
-const SHOPHOUSE_URL = '/bkk-shophouse-candidates.geojson';
+// The slim render set (769 of 2,273 candidates, 577 KB). The full candidate
+// file stays published as a download; shipping all of it cost 2.7 MB on every
+// cold load for rows the classifier refuses anyway.
+const SHOPHOUSE_URL = '/bkk-shophouse-forms.geojson';
 
 const runtime = {
   map: null, layer: null, forms: null, chunks: new Map(),
