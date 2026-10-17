@@ -648,13 +648,17 @@ if (!vendorMatch) {
     ok("three.js is not vendored — one copy, through the pinned import map");
   }
 
-  // Any module that renders 3D must ask for the bare specifier, never a path.
+  // Any module that renders 3D must ask for a specifier the import map declares,
+  // never a filesystem path. The map carries two entries — `three` and
+  // `three/addons/` (GLTFLoader, DRACOLoader) — and both are pinned to the same
+  // unpkg version. Anything else mentioning three is a second copy.
   const renderers = ["public/building-massing.js", "public/heritage-forms-layer.js", "public/wireframe-landmarks.js"];
   const bad = [];
+  const resolves = (spec) => spec === "three" || spec.startsWith("three/");
   for (const file of renderers) {
     const src = readFileSync(join(root, file), "utf8");
     for (const m of src.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) {
-      if (/three/i.test(m[1]) && m[1] !== "three") bad.push(`${file}: import("${m[1]}")`);
+      if (/three/i.test(m[1]) && !resolves(m[1])) bad.push(`${file}: import("${m[1]}")`);
     }
   }
   if (bad.length) fail(`3D layer(s) import three by path rather than specifier:\n    ${bad.join("\n    ")}`);
