@@ -135,7 +135,10 @@ function createLayer(THREE, map, models, detail) {
       this.scene = new THREE.Scene();
       const material = new THREE.LineBasicMaterial({
         color: 0xf5ecc2,
-        depthTest: false,
+        // depthTest true: heritage buildings render first (bottom of LAYER_STACK),
+        // so wires are occluded by buildings behind them and draw over open space.
+        // depthWrite false: labels/symbols drawn after still paint over wires.
+        depthTest: true,
         depthWrite: false,
         transparent: false,
         toneMapped: false,
