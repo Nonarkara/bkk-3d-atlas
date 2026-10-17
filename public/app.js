@@ -12,6 +12,7 @@
 import './maplibre-global.js'; // must stay first: sets window.maplibregl (v6, self-hosted)
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
 import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
+import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
 import {
   installBuildingMassing,
   massingFeatureAt,
@@ -22,9 +23,9 @@ import {
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
-import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261017-1792212056-69efcfc';
+import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261017-1792229380-53838de';
 // Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
-const ATLAS_BUILD = "bkk-atlas-20261017-1792212056-69efcfc";
+const ATLAS_BUILD = "bkk-atlas-20261017-1792229380-53838de";
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -1170,6 +1171,19 @@ const LAYERS = [
       { color: "#6b7280", label: "industrial" },
       { color: "#9a9a90", label: "untagged" },
     ],
+  },
+  {
+    id: "wireframe-landmarks",
+    name: "Monument wireframes",
+    description: "Procedural line drawings · 8 landmarks",
+    defaultOn: false,
+    layers: [WIRE_LAYER_ID],
+    install: async (map) => { await installWireframeLandmarks(map); },
+    uninstall: (map) => { uninstallWireframeLandmarks(map); },
+    legend: [
+      { color: "#f5ecc2", label: "Sulpher Yellow ink on black" },
+    ],
+    note: "Stylised line drawings from procedural geometry — not a survey, and not a reconstruction. Positions are the monument footprints; proportions are illustrative.",
   },
   {
     id: "rail",

@@ -631,6 +631,36 @@ if (!vendorMatch) {
   } else ok("Worker CSP does not carry the three.js import-map hash");
 }
 
+// three.js must resolve through the pinned import map, and there must be
+// exactly one copy of it. PR #19 was closed for adding a second: a 4,232-line
+// public/vendor/three.module.js loaded by hardcoded path, so the massing and
+// forms layers would get three@0.170.0 from unpkg while the landmarks layer got
+// whatever was vendored — two copies, no pin on one of them, no hash, and
+// nothing to catch a version bump in one place only.
+{
+  const vendorDir = join(root, "public/vendor");
+  const vendoredThree = existsSync(vendorDir)
+    ? readdirSync(vendorDir).filter((f) => /three.*\.module\.js$/i.test(f))
+    : [];
+  if (vendoredThree.length) {
+    fail(`public/vendor holds a second copy of three.js (${vendoredThree.join(", ")}) — resolve 'three' through the import map instead`);
+  } else {
+    ok("three.js is not vendored — one copy, through the pinned import map");
+  }
+
+  // Any module that renders 3D must ask for the bare specifier, never a path.
+  const renderers = ["public/building-massing.js", "public/heritage-forms-layer.js", "public/wireframe-landmarks.js"];
+  const bad = [];
+  for (const file of renderers) {
+    const src = readFileSync(join(root, file), "utf8");
+    for (const m of src.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) {
+      if (/three/i.test(m[1]) && m[1] !== "three") bad.push(`${file}: import("${m[1]}")`);
+    }
+  }
+  if (bad.length) fail(`3D layer(s) import three by path rather than specifier:\n    ${bad.join("\n    ")}`);
+  else ok(`all ${renderers.length} 3D layers resolve three through the import map`);
+}
+
 // GitHub Actions hardening. security.yml set the standard — every action on a
 // commit SHA, workflow-level `permissions: contents: read`, and no leftover
 // checkout credentials. The workflow that actually holds CLOUDFLARE_API_TOKEN
