@@ -59,10 +59,9 @@ console.log('  installed before enabling:', await ev(`!!window.__atlas.map.getLa
 
 // Enable it the way the layer toggle does.
 const enabled = await ev(`(async()=>{
-  const entry = window.__atlas.LAYERS ? window.__atlas.LAYERS.find(l => l.id === 'wireframe-landmarks') : null;
-  if (!entry) return 'no registry entry exposed on window.__atlas';
-  try { await entry.install(window.__atlas.map); return 'install() ok'; }
-  catch (e) { return 'install() threw: ' + String(e && e.message || e).slice(0,200); }
+  if (typeof window.__atlas?.setLayer !== 'function') return 'no setLayer on window.__atlas (needs ?debug)';
+  try { return await window.__atlas.setLayer('wireframe-landmarks', true) ? 'setLayer(true) ok' : 'setLayer ran but the layer is not on the map'; }
+  catch (e) { return 'setLayer threw: ' + String(e && e.message || e).slice(0,220); }
 })()`);
 console.log('  enabling:', enabled);
 

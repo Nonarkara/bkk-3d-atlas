@@ -9303,7 +9303,20 @@ async function init() {
 
   state.map = map;
   // ?debug exposes the live state for console inspection; nothing else reads it.
-  if (new URLSearchParams(location.search).has("debug")) window.__atlas = state;
+  if (new URLSearchParams(location.search).has("debug")) {
+    window.__atlas = state;
+    // The layer registry too. Opt-in layers cannot be turned on from the state
+    // object, so without this a render check can only report "not installed" and
+    // cannot tell a layer that never works from one nobody switched on.
+    window.__atlas.LAYERS = LAYERS;
+    window.__atlas.setLayer = async (id, on) => {
+      const entry = LAYERS.find((l) => l.id === id);
+      if (!entry) throw new Error(`unknown layer ${id}`);
+      if (on) await entry.install(map);
+      else entry.uninstall?.(map);
+      return !!map.getLayer((entry.layers || [])[0]);
+    };
+  }
 
   // The map container is a CSS-grid `1fr` row whose height depends on the
   // header's `auto` row, which depends on webfont metrics. If MapLibre reads
