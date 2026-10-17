@@ -9,8 +9,15 @@
 # inventory. Cloudflare's own analytics beacon (cloudflareinsights.com,
 # auto-injected per zone dashboard setting) is explicitly allowed —
 # unlisted it would be blocked, silently killing the live web analytics.
+# fonts.googleapis.com (style-src) and fonts.gstatic.com (font-src) belong to
+# /labs/paper/, which loads IBM Plex Sans Thai, IBM Plex Mono and Spectral from
+# Google Fonts. Without them the paper rendered in fallback fonts and nothing
+# said so — it looked fine, it was just not set in its own type. Verified
+# blocked against the live site before this line changed. From PR #18.
+# The script-src import-map hash is NOT from that PR and stays: it is what lets
+# three.js load, and dropping it silently kills the 3D layers.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-cmpV4hrEPQ1DKRl6ZrWTySDX/rFjTNep0fTdknNSyC8=' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-cmpV4hrEPQ1DKRl6ZrWTySDX/rFjTNep0fTdknNSyC8=' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org https://fonts.gstatic.com data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
