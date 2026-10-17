@@ -1,10 +1,19 @@
 /** Headers and request guards for the public atlas Worker.
  * Document CSP for static files lives in public/_headers. This copy is
- * applied only when a response does not already carry one (API JSON,
- * errors, R2 tiles). Keep the two strings identical; verify-local checks. */
+ * applied only when a response does not already carry one (API JSON, errors,
+ * R2 tiles). verify-local compares the two.
+ *
+ * NOT byte-identical, on purpose. script-src here is a strict subset of the
+ * document policy: no 'wasm-unsafe-eval' and no sha256 import-map hash, because
+ * nothing served from this path runs three.js. Copying the document policy
+ * wholesale would grant every JSON response the ability to eval. What must stay
+ * in step is the set of directives and their order — verify-local fails if a
+ * directive is added to one and not the other.
+ */
 
-/** Same policy as public/_headers. Do not add upgrade-insecure-requests
- * here — that suffix is https-only, below, so local wrangler stays on http. */
+/** Same directives as public/_headers, deliberately narrower script-src. See above.
+ * Do not add upgrade-insecure-requests here — that suffix is https-only, below,
+ * so local wrangler stays on http. */
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com",

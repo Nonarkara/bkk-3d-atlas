@@ -590,6 +590,47 @@ if (!vendorMatch) {
   }
 }
 
+// src/edge-guard.ts and public/_headers both carry a Content-Security-Policy,
+// and a comment in the former used to promise they were identical and checked.
+// They were not identical — the Worker's script-src is deliberately narrower,
+// since no JSON response runs three.js — and nothing checked either way. A
+// promise in a comment is not a control.
+//
+// What is enforced: the two declare the same directives in the same order (so
+// neither silently gains or loses one), and the Worker's copy never widens the
+// document policy by carrying wasm-unsafe-eval or the three.js import-map hash.
+{
+  const guard = readFileSync(join(root, "src/edge-guard.ts"), "utf8");
+  const headersBody = readFileSync(join(root, "public/_headers"), "utf8");
+  const documentPolicy = (headersBody.match(/^ {2}Content-Security-Policy: (.+)$/m) || [])[1] || "";
+  const directives = (policy) => (policy.split(";").map((d) => d.trim()).filter(Boolean).map((d) => d.split(/\s+/)[0]));
+
+  const guardDirectives = [...guard.matchAll(/"([a-z-]+-src|default-src|object-src|base-uri|form-action|frame-ancestors)\s/g)]
+    .map((m) => m[1]);
+  const docDirectives = directives(documentPolicy);
+
+  if (!documentPolicy) {
+    fail("cannot read the document Content-Security-Policy from public/_headers");
+  } else if (JSON.stringify(guardDirectives) !== JSON.stringify(docDirectives)) {
+    fail(`CSP directives differ between src/edge-guard.ts and public/_headers:\n    guard: ${guardDirectives.join(" ")}\n    _headers: ${docDirectives.join(" ")}`);
+  } else {
+    ok(`CSP directives agree across ${guardDirectives.length} directives (${guardDirectives.join(" ")})`);
+  }
+
+  // Scope both to the policy strings, not the file text. A whole-file grep
+  // matched the comment explaining why wasm-unsafe-eval is absent, which is
+  // the shape of check that cries wolf on its own documentation.
+  const guardPolicy = [...guard.matchAll(/"([a-z-]+-src[^"]*)"/g)].map((m) => m[1]).join("; ");
+  if (/wasm-unsafe-eval/.test(guardPolicy)) {
+    fail("src/edge-guard.ts grants wasm-unsafe-eval — only the document policy may, and only for three.js");
+  } else ok("Worker CSP does not grant wasm-unsafe-eval");
+
+  const hash = (documentPolicy.match(/sha256-[A-Za-z0-9+/=]+/) || [])[0];
+  if (hash && guardPolicy.includes(hash)) {
+    fail("src/edge-guard.ts carries the document import-map hash; JSON responses have no import map to allow");
+  } else ok("Worker CSP does not carry the three.js import-map hash");
+}
+
 // GitHub Actions hardening. security.yml set the standard — every action on a
 // commit SHA, workflow-level `permissions: contents: read`, and no leftover
 // checkout credentials. The workflow that actually holds CLOUDFLARE_API_TOKEN

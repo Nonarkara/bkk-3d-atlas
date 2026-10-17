@@ -16,10 +16,16 @@
 # blocked against the live site before this line changed. From PR #18.
 # The script-src import-map hash is NOT from that PR and stays: it is what lets
 # three.js load, and dropping it silently kills the 3D layers.
+# Strict-Transport-Security is below, on the static document, not only on the
+# Worker's own responses via src/edge-guard.ts. HSTS is honoured per host, so a
+# browser that only ever loaded / would never pin this one — the header that
+# matters most was on the responses that matter least. Comments in this file
+# live at column 0; an indented one inside a block is not reliably a comment.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-cmpV4hrEPQ1DKRl6ZrWTySDX/rFjTNep0fTdknNSyC8=' https://unpkg.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' https: data: blob:; font-src 'self' https://tiles.openfreemap.org https://fonts.gstatic.com data:; connect-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob: https://camerai1.iticfoundation.org; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
