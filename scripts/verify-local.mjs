@@ -631,6 +631,30 @@ if (!vendorMatch) {
   } else ok("Worker CSP does not carry the three.js import-map hash");
 }
 
+// The test command must still pick up every test file, by glob rather than by
+// name. BKKx names its files explicitly, so a new one there is silently skipped;
+// here a glob covers that, but a narrowed one would reintroduce it. Assert the
+// glob is intact and that it is actually matching something — a check that
+// matches nothing reports the same green as a check that passes.
+{
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const cmd = pkg.scripts?.test || "";
+  if (!cmd) {
+    fail("package.json has no test script");
+  } else if (!/node\s+--test\s+scripts\/test-\*\.mjs/.test(cmd)) {
+    fail(`the test script no longer globs scripts/test-*.mjs: "${cmd}" — a narrowed command skips every new test file`);
+  } else {
+    const found = readdirSync(join(root, "scripts")).filter((f) => /^test-.*\.mjs$/.test(f));
+    if (!found.length) {
+      fail("the test glob matches no files — a suite that runs nothing is green for the wrong reason");
+    } else if (found.length < 5) {
+      fail(`only ${found.length} test file(s) match scripts/test-*.mjs — has the glob been narrowed?`);
+    } else {
+      ok(`npm test globs ${found.length} test files, all picked up automatically`);
+    }
+  }
+}
+
 // three.js must resolve through the pinned import map, and there must be
 // exactly one copy of it. PR #19 was closed for adding a second: a 4,232-line
 // public/vendor/three.module.js loaded by hardcoded path, so the massing and
