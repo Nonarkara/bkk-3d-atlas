@@ -13,9 +13,24 @@ ATLAS_URL="${ATLAS_URL:-https://atlas.nonarkara.org}"
 # Two agents deploying over each other leave the edge on bytes no commit
 # describes. mkdir is atomic, so it serializes releases.
 LOCK=.deploy-locked
+# A lock older than LOCK_TTL_MINUTES is presumed orphaned. The EXIT trap below
+# clears the lock on every ordinary failure, but a trap cannot survive kill -9,
+# a power cut or a container eviction — and an empty directory with no owner is
+# indistinguishable from a live deploy. Without an expiry, one crashed release
+# wedges every release after it until a human notices and rmdirs it by hand.
+LOCK_TTL_MINUTES="${LOCK_TTL_MINUTES:-30}"
 if ! mkdir "$LOCK" 2>/dev/null; then
-  echo "release refused: another deploy holds the lock (if none is running: rmdir $LOCK)" >&2
-  exit 1
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin "+$LOCK_TTL_MINUTES" 2>/dev/null)" ]; then
+    echo "release: lock is older than ${LOCK_TTL_MINUTES}m with no deploy holding it — clearing and continuing" >&2
+    rmdir "$LOCK" 2>/dev/null || true
+    if ! mkdir "$LOCK" 2>/dev/null; then
+      echo "release refused: could not re-take the lock after clearing a stale one" >&2
+      exit 1
+    fi
+  else
+    echo "release refused: another deploy holds the lock (if none is running: wait ${LOCK_TTL_MINUTES}m, or rmdir $LOCK)" >&2
+    exit 1
+  fi
 fi
 DEPLOYED_BUILD=""
 on_exit() {
