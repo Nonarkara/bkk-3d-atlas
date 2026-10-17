@@ -109,18 +109,28 @@ for (const { label, view } of VIEWS) {
   const ids = JSON.parse(await ev('JSON.stringify(window.__atlas.map.getLayersOrder())'));
   console.log(`\n══ ${label} — ${ids.length} installed layers ══`);
 
-  // All off, then back on one at a time. Record which id each delta belongs to.
+  // Each layer is measured ALONE against the all-off baseline.
+  //
+  // This used to enable them cumulatively — one more layer visible each step,
+  // each delta measured against the previous step. That reads as equivalent and
+  // is not. bkkx-heritage-roofs-3d scored exactly 0.000% that way while
+  // MapLibre's own queryRenderedFeatures returned 144 rendered features at the
+  // very same view, and turning it on visibly changed pixels with its sibling
+  // extrusions already visible. Forty layers were sitting in that suspect bucket
+  // with no evidence any of them were actually broken.
+  //
+  // Cost is identical: one shared baseline, one capture per layer.
   await ev(`(()=>{const m=window.__atlas.map;for(const id of ${JSON.stringify(ids)}){try{m.setLayoutProperty(id,'visibility','none')}catch(e){}}return true})()`);
   await sleep(SETTLE);
-  let prev = await shot();
+  const base = await shot();
   const pct = {};
   for (const id of ids) {
-    await ev(`(()=>{try{window.__atlas.map.setLayoutProperty(${JSON.stringify(id)},'visibility','visible')}catch(e){};return true})()`);
+    await ev(`(()=>{const m=window.__atlas.map;for(const o of ${JSON.stringify(ids)}){try{m.setLayoutProperty(o,'visibility','none')}catch(e){}}
+      try{m.setLayoutProperty(${JSON.stringify(id)},'visibility','visible')}catch(e){};return true})()`);
     await sleep(SETTLE);
     const cur = await shot();
-    const d = differingPixels(prev, cur);
+    const d = differingPixels(base, cur);
     pct[id] = d === null ? null : d;
-    prev = cur;
   }
   // Leave the map as we found it.
   await ev(`(()=>{const m=window.__atlas.map;for(const id of ${JSON.stringify(ids)}){try{m.setLayoutProperty(id,'visibility','none')}catch(e){}}return true})()`);
