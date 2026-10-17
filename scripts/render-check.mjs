@@ -79,7 +79,7 @@ function connect(url) {
       const payload = { id: mid, method, params };
       if (sessionId) payload.sessionId = sessionId;
       ws.send(JSON.stringify(payload));
-      return new Promise((r, j) => pending.set(mid, { resolve: r, reject: j }));
+      return new Promise((r, j) => { const to = setTimeout(() => { pending.delete(mid); j(new Error(`${method} did not answer in 120s`)); }, 120000); pending.set(mid, { resolve: (v) => { clearTimeout(to); r(v); }, reject: (e) => { clearTimeout(to); j(e); } }); })
     },
     close: () => ws.close(),
   };
@@ -95,6 +95,28 @@ await browser.send('Network.enable', {}, sessionId);
 // Without this both captures can read identical cached bytes and a real change
 // looks like no change at all.
 await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+// Keep the renderer producing frames even when the Chrome window is occluded
+// behind another app. Without this, captureScreenshot never answers: the page
+// goes hidden, Chrome suspends the compositor, and an unsettled top-level await
+// ends the process with exit 0 — a check that measured nothing and passed.
+await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+
+// Close QA tabs left behind by an earlier run. A run that hangs or is killed
+// never reaches its own cleanup, and each survivor is a live WebGL atlas
+// spinning an rAF loop, so they accumulate across a session.
+//
+// This is hygiene, not a fix. It was written on the theory that leaked tabs were
+// starving the compositor; it was not — cleaning them changed nothing about the
+// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
+// still real, not because they caused anything.
+{
+  const { targetInfos } = await browser.send('Target.getTargets');
+  for (const t of targetInfos) {
+    if (t.targetId === targetId || t.type !== 'page') continue;
+    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
+    try { await browser.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
+  }
+}
 
 const evaluate = async (expression) => {
   const r = await browser.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);

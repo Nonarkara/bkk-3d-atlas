@@ -45,7 +45,7 @@ function connect(url) {
   });
   return {
     ready: new Promise((res, rej) => { ws.addEventListener('open', res, { once: true }); ws.addEventListener('error', rej, { once: true }); }),
-    send(method, params = {}, sessionId) { const mid = ++id; const pl = { id: mid, method, params }; if (sessionId) pl.sessionId = sessionId; ws.send(JSON.stringify(pl)); return new Promise((r, j) => p.set(mid, { resolve: r, reject: j })); },
+    send(method, params = {}, sessionId) { const mid = ++id; const pl = { id: mid, method, params }; if (sessionId) pl.sessionId = sessionId; ws.send(JSON.stringify(pl)); return new Promise((r, j) => { const to = setTimeout(() => { p.delete(mid); j(new Error(`${method} did not answer in 120s`)); }, 120000); p.set(mid, { resolve: (v) => { clearTimeout(to); r(v); }, reject: (e) => { clearTimeout(to); j(e); } }); }) },
     close: () => ws.close(),
   };
 }
@@ -55,6 +55,36 @@ const { sessionId } = await b.send('Target.attachToTarget', { targetId, flatten:
 for (const m of ['Page.enable', 'Runtime.enable', 'Network.enable']) await b.send(m, {}, sessionId);
 // Without this, consecutive captures can be byte-identical cached reads.
 await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+// Keep the renderer producing frames even when the Chrome window is occluded
+// behind another app. Without this, captureScreenshot never answers: the page
+// goes hidden, Chrome suspends the compositor, and an unsettled top-level await
+// ends the process with exit 0 — a check that measured nothing and passed.
+await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+// Pin the surface to 1x. This sweep has to capture the city-scale view, and at
+// the window's native 2x the backing surface is 4.8 megapixels — captureScreenshot
+// then never returns, not even after 150s, while the map itself runs at ~50fps.
+// Measured: 1200x1004@1x captures in 329ms at zoom 10.60, where 2x never answers.
+// The map was never broken. Only the capture path was.
+await b.send('Emulation.setDeviceMetricsOverride', {
+  width: 1200, height: 1004, deviceScaleFactor: 1, mobile: false,
+}, sessionId);
+
+// Close QA tabs left behind by an earlier run. A run that hangs or is killed
+// never reaches its own cleanup, and each survivor is a live WebGL atlas
+// spinning an rAF loop, so they accumulate across a session.
+//
+// This is hygiene, not a fix. It was written on the theory that leaked tabs were
+// starving the compositor; it was not — cleaning them changed nothing about the
+// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
+// still real, not because they caused anything.
+{
+  const { targetInfos } = await b.send('Target.getTargets');
+  for (const t of targetInfos) {
+    if (t.targetId === targetId || t.type !== 'page') continue;
+    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
+    try { await b.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
+  }
+}
 
 const ev = async (x) => { const r = await b.send('Runtime.evaluate', { expression: x, returnByValue: true, awaitPromise: true }, sessionId); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || 'eval failed'); return r.result.value; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -25,7 +25,7 @@ function connect(url) {
   });
   return {
     ready: new Promise((res, rej) => { ws.addEventListener('open', res, { once: true }); ws.addEventListener('error', rej, { once: true }); }),
-    send(method, params = {}, sessionId) { const mid = ++id; const pl = { id: mid, method, params }; if (sessionId) pl.sessionId = sessionId; ws.send(JSON.stringify(pl)); return new Promise((r, j) => p.set(mid, { resolve: r, reject: j })); },
+    send(method, params = {}, sessionId) { const mid = ++id; const pl = { id: mid, method, params }; if (sessionId) pl.sessionId = sessionId; ws.send(JSON.stringify(pl)); return new Promise((r, j) => { const to = setTimeout(() => { p.delete(mid); j(new Error(`${method} did not answer in 120s`)); }, 120000); p.set(mid, { resolve: (v) => { clearTimeout(to); r(v); }, reject: (e) => { clearTimeout(to); j(e); } }); }) },
     close: () => ws.close(),
   };
 }
@@ -34,6 +34,28 @@ const { targetId } = await b.send('Target.createTarget', { url: 'about:blank' })
 const { sessionId } = await b.send('Target.attachToTarget', { targetId, flatten: true });
 for (const m of ['Page.enable', 'Runtime.enable', 'Network.enable', 'Log.enable']) await b.send(m, {}, sessionId);
 await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+// Keep the renderer producing frames even when the Chrome window is occluded
+// behind another app. Without this, captureScreenshot never answers: the page
+// goes hidden, Chrome suspends the compositor, and an unsettled top-level await
+// ends the process with exit 0 — a check that measured nothing and passed.
+await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+
+// Close QA tabs left behind by an earlier run. A run that hangs or is killed
+// never reaches its own cleanup, and each survivor is a live WebGL atlas
+// spinning an rAF loop, so they accumulate across a session.
+//
+// This is hygiene, not a fix. It was written on the theory that leaked tabs were
+// starving the compositor; it was not — cleaning them changed nothing about the
+// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
+// still real, not because they caused anything.
+{
+  const { targetInfos } = await b.send('Target.getTargets');
+  for (const t of targetInfos) {
+    if (t.targetId === targetId || t.type !== 'page') continue;
+    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
+    try { await b.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
+  }
+}
 
 const ev = async (x) => {
   const r = await b.send('Runtime.evaluate', { expression: x, returnByValue: true, awaitPromise: true }, sessionId);
