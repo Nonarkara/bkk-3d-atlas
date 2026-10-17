@@ -115,9 +115,94 @@ for (let i = 0; i < 60; i++) {
 if (!(await evaluate('!!window.__atlas?.map?.getLayer'))) die('the atlas map never appeared');
 
 await evaluate(`window.__atlas.map.jumpTo(${JSON.stringify(VIEW)}); true`);
-await sleep(12000);
+
+// Wait for the layers to arrive rather than for a fixed number of seconds.
+// A run started seconds after a deploy once reported all five layers MISSING
+// on a site where all five were installed and drawing: the map existed, but the
+// 3D layers install after a lazy three.js import, and a cold Worker was slower
+// than the sleep. A check that reports "missing" when the answer is "not yet"
+// is a check people learn to ignore.
+const want = LAYERS.map((l) => l.id);
+const deadline = Date.now() + 75000;
+let installed = 0;
+while (Date.now() < deadline) {
+  installed = await evaluate(`JSON.stringify(${JSON.stringify(want)}.filter(i=>!!window.__atlas.map.getLayer(i)).length)`);
+  if (Number(installed) >= want.length) break;
+  await sleep(1500);
+}
+if (Number(installed) < want.length) {
+  die(`only ${installed}/${want.length} layers installed within 75s at zoom ${VIEW.zoom} — the map never finished loading, so nothing can be measured`);
+}
+await sleep(6000); // let the first chunks build before anything is measured
+
+// The map is never still: khlongs flow, flood ripples and event pulses animate
+// every frame. Measuring a noise floor on a moving target gave 15%, which would
+// have set a 45% threshold and passed anything. Freeze the animated layers
+// first — they are decorative motion, and every layer this check measures is
+// static — then measure what is left, which is capture and antialiasing error.
+const ANIMATED = [
+  'bkkx-khlongs-flow', 'bkkx-flood-roads-ripple', 'bkkx-city-event-pulse',
+  'bkkx-news-event-glow', 'bkkx-news-event-count', 'bkkx-khlongs-river',
+  'bkkx-flood-roads-water', 'bkkx-khlongs-canal',
+];
+const freeze = await evaluate(`(()=>{const m=window.__atlas.map;let n=0;
+ for (const id of ${JSON.stringify(ANIMATED)}) { try { if (m.getLayer(id)) { m.setLayoutProperty(id,'visibility','none'); n++; } } catch(e){} }
+ return n})()`);
+await sleep(2500);
+
+// Two things had to be separated, and both my first attempts got one of them
+// wrong. Still captures with nothing changed agree to 0.000%. But two captures
+// of the same state separated by a hide-and-restore differ by more, because
+// toggling nudges MapLibre into a different render state and some pixels settle
+// differently. That second number is the one that matters — it is
+// indistinguishable from a very faint layer.
+//
+// Calibrating it on an animated layer gave 0.449%, which is that layer's real
+// footprint, not churn, and a 0.897% floor then reported three genuinely-drawing
+// layers BLANK. So calibrate against layers that are empty at this view and are
+// not under test: `background` sits under the satellite layer, and
+// `highway_minor` is the base style's minor roads, which the atlas replaces with
+// bkkx-roads-minor. Take the larger so one of them spiking shows up as a
+// visibly raised floor rather than a silently lenient check.
+// differingPixels returns a percentage (0.15 means 0.15%); these are the same
+// units. An earlier Math.max(0.02, ...) was a fraction measured against
+// percentages and silently set a 0.02% floor.
+const CALIBRATION = ['background', 'highway_minor'];
+const calib = {};
+for (const id of CALIBRATION) {
+  calib[id] = await toggleDelta(id);
+}
+const calibFloor = Math.max(...Object.values(calib).map((n) => (n === null ? 0 : n)));
+const FLOOR = Math.max(0.02, calibFloor * 2);
+console.log(`render-check: froze ${freeze} animated layer(s); empty-layer calibration ${Object.entries(calib).map(([k, v]) => `${k}=${v === null ? 'n/a' : v.toFixed(3) + '%'}`).join(' ')} → threshold ${FLOOR.toFixed(3)}%`);
+
+// They stay frozen for the whole run and go back at the very end. Restoring
+// them here made the map animate again between every capture pair in the
+// measurement loop, and that 0.11% of moving water was reported as the
+// deliberately-asleep roof pilot "drawing" — the third distinct noise source
+// this check has had to chase.
 
 mkdirSync(SHOT_DIR, { recursive: true });
+/**
+ * Hide a layer, capture, restore, capture. Returns the pixel delta.
+ *
+ * Restores the layer's ORIGINAL visibility, not 'visible'. bkkx-heritage-roofs-3d
+ * is suppressed by the forms layer, so it already reads 'none'. A restore that
+ * assumed 'visible' switched it back on — measured its true 288-feature
+ * footprint, reported the deliberately-asleep layer as NOISY, and left it
+ * visible for the rest of the run. A check that changes the thing it measures is
+ * worse than one that reads it.
+ */
+async function toggleDelta(id) {
+  const before = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
+  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility','none')}catch(e){};return true})()`);
+  await sleep(2200);
+  const off = await shot();
+  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility',${JSON.stringify(before)})}catch(e){};return true})()`);
+  await sleep(1600);
+  return differingPixels(await shot(), off);
+}
+
 const results = [];
 
 for (const { id, expect = 'visible', why } of LAYERS) {
@@ -129,12 +214,14 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   const before = await shot();
   // Hide rather than remove: removal tears down state we want to keep for the
   // next layer, and MapLibre's onRemove can mask what the layer actually drew.
+  // Remember and restore the original visibility — see toggleDelta.
+  const wasVisible = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
   await evaluate(`(()=>{const m=window.__atlas.map; m.setLayoutProperty(${JSON.stringify(id)},'visibility','none'); return true})()`);
   await sleep(400);
   const probe = await evaluate(`window.__atlas.map.getLayoutProperty(${JSON.stringify(id)},'visibility') === 'none'`);
   await sleep(2100);
   const after = await shot();
-  await evaluate(`(()=>{const m=window.__atlas.map; m.setLayoutProperty(${JSON.stringify(id)},'visibility','visible'); return true})()`);
+  await evaluate(`(()=>{const m=window.__atlas.map; m.setLayoutProperty(${JSON.stringify(id)},'visibility',${JSON.stringify(wasVisible)}); return true})()`);
   await sleep(1500);
 
   const pct = differingPixels(before, after);
@@ -150,6 +237,12 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   results.push({ id, present: true, pct, expect, why, probe });
 }
 
+// Put the animated layers back — the check must not leave the map altered.
+await evaluate(`(()=>{const m=window.__atlas.map;
+ for (const id of ${JSON.stringify(ANIMATED)}) { try { if (m.getLayer(id)) m.setLayoutProperty(id,'visibility','visible'); } catch(e){} }
+ return true})()`);
+await sleep(1500);
+
 browser.close();
 
 console.log(`render-check: ${URL} @ zoom ${VIEW.zoom}`);
@@ -162,7 +255,7 @@ for (const r of results) {
     if (!r.probe) {
       console.log(`  UNPROOF  ${r.id} — reads as hidden, but the hide never took: this check cannot measure it`);
       bad++;
-    } else if (r.pct <= 0.05) {
+    } else if (r.pct <= FLOOR) {
       console.log(`  asleep   ${r.id} — hidden as expected`);
     } else {
       console.log(`  NOISY    ${r.id} — should be hidden but draws ${r.pct.toFixed(2)}%`);
@@ -171,7 +264,7 @@ for (const r of results) {
   } else if (r.pct === null) {
     console.log(`  BROKEN   ${r.id} — the two captures are not comparable`);
     bad++;
-  } else if (r.pct <= 0.05) {
+  } else if (r.pct <= FLOOR) {
     console.log(`  BLANK    ${r.id} — installed but changes no pixels (${r.pct.toFixed(3)}%)`);
     bad++;
   } else {
