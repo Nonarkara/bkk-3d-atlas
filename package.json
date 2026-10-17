@@ -23,6 +23,7 @@
     "build:palace": "node scripts/palace-standin.mjs",
     "verify": "node scripts/verify-local.mjs",
     "render-check": "node scripts/render-check.mjs",
+    "phone-qa": "node scripts/phone-qa.mjs",
     "smoke": "node scripts/smoke-atlas-api.mjs",
     "release": "bash scripts/deploy-live.sh",
     "stamp": "node scripts/stamp-build-id.mjs"
