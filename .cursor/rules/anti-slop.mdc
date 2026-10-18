@@ -1,0 +1,6 @@
+---
+description: Dr Non's anti-slop design rules. Read ANTI-SLOP.md before any UI work.
+alwaysApply: true
+---
+
+Before designing or changing any page, component, style or chart, read `ANTI-SLOP.md` at the repo root and follow its hard limits: empty space is a decision, subtract before you add, the map comes first. Run slop-lint (tools/slop-lint.mjs in Nonarkara/palette) before calling UI work done.
