@@ -16,6 +16,7 @@ import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID }
 import {
   installBuildingMassing,
   massingFeatureAt,
+  massingDebugState,
   MASSING_LAYER,
   reapplyMassingFilters,
   suspendBuildingMassing,
@@ -9309,6 +9310,9 @@ async function init() {
     // object, so without this a render check can only report "not installed" and
     // cannot tell a layer that never works from one nobody switched on.
     window.__atlas.LAYERS = LAYERS;
+    // The massing layer renders from a closure. Without this a render check can
+    // only see that it draws nothing, not which early-return stops it.
+    window.__atlas.massing = massingDebugState;
     window.__atlas.setLayer = async (id, on) => {
       const entry = LAYERS.find((l) => l.id === id);
       if (!entry) throw new Error(`unknown layer ${id}`);

@@ -79,6 +79,31 @@ const runtime = {
   arm: 0,
 };
 
+// ?debug only. A render check can tell "not installed" from "installs and draws
+// nothing", but not which of the render() early-returns is stopping it — the
+// scene lives in a closure and there is no other way in. This installs
+// cleanly, activates, hides its sibling, and still changes no pixels at the
+// Grand Palace view; this is how the next person finds out why.
+export function massingDebugState() {
+  return {
+    installed: runtime.installed,
+    active: runtime.active,
+    layerAdded: !!runtime.layer,
+    hasRenderer: !!runtime.renderer,
+    hasScene: !!runtime.scene,
+    contentVisible: runtime.content ? !!runtime.content.visible : null,
+    contentChildren: runtime.content ? runtime.content.children.length : null,
+    sceneChildren: runtime.scene ? runtime.scene.children.length : null,
+    palaceShown: runtime.palaceShown,
+    palaceObject: !!runtime.palaceObject,
+    hits: runtime.hits.length,
+    hiddenIds: runtime.hiddenIds.length,
+    signature: runtime.signature,
+    frame: runtime.frame,
+    zoom: runtime.map ? Number(runtime.map.getZoom().toFixed(2)) : null,
+  };
+}
+
 export function srgbChannelToLinear(channel) {
   const value = channel / 255;
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
