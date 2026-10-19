@@ -195,10 +195,12 @@ function createLayer(THREE, map, models, detail) {
       this.palette = PALETTE.ink;
     },
     render(gl, args) {
-      // MapLibre 5+ passes { defaultProjectionData: { mainMatrix } }, not a
-      // bare matrix. Taking the second argument as a matrix renders garbage on
-      // 6.4.1 — or throws, depending on what fromArray() meets.
-      const matrix = args?.defaultProjectionData?.mainMatrix;
+      // MapLibre 6.4.1 passes projectionMatrix/modelViewProjectionMatrix
+      // directly on the args object, not nested under defaultProjectionData.
+      // defaultProjectionData.mainMatrix does not exist in 6.4.1 — the old
+      // lookup always returned undefined, so render() bailed and the layer
+      // drew 0 pixels despite installing cleanly.
+      const matrix = args?.projectionMatrix ?? args?.modelViewProjectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
       if (!this.renderer || !matrix) return;
       const m = new THREE.Matrix4().fromArray(matrix);
       const translate = new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z);

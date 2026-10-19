@@ -789,7 +789,12 @@ function createCustomLayer(libs) {
     render(gl, args) {
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
-      const matrix = args?.defaultProjectionData?.mainMatrix; // MapLibre 5+ custom-layer API
+      // MapLibre 6.4.1 passes projectionMatrix/modelViewProjectionMatrix
+      // directly on the args object, not nested under defaultProjectionData.
+      // defaultProjectionData.mainMatrix does not exist in 6.4.1 — the old
+      // lookup always returned undefined, so render() bailed and the layer
+      // drew 0 pixels despite installing and activating cleanly.
+      const matrix = args?.projectionMatrix ?? args?.modelViewProjectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
       if (!matrix) return;
       const coord = maplibregl.MercatorCoordinate.fromLngLat(runtime.origin, runtime.altitude);
       const scale = coord.meterInMercatorCoordinateUnits();
