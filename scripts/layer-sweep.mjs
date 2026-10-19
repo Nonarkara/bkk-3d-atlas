@@ -19,12 +19,11 @@
 // broken silently and shipped drawing nothing. Any presence check built on the
 // style object reports them missing forever. Use `map.getLayersOrder()`.
 //
-// Cumulative rather than pairwise: shoot with everything on, shoot with
-// everything off, then add layers back one at a time. The delta between
-// consecutive shots is that layer's footprint, for one screenshot per layer
-// instead of two. Additive so a later layer does not hide an earlier one.
+// Pairwise: compare each isolated layer with the shared all-off baseline.
+// This measures contribution at this view, not whether a layer is healthy.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
+import { snapshotVisibility, restoreVisibility } from './layer-sweep-state.mjs';
 
 const PORT = process.env.CHROME_DEBUG_PORT || '9333';
 const URL = process.env.ATLAS_URL || 'https://atlas.nonarkara.org';
@@ -69,22 +68,7 @@ await b.send('Emulation.setDeviceMetricsOverride', {
   width: 1200, height: 1004, deviceScaleFactor: 1, mobile: false,
 }, sessionId);
 
-// Close QA tabs left behind by an earlier run. A run that hangs or is killed
-// never reaches its own cleanup, and each survivor is a live WebGL atlas
-// spinning an rAF loop, so they accumulate across a session.
-//
-// This is hygiene, not a fix. It was written on the theory that leaked tabs were
-// starving the compositor; it was not — cleaning them changed nothing about the
-// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
-// still real, not because they caused anything.
-{
-  const { targetInfos } = await b.send('Target.getTargets');
-  for (const t of targetInfos) {
-    if (t.targetId === targetId || t.type !== 'page') continue;
-    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
-    try { await b.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
-  }
-}
+// Never infer ownership from a URL: other Atlas tabs may belong to the user.
 
 const ev = async (x) => { const r = await b.send('Runtime.evaluate', { expression: x, returnByValue: true, awaitPromise: true }, sessionId); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || 'eval failed'); return r.result.value; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -107,6 +91,8 @@ for (const { label, view } of VIEWS) {
   // layers to decide whether they are "installed" is blind to every custom
   // layer if it reads the style.
   const ids = JSON.parse(await ev('JSON.stringify(window.__atlas.map.getLayersOrder())'));
+  const visibility = await ev(`(${snapshotVisibility.toString()})(window.__atlas.map, ${JSON.stringify(ids)})`);
+  try {
   console.log(`\n══ ${label} — ${ids.length} installed layers ══`);
 
   // Each layer is measured ALONE against the all-off baseline.
@@ -132,11 +118,6 @@ for (const { label, view } of VIEWS) {
     const d = differingPixels(base, cur);
     pct[id] = d === null ? null : d;
   }
-  // Leave the map as we found it.
-  await ev(`(()=>{const m=window.__atlas.map;for(const id of ${JSON.stringify(ids)}){try{m.setLayoutProperty(id,'visibility','none')}catch(e){}}return true})()`);
-  await sleep(400);
-  for (const id of ids) { await ev(`(()=>{try{window.__atlas.map.setLayoutProperty(${JSON.stringify(id)},'visibility','visible')}catch(e){};return true})()`); }
-
   report[label] = pct;
   const blank = ids.filter((id) => pct[id] !== null && pct[id] <= 0.02);
   for (const id of ids.slice().sort((a, b2) => (pct[b2] ?? 0) - (pct[a] ?? 0))) {
@@ -145,10 +126,14 @@ for (const { label, view } of VIEWS) {
     console.log(`  ${mark}${(val === null ? 'n/a' : val.toFixed(3) + '%').padStart(8)}  ${id}`);
   }
   console.log(`  → ${blank.length} of ${ids.length} change no pixels at this view`);
+  } finally {
+    await ev(`(${restoreVisibility.toString()})(window.__atlas.map, ${JSON.stringify(visibility)})`);
+  }
 }
 
 writeFileSync(`${SHOT_DIR}/sweep.json`, JSON.stringify(report, null, 2));
 console.log(`\nsweep: written to ${SHOT_DIR}/sweep.json`);
+await b.send('Target.closeTarget', { targetId });
 b.close();
 
 function readPng(buf) {
