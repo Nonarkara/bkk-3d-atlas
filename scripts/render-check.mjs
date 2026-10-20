@@ -136,6 +136,14 @@ for (let i = 0; i < 60; i++) {
 }
 if (!(await evaluate('!!window.__atlas?.map?.getLayer'))) die('the atlas map never appeared');
 
+// Ensure map style and initial canvas dimensions settle before camera repositioning.
+await evaluate(`new Promise((res) => {
+  const m = window.__atlas?.map;
+  if (!m || m.loaded()) return res(true);
+  m.once('load', () => res(true));
+  setTimeout(() => res(true), 15000);
+})`);
+
 await evaluate(`window.__atlas.map.jumpTo(${JSON.stringify(VIEW)}); true`);
 
 // Wait for the layers to arrive rather than for a fixed number of seconds.

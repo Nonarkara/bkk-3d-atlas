@@ -1554,7 +1554,7 @@ body.atlas-about-open { overflow: hidden; }
     border-top: 1px solid rgba(255, 255, 255, 0.16);
     max-height: 38vh;
     gap: 18px;
-    padding: 18px 16px 22px;
+    padding: 18px 16px max(22px, env(safe-area-inset-bottom, 22px));
   }
   .atlas-header-nav a:not([href^="https"]),
   .atlas-header-nav .atlas-nav-about { display: none; }
@@ -1568,6 +1568,7 @@ body.atlas-about-open { overflow: hidden; }
     max-height: 88dvh;
     border-left: 0;
     border-top: 1px solid rgba(201, 255, 56, 0.35);
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
     animation-name: atlas-about-rise;
   }
 }
@@ -1628,7 +1629,23 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 .atlas-area-grid { gap: 6px; }
 .atlas-data-heading { margin: 0 0 8px; font-size: 15px; }
 .atlas-layers { gap: 4px; padding-top: 14px; }
-@media (hover: none), (pointer: coarse) { .atlas-area-btn { min-height: 44px; } }
+@media (hover: none), (pointer: coarse) {
+  .atlas-area-btn { min-height: 44px; touch-action: manipulation; }
+  .atlas-preset-btn { min-height: 44px; touch-action: manipulation; }
+  .atlas-layer-toggle { min-height: 44px; touch-action: manipulation; }
+  .atlas-layer-sub { min-height: 44px; touch-action: manipulation; }
+  .atlas-panel-section > summary { min-height: 44px; touch-action: manipulation; }
+  .atlas-header-btn { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+  .atlas-panel-toggle { min-height: 44px; min-width: 44px; touch-action: manipulation; }
+  .atlas-cctv-wall-toggle { min-height: 44px; touch-action: manipulation; }
+  .atlas-flood-verdict-btn { min-height: 44px; touch-action: manipulation; }
+  .atlas-sheet-close { min-height: 44px; touch-action: manipulation; }
+  .atlas-about-chip { min-height: 44px; touch-action: manipulation; }
+  .atlas-wall-close { min-height: 44px; touch-action: manipulation; }
+  .atlas-wall-go { min-height: 44px; touch-action: manipulation; }
+  .atlas-news-watch-more { min-height: 44px; touch-action: manipulation; }
+  .atlas-header-nav a { min-height: 44px; display: inline-flex; align-items: center; touch-action: manipulation; }
+}
 
 /* ---- BKK provincial live strip (ThaiWater steal, 2026-09-16) ----
    The ThaiWater Bangkok dashboard's strongest UX pattern is its top 5-card
@@ -3638,8 +3655,9 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 19;
-    padding: 0 14px;
-    min-height: 38px;
+    padding: 0 16px;
+    min-height: 44px;
+    align-items: center;
     border: 1px solid var(--signal, #c9ff38);
     background: var(--signal, #c9ff38);
     color: #11120f;
@@ -3725,8 +3743,11 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   .atlas-about-chip-title { font-size: 13px; }
 
   .atlas-preset-btn {
-    padding: 6px 8px;
-    font-size: 10px;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .atlas-cctv-card {
