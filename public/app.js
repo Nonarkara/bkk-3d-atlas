@@ -8531,7 +8531,7 @@ async function refreshNewsWatch() {
       (payload.fetchedAt ? ` · ${ageWords(minutesSince(payload.fetchedAt))} ago` : "");
   }
   if (!items.length) {
-    listEl.innerHTML = `<li class="atlas-news-empty">No flood headlines from trusted Thai outlets in the last 30 min.</li>`;
+    listEl.innerHTML = `<li class="atlas-news-empty">No headlines returned by this feed. This is not an all-clear.</li>`;
     if (noteEl) noteEl.textContent = payload.attribution || "";
     return;
   }
@@ -8540,9 +8540,8 @@ async function refreshNewsWatch() {
     const color = NEWS_SEVERITY_COLOR[sev] || NEWS_SEVERITY_COLOR.info;
     const label = NEWS_SEVERITY_LABEL[sev] || "INFO";
     const ageMin = n.published_at ? minutesSince(n.published_at) : null;
-    const ageTxt = ageMin == null ? "fresh" : ageMin < 1 ? "<1 min" : `${Math.round(ageMin)} min`;
+    const ageTxt = ageMin == null ? "feed time unknown" : `feed: ${ageMin < 1 ? "<1 min" : `${Math.round(ageMin)} min`}`;
     const domain = n.source_domain || "link";
-    const trustedPill = n.trusted ? `<span class="atlas-news-trusted" title="Trusted Thai/English outlet">✓ trusted</span>` : "";
     return `
       <li class="atlas-news-item" data-severity="${escapeHtml(sev)}">
         <a class="atlas-news-link" href="${escapeHtml(safeHttpUrl(n.link || "#"))}" target="_blank" rel="noreferrer noopener">
@@ -8550,14 +8549,13 @@ async function refreshNewsWatch() {
           <span class="atlas-news-title" lang="th">${escapeHtml(n.title || "")}</span>
           <span class="atlas-news-meta">
             <span class="atlas-news-domain">${escapeHtml(domain)}</span>
-            ${trustedPill}
             <span class="atlas-news-age">${ageTxt}</span>
           </span>
         </a>
       </li>`;
   }).join("");
   if (noteEl) {
-    noteEl.textContent = `Sourced from FloodDash's curated gnews_flood feed — Google News flood filter + Bangkok Post / Khaosod / Thai PBS / Reuters. Severity auto-detected from title keywords (อพยพ/urgent = red).`;
+    noteEl.textContent = `FloodDash news search results. Feed age is not event age; older stories and locations outside Bangkok can appear. Open the publisher to verify date and place. Keyword labels are not official alerts.`;
   }
   // Re-apply phone-only collapsed state (1 headline + "Show all"
   // toggle) every time the list is rebuilt.
