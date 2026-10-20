@@ -2506,14 +2506,13 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
 }
 @media (max-width: 1000px) {
   .atlas-page {
-    position: static;
-    height: auto;
-    max-height: none;
-    min-height: 100dvh;
-    grid-template-rows: auto 62dvh auto auto;
-    grid-template-areas: "header" "map" "live" "panel";
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
   }
-  .atlas-bkk-live { height: auto; overflow: visible; }
   .atlas-sit {
     grid-template-columns: 1fr;
     grid-template-areas: "areas" "pulse" "rain" "act";
@@ -2521,7 +2520,11 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   /* Tablet: the band stacks (verdict, then the 2×2 headline numbers);
      the long board stays collapsed behind its summary. */
   .atlas-live-band { grid-template-columns: 1fr; gap: 8px 0; }
-  .atlas-panel { max-height: none; overflow: visible; }
+  .atlas-panel {
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 /* ── About / Research tabs ──────────────────────────────────────────
