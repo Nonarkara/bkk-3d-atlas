@@ -12,6 +12,7 @@
 // only. No textures. Footprints stay © OpenStreetMap contributors, ODbL.
 
 import { GRAND_PALACE_SLOT, PALACE_ROOF_NAME } from './grand-palace-slot.js';
+import { mercatorModelMatrix } from './custom-layer-matrix.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
@@ -789,12 +790,7 @@ function createCustomLayer(libs) {
     render(gl, args) {
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
-      // MapLibre 6.4.1 passes projectionMatrix/modelViewProjectionMatrix
-      // directly on the args object, not nested under defaultProjectionData.
-      // defaultProjectionData.mainMatrix does not exist in 6.4.1 — the old
-      // lookup always returned undefined, so render() bailed and the layer
-      // drew 0 pixels despite installing and activating cleanly.
-      const matrix = args?.projectionMatrix ?? args?.modelViewProjectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
+      const matrix = mercatorModelMatrix(args);
       if (!matrix) return;
       const coord = maplibregl.MercatorCoordinate.fromLngLat(runtime.origin, runtime.altitude);
       const scale = coord.meterInMercatorCoordinateUnits();

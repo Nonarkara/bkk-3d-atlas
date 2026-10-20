@@ -425,11 +425,13 @@ function buildArun(draw, detail) {
     draw.line([x0 - 1.2, 0.2, z0], [x1 - 0.6, 6.4, z1]);
     draw.line([x0 + 1.2, 0.2, z0], [x1 + 0.6, 6.4, z1]);
   }
-  cornPrang(draw, 6.4, 70, 7.2, detail.rows, detail.radial);
+  // Refine the reference-backed profile, not its dimensions or evidence tier.
+  const radial = detail.radial * 2;
+  cornPrang(draw, 6.4, 70, 7.2, detail.rows, radial);
   const satellites = [[-13, -13], [13, -13], [13, 13], [-13, 13]];
   for (const [x, z] of satellites) {
     const local = createDraw();
-    cornPrang(local, 1.2, 26, 3.1, Math.max(4, detail.rows - 3), Math.max(6, detail.radial - 2));
+    cornPrang(local, 1.2, 26, 3.1, Math.max(4, detail.rows - 3), Math.max(6, radial - 2));
     const pts = local.toArray();
     for (let i = 0; i < pts.length; i += 6) {
       draw.line(

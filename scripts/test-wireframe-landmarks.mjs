@@ -81,6 +81,19 @@ test('the whole set stays cheap enough to build on a cold start', () => {
   for (const b of all) assert.equal(segmentCount(b.positions), b.segments);
 });
 
+test('Wat Arun refines curves without inflating its reference-backed extent', () => {
+  const detail = detailForViewport(1440);
+  const fine = buildLandmark('arun', detail);
+  const coarse = buildLandmark('arun', { ...detail, radial: detail.radial / 2 });
+  const extent = model => [0, 1, 2].map(axis => {
+    const values = model.positions.filter((_, i) => i % 3 === axis);
+    return [Math.min(...values), Math.max(...values)];
+  });
+  assert.ok(fine.segments > coarse.segments * 1.8);
+  assert.deepEqual(extent(fine), extent(coarse));
+  assert.equal(extent(fine)[1][1], 70);
+});
+
 test('the palette is the declared one, not a hardcoded literal elsewhere', () => {
   assert.match(PALETTE.ink, /^#[0-9a-f]{6}$/i);
   assert.match(PALETTE.field, /^#[0-9a-f]{6}$/i);
@@ -107,6 +120,6 @@ test('the layer uses the MapLibre 5+ render signature', () => {
   // PR #19 shipped render(gl, matrix). On MapLibre 6 that receives the args
   // object instead of a matrix: the layer installs cleanly and draws nothing.
   assert.ok(/render\s*\(\s*gl\s*,\s*args\s*\)/.test(src), 'render() must take the args object');
-  assert.ok(/args\?\.defaultProjectionData\?\.mainMatrix/.test(src),
-    'render() must read args.defaultProjectionData.mainMatrix');
+  assert.ok(/mercatorModelMatrix\(args\)/.test(src),
+    'render() must use the normalized-Mercator matrix contract');
 });

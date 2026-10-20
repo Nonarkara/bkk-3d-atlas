@@ -24,6 +24,7 @@ import {
   buildAll,
   detailForViewport,
 } from "./wireframe-geometry.js";
+import { mercatorModelMatrix } from './custom-layer-matrix.js';
 
 export const WIRE_LAYER_ID = "bkkx-wireframe-landmarks";
 
@@ -195,12 +196,7 @@ function createLayer(THREE, map, models, detail) {
       this.palette = PALETTE.ink;
     },
     render(gl, args) {
-      // MapLibre 6.4.1 passes projectionMatrix/modelViewProjectionMatrix
-      // directly on the args object, not nested under defaultProjectionData.
-      // defaultProjectionData.mainMatrix does not exist in 6.4.1 — the old
-      // lookup always returned undefined, so render() bailed and the layer
-      // drew 0 pixels despite installing cleanly.
-      const matrix = args?.projectionMatrix ?? args?.modelViewProjectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
+      const matrix = mercatorModelMatrix(args);
       if (!this.renderer || !matrix) return;
       const m = new THREE.Matrix4().fromArray(matrix);
       const translate = new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z);
