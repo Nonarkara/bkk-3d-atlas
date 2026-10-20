@@ -52,6 +52,82 @@ mustExist("src/index.ts");
 mustExist("src/flooddash.ts");
 mustExist("wrangler.toml");
 mustExist("public/labs/paper/index.html");
+mustExist("public/labs/index.html");
+mustExist("public/labs/paper/shophouses/index.html");
+mustExist("public/labs/paper/shophouses/theses.html");
+{
+  const shophousePaper = readFileSync(join(root, "public/labs/paper/shophouses/index.html"), "utf8");
+  const thesesPage = readFileSync(join(root, "public/labs/paper/shophouses/theses.html"), "utf8");
+  const about = readFileSync(join(root, "public/index.html"), "utf8");
+  const labs = readFileSync(join(root, "public/labs/index.html"), "utf8");
+  if (!shophousePaper.includes("1,656")) fail("shophouse bible missing 1,656-unit survey number");
+  else ok("shophouse bible cites 1,656 surveyed units");
+  if (!shophousePaper.includes("Onsawangchai")) fail("shophouse bible missing Onsawangchai & Funo");
+  else ok("shophouse bible cites Onsawangchai & Funo 2004");
+  if (!shophousePaper.includes("fig-03-types.svg")) fail("shophouse bible missing typology figure");
+  else ok("shophouse bible ships typology figure");
+  if (!shophousePaper.includes("theses.html")) fail("shophouse bible missing shelf / theses catalog link");
+  else ok("shophouse bible links the recovered thesis catalog");
+  if (!thesesPage.includes("Direct PDF")) fail("theses catalog missing Direct PDF access label");
+  else ok("theses catalog distinguishes Direct PDF vs repository");
+  if (!about.includes("/labs/paper/shophouses/")) fail("About drawer missing shophouse bible link");
+  else ok("About research tab links the shophouse bible");
+  if (!about.includes("/labs/paper/shophouses/theses.html")) fail("About drawer missing thesis catalog link");
+  else ok("About research tab links the thesis catalog");
+  if (!labs.includes("/labs/paper/shophouses/")) fail("Labs index missing working paper 02");
+  else ok("Labs research tab lists working paper 02");
+  if (!labs.includes("/labs/paper/shophouses/theses.html")) fail("Labs index missing thesis catalog");
+  else ok("Labs research tab lists the thesis catalog");
+  if (!/href="\/labs\/paper\/"/.test(about)) fail("About drawer missing working paper 01 link");
+  else ok("About research tab links working paper 01");
+  if (!about.includes("https://bkk.nonarkara.org/rowhouses")) fail("About drawer missing live cultural map");
+  else ok("About research tab links the live cultural map");
+  if (!labs.includes("https://bkk.nonarkara.org/rowhouses")) fail("Labs index missing live cultural map");
+  else ok("Labs research tab lists the live cultural map");
+  for (const [rel, html] of [
+    ["public/labs/index.html", labs],
+    ["public/labs/paper/index.html", readFileSync(join(root, "public/labs/paper/index.html"), "utf8")],
+    ["public/labs/paper/shophouses/index.html", shophousePaper],
+    ["public/labs/paper/shophouses/theses.html", thesesPage],
+  ]) {
+    if (html.includes('href="/style.css"')) fail(`${rel} must not load atlas style.css (dark chrome leaks onto paper)`);
+    else ok(`${rel} is isolated from atlas style.css`);
+  }
+  const aboutCss = readFileSync(join(root, "public/style.css"), "utf8");
+  if (!aboutCss.includes("a:not(.atlas-paper-btn)")) fail("About link rule paints paper buttons yellow-on-yellow");
+  else ok("About paper buttons keep ink-on-signal contrast");
+  if (about.includes("bkk.nonarkara.org/rowhouses/bible")) fail("About drawer links a bible hub that is not live yet");
+  else ok("About drawer does not 404 the unpublished bible hub");
+}
+mustJson("public/labs/paper/shophouses/catalog.json", (data) => {
+  const sections = data.sections;
+  if (!Array.isArray(sections) || sections.length < 5) {
+    fail("catalog.json missing A–E sections");
+    return;
+  }
+  const theses = sections.filter((s) => s.id !== "E").flatMap((s) => s.entries || []);
+  const papers = sections.find((s) => s.id === "E")?.entries || [];
+  if (theses.length < 30) fail(`catalog.json only ${theses.length} theses — expected a recovered shelf`);
+  else ok(`catalog.json recovers ${theses.length} theses + ${papers.length} papers`);
+  const named = [
+    "Peeraya Boonprasong",
+    "Narut Kupthanaroj",
+    "Tanat Bha-aryaphatn",
+    "Boonchaiyapruek",
+    "Tiamsoon Sirisrisak",
+    "Bejrananda"
+  ];
+  for (const name of named) {
+    if (!theses.some((e) => (e.author || "").includes(name))) fail(`catalog missing named PhD ${name}`);
+    else ok(`catalog includes named PhD ${name}`);
+  }
+  const accesses = new Set(theses.concat(papers).map((e) => e.access));
+  if (!accesses.has("direct-pdf") || !accesses.has("repository")) {
+    fail("catalog.json missing Direct PDF vs repository distinction");
+  } else {
+    ok("catalog.json marks Direct PDF vs repository");
+  }
+});
 
 mustJson("public/bkk-areas.json", (data) => {
   if (!Array.isArray(data.areas) || data.areas.length < 1) {

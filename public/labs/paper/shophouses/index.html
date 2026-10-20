@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The row is the city — a Bangkok shophouse bible — Dr Non</title>
+  <meta name="description" content="Working paper 02: an operational shophouse bible for Bangkok. 1,656 surveyed units, 44 groups, five plans, three landlords — taken off the shelf and put on the atlas." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="https://atlas.nonarkara.org/labs/paper/shophouses/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Thai:wght@400;700&family=Spectral:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/labs/paper.css" />
+</head>
+<body class="paper-page">
+  <header class="paper-header">
+    <a class="paper-back" href="/labs/">← BKKx Labs</a>
+    <span class="paper-eyebrow">Research paper · BKKx Labs · 2026</span>
+  </header>
+
+  <main class="paper-main">
+    <article class="paper-article">
+      <p class="paper-kicker">A Bangkokian’s atlas · working paper 02 · ตึกแถว</p>
+      <h1 class="paper-title">The row is the city</h1>
+      <p class="paper-subtitle">
+        A shophouse bible for Bangkok. The papers already exist.
+        They stay on shelves. This one sits on the map.
+      </p>
+
+      <div class="paper-byline">
+        <div class="paper-author">Dr Non</div>
+        <div class="paper-affiliation">
+          Born Bangkok, 1981. BKKx / TKC / Axiom. Bangkok 10240.
+        </div>
+        <div class="paper-meta">
+          Version 2026-08-12 · Working paper 02 · Primary sources 2004–2026
+          · Atlas counts from <code>bkk-heritage-detail.geojson</code>
+        </div>
+      </div>
+
+      <nav class="paper-toc" aria-label="Paper contents">
+        <p class="paper-toc-kicker">Contents</p>
+        <ol>
+          <li><a href="#tldr">TL;DR</a></li>
+          <li><a href="#method">How this bible was built</a></li>
+          <li><a href="#meta">Seven meta-arguments</a></li>
+          <li><a href="#what">What a ตึกแถว is</a></li>
+          <li><a href="#import">Imported, not indigenous</a></li>
+          <li><a href="#survey">The 2001–02 survey</a></li>
+          <li><a href="#types">Five plans, not forty-four styles</a></li>
+          <li><a href="#arcade">The missing five-foot way</a></li>
+          <li><a href="#code">The 1979 envelope</a></li>
+          <li><a href="#ordinary">Ordinary urban heritage</a></li>
+          <li><a href="#landlord">The landlord problem</a></li>
+          <li><a href="#luenrit">Luenrit, Khao Hong, Old Siam</a></li>
+          <li><a href="#tourism">Tourism is a use change</a></li>
+          <li><a href="#atlas">What the atlas can and cannot see</a></li>
+          <li><a href="#use">How to use this bible</a></li>
+          <li><a href="#shelf">The shelf: recovered theses</a></li>
+          <li><a href="#refs">References</a></li>
+        </ol>
+      </nav>
+
+      <section class="paper-section" id="tldr">
+        <h2>TL;DR</h2>
+        <p>
+          Bangkok’s inner city is not a collection of temples with
+          leftover housing. It is a <em>row city</em>. The unit is the
+          ตึกแถว — a live-work bay, four-ish metres wide, stacked
+          shop-under-dwelling, repeated until it becomes a street.
+          In July–August 2001 and April–May 2002, Nawit Onsawangchai
+          and Shuji Funo walked Rattanakosin and counted
+          <strong>1,656 remaining shophouse units</strong>, grouped
+          into <strong>44 façade/location families</strong>, owned
+          chiefly by the Crown Property Bureau (46.56%), private
+          landlords (23.85%), and temples (16.73%). Nearly half
+          (751 units, 45.28%) still used the ground floor as a shop.
+        </p>
+        <p>
+          That survey is twenty-five years old. It is still the best
+          number we have. This working paper locates the official ONEP
+          category-E ledger against sourced places: named OSM street
+          axes for the ensembles, four commercial buildings as points,
+          and the Santa Cruz pier pavilion as a related structure
+          (46 of 46 records linked; location is not a cadastral
+          footprint or a condition survey). The public map is
+          <a href="https://bkk.nonarkara.org/rowhouses">bkk.nonarkara.org/rowhouses</a>.
+          Fine Arts gazettes monuments. The Building
+          Control Act of 1979 (B.E. 2522) legislates a later, flatter
+          row — width ≥ 4 m, depth 4–24 m, ground floor ≥ 30 m², rear
+          open space ≥ 3 m, a run of not more than ten units or 40 m.
+          Neither instrument sees the thing Onsawangchai actually
+          counted: a bifunctional street wall whose landlord is often
+          the monarchy’s property office.
+        </p>
+        <p>
+          This paper takes those shelf numbers, the CPB’s own heritage
+          inventory (15 shophouse sites, 1,960 units), the Bangrak
+          “ordinary urban heritage” argument, the Luenrit community
+          corporation, and the atlas’s 9,275 Old Town footprints, and
+          holds them in one place so they cannot be collapsed into
+          each other. Then it tells you where to fly the map.
+        </p>
+      </section>
+
+      <section class="paper-section" id="method">
+        <h2>1. How this bible was built</h2>
+        <p>
+          The commission was blunt: research on Bangkok shophouses
+          already exists; it sits on shelves; use it. A Perplexity
+          Computer thread
+          (<a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830-d668-4516-be4c-cfe95d49acc3</a>)
+          was the pointer. That page is Cloudflare-gated from this
+          sandbox — I could not scrape the thread. A later roundup
+          from the same thread claimed 55 graduate theses plus 3
+          papers. I recovered what the named authors and university
+          repositories would actually give me:
+          <a href="theses.html">42 theses and the 3 KMUTT papers</a>,
+          filed in <code>catalog.json</code>. I did not invent the
+          missing titles to fake 55. The spine of the argument is
+          still the primary papers any serious cluster on this topic
+          returns, redrawn as original figures, locked against the
+          atlas.
+        </p>
+        <p>
+          The spine is the Kyoto pair from 2004: Onsawangchai &amp;
+          Funo on formation and typology (AIJ 577), and the follow-up
+          on spatial organisation across three landlords (AIJ 586).
+          Around that: Yongtanit Pimonsathean’s 2012 Siam Society
+          paper on the Crown Property Bureau; the Bangrak ordinary-heritage
+          criteria; Sayanee Virochrut’s Charoenkrung conservation
+          thesis (Rama IV–VII, Saphan Mon to Chalermphan 53);
+          KMUTT’s flexibility / quality-design surveys of the modern
+          ตึกแถว; the Building Control Act B.E. 2522; Luenrit as
+          documented by the Siam Society and ICCROM; tourism-use
+          transformation work from Charoenkrung and Chiang Mai’s
+          Chang Moi. Atlas counts are from
+          <code>public/bkk-heritage-detail.geojson</code> as of
+          2026-08-10: 9,275 footprints, median height 9 m, 1,086
+          tagged <code>commercial</code>, 286 <code>retail</code>,
+          154 <code>terrace</code>.
+        </p>
+        <p>
+          Figures in this paper are redrawn. They are not scans of
+          the AIJ plates. Where a number is a field count, it is
+          cited to the survey. Where a number is an OSM tag, it is
+          cited to the GeoJSON. Mixing those two is the original
+          sin of “heritage dashboards.”
+        </p>
+      </section>
+
+      <section class="paper-section" id="meta">
+        <h2>2. Seven meta-arguments</h2>
+        <p>
+          The literature does not disagree on facts so much as it
+          talks past itself. Seven arguments keep recurring. This
+          bible names them so you can see which one a paper is
+          actually making.
+        </p>
+        <ol class="paper-meta-list">
+          <li>
+            <strong>The import thesis.</strong>
+            The Rattanakosin shophouse is not an indigenous type that
+            evolved with the 1782 capital. It is a mid-nineteenth-century
+            import, catalysed by Singapore after the Bowring Treaty,
+            built as roads were cut. Onsawangchai &amp; Funo are
+            explicit: “It was not an indigenous architecture that
+            evolved along with Ratanakosin.”
+          </li>
+          <li>
+            <strong>The typology thesis.</strong>
+            Façade similarity produces 44 groups. Open space produces
+            five plans (A–E). Style is a grouping device; the plan is
+            the argument. Most “conservation” still photographs the
+            façade and ignores the court.
+          </li>
+          <li>
+            <strong>The ordinary-heritage thesis.</strong>
+            Fine Arts registers ancient monuments. The row is
+            “everyday-life heritage” (Yongtanit) / “ordinary urban
+            heritage” (Bangrak). A gazetted wat and an ungazetted
+            shophouse row can share a party wall. Only one of them
+            exists in law.
+          </li>
+          <li>
+            <strong>The landlord thesis.</strong>
+            Almost half the remaining Rattanakosin units in 2001–02
+            belonged to the Bureau of the Crown Property. Conservation
+            of the row is a tenure problem before it is a style
+            problem. Temple rows, CPB rows, and private rows transform
+            differently because their landlords do.
+          </li>
+          <li>
+            <strong>The live-work thesis.</strong>
+            The type’s job is bifunctional: shop on the street,
+            dwelling above. 45% still did that in 2001. Tourism
+            conversion (café, gallery, guesthouse) is a
+            <em>use</em> transformation. Façade grants that freeze
+            the front and empty the shop have already lost.
+          </li>
+          <li>
+            <strong>The community thesis.</strong>
+            Luenrit (~220 bays, ~100 families) and Khao Hong (nine
+            units on Phra Athit, tenants kept) are the counter-models
+            to Talat Ming Mueang → Old Siam Plaza. The row survives
+            when the tenant corporation is treated as a conservation
+            actor, not as a relocation cost.
+          </li>
+          <li>
+            <strong>The shelf thesis — this paper’s own.</strong>
+            The 2001 survey, the 2004 AIJ plates, the 2012 CPB
+            inventory, the Charoenkrung theses: they are good, and
+            they are inert. A city that cannot click from a number
+            to a camera has not used its research. The atlas is the
+            operationalization, not a replacement for the survey.
+          </li>
+        </ol>
+      </section>
+
+      <section class="paper-section" id="what">
+        <h2>3. What a ตึกแถว is</h2>
+        <p>
+          Thai names two things English collapses. <span lang="th">ตึกแถว</span>
+          (<em>tuek thaeo</em>) is the masonry or concrete row —
+          the modern shophouse. <span lang="th">ห้องแถว</span>
+          (<em>hong thaeo</em>) is the older timber row. The Building
+          Control language treats both as a unit measured
+          column-centre to column-centre. In the inner city the
+          thing you are looking at is almost always a ตึกแถว:
+          a party-wall bay, 3.5–6 m wide in the wild, 4 m minimum
+          in the 1979 code, 12 m or more deep, two to five storeys,
+          ground floor open to the pavement, stair at the back of
+          the shop, airwell punching light into the middle, dwelling
+          (or stock, or grandparents) above.
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-02-section.svg" alt="Section through a Bangkok shophouse: street, shop, stair, airwell, dwelling, rear court" />
+          <figcaption>
+            Fig. 02 — Live-work, not a façade. Schematic section.
+            Bangkok never required Singapore’s five-foot arcade;
+            the shop meets the street. Rear open space is a 1979
+            rule; many temple rows predate it.
+          </figcaption>
+        </figure>
+        <p>
+          KMUTT’s design surveys (2011–12) describe the later
+          city-wide type as a 4 × 4 m modular frame, ratio 1:1 to
+          1:6 toward the back, L-stair pushed rear so the shop
+          keeps the front, party wall in brick because the code
+          wants fire resistance and brick is cheap. The roof is
+          often flat so the next generation can add a floor. That
+          is the Bangkok shophouse as a <em>growth machine</em>,
+          not as a heritage object. The Rattanakosin survey is
+          looking at the ancestors of that machine — the ones
+          built before the code flattened the bay.
+        </p>
+      </section>
+
+      <section class="paper-section" id="import">
+        <h2>4. Imported, not indigenous</h2>
+        <p>
+          Rattanakosin is founded in 1782 as a water city. From
+          Rama I to Rama III (1782–1851) only about twelve small
+          primary roads are cut, to connect palaces and temples.
+          People live on the river. The Bowring Treaty (1855)
+          opens the port. In 1859 King Rama IV sends Minister
+          Srisuriyawong to Singapore. He comes back with two
+          things: the idea of a paved road, and the idea of the
+          linear shophouse. Outer Charoenkrung is built outside
+          the citadel in 1861; Inner Charoenkrung, Bamrungmuang
+          and Fuangnakorn follow in 1862–63. Fuangnakorn’s rows
+          are built on the King’s command. Bamrungmuang’s first
+          rows are private and “primitive.” In 1870 Rama V goes
+          to Singapore and Java, comes home, straightens
+          Bamrungmuang, and orders the Privy Purse Bureau to
+          build shophouses with a <em>uniform front façade and
+          verandah</em> on both sides.
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-01-timeline.svg" alt="Timeline from the 1851 Bowring Treaty to the 1979 Building Control Act" />
+          <figcaption>
+            Fig. 01 — The row arrives with the road, then the
+            landlord, then the code. It is a modernization
+            instrument.
+          </figcaption>
+        </figure>
+        <p>
+          Three city elements, in Onsawangchai’s analysis, sponsor
+          the type:
+        </p>
+        <ol>
+          <li>
+            <strong>The paved road.</strong> Concurrent with the
+            shophouse. Turns a water people into a land people.
+            Roadside land is the new rent machine.
+          </li>
+          <li>
+            <strong>The city wall.</strong> Once the British have
+            Burma, the wall is obsolete. Demolished wall-and-moat
+            land becomes shophouse sites; the ring road runs
+            beside the ghost of the wall.
+          </li>
+          <li>
+            <strong>Palace and temple precincts.</strong> After
+            sakdina is abolished and Rama V cuts 38 roads inside
+            the wall, palace owners slice roadside precincts into
+            rental rows. Temples do the same. The row is how a
+            precinct becomes an income.
+          </li>
+        </ol>
+        <p>
+          The Privy Purse Bureau is the protagonist. It already
+          holds large tracts; it hears about road cuttings first;
+          land prices jump when a road opens; PPB builds or takes
+          the rows to collect rent from Chinese immigrants who
+          can pay. The Bureau of the Crown Property is that
+          office after 1936. When you look at a uniform verandah
+          on Bamrungmuang, you are looking at a royal investment
+          product from the 1870s, not at “vernacular Thailand.”
+        </p>
+        <blockquote class="paper-pull">
+          They were freely constructed without the control of any
+          ordinances or building codes but were shaped by demand
+          of the royalty and Privy Purse Bureau. They could enjoy
+          full use of shophouse space without any requirement for
+          the construction of front arcaded walkway.
+          <cite>Onsawangchai &amp; Funo, 2004</cite>
+        </blockquote>
+      </section>
+
+      <section class="paper-section" id="survey">
+        <h2>5. The 2001–02 survey — still the best number</h2>
+        <p>
+          Fieldwork: July–August 2001 (distribution, use, physical
+          features of every remaining unit in Rattanakosin) and
+          April–May 2002 (measured drawings and interviews on three
+          landlord sites). Result: <strong>1,656 units</strong>,
+          classified by façade, form and location into
+          <strong>44 groups</strong>.
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-05-uses.svg" alt="751 commercial, 289 residential, 616 other or mixed ground-floor uses" />
+          <figcaption>
+            Fig. 05 — Ground-floor use, 1,656 units. Commercial
+            rows sit on arteries; residential rows sit on the
+            lanes between them.
+          </figcaption>
+        </figure>
+        <table class="paper-table">
+          <caption>Rattanakosin shophouses, Onsawangchai &amp; Funo 2004</caption>
+          <thead>
+            <tr><th>Claim</th><th>Number</th><th>Share</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Remaining units</td><td>1,656</td><td>100%</td></tr>
+            <tr><td>Façade / location groups</td><td>44</td><td>—</td></tr>
+            <tr><td>Ground floor still a shop</td><td>751</td><td>45.28%</td></tr>
+            <tr><td>Residential</td><td>289</td><td>17.45%</td></tr>
+            <tr><td>Bureau of the Crown Property</td><td>—</td><td>46.56%</td></tr>
+            <tr><td>Private sector</td><td>—</td><td>23.85%</td></tr>
+            <tr><td>Temple</td><td>—</td><td>16.73%</td></tr>
+            <tr><td>BCP rents sampled (17 of 44 groups)</td><td>฿200–2,630 / month</td><td>—</td></tr>
+            <tr><td>BCP units used as government offices</td><td>3</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Read the rent line twice. In 2001–02 the biggest landlord
+          in the old city was collecting a few hundred to a couple
+          of thousand baht a month on heritage fabric. That is not
+          a market. That is a holding pattern. The transformation
+          pressure does not come from the existing rent. It comes
+          from the option to redevelop.
+        </p>
+        <p>
+          Three measured sites in the spatial paper make the
+          landlord difference concrete:
+        </p>
+        <ul>
+          <li>
+            <strong>Temple — Wat Bowonniwet.</strong> 46 shophouses,
+            built somewhere between 1851 and 1868 (Rama IV).
+            No back lane. Pre-code.
+          </li>
+          <li>
+            <strong>BCP — Srasong-Longtha.</strong> Temple-adjacent
+            BCP stock; later additions (Suthat, 1952) already
+            negotiating the code.
+          </li>
+          <li>
+            <strong>Private — Asdang.</strong> 108 shophouses,
+            early 20th century into Rama VII (to 1925). Roadside
+            bays pre-1936; inner-block modern bays invent a
+            private “open space” by eating the back lane.
+          </li>
+        </ul>
+      </section>
+
+      <section class="paper-section" id="types">
+        <h2>6. Five plans, not forty-four styles</h2>
+        <p>
+          Forty-four groups is a field method: if two rows look
+          alike and sit together, they are one group. The spatial
+          paper then asks a better question — where is the open
+          air? — and the 44 collapse to five:
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-03-types.svg" alt="Five plan types A through E: forecourt, front verandah, enclosed, rear court, two courts" />
+          <figcaption>
+            Fig. 03 — Open-space appearance, not façade style.
+            Redrawn from Onsawangchai &amp; Funo 2004.
+          </figcaption>
+        </figure>
+        <ol>
+          <li><strong>A · Forecourt.</strong> A court in front of the shop. The street is already a room.</li>
+          <li><strong>B · Front verandah.</strong> The Rama V uniform type. A shaded strip, not quite Singapore’s five-foot way, not quite nothing.</li>
+          <li><strong>C · Enclosed.</strong> No court. Maximum rentable floor. The airwell, if it exists, is the only lung.</li>
+          <li><strong>D · Rear court.</strong> Service, cooking, washing, later parking. The 1979 code tries to legislate this as a 3 m void.</li>
+          <li><strong>E · Two courts.</strong> Front and rear. The most generous, the rarest under land pressure.</li>
+        </ol>
+        <p>
+          If you only restore stucco, you can turn a D into a C
+          without anyone at Fine Arts noticing. The plan is the
+          heritage. The façade is the postcard.
+        </p>
+      </section>
+
+      <section class="paper-section" id="arcade">
+        <h2>7. The missing five-foot way</h2>
+        <p>
+          This is the Bangkok exception, and it is the point of
+          the 2004 papers. In Singapore, Penang, Malacca, the
+          colonial shophouse is legally required to give the
+          street a covered arcade — the five-foot way. The
+          Rattanakosin row was built <em>without that ordinance</em>.
+          Royalty and the Privy Purse wanted full use of the
+          ground floor. The shop meets the pavement. Shade is
+          optional, a verandah when Rama V copies what he liked
+          in Singapore, not a right-of-way.
+        </p>
+        <p>
+          So when a conservation drawing copies a George Town
+          section onto Charoenkrung, it is lying. The Bangkok
+          type is a cousin, not a clone. It is also why the
+          later ตึกแถว of the 1970s–90s can be so brutal: there
+          was never a public arcade to defend. The code that
+          finally arrives legislates width, depth, rear void,
+          and fire — not a civic walkway.
+        </p>
+      </section>
+
+      <section class="paper-section" id="code">
+        <h2>8. The 1979 envelope</h2>
+        <p>
+          Building Control Act B.E. 2522 and the ministerial
+          rules that follow it are how the later city got its
+          endless identical rows. Onsawangchai quotes the
+          operative language: each unit of <em>hong thaeo</em>
+          or <em>tuek thaeo</em> must have a width, measured
+          perpendicularly from the centre of one column to the
+          centre of another, of not less than 4 m; a depth from
+          the front wall on the ground floor of not less than
+          4 m and not more than 24 m; a ground-floor area of
+          not less than 30 m²; entrances from front and rear.
+          Rear open space not less than 3 m. If the row is not
+          on a public road, a front open space of not less than
+          6 m. KMUTT adds the row-length cap: not more than
+          10 units, not more than 40 m in one run.
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-07-code.svg" alt="Code envelope: width at least 4 metres, depth 4 to 24 metres, ground floor at least 30 square metres, at most 10 units or 40 metres per row" />
+          <figcaption>
+            Fig. 07 — The law that flattened the later row.
+            Pre-code temple and roadside rows often fail every
+            one of these tests and are, for that reason, the
+            actual heritage.
+          </figcaption>
+        </figure>
+        <p>
+          The meta-argument: the code is a hygiene and fire
+          document pretending to be a type definition. It
+          produces a liveable minimum and a city of clones.
+          The 1861–1935 rows are interesting <em>because they
+          predate it</em>. Conserving them by bringing them
+          “up to code” is how you erase them.
+        </p>
+      </section>
+
+      <section class="paper-section" id="ordinary">
+        <h2>9. Ordinary urban heritage</h2>
+        <p>
+          Yongtanit’s opening is the legal fact everyone
+          dances around: authorized conservation in Thailand
+          still means ancient monuments under the Fine Arts
+          Department. The power to register has not been
+          devolved. ICOMOS Venice (1964) and Washington (1987)
+          already asked for modest works and historic towns.
+          Thai law did not follow. So the row survives, when
+          it survives, by accident, by landlord whim, or by
+          a community that can make enough noise.
+        </p>
+        <p>
+          Bangrak is the test case for calling the row
+          heritage without waiting for FAD. The district
+          urbanizes from 1864 with Charoen Krung — New Road —
+          south of the royal island, between the river,
+          Yaowarat, and the embassy belt. Shophouses are
+          first clear on the 1911 map as linear rectangles
+          along Charoen Krung and at the Silom junction.
+          Indian and South Asian rows to the north, Chinese
+          rows to the south, Western offices and churches in
+          the mix. The selection criterion in that paper is
+          almost embarrassingly empirical: <em>still there
+          since 1911</em>. Continuity of a mixed
+          commercial-residential bay is the value. Not stucco.
+          Not a royal gazette volume.
+        </p>
+        <p>
+          Sayanee Virochrut’s Chula thesis takes a slice of
+          the same road — Charoenkrung from Saphan Mon to
+          Saphan Chalermphan 53 — and looks at eight sets,
+          about 100 bays, Rama IV through Rama VII, as a
+          conservation problem. That is the right scale:
+          not “Bangkok shophouses,” not one photogenic
+          corner, but a run of road long enough to see
+          reign-by-reign change and short enough to walk.
+        </p>
+        <p>
+          Fly the atlas to the road that made the type:
+          <a href="/?at=100.516,13.726,15.4">Charoen Krung / Bang Rak</a> ·
+          <a href="/?at=100.510,13.740,15.8">Yaowarat</a> ·
+          <a href="/?at=100.508,13.736,16.2">Song Wat</a> ·
+          <a href="/?at=100.513,13.733,16.2">Talad Noi</a>.
+        </p>
+      </section>
+
+      <section class="paper-section" id="landlord">
+        <h2>10. The landlord problem</h2>
+        <p>
+          CPB, early 2000s preliminary inventory: 24 palace /
+          residence sites, 6 office / facility sites, and
+          <strong>fifteen shophouse and commercial sites
+          totalling 1,960 units</strong>. Named inner-city
+          rows include Na Phralan, Tha Chang, Tha Thian,
+          Praeng Phuthon, Praeng Nara, Loenrit, Songwat,
+          Phra Athit, Dheva Sathan on Bamrungmuang. The
+          Bureau holds about 37,000 rental contracts on
+          41,000 rai; only 7% of the land is “profitable”;
+          that 7% is mostly inner-city. In 2011 rental
+          income was reported at 2.7 billion baht, plus
+          dividends from SCB and Siam Cement.
+        </p>
+        <figure class="paper-figure">
+          <img src="figures/fig-04-landlords.svg" alt="Stacked bars: Crown Property 46.56 percent, private 23.85 percent, temple 16.73 percent" />
+          <figcaption>
+            Fig. 04 — Who owned the 1,656 remaining
+            Rattanakosin units in 2001–02. Conservation
+            policy that does not name the landlord is
+            theatre.
+          </figcaption>
+        </figure>
+        <p>
+          The 1936 Crown Property Act is the hinge. Rama V
+          had already split private royal property from the
+          national treasury. After 1932 the split is
+          regularised into public property, the King’s
+          private property, and crown property. CPB is not
+          a ministry. It does not have to follow bureaucratic
+          conservation procedure. That is why it can demolish
+          Talat Ming Mueang and also, later, invent matching
+          funds for Na Phralan. The same landlord, two
+          decades, two theologies.
+        </p>
+      </section>
+
+      <section class="paper-section" id="luenrit">
+        <h2>11. Luenrit, Khao Hong, Old Siam</h2>
+        <p>
+          Three CPB stories. They are the whole argument in
+          miniature.
+        </p>
+        <p>
+          <strong>Talat Ming Mueang → Old Siam Plaza (1990s).</strong>
+          Two late-nineteenth-century shophouse blocks and a
+          1920s–30s neoclassical market, famous for tailors
+          and an early bus depot. Decline, clearance,
+          shopping mall with a historic name. Yongtanit calls
+          it what it is: gentrification with a historic touch.
+          The row is remembered in the brand.
+        </p>
+        <p>
+          <strong>Khao Hong, Phra Athit (from 2005).</strong>
+          Nine units, about seventy years old. First idea:
+          boutique hotel, compensate the tenants, Singapore
+          Chinatown script. After planners push back, CPB
+          keeps the tenants, pays for renovation, asks for
+          design guidelines. Two-year job. Yongtanit calls
+          it a blueprint for community-based shophouse
+          conservation by the Bureau. Matching-fund later
+          (CPB 75% / tenant 25%) is applied at Na Phralan
+          (completed 2011) and promised for Tha Chang, Tha
+          Thian, Ban Mo — no gentrification, contracts
+          extended.
+        </p>
+        <p>
+          <strong>Luenrit (Chinatown, completed 2022).</strong>
+          About 220 classic bays, late Rama V / early 20th
+          century, ~100 families, Indian, Chinese, Thai,
+          wholesale trade. CPB had a developer deal. The
+          tenants formed Chumchon Luenrit Company, took the
+          lease, renovated themselves. First time the Bureau
+          abandoned “renovate it ourselves or lease to a
+          developer.” ICCROM lists it as a joint-investment,
+          co-management case, not a consultation theatre.
+        </p>
+        <p>
+          The 1997 Rattanakosin conservation and development
+          master plan — prepared without serious public
+          consultation — wanted Tha Thian and Tha Phrachan
+          communities moved for open space and tourists.
+          Both sit on CPB land. The plan had to be abandoned.
+          Mahakan Fort, next door in spirit, became the
+          international version of the same fight. The
+          row-city is not a façade inventory. It is a
+          tenancy map.
+        </p>
+        <p>
+          Fly:
+          <a href="/?at=100.499,13.753,16.4">Na Phra Lan</a> ·
+          <a href="/?at=100.494,13.743,16.4">Tha Tian</a> ·
+          <a href="/?at=100.495,13.763,16.4">Phra Athit / Khao Hong</a> ·
+          <a href="/?at=100.509,13.738,16.5">Luenrit / Song Wat</a>.
+        </p>
+      </section>
+
+      <section class="paper-section" id="tourism">
+        <h2>12. Tourism is a use change</h2>
+        <p>
+          Charoenkrung as “creative district,” Chang Moi in
+          Chiang Mai as café-and-guesthouse row, the
+          Singapore Chinatown script that almost ate Khao
+          Hong: the literature now has indices for this
+          (function transformation, tourism intensity,
+          commercial displacement). The finding is stable
+          across cities. A conservation framework that
+          watches façades, skylines, and landmark projects
+          will miss the death of the type. The type dies
+          when the ground floor stops being a shop the
+          neighbourhood uses.
+        </p>
+        <p>
+          751 of 1,656 Rattanakosin units still had a
+          commercial ground floor in 2001. That is the
+          baseline. We do not have a 2026 resurvey. The
+          atlas cannot invent one from OSM tags. What it
+          can do is refuse to colour a café row as if it
+          were still a hardware street. Honesty here is
+          a research program, not a paint rule: walk the
+          44 groups again.
+        </p>
+      </section>
+
+      <section class="paper-section" id="atlas">
+        <h2>13. What the atlas can and cannot see</h2>
+        <figure class="paper-figure">
+          <img src="figures/fig-06-counts.svg" alt="Three inventories: 1656 surveyed units, 1960 CPB heritage units, 9275 OSM footprints" />
+          <figcaption>
+            Fig. 06 — Three inventories, three objects. A
+            unit is a bay. A CPB site is a landlord list.
+            A footprint is whatever OSM drew. Do not add
+            them.
+          </figcaption>
+        </figure>
+        <p>
+          The Old Town layer is 9,275 footprints with baked
+          heights. Median height 9 m — the atlas default
+          when OSM is silent. For untagged commercial /
+          retail / terrace in Rattanakosin we lift that
+          default to 12 m so the inner city reads as two-
+          to three-storey rows rather than a flat plate.
+          Temples go to 18 m unless a real tag wins.
+          Landmarks (Victory 50 m shaft, Golden Mount
+          chedi ~60 m) are a separate GeoJSON of 73
+          schematic masses. None of this is a shophouse
+          survey.
+        </p>
+        <p>
+          OSM in the Old Town bbox, by
+          <code>building</code> / <code>building_type</code>:
+        </p>
+        <table class="paper-table">
+          <caption>bkk-heritage-detail.geojson · 9,275 features · 2026-08-10</caption>
+          <thead>
+            <tr><th>Tag</th><th>Count</th><th>How to read it</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>yes</code> (untagged)</td><td>5,481</td><td>The silence. Many of these <em>are</em> rows.</td></tr>
+            <tr><td><code>house</code></td><td>1,425</td><td>Often a bay that someone tagged as a house.</td></tr>
+            <tr><td><code>commercial</code></td><td>1,086</td><td>Closest OSM proxy for live-work.</td></tr>
+            <tr><td><code>temple</code></td><td>541</td><td>The gazetted city, over-visible.</td></tr>
+            <tr><td><code>retail</code></td><td>286</td><td>Shop without the dwelling claim.</td></tr>
+            <tr><td><code>terrace</code></td><td>154</td><td>The rare explicit row tag.</td></tr>
+            <tr><td><code>shophouse</code></td><td>~0</td><td>The word the atlas paints, OSM almost never uses.</td></tr>
+          </tbody>
+        </table>
+        <p>
+          That last row is the tell. The atlas colour table
+          includes <code>shophouse → #e5e5e5</code>, and the
+          legend says “commercial / shophouse,” but the
+          GeoJSON almost never carries the tag. We are
+          painting a type the volunteers did not name. The
+          2001 survey named it 1,656 times. The honest
+          next step is not a prettier extrusion. It is to
+          join the 44 groups to footprints.
+        </p>
+        <div class="paper-note">
+          <p>
+            <strong>What this paper will not do.</strong>
+            It will not claim the atlas “has 1,656
+            shophouses.” It will not claim landmarks.geojson
+            is the Fine Arts register (that lie was audited
+            out in 2026-08-10: the 73 masses are OSM +
+            schematic heights; the 571 FAD monuments live
+            on bkk.nonarkara.org/heritage). It will not
+            pretend a 12 m default is a measured eaves
+            height.
+          </p>
+        </div>
+      </section>
+
+      <section class="paper-section" id="use">
+        <h2>14. How to use this bible</h2>
+        <p>
+          The point of taking papers off the shelf is that
+          a reader can do something by this afternoon.
+        </p>
+        <ol>
+          <li>
+            Open
+            <a href="/?at=100.4927,13.7516,15.2">Rattanakosin at street zoom</a>.
+            Turn building paint to type. The paper-coloured
+            commercial bays and the gold wats are the two
+            cities sharing a party wall.
+          </li>
+          <li>
+            Walk Charoenkrung as a formation diagram, not
+            a café crawl:
+            <a href="/?at=100.516,13.726,15.4">Bang Rak</a>
+            was the international commercial district the
+            road invented; the 1911 rectangles are still
+            the criterion.
+          </li>
+          <li>
+            Treat CPB named rows as a separate layer in
+            your head until we have one in the file: Na
+            Phralan, Tha Tian, Tha Chang, Praeng Nara,
+            Phra Athit, Loenrit, Songwat.
+          </li>
+          <li>
+            If you are a student: resurvey the 44 groups.
+            Use is the variable that went stale. Plan type
+            (A–E) is the variable conservation still
+            ignores. Publish the join as GeoJSON. The
+            atlas will take it.
+          </li>
+          <li>
+            If you are BMA or FAD: stop writing master
+            plans that relocate riverfront rows for “open
+            space.” The 1997 plan already failed. Luenrit
+            already demonstrated the alternative. The
+            papers are on the shelf. This tab is so you
+            cannot say you could not find them.
+          </li>
+        </ol>
+        <p>
+          Working paper 01 was the system. Working paper 02
+          is the fabric the system is supposed to be able
+          to see. The row is the city. The monument is the
+          exception.
+        </p>
+      </section>
+
+      <section class="paper-section" id="shelf">
+        <h2>15. The shelf: recovered theses</h2>
+        <p>
+          Perplexity’s roundup organised 55 theses into five
+          sections: 17 Thai dissertations on ตึกแถว (A), 5 on
+          อาคารพาณิชย์ (B), 27 on historic districts (C), 6
+          overseas (D), and 3 KMUTT papers (E). Six named PhDs:
+          Peeraya Boonprasong (Chula), Narut Kupthanaroj (Chula),
+          Tanat Bha-aryaphatn (Silpakorn), Pheereeya
+          Boonchaiyapruek (UCL), Tiamsoon Sirisrisak (Tokyo),
+          Monsicha Bejrananda (Texas Tech). Thammasat links were
+          supposed to be Direct PDFs; many Chula records are
+          repository landing pages.
+        </p>
+        <p>
+          This sandbox could not scrape the thread. The recovered
+          catalog is 42 theses + 3 papers, not 55. Section A is
+          12 of 17. Section C is 18 of 27. Section D includes the
+          six named doctorates plus Wimonrart Issarathumnoon’s
+          Tokyo dissertation and Napat Settachai’s 2005 Hawaiʻi
+          PhD on Tha Tien; the claimed MIT Bangkok thesis was not
+          found. Bejrananda is southern Thailand, not Bangkok —
+          kept because it is the named dissertation. Incomplete
+          authors and years stay marked
+          <em>not fully verified</em>.
+        </p>
+        <p>
+          The catalog is a first-class page, not a footnote:
+          <a href="theses.html">The shelf</a>
+          (<code>catalog.json</code>). Direct PDF versus
+          Repository is a field, not a vibe. Use it to open the
+          files. Do not cite Perplexity as the source.
+        </p>
+      </section>
+
+      <section class="paper-section" id="refs">
+        <h2>16. References</h2>
+        <p>
+          Primary papers first. The Perplexity thread is a
+          pointer, not a source. Atlas files are data, not
+          scholarship.
+        </p>
+        <ul class="paper-references">
+          <li>
+            Onsawangchai, Nawit, and Shuji Funo. 2004.
+            “Consideration on Formation and Typology of
+            Shophouse in Ratanakosin Area, Bangkok, Thailand.”
+            <em>Journal of Architecture and Planning (AIJ)</em>
+            69 (577): 9–15.
+            <a href="https://doi.org/10.3130/aija.69.9_2">doi:10.3130/aija.69.9_2</a>
+          </li>
+          <li>
+            Onsawangchai, Nawit, and Shuji Funo. 2004.
+            “Spatial Organization and Transformation Process
+            of Shophouse in Ratanakosin Area, Bangkok: A
+            comparative study of shophouses from three
+            different landowners.”
+            <em>Journal of Architecture and Planning (AIJ)</em>
+            69 (586).
+            <a href="https://doi.org/10.3130/aija.69.1_12">doi:10.3130/aija.69.1_12</a>
+          </li>
+          <li>
+            Yongtanit Pimonsathean. 2012. “The Crown Property
+            Bureau and Heritage Conservation.”
+            <em>Journal of the Siam Society</em> 100: 107–122.
+            <a href="https://thesiamsociety.org/wp-content/uploads/2012/04/JSS_100_0i_YongtanitPimonsathean_TheCrownPropertyBureauAndHeritageConservation.pdf">PDF</a>
+          </li>
+          <li>
+            “Selection Criteria of Ordinary Urban Heritages
+            Through the Case of Bangrak, a Multi-Cultural &amp;
+            Old Commercial District of Bangkok.”
+            <em>Nakhara</em>.
+            <a href="https://doi.org/10.54028/nj202221209">doi:10.54028/nj202221209</a>
+          </li>
+          <li>
+            Virochrut, Sayanee.
+            <em>The conservation of shophouses on Charoenkrung
+            Road: between the reign of King Rama IV and King
+            Rama VII</em>
+            (การอนุรักษ์สถาปัตยกรรมประเภทตึกแถวริมถนนเจริญกรุง…).
+            Master’s thesis, Chulalongkorn University.
+            Eight sets / ~100 bays, Saphan Mon–Chalermphan 53.
+          </li>
+          <li>
+            “Bangkok Shophouse: An Approach for Quality Design
+            Solutions.” KMUTT School of Architecture and Design,
+            2011. 4×4 m module, 1:1–1:6 depth ratio.
+          </li>
+          <li>
+            “Flexibility Survey of Bangkok Shophouses.” KMUTT,
+            2012. Width 3.5–6 m in the wild; code minima 4 m /
+            4–24 m / 30 m² / 3 m rear / 10 units / 40 m row.
+          </li>
+          <li>
+            Building Control Act B.E. 2522 (1979), and
+            ministerial regulations on <em>tuek thaeo</em> /
+            <em>hong thaeo</em> dimensions.
+          </li>
+          <li>
+            Crown Property Act B.E. 2479 (1936); Crown Property
+            Bureau Act B.E. 2491 (1948, as amended). CPB 2004.
+            <em>Tassaneeyakan: Heritage Buildings of the Crown
+            Property Bureau</em>.
+          </li>
+          <li>
+            Siam Society Knowledge Hub / ICCROM CH4IG.
+            Luenrit Community Conservation and Rehabilitation
+            Project. ~220 bays, Chumchon Luenrit Co., Ltd.,
+            restoration completed 2022.
+          </li>
+          <li>
+            “Evaluating use transformation of shophouses: a
+            case study of tourism-oriented change in Chang Moi,
+            Chiang Mai, Thailand.”
+            <em>International Journal of Urban Sustainable
+            Development</em>, 2026.
+            <a href="https://doi.org/10.1080/19463138.2026.2677384">doi:10.1080/19463138.2026.2677384</a>
+          </li>
+          <li>
+            “The Forgotten Heritage of the Rattanakosin Area.”
+            <em>Journal of Urban Culture Research</em>.
+            Rattanakosin Island 4.1 km²; CPB assets at risk.
+            <a href="https://doi.org/10.58837/chula.jucr.9.1.4">doi:10.58837/chula.jucr.9.1.4</a>
+          </li>
+          <li>
+            “Changes in the Bangrak Area after the Construction
+            of Charoen Krung Road during the Reigns of Kings
+            Rama IV–VI (1851–1925).”
+            <em>Journal of the Faculty of Arts, Silpakorn
+            University</em>.
+          </li>
+          <li>
+            UNESCO. 2011. <em>Recommendation on the Historic
+            Urban Landscape</em>.
+          </li>
+          <li>
+            ICOMOS. 1964. Venice Charter; 1987. Washington
+            Charter (historic towns and urban areas).
+          </li>
+          <li>
+            BKKx 3D Atlas. 2026.
+            Recovered thesis catalog:
+            <a href="theses.html">The shelf</a>
+            (<code>catalog.json</code> — 42 theses + 3 KMUTT papers;
+            Perplexity claimed 55). Direct PDF vs repository is a
+            field. Incomplete metadata stays marked.
+          </li>
+          <li>
+            BKKx 3D Atlas. 2026.
+            <code>public/bkk-heritage-detail.geojson</code>
+            (9,275 footprints);
+            <code>public/bkk-landmarks.geojson</code>
+            (73 schematic masses — not the FAD register);
+            <a href="/labs/paper/">working paper 01</a>.
+          </li>
+          <li>
+            Perplexity Computer thread (commission pointer, not
+            a citable authority):
+            <a href="https://www.perplexity.ai/computer/a/c2bde830-d668-4516-be4c-cfe95d49acc3">c2bde830-d668-4516-be4c-cfe95d49acc3</a>.
+          </li>
+        </ul>
+      </section>
+
+      <footer class="paper-foot">
+        <p>
+          Live with the atlas at
+          <a href="/labs/">atlas.nonarkara.org/labs</a>
+          and the cultural map at
+          <a href="https://bkk.nonarkara.org/rowhouses">bkk.nonarkara.org/rowhouses</a>.
+          Paper 01 is the system
+          (<a href="/labs/paper/">432,077 buildings</a>).
+          Paper 02 is the fabric.
+          The shelf is
+          <a href="theses.html">the recovered catalog</a>.
+          Source:
+          <code>github.com/Nonarkara/bkk-3d-atlas</code>.
+        </p>
+        <p class="paper-foot-meta">
+          © 2026 Dr Non · Bangkok · Figures original to this
+          paper · Survey numbers © their authors · OSM data
+          © OpenStreetMap contributors (ODbL-1.0)
+        </p>
+      </footer>
+    </article>
+  </main>
+</body>
+</html>

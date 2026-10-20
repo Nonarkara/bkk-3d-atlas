@@ -660,6 +660,18 @@ body.is-night .atlas-header {
   letter-spacing: -0.02em;
   line-height: 1.25;
 }
+.atlas-about-section .atlas-paper-btn + .atlas-paper-btn {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--paper);
+  border-color: rgba(201, 255, 56, 0.45);
+}
+.atlas-about-section .atlas-paper-btn + .atlas-paper-btn:hover,
+.atlas-about-section .atlas-paper-btn + .atlas-paper-btn:focus-visible {
+  background: var(--signal);
+  color: var(--ink);
+  border-color: var(--signal);
+}
 .atlas-labs-list {
   margin: 0;
   padding: 0 0 0 18px;
@@ -1347,7 +1359,7 @@ body.is-night .atlas-header {
   font-size: 14px;
   line-height: 1.7;
 }
-.atlas-about-section a {
+.atlas-about-section a:not(.atlas-paper-btn) {
   color: var(--signal);
   border-bottom: 1px solid rgba(201, 255, 56, 0.35);
 }
@@ -3759,6 +3771,16 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   .atlas-about-body {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .atlas-about-toc {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .atlas-about-toc a {
+    flex: 0 0 auto;
   }
 
   .atlas-about-film {

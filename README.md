@@ -163,6 +163,7 @@ Counts below are the feature counts and headers in `public/`, or constants in `s
 | PM2.5, heat, wind, `/api/weather/google` | Open-Meteo, including the air-quality API for PM2.5 | Open-Meteo. Attribution URL in `src/weather-support.ts`. | Not recorded here. Model grids, not street sensors. |
 | Satellite aerosol | NASA GIBS WMTS, MODIS MAIAC AOD | © NASA EOSDIS GIBS | Not recorded here. The layer status says regional AOD, not PM2.5. |
 | Imagery | Esri World Imagery | © Esri, Maxar, Earthstar Geographics | Scoreboard string: non-commercial use |
+| Landmarks | OSM footprints + schematic heights, baked into `public/bkk-landmarks.geojson` | 73 masses (Victory Monument 50 m shaft, Golden Mount chedi ~60 m, palace/temple overrides). Always on with buildings. **Not** the Fine Arts Department register — 571 monuments live on `bkk.nonarkara.org/heritage`. The Rattanakosin Old Town detail (`bkk-heritage-detail.geojson`, 3.8 MB, 9,275 footprints) takes over at z14+ so the inner city reads as wats and 2–3 storey rows. |
 | Terrain | AWS Open Data Terrarium tiles | Terrain © Mapzen / Tilezen · AWS Open Data · SRTM, ASTER, GMTED2010 | Not recorded here |
 
 ## Deploy
@@ -240,6 +241,19 @@ There is no city switch. Bangkok is baked into the data files, the bounding boxe
 8. Run `npm run verify`, `npm run typecheck`, and `npm run test:flood`. The flood tests assume this project’s report rules; update them if you remove flood layers rather than letting them fail silently.
 
 Feeds that are Bangkok-specific and will not transfer: Longdo / iTIC traffic and events, BMA open data, ThaiWater province 10, Traffy Fondue, the Chao Phraya boat file, and FloodDash. Open-Meteo, RainViewer, NASA GIBS, Esri imagery, and OpenFreeMap are the pieces that are not tied to one municipality.
+
+## Labs / research tab
+
+Working papers sit on the atlas at `/labs/`, not as detached PDFs:
+
+1. **Working paper 01** — `/labs/paper/` — the system thesis
+   (432,077 buildings, one laptop).
+2. **Working paper 02** — `/labs/paper/shophouses/` — the shophouse
+   bible. Takes the 2001–02 Rattanakosin survey (1,656 units, 44
+   groups, five plan types, three landlords) off the shelf and
+   wires it to `?at=` fly-tos. Companion catalog:
+   `/labs/paper/shophouses/theses.html` (`catalog.json`).
+   About drawer → Research.
 
 ## Roadmap
 

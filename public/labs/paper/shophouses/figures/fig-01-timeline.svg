@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-labelledby="t d">
+  <title id="t">Timeline: how the Bangkok shophouse arrived</title>
+  <desc id="d">1851 Bowring Treaty through 1979 Building Control Act. The row is a modernization instrument, not an indigenous Rattanakosin type.</desc>
+  <rect width="920" height="280" fill="#f1efe8"/>
+  <text x="24" y="28" font-family="ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#c9a227">FIG. 01 · FORMATION</text>
+  <text x="24" y="52" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#11120f">The row is imported, then legislated</text>
+  <line x1="40" y1="150" x2="880" y2="150" stroke="#11120f" stroke-width="2"/>
+  <g font-family="ui-monospace, monospace" font-size="10" fill="#11120f">
+    <g transform="translate(48,150)">
+      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
+      <text y="-18" font-weight="700">1851</text>
+      <text y="28" fill="#5b5d54">Bowring Treaty</text>
+      <text y="42" fill="#5b5d54">opens the port</text>
+    </g>
+    <g transform="translate(168,150)">
+      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
+      <text y="-18" font-weight="700">1859</text>
+      <text y="28" fill="#5b5d54">Srisuriyawong</text>
+      <text y="42" fill="#5b5d54">studies Singapore</text>
+    </g>
+    <g transform="translate(300,150)">
+      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
+      <text y="-18" font-weight="700">186163</text>
+      <text y="28" fill="#5b5d54">Charoenkrung,</text>
+      <text y="42" fill="#5b5d54">Bamrungmuang,</text>
+      <text y="56" fill="#5b5d54">Fuangnakorn</text>
+    </g>
+    <g transform="translate(448,150)">
+      <circle r="6" fill="#c9ff38" stroke="#11120f" stroke-width="1.5"/>
+      <text y="-18" font-weight="700">1870</text>
+      <text y="28" fill="#5b5d54">Rama V: uniform</text>
+      <text y="42" fill="#5b5d54">façade + verandah</text>
+    </g>
+    <g transform="translate(592,150)">
+      <circle r="6" fill="#11120f"/>
+      <text y="-18" font-weight="700" fill="#11120f">1936</text>
+      <text y="28" fill="#5b5d54">Crown Property</text>
+      <text y="42" fill="#5b5d54">Act · CPB born</text>
+    </g>
+    <g transform="translate(728,150)">
+      <circle r="6" fill="#11120f"/>
+      <text y="-18" font-weight="700">1979</text>
+      <text y="28" fill="#5b5d54">Building Control</text>
+      <text y="42" fill="#5b5d54">4 m × d24 m</text>
+    </g>
+  </g>
+  <text x="24" y="262" font-family="Georgia, serif" font-size="12" font-style="italic" fill="#5b5d54">Sources: Onsawangchai &amp; Funo 2004; Crown Property Act B.E. 2479; Building Control Act B.E. 2522.</text>
+</svg>
