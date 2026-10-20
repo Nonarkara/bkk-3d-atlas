@@ -7770,7 +7770,41 @@ function wireLayerToggles(map) {
   wireOverlayOpacity(map);
   wireNightMode(map);
   wireStackPresets(map);
+  wireScrollPeek();
   updateStackChips();
+}
+
+// A scroll strip that hides its scrollbar gives the reader no way to know
+// that four more controls are off the right edge. The lens strip is 542px of
+// content in a 320px box on a 360px phone: "Rain now", "Cameras", "Live pulse"
+// and "Satellite air" were simply not there, with no cue that they existed.
+//
+// The fade is driven by real scroll state, not a permanent gradient, so a strip
+// that fits shows no fade and a strip at either end shows one edge only.
+function wireScrollPeek() {
+  const strips = [
+    document.querySelector(".atlas-place-tasks"),
+    document.getElementById("atlas-stack-presets"),
+  ].filter(Boolean);
+  for (const el of strips) {
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 2) { el.dataset.peek = "none"; el.style.removeProperty("--peek-fade"); return; }
+      const atStart = el.scrollLeft <= 2;
+      const atEnd = el.scrollLeft >= max - 2;
+      el.dataset.peek = atStart ? "right" : atEnd ? "left" : "both";
+      // The fade is sized to the overflow it is signalling. A strip clipped by
+      // 11px gets an 11px hint, not the full 28px, so the cue never dims more
+      // of the control than the clipping actually hides.
+      el.style.setProperty("--peek-fade", Math.round(Math.min(28, Math.max(6, max / 2))) + "px");
+    };
+    el.addEventListener("scroll", update, { passive: true });
+    // Fonts and images land after this runs, so the widths can still change.
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(update).observe(el);
+    }
+    update();
+  }
 }
 
 function wireNightMode(map) {

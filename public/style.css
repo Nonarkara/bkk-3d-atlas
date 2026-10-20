@@ -3912,6 +3912,25 @@ body.atlas-wall-open { overflow: hidden; }
 /* Lens strip: the task bar continues into the presets. One row that scrolls
    sideways on a phone; the cut-off last lens is the signifier that it does. */
 .atlas-place-tasks { overflow-x: auto; scrollbar-width: none; }
+/* Peek: fade the edge that still has content behind it. A strip with a hidden
+   scrollbar otherwise gives no hint that four more controls exist off-screen.
+   The mask is set from real scroll state (app.js wireScrollPeek), so a strip
+   that fits gets no fade at all. */
+.atlas-place-tasks[data-peek="right"],
+#atlas-stack-presets[data-peek="right"] {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--peek-fade, 26px)), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--peek-fade, 26px)), transparent 100%);
+}
+.atlas-place-tasks[data-peek="left"],
+#atlas-stack-presets[data-peek="left"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--peek-fade, 26px), #000 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--peek-fade, 26px), #000 100%);
+}
+.atlas-place-tasks[data-peek="both"],
+#atlas-stack-presets[data-peek="both"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--peek-fade, 26px), #000 calc(100% - var(--peek-fade, 26px)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--peek-fade, 26px), #000 calc(100% - var(--peek-fade, 26px)), transparent 100%);
+}
 .atlas-place-tasks::-webkit-scrollbar { display: none; }
 .atlas-place-tasks button { flex: 0 0 auto; white-space: nowrap; }
 .atlas-lens-divider { flex: 0 0 1px; align-self: stretch; background: var(--signal); opacity: 0.6; }
