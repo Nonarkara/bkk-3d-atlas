@@ -13,6 +13,7 @@
 
 import { GRAND_PALACE_SLOT, PALACE_ROOF_NAME } from './grand-palace-slot.js';
 import { composeProjection } from './custom-layer-matrix.js';
+import { cityIconKindFor, buildCityIcon } from './city-icons.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
@@ -531,6 +532,21 @@ export function buildTowerBuffers(feature, lod = 1) {
   const local = orientCCW(ringLngLat.map(([lng, lat]) => toLocal(lng, lat, origin)));
   const height = resolveHeight(props);
   const base = resolveBase(props, height);
+  // Named icons — Mahanakhon's carved ribbon, Baiyoke's crown, the State
+  // Tower's dome — draw as themselves instead of the generic setback stack.
+  const iconKind = cityIconKindFor(props);
+  if (iconKind) {
+    const icon = buildCityIcon(iconKind, local, height, base, lod);
+    if (icon) {
+      return {
+        keys: featureKeys(feature),
+        origin,
+        ...icon,
+        properties: { ...props, massing: 'icon', accuracy: 'typological silhouette, not a survey' },
+        ring: ringLngLat,
+      };
+    }
+  }
   const roof = roofChoice(props, height);
   const tiers = towerTiers(base, height, lod);
   const draft = new MeshDraft();

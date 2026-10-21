@@ -42,7 +42,10 @@ const C = {
   // every floor line, plain glazed tile. No gold, no chofa, no skirt tile.
   shopWall: [0.79, 0.68, 0.52],
   shopBand: [0.36, 0.29, 0.25],
-  shopRoof: [0.29, 0.25, 0.23]
+  shopRoof: [0.29, 0.25, 0.23],
+  // Loha Prasat is blackened iron and steel — the "metal castle". No gold.
+  iron: [0.32, 0.32, 0.36],
+  ironShade: [0.24, 0.24, 0.28]
 };
 class Builder {
   positions = [];
@@ -315,6 +318,58 @@ function cruciform(b, r, z0, H, tiers) {
   hall(b, { ...r, hw: r.hw * 0.42 }, z0, H, tiers);
   hall(b, across, z0, H, tiers);
 }
+// Loha Prasat — วัดราชนัดดาราม's Metal Palace. Three square iron terraces
+// carrying 37 spires: 24 on the ground tier (two rings of twelve), 8 on the
+// middle, 4 above, and the crown spire at the very top. The count is the
+// building's own (one per the Buddha's 37 virtues towards enlightenment);
+// every proportion between footprint and spire is a typological reading.
+function lohaPrasat(b, r, z0, H) {
+  const R = Math.max(r.hl, r.hw);
+  const tiers = [
+    { half: R * 0.92, from: z0, to: z0 + 0.34 * H },
+    { half: R * 0.64, from: z0 + 0.34 * H, to: z0 + 0.62 * H },
+    { half: R * 0.40, from: z0 + 0.62 * H, to: z0 + 0.84 * H },
+  ];
+  for (const tier of tiers) b.prism(square(r, tier.half), tier.from, tier.to, C.wall);
+  // Spire lathe: a thin tapering metal cone with a collar, iron-shaded.
+  const spire = (cx, cy, zBase, h, crown) => {
+    const col = crown ? C.ironShade : C.iron;
+    b.lathe(cx, cy, [
+      [zBase, h * 0.16],
+      [zBase + h * 0.35, h * 0.12],
+      [zBase + h * 0.55, h * 0.14],
+      [zBase + h * 0.8, h * 0.05],
+      [zBase + h, 0],
+    ], 6, 0, () => col);
+  };
+  // Twelve positions around a square: three per side, t in [0,1) walking
+  // the perimeter. positions(half, 12).
+  const positions = (half, n) => {
+    const pts = [];
+    const per = half * 8;
+    for (let k = 0; k < n; k++) {
+      let d = (k / n) * per;
+      const seg = half * 2;
+      let x;
+      let y;
+      if (d < seg) { x = -half + d; y = -half; }
+      else if (d < seg * 2) { x = half; y = -half + (d - seg); }
+      else if (d < seg * 3) { x = half - (d - seg * 2); y = half; }
+      else { x = -half; y = half - (d - seg * 3); }
+      pts.push([x, y]);
+    }
+    return pts;
+  };
+  const place = ([x, y], rRef) => {
+    // Square-local coordinates back through the fitted rect axes.
+    return at(rRef, x, y);
+  };
+  for (const [x, y] of positions(tiers[0].half, 12)) spire(...place([x, y], r), tiers[0].to, H * 0.16, false);
+  for (const [x, y] of positions(tiers[0].half * 0.58, 12)) spire(...place([x, y], r), tiers[0].to, H * 0.14, false);
+  for (const [x, y] of positions(tiers[1].half * 0.82, 8)) spire(...place([x, y], r), tiers[1].to, H * 0.16, false);
+  for (const [x, y] of positions(tiers[2].half * 0.7, 4)) spire(...place([x, y], r), tiers[2].to, H * 0.15, false);
+  spire(r.cx, r.cy, tiers[2].to, H * 0.16, true);
+}
 function fort(b, local, r, z0, H) {
   const wallTop = z0 + 0.62 * H;
   b.prism(local, z0, wallTop, C.wall);
@@ -359,6 +414,9 @@ function buildForm(spec) {
     case "prasat":
       cruciform(b, r, z0, H * 0.55, 2);
       prang(b, { ...r, hl: Math.min(r.hl, r.hw) * 0.42, hw: Math.min(r.hl, r.hw) * 0.42 }, z0 + 0.45 * H, 0.55 * H, "gold");
+      break;
+    case "loha":
+      lohaPrasat(b, r, z0, H);
       break;
     case "throne": {
       const roofH = spec.spires ? H * 0.6 : H;
@@ -449,6 +507,10 @@ function classify(f) {
     ...extra
   });
   const n = name ?? "";
+  // The Metal Palace before the generic prasat: โลหะปราสาท contains
+  // "ปราสาท" and would otherwise classify as a cruciform hall, which reads
+  // nothing like the building. Its own form is the 37 iron spires.
+  if (n.includes("โลหะปราสาท")) return spec("loha");
   if (ATTHAMAHA_PRANGS.some((x) => n.includes(x)) || n.includes("ปรางค์")) return spec("prang", { finish: "ceramic" });
   if (GOLD_CHEDI.some((x) => n.includes(x))) return spec("chedi", { finish: "gold" });
   if (n.includes("พระที่นั่ง")) {
