@@ -63,7 +63,16 @@ const ev = async (x) => {
   return r.result.value;
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const shot = async () => Buffer.from((await b.send('Page.captureScreenshot', { format: 'png' }, sessionId)).data, 'base64');
+// Crop every capture to the map canvas. A full-page capture includes the live
+// news panel, whose headlines refresh on a timer, and the panel's text churn
+// lands in the same pixel band as the map. That churn is not a render
+// difference, and it is large enough to hide a layer that draws nothing.
+let clip = null;
+const shot = async () => {
+  const params = { format: 'png' };
+  if (clip) params.clip = { ...clip, scale: 1 };
+  return Buffer.from((await b.send('Page.captureScreenshot', params, sessionId)).data, 'base64');
+};
 
 await b.send('Page.navigate', { url: `${URL}/?debug` }, sessionId);
 for (let i = 0; i < 60; i++) {
@@ -71,6 +80,11 @@ for (let i = 0; i < 60; i++) {
   try { if (await ev('!!(window.__atlas?.map?.getLayer)')) break; } catch { /* booting */ }
 }
 if (!(await ev('!!window.__atlas?.map?.getLayer'))) { console.error('no atlas'); process.exit(2); }
+
+const canvasRect = await ev(`(()=>{const r=window.__atlas.map.getCanvas().getBoundingClientRect();
+  return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };})()`);
+clip = canvasRect;
+console.log('  map canvas:', `${canvasRect.width}x${canvasRect.height} at ${canvasRect.x},${canvasRect.y}`);
 
 // Park on the Rattanakosin monuments the layer draws.
 await ev(`window.__atlas.map.jumpTo(${JSON.stringify(VIEW)}); true`);
@@ -110,19 +124,48 @@ const on = await shot();
 await ev(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(ID)},'visibility','none')}catch(e){};return true})()`);
 await sleep(2500);
 const off = await shot();
+// Noise floor: two captures of the same settled state. If this is not tiny,
+// the map moved between captures and the footprint below is measuring the
+// move, not the layer.
+const offAgain = await shot();
 await ev(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(ID)},'visibility','visible')}catch(e){};return true})()`);
 await sleep(1500);
 
-const pct = differingPixels(on, off);
+const diff = diffStats(on, off);
+const noise = diffStats(off, offAgain);
 mkdirSync(SHOT_DIR, { recursive: true });
 writeFileSync(`${SHOT_DIR}/wireframe-on.png`, on);
 writeFileSync(`${SHOT_DIR}/wireframe-off.png`, off);
-console.log(`\n  footprint: ${pct === null ? 'captures not comparable' : pct.toFixed(3) + '% of the map area'}`);
-console.log(`  screenshots: ${SHOT_DIR}/wireframe-{on,off}.png`);
-console.log(pct !== null && pct > 0.02
-  ? '  VERDICT: draws. Installed, present, and changing pixels.'
-  : '  VERDICT: installed but draws nothing — this is the silent failure.');
+writeFileSync(`${SHOT_DIR}/wireframe-off-again.png`, offAgain);
+console.log(`\n  footprint  : ${diff.pct === null ? 'captures not comparable' : diff.pct.toFixed(3) + '% of the map canvas'}`);
+console.log(`  noise floor: ${noise.pct === null ? 'n/a' : noise.pct.toFixed(3) + '% (map movement between captures)'}`);
+if (diff.pct !== null) {
+  console.log(`  changed px : ${diff.pixels} in ${diff.clusters} region(s), bbox ${diff.bbox}`);
+}
+console.log(`  screenshots: ${SHOT_DIR}/wireframe-{on,off,off-again}.png`);
+console.log(verdict(diff, noise));
 b.close();
+
+function verdict(diff, noise) {
+  if (diff.pct === null) return '  VERDICT: captures not comparable — no measurement.';
+  if (noise.pct !== null && noise.pct > 0.05) {
+    return `  VERDICT: not measured. The map moved ${noise.pct.toFixed(3)}% between two identical `
+      + 'captures, so the footprint above is the movement, not the layer.';
+  }
+  if (diff.pct <= 0.02) {
+    return '  VERDICT: installed but draws nothing — this is the silent failure.';
+  }
+  if (diff.pct >= 12) {
+    return `  VERDICT: draws a slab. ${diff.pct.toFixed(3)}% of the canvas changed in `
+      + `${diff.clusters} region(s) — the geometry is projected at the wrong scale.`;
+  }
+  if (diff.clusters < 2) {
+    return `  VERDICT: draws one blob, not eight landmarks (${diff.pct.toFixed(3)}% in `
+      + `${diff.clusters} region).`;
+  }
+  return `  VERDICT: draws. ${diff.pct.toFixed(3)}% of the canvas across ${diff.clusters} `
+    + 'discrete regions, consistent with eight wireframe monuments.';
+}
 
 function readPng(buf) {
   let i = 8, idat = [], w = 0, h = 0, ct = 6;
@@ -156,15 +199,57 @@ function readPng(buf) {
   }
   return { w, h, channels, data: out };
 }
-function differingPixels(aBuf, bBuf) {
+// Pixel diff with the shape of the change, not just its size.
+//
+// A footprint percentage alone cannot tell "eight thin wireframe monuments"
+// from "one enormous slab": this repo's own harness once passed a layer that
+// drew nothing at all, because a different layer repainted in the same frame
+// and the panel's live headlines churned inside the same pixel band. The
+// number of separate regions the change falls into does tell them apart, so
+// count them.
+function diffStats(aBuf, bBuf) {
   const a = readPng(aBuf), c = readPng(bBuf);
-  if (a.w !== c.w || a.h !== c.h || a.channels !== c.channels) return null;
-  const y0 = Math.round(a.h * 0.245), y1 = Math.round(a.h * 0.87);
-  let diff = 0, total = 0;
-  for (let y = y0; y < y1; y++) for (let x = 0; x < a.w; x++) {
-    const o = (y * a.w + x) * a.channels;
+  if (a.w !== c.w || a.h !== c.h || a.channels !== c.channels) return { pct: null };
+  const total = a.w * a.h;
+  const mask = new Uint8Array(total);
+  let diff = 0;
+  for (let y = 0; y < a.h; y++) for (let x = 0; x < a.w; x++) {
+    const p = y * a.w + x, o = p * a.channels;
     const d = Math.max(Math.abs(a.data[o] - c.data[o]), Math.abs(a.data[o + 1] - c.data[o + 1]), Math.abs(a.data[o + 2] - c.data[o + 2]));
-    if (d > 28) diff++; total++;
+    if (d > 28) { mask[p] = 1; diff++; }
   }
-  return total ? (100 * diff) / total : 0;
+  const { clusters, bbox } = countRegions(mask, a.w, a.h);
+  return { pct: total ? (100 * diff) / total : 0, pixels: diff, clusters, bbox };
+}
+
+// 8-connected flood fill over the changed-pixel mask.
+function countRegions(mask, w, h) {
+  const seen = new Uint8Array(mask.length);
+  const stack = new Int32Array(mask.length);
+  let clusters = 0;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || seen[start]) continue;
+    clusters++;
+    let sp = 0;
+    stack[sp++] = start;
+    seen[start] = 1;
+    while (sp > 0) {
+      const p = stack[--sp];
+      const x = p % w, y = (p - x) / w;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const np = ny * w + nx;
+        if (mask[np] && !seen[np]) { seen[np] = 1; stack[sp++] = np; }
+      }
+    }
+  }
+  const bbox = clusters ? `${minX}-${maxX} x ${minY}-${maxY}` : 'none';
+  return { clusters, bbox };
 }

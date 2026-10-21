@@ -12,7 +12,7 @@
 // only. No textures. Footprints stay © OpenStreetMap contributors, ODbL.
 
 import { GRAND_PALACE_SLOT, PALACE_ROOF_NAME } from './grand-palace-slot.js';
-import { mercatorModelMatrix } from './custom-layer-matrix.js';
+import { composeProjection } from './custom-layer-matrix.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
@@ -790,18 +790,21 @@ function createCustomLayer(libs) {
     render(gl, args) {
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
-      // MapLibre 6.4.1 passes projectionMatrix directly on the render args.
-      // defaultProjectionData.mainMatrix exists and is valid, but
-      // args.projectionMatrix is the camera's projection matrix already
-      // positioned at the map center — objects should be at local offsets
-      // from map center (set in rebuildScene via object.matrixWorld), not
-      // absolute Mercator positions. Translating by coord.x, coord.y here
-      // double-translates objects to 2× map center, pushing them outside
-      // the frustum — 0 pixels drawn.
-      const matrix = args?.projectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
+      // The scene is built in metres relative to the map centre (rebuildScene
+      // sets runtime.origin and runtime.altitude). composeProjection() bridges
+      // metres -> normalised Mercator -> clip space. Do not substitute
+      // args.projectionMatrix here: that is the camera's view-space frustum
+      // matrix, and a metre-scale scene fed to it lands ten screen-widths off.
+      // See custom-layer-matrix.js.
+      const coord = maplibregl.MercatorCoordinate.fromLngLat(runtime.origin, runtime.altitude);
+      const matrix = composeProjection(THREE, args, {
+        x: coord.x,
+        y: coord.y,
+        z: coord.z,
+        scale: coord.meterInMercatorCoordinateUnits(),
+      });
       if (!matrix) return;
-      const main = new THREE.Matrix4().fromArray(matrix);
-      this.camera.projectionMatrix = main;
+      this.camera.projectionMatrix = matrix;
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
     },

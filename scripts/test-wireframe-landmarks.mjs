@@ -115,11 +115,18 @@ test('the layer resolves three through the import map, never a vendored path', (
   assert.ok(imports.includes('three'), 'the layer must load three lazily as a bare specifier');
 });
 
-test('the layer uses the MapLibre 6.4.1 render signature', () => {
+test('the layer uses the MapLibre 6.4.1 render signature and the Mercator main matrix', () => {
   const src = readFileSync(new URL('../public/wireframe-landmarks.js', import.meta.url), 'utf8');
   // PR #19 shipped render(gl, matrix). On MapLibre 6 that receives the args
   // object instead of a matrix: the layer installs cleanly and draws nothing.
   assert.ok(/render\s*\(\s*gl\s*,\s*args\s*\)/.test(src), 'render() must take the args object');
-  assert.ok(/args\?.projectionMatrix/.test(src),
-    'render() must read projectionMatrix from args');
+  // The same failure has a second face. args.projectionMatrix is the camera's
+  // view-space frustum matrix; the world matrix is
+  // args.defaultProjectionData.mainMatrix. Feeding a metre-scale scene to the
+  // frustum matrix puts every monument ten screen-widths off, and the layer
+  // draws nothing at all.
+  assert.match(src, /composeProjection\s*\(/,
+    'render() must compose its projection through the shared helper');
+  assert.doesNotMatch(src, /args\?\.projectionMatrix/,
+    'args.projectionMatrix is a view-space frustum matrix, not the world matrix');
 });
