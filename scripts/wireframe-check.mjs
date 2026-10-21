@@ -139,6 +139,7 @@ writeFileSync(`${SHOT_DIR}/wireframe-off.png`, off);
 writeFileSync(`${SHOT_DIR}/wireframe-off-again.png`, offAgain);
 console.log(`\n  footprint  : ${diff.pct === null ? 'captures not comparable' : diff.pct.toFixed(3) + '% of the map canvas'}`);
 console.log(`  noise floor: ${noise.pct === null ? 'n/a' : noise.pct.toFixed(3) + '% (map movement between captures)'}`);
+if (noise.pct !== null) console.log(`  noise shape: ${noise.pixels} px in ${noise.clusters} region(s)`);
 if (diff.pct !== null) {
   console.log(`  changed px : ${diff.pixels} in ${diff.clusters} region(s), bbox ${diff.bbox}`);
 }
@@ -146,14 +147,15 @@ console.log(`  screenshots: ${SHOT_DIR}/wireframe-{on,off,off-again}.png`);
 console.log(verdict(diff, noise));
 b.close();
 
+// The map is never still: live markers, water and pulses animate, so two
+// captures of the same state never match exactly. The floor is therefore
+// measured, not assumed, and the layer's footprint has to clear it.
 function verdict(diff, noise) {
   if (diff.pct === null) return '  VERDICT: captures not comparable — no measurement.';
-  if (noise.pct !== null && noise.pct > 0.05) {
-    return `  VERDICT: not measured. The map moved ${noise.pct.toFixed(3)}% between two identical `
-      + 'captures, so the footprint above is the movement, not the layer.';
-  }
-  if (diff.pct <= 0.02) {
-    return '  VERDICT: installed but draws nothing — this is the silent failure.';
+  const floor = noise.pct === null ? 0 : noise.pct;
+  if (diff.pct <= Math.max(0.02, floor * 1.5)) {
+    return `  VERDICT: draws nothing. ${diff.pct.toFixed(3)}% is within the map's own `
+      + `motion (${floor.toFixed(3)}%) — this is the silent failure.`;
   }
   if (diff.pct >= 12) {
     return `  VERDICT: draws a slab. ${diff.pct.toFixed(3)}% of the canvas changed in `
@@ -164,7 +166,8 @@ function verdict(diff, noise) {
       + `${diff.clusters} region).`;
   }
   return `  VERDICT: draws. ${diff.pct.toFixed(3)}% of the canvas across ${diff.clusters} `
-    + 'discrete regions, consistent with eight wireframe monuments.';
+    + `discrete regions (${(diff.pct / Math.max(floor, 0.0001)).toFixed(1)}x the map's own `
+    + `motion) — consistent with eight wireframe monuments.`;
 }
 
 function readPng(buf) {
