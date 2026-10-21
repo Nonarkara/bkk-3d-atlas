@@ -11,6 +11,20 @@
 
 import './maplibre-global.js'; // must stay first: sets window.maplibregl (v6, self-hosted)
 import { installHeritageRoofs, uninstallHeritageRoofs, ROOF_LAYER } from './heritage-roofs.js';
+import {
+  HEIGHT_GET,
+  MIN_HEIGHT_GET,
+  RATTANAKOSIN_HEIGHT_EXPRESSION,
+  RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+} from './building-heights.js';
+import {
+  installCityForms,
+  uninstallCityForms,
+  refreshCityForms,
+  cityFormsDebugState,
+  CITY_FORMS_LAYER,
+  CITY_FORMS_OLDTOWN_LAYER,
+} from './city-forms-layer.js';
 import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
 import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
 import {
@@ -75,107 +89,15 @@ const LANDMARKS_LAYER = "bkkx-landmarks-extrusion";
 // 2. Tagged levels (building:levels, building_levels, levels) * 3.15 m floor height (between 1 and 160 levels)
 // 3. Typology-aware height default based on building/building_type
 // 4. Default 8.5 m for untagged / generic footprints
-const HEIGHT_NUM = ["to-number", ["coalesce", ["get", "render_height"], ["get", "height"], 0], 0];
-const LEVELS_NUM = ["to-number", ["coalesce", ["get", "building:levels"], ["get", "building_levels"], ["get", "levels"], 0], 0];
-
-const HEIGHT_GET = [
-  "case",
-  ["all",
-    [">=", HEIGHT_NUM, 1],
-    ["<=", HEIGHT_NUM, 500],
-  ],
-  HEIGHT_NUM,
-  ["all",
-    [">=", LEVELS_NUM, 1],
-    ["<=", LEVELS_NUM, 160],
-  ],
-  ["*", LEVELS_NUM, 3.15],
-  ["match", ["coalesce", ["get", "building"], ["get", "building_type"], ""],
-    "hotel", 28,
-    "office", 25,
-    "hospital", 22,
-    "apartments", 21,
-    "condominium", 24,
-    "dormitory", 18,
-    "commercial", 14,
-    "retail", 14,
-    "supermarket", 12,
-    "mall", 20,
-    "university", 16,
-    "college", 16,
-    "school", 12,
-    "kindergarten", 8,
-    "temple", 14,
-    "pagoda", 24,
-    "monastery", 14,
-    "government", 18,
-    "civic", 15,
-    "train_station", 14,
-    "transportation", 14,
-    "industrial", 10,
-    "warehouse", 10,
-    "factory", 10,
-    "house", 8.5,
-    "residential", 8.5,
-    "terrace", 8.5,
-    "detached", 8.5,
-    8.5,
-  ],
-];
-// Base must stay strictly below height — base >= height makes MapLibre
-// emit degenerate roof triangles that read as sawteeth.
-const MIN_HEIGHT_RAW = [
-  "to-number",
-  ["coalesce",
-    ["get", "render_min_height"],
-    ["get", "min_height"],
-    ["get", "base_height"],
-    0,
-  ],
-  0,
-];
-const MIN_HEIGHT_GET = [
-  "case",
-  [">=", MIN_HEIGHT_RAW, HEIGHT_GET],
-  0,
-  ["max", 0, MIN_HEIGHT_RAW],
-];
-
+// The height rules live in ./building-heights.js, not here. They are shared
+// because a roof has to sit on exactly the same number as the wall under it,
+// and a second copy of a rule is a second chance to be wrong.
 const BUILDING_HEIGHT_EXPRESSION = HEIGHT_GET;
 const BUILDING_MIN_HEIGHT_EXPRESSION = MIN_HEIGHT_GET;
 
 // Old Town: when OSM has no real height or levels tag, lift temples and
 // shophouse fabric so Rattanakosin reads as a city of wats and 2–3 storey rows,
 // not a flat plate. Real tagged heights and levels still win.
-const HAS_TAGGED_HEIGHT = [
-  "any",
-  ["all", [">=", HEIGHT_NUM, 1], ["<=", HEIGHT_NUM, 500]],
-  ["all", [">=", LEVELS_NUM, 1], ["<=", LEVELS_NUM, 160]],
-];
-const RATTANAKOSIN_HEIGHT_EXPRESSION = [
-  "case",
-  HAS_TAGGED_HEIGHT, HEIGHT_GET,
-  ["match", ["coalesce", ["get", "building"], ["get", "building_type"], ""],
-    "temple", 18,
-    "pagoda", 36,
-    "shrine", 14,
-    "chapel", 14,
-    "monastery", 16,
-    "commercial", 12,
-    "retail", 12,
-    "terrace", 12,
-    "house", 10,
-    "residential", 10,
-    9,
-  ],
-];
-const RATTANAKOSIN_MIN_HEIGHT_EXPRESSION = [
-  "case",
-  [">=", MIN_HEIGHT_RAW, RATTANAKOSIN_HEIGHT_EXPRESSION],
-  0,
-  ["max", 0, MIN_HEIGHT_RAW],
-];
-
 // Skip non-3D / collapsed footprints that otherwise fang the skyline.
 const BUILDING_EXTRUSION_FILTER = [
   "all",
@@ -881,6 +803,8 @@ const LAYER_STACK = [
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
   ROOF_LAYER,
+  CITY_FORMS_LAYER,
+  CITY_FORMS_OLDTOWN_LAYER,
   MASSING_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
@@ -1139,7 +1063,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, CITY_FORMS_OLDTOWN_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1147,12 +1071,21 @@ const LAYERS = [
       try { installBuildingMassing(map, BUILDING_EXTRUSION_FILTER); } catch (error) {
         console.warn("Building massing unavailable; extrusions retained:", error);
       }
+      // Roofs and rooftop plant. Additive: the extrusions stay, these sit on
+      // them. If they fail, the city is still a city of boxes.
+      try {
+        await installCityForms(map);
+        attachCityFormsRefresh(map);
+      } catch (error) {
+        console.warn("City forms unavailable; original buildings retained:", error);
+      }
       ensureStackOrder(map);
     },
     uninstall: (map) => {
       suspendBuildingMassing(map);
+      detachCityFormsRefresh(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, CITY_FORMS_OLDTOWN_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -2179,6 +2112,31 @@ function uninstallRattanakosin(map) {
 // Landmark extrusions — Victory Monument + Rattanakosin heritage
 // height overrides. Loaded as GeoJSON so we don't need a PMTiles
 // re-bake / R2 upload to correct OSM's flat 9 m defaults.
+// The city forms are rebuilt when the view settles, not on every frame.
+let cityFormsTimer = 0;
+function attachCityFormsRefresh(map) {
+  if (map.__bkkxCityFormsRefresh) return;
+  const handler = () => {
+    if (cityFormsTimer) clearTimeout(cityFormsTimer);
+    cityFormsTimer = setTimeout(() => {
+      cityFormsTimer = 0;
+      refreshCityForms(map).catch((error) => {
+        console.warn("City forms refresh failed; previous roofs kept:", error);
+      });
+    }, 450);
+  };
+  map.__bkkxCityFormsRefresh = handler;
+  map.on("idle", handler);
+  map.on("zoomend", handler);
+}
+function detachCityFormsRefresh(map) {
+  if (!map.__bkkxCityFormsRefresh) return;
+  map.off("idle", map.__bkkxCityFormsRefresh);
+  map.off("zoomend", map.__bkkxCityFormsRefresh);
+  delete map.__bkkxCityFormsRefresh;
+  if (cityFormsTimer) { clearTimeout(cityFormsTimer); cityFormsTimer = 0; }
+}
+
 async function installLandmarks(map) {
   if (!map.getSource(LANDMARKS_SOURCE)) {
     try {
@@ -9345,6 +9303,7 @@ async function init() {
     // The massing layer renders from a closure. Without this a render check can
     // only see that it draws nothing, not which early-return stops it.
     window.__atlas.massing = massingDebugState;
+    window.__atlas.cityForms = cityFormsDebugState;
     window.__atlas.setLayer = async (id, on) => {
       const entry = LAYERS.find((l) => l.id === id);
       if (!entry) throw new Error(`unknown layer ${id}`);
