@@ -39,6 +39,20 @@ await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
 // goes hidden, Chrome suspends the compositor, and an unsettled top-level await
 // ends the process with exit 0 — a check that measured nothing and passed.
 await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+// Pin the viewport. At headless defaults the map canvas collapses (observed
+// 297x30, then 30x30 after settle at a 1280 override), the screenshot clip
+// shrinks with it, and every monument falls outside the capture — the check
+// reads exactly like a layer that draws nothing. 1440x900 at dpr 1 yields
+// the real map surface (~1000x643).
+await b.send('Emulation.setDeviceMetricsOverride', {
+  width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+}, sessionId);
+// Freeze the map's own animation (live markers, pulses, water). The atlas
+// honours prefers-reduced-motion; without it the noise floor between two
+// hidden captures sits at ~0.15% and can mask a thin line drawing.
+await b.send('Emulation.setEmulatedMedia', {
+  features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+}, sessionId);
 
 // Close QA tabs left behind by an earlier run. A run that hangs or is killed
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
@@ -81,14 +95,24 @@ for (let i = 0; i < 60; i++) {
 }
 if (!(await ev('!!window.__atlas?.map?.getLayer'))) { console.error('no atlas'); process.exit(2); }
 
-const canvasRect = await ev(`(()=>{const r=window.__atlas.map.getCanvas().getBoundingClientRect();
-  return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };})()`);
+const readRect = `(()=>{const r=window.__atlas.map.getCanvas().getBoundingClientRect();
+  return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };})()`;
+const canvasRect = await ev(readRect);
 clip = canvasRect;
-console.log('  map canvas:', `${canvasRect.width}x${canvasRect.height} at ${canvasRect.x},${canvasRect.y}`);
+console.log('  map canvas at boot:', `${canvasRect.width}x${canvasRect.height} at ${canvasRect.x},${canvasRect.y}`);
 
 // Park on the Rattanakosin monuments the layer draws.
 await ev(`window.__atlas.map.jumpTo(${JSON.stringify(VIEW)}); true`);
 await sleep(14000);
+
+// Re-read the canvas after the view settles: at boot the map container can
+// still be mid-layout (the earlier 297x30 clip captured the corner of a
+// collapsing canvas and every monument fell outside the screenshot).
+const settledRect = await ev(readRect);
+if (settledRect.width !== canvasRect.width || settledRect.height !== canvasRect.height) {
+  clip = settledRect;
+  console.log('  map canvas settled:', `${settledRect.width}x${settledRect.height} at ${settledRect.x},${settledRect.y}`);
+}
 
 console.log('wireframe landmarks — installed and drawing?\n');
 console.log('  installed before enabling:', await ev(`!!window.__atlas.map.getLayer(${JSON.stringify(ID)})`));
@@ -117,6 +141,20 @@ if (!present) {
   b.close();
   process.exit(1);
 }
+
+// The layer announces its own first successful render via
+// window.__bkkxWireStats. Waiting for that signal — not a fixed sleep — is
+// what separates "installed" from "drew": three.js resolves from unpkg on
+// first enable, and the earlier fixed 4 s warm-up captured pre-announce
+// frames, which read exactly like a layer that draws nothing.
+const announceDeadline = Date.now() + 45000;
+let announced = false;
+while (Date.now() < announceDeadline) {
+  announced = await ev(`!!window.__bkkxWireStats`);
+  if (announced) break;
+  await sleep(1500);
+}
+console.log('  first render announced    :', announced);
 
 // Warm, then diff with the layer hidden.
 await sleep(4000);
