@@ -24,7 +24,7 @@ import {
   buildAll,
   detailForViewport,
 } from "./wireframe-geometry.js";
-import { mercatorModelMatrix } from './custom-layer-matrix.js';
+import { composeProjection } from './custom-layer-matrix.js';
 
 export const WIRE_LAYER_ID = "bkkx-wireframe-landmarks";
 
@@ -196,18 +196,20 @@ function createLayer(THREE, map, models, detail) {
       this.palette = PALETTE.ink;
     },
     render(gl, args) {
-      // MapLibre 6.4.1 passes projectionMatrix directly on the render args.
-      // defaultProjectionData.mainMatrix exists and is valid, but
-      // args.projectionMatrix is the camera's projection matrix already
-      // positioned at the map center — objects should be at local offsets
-      // from map center (set in place() via east/south), not absolute
-      // Mercator positions. Translating by origin.x, origin.y here
-      // double-translates objects to 2× origin, pushing them outside
-      // the frustum — 0 pixels drawn.
-      const matrix = args?.projectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
-      if (!this.renderer || !matrix) return;
-      const m = new THREE.Matrix4().fromArray(matrix);
-      this.camera.projectionMatrix = m;
+      // The scene is built in metres relative to `origin`, a fixed anchor north
+      // of the monuments. composeProjection() bridges metres -> normalised
+      // Mercator -> clip space. Do not substitute args.projectionMatrix here:
+      // that is the camera's view-space frustum matrix, and a metre-scale scene
+      // fed to it lands ten screen-widths off. See custom-layer-matrix.js.
+      if (!this.renderer) return;
+      const matrix = composeProjection(THREE, args, {
+        x: origin.x,
+        y: origin.y,
+        z: origin.z,
+        scale,
+      });
+      if (!matrix) return;
+      this.camera.projectionMatrix = matrix;
       const canvas = this.map.getCanvas();
       if (canvas.width !== this.renderer.domElement.width || canvas.height !== this.renderer.domElement.height) {
         this.renderer.setSize(canvas.width, canvas.height, false);
