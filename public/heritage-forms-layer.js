@@ -448,6 +448,37 @@ export function heritageFormsCount() {
   return runtime.forms ? runtime.forms.length : 0;
 }
 
+/**
+ * The ids of the buildings this layer draws a real form on.
+ *
+ * The city forms layer draws schematic roofs. Where this layer already draws
+ * a real Thai form, that form is better and two roofs on one building is
+ * worse than one, so the city forms leave those buildings alone.
+ */
+export function heritageFormIds() {
+  const ids = new Set();
+  for (const form of runtime.forms ?? []) {
+    if (form?.id) ids.add(String(form.id));
+  }
+  return ids;
+}
+
+/**
+ * The footprints this layer draws a real form on.
+ *
+ * The ids alone are not enough: a shophouse row is drawn from one footprint
+ * but covers the buildings behind it, and those carry their own ids. The
+ * city forms layer checks the geometry, so a building under a Thai form is
+ * left alone even when the ids do not match.
+ */
+export function heritageFormRings() {
+  const rings = [];
+  for (const form of runtime.forms ?? []) {
+    if (Array.isArray(form?.ring) && form.ring.length >= 3) rings.push(form.ring);
+  }
+  return rings;
+}
+
 /** Candidates left out because no storey count was recorded. */
 export function shophouseSkippedCount() {
   return runtime.shophouseSkipped;

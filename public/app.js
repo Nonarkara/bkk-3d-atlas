@@ -20,10 +20,10 @@ import {
 import {
   installCityForms,
   uninstallCityForms,
-  refreshCityForms,
   cityFormsDebugState,
+  attachCityFormsRefresh,
+  detachCityFormsRefresh,
   CITY_FORMS_LAYER,
-  CITY_FORMS_OLDTOWN_LAYER,
 } from './city-forms-layer.js';
 import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
 import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
@@ -804,7 +804,6 @@ const LAYER_STACK = [
   LANDMARKS_LAYER,
   ROOF_LAYER,
   CITY_FORMS_LAYER,
-  CITY_FORMS_OLDTOWN_LAYER,
   MASSING_LAYER,
   "bkkx-roads-minor",
   "bkkx-roads-major",
@@ -1063,7 +1062,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, CITY_FORMS_OLDTOWN_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1085,7 +1084,7 @@ const LAYERS = [
       suspendBuildingMassing(map);
       detachCityFormsRefresh(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, CITY_FORMS_OLDTOWN_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -2112,31 +2111,9 @@ function uninstallRattanakosin(map) {
 // Landmark extrusions — Victory Monument + Rattanakosin heritage
 // height overrides. Loaded as GeoJSON so we don't need a PMTiles
 // re-bake / R2 upload to correct OSM's flat 9 m defaults.
-// The city forms are rebuilt when the view settles, not on every frame.
-let cityFormsTimer = 0;
-function attachCityFormsRefresh(map) {
-  if (map.__bkkxCityFormsRefresh) return;
-  const handler = () => {
-    if (cityFormsTimer) clearTimeout(cityFormsTimer);
-    cityFormsTimer = setTimeout(() => {
-      cityFormsTimer = 0;
-      refreshCityForms(map).catch((error) => {
-        console.warn("City forms refresh failed; previous roofs kept:", error);
-      });
-    }, 450);
-  };
-  map.__bkkxCityFormsRefresh = handler;
-  map.on("idle", handler);
-  map.on("zoomend", handler);
-}
-function detachCityFormsRefresh(map) {
-  if (!map.__bkkxCityFormsRefresh) return;
-  map.off("idle", map.__bkkxCityFormsRefresh);
-  map.off("zoomend", map.__bkkxCityFormsRefresh);
-  delete map.__bkkxCityFormsRefresh;
-  if (cityFormsTimer) { clearTimeout(cityFormsTimer); cityFormsTimer = 0; }
-}
-
+// The city forms are rebuilt when the view settles, not on every frame. The
+// refresh machinery lives with the layer that owns the state, because it has
+// to know whether the buildings have actually arrived yet.
 async function installLandmarks(map) {
   if (!map.getSource(LANDMARKS_SOURCE)) {
     try {

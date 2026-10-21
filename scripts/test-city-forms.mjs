@@ -8,9 +8,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  buildCityForms,
-  buildHipRoof,
-  buildRooftopPlant,
   classifyRoof,
   DEFAULT_OPTIONS,
   orientedBox,
@@ -18,6 +15,12 @@ import {
   ringArea,
   toLocalMeters,
 } from '../public/city-forms.js';
+import {
+  ACCURACY,
+  buildCityGeometry,
+  hipRoofTriangles,
+  plantTriangles,
+} from '../public/city-forms-geometry.js';
 
 const ORIGIN = [100.5, 13.75];
 
@@ -49,6 +52,14 @@ function withHeight(feature, height, minHeight = 0) {
     ...feature,
     properties: { render_height: height, render_min_height: minHeight },
   };
+}
+
+function vertices(geometry) {
+  const out = [];
+  for (let i = 0; i < geometry.positions.length; i += 3) {
+    out.push([geometry.positions[i], geometry.positions[i + 1], geometry.positions[i + 2]]);
+  }
+  return out;
 }
 
 test('height resolution matches the atlas extrusion expression', () => {
@@ -100,6 +111,39 @@ test('a mid-rise flat roof gets plant, a low one does not', () => {
     'a low wide block is not a flat mid-rise');
 });
 
+test('a long narrow row gets a roof, because that is what a row is', () => {
+  // A Bangkok shophouse row is long and narrow, and it is pitched. Refusing
+  // it for being long left the biggest buildings in the old town as grey
+  // boxes, which is the whole problem this layer exists to fix.
+  const row = withHeight(rectangle(0, 0, 72, 12), 9);
+  const plan = classifyRoof(row, { origin: ORIGIN });
+  assert.ok(plan, 'a 72 x 12 m row at 9 m should be pitched');
+  assert.equal(plan.kind, 'hip');
+});
+
+test('a footprint the rectangle does not describe gets no roof', () => {
+  // An L-shape. A rectangle fitted to it overshoots badly, and a roof drawn
+  // to that rectangle would hang out over the street.
+  const l = withHeight({
+    type: 'Feature',
+    properties: { render_height: 8, render_min_height: 0 },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [ORIGIN[0], ORIGIN[1]],
+        [ORIGIN[0] + 0.0009, ORIGIN[1]],
+        [ORIGIN[0] + 0.0009, ORIGIN[1] + 0.00009],
+        [ORIGIN[0] + 0.00045, ORIGIN[1] + 0.00009],
+        [ORIGIN[0] + 0.00045, ORIGIN[1] + 0.00018],
+        [ORIGIN[0], ORIGIN[1] + 0.00018],
+        [ORIGIN[0], ORIGIN[1]],
+      ]],
+    },
+  }, 8);
+  assert.equal(classifyRoof(l, { origin: ORIGIN }), null,
+    'an L-shaped footprint must not be given a rectangle roof');
+});
+
 test('the classifier refuses what it cannot support', () => {
   assert.equal(classifyRoof({ type: 'Feature', properties: {}, geometry: null }, { origin: ORIGIN }), null);
   assert.equal(classifyRoof(null, { origin: ORIGIN }), null);
@@ -113,95 +157,121 @@ test('the oriented box is fitted to the footprint, not assumed axis aligned', ()
   assert.ok(box);
   assert.ok(Math.abs(box.long - 20) < 0.001, `long axis ${box.long}`);
   assert.ok(Math.abs(box.short - 10) < 0.001, `short axis ${box.short}`);
+  assert.ok(Math.abs(box.area - 200) < 0.001, `box area ${box.area}`);
 });
 
-test('a hip roof is a closed, finite set of prisms above the building', () => {
-  const house = withHeight(rectangle(0, 0, 9, 7), 7);
-  const plan = classifyRoof(house, { origin: ORIGIN });
-  const pieces = buildHipRoof(plan, DEFAULT_OPTIONS);
-  assert.ok(pieces.length > 0, 'a roof was not built');
-  for (const piece of pieces) {
-    assert.ok(Number.isFinite(piece.rise), 'non-finite rise');
-    assert.ok(piece.rise > 0, 'a roof piece with no height above the building');
-    for (const [x, y] of piece.ring) {
-      assert.ok(Number.isFinite(x) && Number.isFinite(y), 'non-finite roof vertex');
-    }
+test('a hip roof is a real roof: eight triangles, a ridge, and no steps', () => {
+  const row = withHeight(rectangle(0, 0, 24, 9), 7);
+  const plan = classifyRoof(row, { origin: ORIGIN });
+  const geometry = hipRoofTriangles(plan, DEFAULT_OPTIONS);
+  // Two long slopes and two hips: eight triangles, plus the eave band.
+  assert.ok(geometry.positions.length > 0, 'a roof was not built');
+  assert.equal(geometry.positions.length % 9, 0, 'the geometry is not a whole number of triangles');
+  assert.equal(geometry.positions.length, geometry.normals.length, 'normals do not match positions');
+  assert.equal(geometry.positions.length, geometry.colors.length, 'colours do not match positions');
+
+  const points = vertices(geometry);
+  for (const [x, y, z] of points) {
+    assert.ok(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z), 'non-finite vertex');
   }
-  // The roof must actually rise above the flat lid it covers. A rise is
-  // measured from the building's top, so the tallest piece has to clear
-  // the eave by a visible margin.
-  const highest = Math.max(...pieces.map((p) => p.rise));
-  assert.ok(highest > 1.5, `the roof rises only ${highest.toFixed(2)} m above the extrusion`);
+  // The eave sits on the building's top, and the ridge is above it.
+  const zs = points.map((p) => p[2]);
+  assert.ok(Math.min(...zs) >= plan.height - 0.01, 'the roof sinks into the building');
+  const ridge = Math.max(...zs);
+  assert.ok(ridge > plan.height + 0.8, `the roof rises only ${(ridge - plan.height).toFixed(2)} m`);
+  // The ridge runs along the LONG axis. The long axis of this building is
+  // east-west, so the highest vertices share a north coordinate near the
+  // middle of the short axis, and they are spread east-west.
+  const top = points.filter((p) => p[2] > ridge - 0.01);
+  const norths = top.map((p) => p[1]);
+  const easts = top.map((p) => p[0]);
+  assert.ok(Math.max(...norths) - Math.min(...norths) < 1.0,
+    'the ridge is not a line: it spreads across the short axis');
+  assert.ok(Math.max(...easts) - Math.min(...easts) > 5,
+    'the ridge does not run the length of the building');
+  // And it is centred on the footprint.
+  const centre = plan.box.centre;
+  assert.ok(Math.abs((Math.max(...norths) + Math.min(...norths)) / 2 - centre[1]) < 0.01,
+    'the ridge is not centred on the building');
+});
+
+test('the roof stays on the building it belongs to', () => {
+  const row = withHeight(rectangle(0, 0, 24, 9), 7);
+  const plan = classifyRoof(row, { origin: ORIGIN });
+  const geometry = hipRoofTriangles(plan, DEFAULT_OPTIONS);
+  const local = toLocalMeters(row.geometry.coordinates[0], ORIGIN);
+  const minX = Math.min(...local.map((p) => p[0]));
+  const maxX = Math.max(...local.map((p) => p[0]));
+  const minY = Math.min(...local.map((p) => p[1]));
+  const maxY = Math.max(...local.map((p) => p[1]));
+  const eave = DEFAULT_OPTIONS.eave + 0.01;
+  for (const [x, y] of vertices(geometry)) {
+    assert.ok(x >= minX - eave && x <= maxX + eave, 'a roof vertex hangs off the building in x');
+    assert.ok(y >= minY - eave && y <= maxY + eave, 'a roof vertex hangs off the building in y');
+  }
 });
 
 test('rooftop plant stands on the roof and stays inside the footprint', () => {
   const mid = withHeight(rectangle(0, 0, 26, 20), 22);
   const plan = classifyRoof(mid, { origin: ORIGIN });
-  const pieces = buildRooftopPlant(plan, DEFAULT_OPTIONS);
-  assert.ok(pieces.length >= 2, 'a flat mid-rise roof carries more than one object');
-  const local = toLocalMeters(
-    rectangle(0, 0, 26, 20).geometry.coordinates[0],
-    ORIGIN,
-  );
+  const geometry = plantTriangles(plan, DEFAULT_OPTIONS);
+  assert.ok(geometry.positions.length > 0, 'a flat mid-rise roof carries nothing');
+  const local = toLocalMeters(mid.geometry.coordinates[0], ORIGIN);
   const minX = Math.min(...local.map((p) => p[0]));
   const maxX = Math.max(...local.map((p) => p[0]));
   const minY = Math.min(...local.map((p) => p[1]));
   const maxY = Math.max(...local.map((p) => p[1]));
-  for (const piece of pieces) {
-    assert.ok(piece.rise > 0, 'plant with no height');
-    for (const [x, y] of piece.ring) {
-      assert.ok(x >= minX - 0.01 && x <= maxX + 0.01, 'plant outside the footprint in x');
-      assert.ok(y >= minY - 0.01 && y <= maxY + 0.01, 'plant outside the footprint in y');
-    }
+  const zs = vertices(geometry).map((p) => p[2]);
+  assert.ok(Math.min(...zs) >= plan.height - 0.01, 'the plant sinks into the roof');
+  assert.ok(Math.max(...zs) > plan.height + 0.5, 'the plant has no height');
+  for (const [x, y] of vertices(geometry)) {
+    assert.ok(x >= minX - 0.01 && x <= maxX + 0.01, 'plant outside the footprint in x');
+    assert.ok(y >= minY - 0.01 && y <= maxY + 0.01, 'plant outside the footprint in y');
   }
-  const kinds = new Set(pieces.map((p) => p.kind));
-  assert.ok(kinds.has('tank'), 'a Bangkok flat roof without a water tank is not a Bangkok flat roof');
+  // The water tanks are the thing that makes a Bangkok roof recognisable, and
+  // they are the dark ones.
+  const colours = new Set();
+  for (let i = 0; i < geometry.colors.length; i += 3) {
+    colours.add([geometry.colors[i], geometry.colors[i + 1], geometry.colors[i + 2]].join(','));
+  }
+  assert.ok(colours.size >= 2, 'the plant is all one colour');
 });
 
-test('the built collection says what it is and claims nothing', () => {
+test('the forms say what they are and claim nothing', () => {
+  for (const [kind, note] of Object.entries(ACCURACY)) {
+    assert.ok(note.length > 20, `${kind}: a form with no accuracy note`);
+    assert.match(note, /unsurveyed/i, `${kind}: a form that does not say it is unsurveyed`);
+    assert.match(note, /not for flood calculations/i, `${kind}: a form that does not refuse flood use`);
+  }
+});
+
+test('the whole city is one merged set of triangles', () => {
   const features = [
     withHeight(rectangle(0, 0, 9, 7), 7),
     withHeight(rectangle(40, 0, 26, 20), 22),
   ];
-  const { collection, stats } = buildCityForms(
-    features.map((feature) => ({ feature, family: 'metro' })),
-    { origin: ORIGIN },
-  );
-  assert.equal(collection.type, 'FeatureCollection');
-  assert.equal(stats.treated, 2);
-  assert.equal(stats.kinds.hip, 1);
-  assert.equal(stats.kinds.plant, 1);
-  assert.ok(collection.features.length > 2);
-  for (const feature of collection.features) {
-    const p = feature.properties;
-    assert.ok(p.accuracy && p.accuracy.length > 20, 'a form with no accuracy note');
-    assert.match(p.accuracy, /unsurveyed/i, 'a form that does not say it is unsurveyed');
-    assert.match(p.accuracy, /not for flood calculations/i, 'a form that does not refuse flood use');
-    // A rise, not an absolute height. The layer adds it to the height
-    // MapLibre computes for the wall underneath.
-    assert.ok(Number.isFinite(p.rise) && p.rise > 0, 'a form with no rise');
-    assert.ok(!('top' in p) && !('base' in p), 'a form carrying an absolute height');
-    // The height properties have to travel with the piece, or the layer
-    // cannot ask MapLibre for the building's height.
-    assert.ok('render_height' in p, 'a form that lost the building height');
-    assert.equal(p.family, 'metro');
-    const ring = feature.geometry.coordinates[0];
-    assert.ok(ring.length >= 4, 'a polygon with fewer than four corners');
-    assert.deepEqual(ring[0], ring[ring.length - 1], 'a polygon that is not closed');
-  }
+  const plans = features
+    .map((feature) => classifyRoof(feature, { origin: ORIGIN }))
+    .filter(Boolean);
+  assert.equal(plans.length, 2);
+  const geometry = buildCityGeometry(plans, DEFAULT_OPTIONS);
+  assert.ok(geometry.positions.length > 0, 'the city has no geometry');
+  assert.equal(geometry.positions.length % 9, 0, 'the geometry is not a whole number of triangles');
+  assert.equal(geometry.positions.length, geometry.normals.length);
+  assert.equal(geometry.positions.length, geometry.colors.length);
+  // Both roofs are in there, at their own heights.
+  const zs = vertices(geometry).map((p) => p[2]);
+  assert.ok(Math.min(...zs) < 8 && Math.max(...zs) > 22,
+    'the city is not holding both a 7 m house and a 22 m block');
 });
 
 test('the budget is a budget', () => {
   const features = [];
   for (let i = 0; i < 40; i++) features.push(withHeight(rectangle(i * 30, 0, 9, 7), 7));
-  const { stats } = buildCityForms(
-    features.map((feature) => ({ feature, family: 'metro' })),
-    { origin: ORIGIN, budget: 10 },
-  );
-  assert.equal(stats.treated, 10);
-  assert.equal(stats.skipped, 30);
-});
-
-test('a form is never built without an origin to measure from', () => {
-  assert.throws(() => buildCityForms([{ feature: rectangle(0, 0, 9, 7) }], {}), /origin/);
+  const plans = features
+    .map((feature) => classifyRoof(feature, { origin: ORIGIN }))
+    .filter(Boolean);
+  const kept = plans.slice(0, 10);
+  assert.equal(kept.length, 10);
+  assert.equal(plans.length - kept.length, 30);
 });

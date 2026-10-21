@@ -39,6 +39,13 @@ await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
 // goes hidden, Chrome suspends the compositor, and an unsettled top-level await
 // ends the process with exit 0 — a check that measured nothing and passed.
 await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+// Pin the backing surface to one device pixel per CSS pixel. A capture of a
+// 2x surface is twice the pixels, and at a full window size the screenshot
+// path stalls and never answers. The clip is taken from the canvas rect
+// anyway, so the harness does not care what the window measures.
+await b.send('Emulation.setDeviceMetricsOverride', {
+  width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
+}, sessionId);
 
 // Close QA tabs left behind by an earlier run. A run that hangs or is killed
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
@@ -52,7 +59,9 @@ await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId)
   const { targetInfos } = await b.send('Target.getTargets');
   for (const t of targetInfos) {
     if (t.targetId === targetId || t.type !== 'page') continue;
-    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
+    // The local dev server counts too: a probe that is killed leaves a live
+    // 3D atlas behind, and eight of those are enough to stall a capture.
+    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank|^http:\/\/(127\.0\.0\.1|localhost)/.test(t.url || '')) continue;
     try { await b.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
   }
 }
