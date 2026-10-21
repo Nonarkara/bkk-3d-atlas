@@ -115,11 +115,11 @@ test('the layer resolves three through the import map, never a vendored path', (
   assert.ok(imports.includes('three'), 'the layer must load three lazily as a bare specifier');
 });
 
-test('the layer uses the MapLibre 5+ render signature', () => {
+test('the layer uses the MapLibre 6.4.1 render signature', () => {
   const src = readFileSync(new URL('../public/wireframe-landmarks.js', import.meta.url), 'utf8');
   // PR #19 shipped render(gl, matrix). On MapLibre 6 that receives the args
   // object instead of a matrix: the layer installs cleanly and draws nothing.
   assert.ok(/render\s*\(\s*gl\s*,\s*args\s*\)/.test(src), 'render() must take the args object');
-  assert.ok(/mercatorModelMatrix\(args\)/.test(src),
-    'render() must use the normalized-Mercator matrix contract');
+  assert.ok(/args\?.projectionMatrix/.test(src),
+    'render() must read projectionMatrix from args');
 });

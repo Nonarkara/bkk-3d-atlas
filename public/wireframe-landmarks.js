@@ -196,13 +196,18 @@ function createLayer(THREE, map, models, detail) {
       this.palette = PALETTE.ink;
     },
     render(gl, args) {
-      const matrix = mercatorModelMatrix(args);
+      // MapLibre 6.4.1 passes projectionMatrix directly on the render args.
+      // defaultProjectionData.mainMatrix exists and is valid, but
+      // args.projectionMatrix is the camera's projection matrix already
+      // positioned at the map center — objects should be at local offsets
+      // from map center (set in place() via east/south), not absolute
+      // Mercator positions. Translating by origin.x, origin.y here
+      // double-translates objects to 2× origin, pushing them outside
+      // the frustum — 0 pixels drawn.
+      const matrix = args?.projectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
       if (!this.renderer || !matrix) return;
       const m = new THREE.Matrix4().fromArray(matrix);
-      const translate = new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z);
-      const sized = new THREE.Matrix4().makeScale(scale, -scale, scale);
-      const tilt = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-      this.camera.projectionMatrix = m.multiply(translate).multiply(sized).multiply(tilt);
+      this.camera.projectionMatrix = m;
       const canvas = this.map.getCanvas();
       if (canvas.width !== this.renderer.domElement.width || canvas.height !== this.renderer.domElement.height) {
         this.renderer.setSize(canvas.width, canvas.height, false);

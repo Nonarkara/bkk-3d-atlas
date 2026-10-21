@@ -790,16 +790,18 @@ function createCustomLayer(libs) {
     render(gl, args) {
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
-      const matrix = mercatorModelMatrix(args);
+      // MapLibre 6.4.1 passes projectionMatrix directly on the render args.
+      // defaultProjectionData.mainMatrix exists and is valid, but
+      // args.projectionMatrix is the camera's projection matrix already
+      // positioned at the map center — objects should be at local offsets
+      // from map center (set in rebuildScene via object.matrixWorld), not
+      // absolute Mercator positions. Translating by coord.x, coord.y here
+      // double-translates objects to 2× map center, pushing them outside
+      // the frustum — 0 pixels drawn.
+      const matrix = args?.projectionMatrix ?? args?.defaultProjectionData?.mainMatrix;
       if (!matrix) return;
-      const coord = maplibregl.MercatorCoordinate.fromLngLat(runtime.origin, runtime.altitude);
-      const scale = coord.meterInMercatorCoordinateUnits();
       const main = new THREE.Matrix4().fromArray(matrix);
-      const model = new THREE.Matrix4()
-        .makeTranslation(coord.x, coord.y, coord.z)
-        .scale(new THREE.Vector3(scale, -scale, scale))
-        .multiply(new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2));
-      this.camera.projectionMatrix = main.multiply(model);
+      this.camera.projectionMatrix = main;
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
     },
