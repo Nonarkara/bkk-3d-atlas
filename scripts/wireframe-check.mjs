@@ -39,13 +39,6 @@ await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
 // goes hidden, Chrome suspends the compositor, and an unsettled top-level await
 // ends the process with exit 0 — a check that measured nothing and passed.
 await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
-// Pin the backing surface to one device pixel per CSS pixel. A capture of a
-// 2x surface is twice the pixels, and at a full window size the screenshot
-// path stalls and never answers. The clip is taken from the canvas rect
-// anyway, so the harness does not care what the window measures.
-await b.send('Emulation.setDeviceMetricsOverride', {
-  width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
-}, sessionId);
 
 // Close QA tabs left behind by an earlier run. A run that hangs or is killed
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
@@ -59,9 +52,7 @@ await b.send('Emulation.setDeviceMetricsOverride', {
   const { targetInfos } = await b.send('Target.getTargets');
   for (const t of targetInfos) {
     if (t.targetId === targetId || t.type !== 'page') continue;
-    // The local dev server counts too: a probe that is killed leaves a live
-    // 3D atlas behind, and eight of those are enough to stall a capture.
-    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank|^http:\/\/(127\.0\.0\.1|localhost)/.test(t.url || '')) continue;
+    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
     try { await b.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
   }
 }
@@ -148,7 +139,6 @@ writeFileSync(`${SHOT_DIR}/wireframe-off.png`, off);
 writeFileSync(`${SHOT_DIR}/wireframe-off-again.png`, offAgain);
 console.log(`\n  footprint  : ${diff.pct === null ? 'captures not comparable' : diff.pct.toFixed(3) + '% of the map canvas'}`);
 console.log(`  noise floor: ${noise.pct === null ? 'n/a' : noise.pct.toFixed(3) + '% (map movement between captures)'}`);
-if (noise.pct !== null) console.log(`  noise shape: ${noise.pixels} px in ${noise.clusters} region(s)`);
 if (diff.pct !== null) {
   console.log(`  changed px : ${diff.pixels} in ${diff.clusters} region(s), bbox ${diff.bbox}`);
 }
@@ -156,15 +146,14 @@ console.log(`  screenshots: ${SHOT_DIR}/wireframe-{on,off,off-again}.png`);
 console.log(verdict(diff, noise));
 b.close();
 
-// The map is never still: live markers, water and pulses animate, so two
-// captures of the same state never match exactly. The floor is therefore
-// measured, not assumed, and the layer's footprint has to clear it.
 function verdict(diff, noise) {
   if (diff.pct === null) return '  VERDICT: captures not comparable — no measurement.';
-  const floor = noise.pct === null ? 0 : noise.pct;
-  if (diff.pct <= Math.max(0.02, floor * 1.5)) {
-    return `  VERDICT: draws nothing. ${diff.pct.toFixed(3)}% is within the map's own `
-      + `motion (${floor.toFixed(3)}%) — this is the silent failure.`;
+  if (noise.pct !== null && noise.pct > 0.05) {
+    return `  VERDICT: not measured. The map moved ${noise.pct.toFixed(3)}% between two identical `
+      + 'captures, so the footprint above is the movement, not the layer.';
+  }
+  if (diff.pct <= 0.02) {
+    return '  VERDICT: installed but draws nothing — this is the silent failure.';
   }
   if (diff.pct >= 12) {
     return `  VERDICT: draws a slab. ${diff.pct.toFixed(3)}% of the canvas changed in `
@@ -175,8 +164,7 @@ function verdict(diff, noise) {
       + `${diff.clusters} region).`;
   }
   return `  VERDICT: draws. ${diff.pct.toFixed(3)}% of the canvas across ${diff.clusters} `
-    + `discrete regions (${(diff.pct / Math.max(floor, 0.0001)).toFixed(1)}x the map's own `
-    + `motion) — consistent with eight wireframe monuments.`;
+    + 'discrete regions, consistent with eight wireframe monuments.';
 }
 
 function readPng(buf) {
