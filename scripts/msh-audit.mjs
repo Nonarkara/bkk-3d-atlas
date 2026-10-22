@@ -157,19 +157,24 @@ const MEASURE = `(() => {
     overflow.offenders = overflow.offenders.slice(0, 12);
   }
 
-  // Tap targets: anything a finger has to hit. Only a touch viewport has a
-  // minimum — a 17px label is fine under a mouse and unreadable under a
-  // thumb, so the threshold follows the viewport, not the element.
+  // Tap targets: anything a finger has to hit. Two thresholds, because two
+  // different things are being measured. 24px is WCAG 2.5.8 (AA) — under it
+  // is a real accessibility failure. 44px is the iOS/Apple guideline — under
+  // it is worth knowing, but it is advice, not a failure, and inline text
+  // links are exempt from AA anyway. Reporting both as one number buried
+  // the real failure inside noise.
   const touch = vw < 500;
-  const minTap = touch ? 44 : 24;
+  const aa = 24;
+  const guide = touch ? 44 : 24;
   const small = [];
+  const tight = [];
   for (const el of document.querySelectorAll('a, button, [role=button], input, select, summary')) {
     if (!visible(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.bottom < 0 || r.top > vh) continue;
-    if (r.width < minTap || r.height < minTap) {
-      small.push({ tag: el.tagName.toLowerCase(), cls: String(el.className || '').slice(0, 44), label: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 28), w: Math.round(r.width), h: Math.round(r.height) });
-    }
+    const hit = { tag: el.tagName.toLowerCase(), cls: String(el.className || '').slice(0, 44), label: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 28), w: Math.round(r.width), h: Math.round(r.height) };
+    if (r.width < aa || r.height < aa) small.push(hit);
+    else if (r.width < guide || r.height < guide) tight.push(hit);
   }
 
   // Accidental wrapping: a label squeezed onto one or two characters a line.
@@ -182,7 +187,15 @@ const MEASURE = `(() => {
     if (text.length < 4) continue;
     const style = getComputedStyle(el);
     const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
-    const lines = Math.round(r.height / lineHeight);
+    // Count the lines in the CONTENT box. A heading with 24px of padding-top
+    // is one line of text and a rule above it; measuring the border box
+    // divides that padding into the line count and reports a one-line
+    // heading as two lines. It reported "TL;DR" as cramped on the labs
+    // paper, which the screenshot shows on one line.
+    const padT = parseFloat(style.paddingTop) || 0;
+    const padB = parseFloat(style.paddingBottom) || 0;
+    const contentH = Math.max(0, r.height - padT - padB);
+    const lines = Math.round(contentH / lineHeight);
     if (lines > 1 && text.length / lines <= 2.5) {
       cramped.push({ tag: el.tagName.toLowerCase(), cls: String(el.className || '').slice(0, 44), text: text.slice(0, 24), lines, w: Math.round(r.width) });
     }
@@ -251,6 +264,7 @@ const MEASURE = `(() => {
     map: mapRect ? { x: Math.round(mapRect.x), y: Math.round(mapRect.y), w: Math.round(mapRect.width), h: Math.round(mapRect.height), areaPct: Math.round((mapRect.width * mapRect.height) / (vw * vh) * 1000) / 10 } : null,
     overflow,
     small: small.slice(0, 14),
+    tight: tight.slice(0, 14),
     cramped: cramped.slice(0, 10),
     truncated: truncated.slice(0, 14),
     truncatedCount: truncated.length,
@@ -312,7 +326,12 @@ for (const page of PAGES) {
     console.log(`  map       ${m.map ? `${m.map.w}x${m.map.h} at ${m.map.x},${m.map.y} — ${m.map.areaPct}% of the viewport` : 'NO MAP CANVAS'}`);
     console.log(`  overflow  ${m.overflow.over}px${m.overflow.offenders.length ? ` (${m.overflow.offenders.length} offender(s))` : ''}`);
     if (m.overflow.offenders.length) for (const o of m.overflow.offenders.slice(0, 5)) console.log(`     ${o.tag}.${o.cls} right=${o.right}`);
-    console.log(`  small tap ${m.small.length} under 32px`);
+    console.log(`  tap <24px   ${m.small.length} below the WCAG minimum`);
+    for (const t of m.small.slice(0, 6)) console.log(`     ${t.cls} ${t.w}x${t.h} "${t.label}"`);
+    if (m.tight && m.tight.length) {
+      console.log(`  tap <44px   ${m.tight.length} under the touch guideline (advisory)`);
+      for (const t of m.tight.slice(0, 4)) console.log(`     ${t.cls} ${t.w}x${t.h} "${t.label}"`);
+    }
     for (const s of m.small.slice(0, 6)) console.log(`     ${s.tag}.${s.cls} ${s.w}x${s.h} "${s.label}"`);
     console.log(`  cramped   ${m.cramped.length}`);
     for (const c of m.cramped.slice(0, 4)) console.log(`     ${c.tag}.${c.cls} "${c.text}" ${c.lines} lines in ${c.w}px`);
