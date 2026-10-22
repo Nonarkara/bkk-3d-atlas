@@ -259,9 +259,9 @@ for (const el of document.querySelectorAll('button')) {
   // DOM cannot see the response it was served. The atlas prints its build
   // in the page; BKKx reports it in x-bkkx-build. Read both.
   const docResponse = events
-    .filter((e) => e.method === 'Network.responseReceived')
+    .filter((e) => e.method === 'Network.responseReceived' && e.params.type === 'Document')
     .map((e) => e.params.response)
-    .filter((r) => r.type === 'Document' && String(r.url).split('?')[0] === page.url.split('?')[0])
+    .filter((r) => String(r.url).split('?')[0] === page.url.split('?')[0])
     .pop();
   const headerBuild = docResponse?.headers?.['x-bkkx-build'] || null;
   const buildText = f.buildText || headerBuild;
