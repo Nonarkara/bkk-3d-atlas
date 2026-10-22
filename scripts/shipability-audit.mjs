@@ -166,19 +166,22 @@ for (const page of PAGES) {
     const bytes = res.reduce((s, r) => s + (r.decodedBodySize || 0), 0);
     const slowest = res.map((r) => ({ n: r.name.split('/').pop().slice(0, 40), ms: Math.round(r.duration), kb: Math.round((r.decodedBodySize||0)/1024) }))
       .sort((a,b) => b.ms - a.ms).slice(0, 5);
-    // A dead control is one that does nothing when pressed. An attribute scan
-    // cannot see one: React attaches handlers through __reactProps$ on the
-    // DOM node (or on an ancestor the click bubbles to), and MapLibre drives
-    // its own markers and controls. So this asks three questions instead:
-    //   1. does an on* function prop exist on the element or an ancestor?
-    //   2. does MapLibre own it?
-    //   3. is it the already-selected option of a radio or tab, where
-    //      pressing it again is idempotent by design?
-    // Only a button that fails all three is reported. The scan was validated
-    // against a click-every-button probe on the live pages: 93 buttons, and
-    // every button this now calls alive was alive when it was clicked.
-const dead = [];
+    // A dead control is one that does nothing when pressed. Static analysis
+    // cannot settle it: React attaches handlers through __reactProps$ on the
+    // DOM node (or on an ancestor the click bubbles to), MapLibre drives its
+    // own markers and controls, and a vanilla page wires buttons through
+    // data-* hooks that no attribute scan can read as a handler.
+    //
+    // So this only proves what it can prove. Anything it cannot prove is
+    // handed to the click pass below, where the button is actually pressed
+    // and the page is watched for a change. Three ways to be settled here:
+    //   1. an on* function prop exists on the element or an ancestor;
+    //   2. MapLibre owns the control and drives it itself;
+    //   3. it is the already-selected option of a radio or tab, where
+    //      pressing it again is idempotent by design.
+    // Everything else is unproven, and unproven is not a verdict.
 const selectedState = [];
+const unproven = [];
 const reactHandler = (el) => {
   for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
     const key = Object.keys(n).find((k) => k.startsWith('__reactProps$'));
@@ -206,7 +209,14 @@ for (const el of document.querySelectorAll('button')) {
   if (reactHandler(el)) continue;
   if (maplibreOwned(el)) continue;
   if (el.getAttribute('onclick') || el.closest('form') || el.id || el.getAttribute('aria-controls')) continue;
-  dead.push({ cls, label });
+  // Identify by signature (label + class + which one of its kind) rather than
+  // by position, so a panel that renders later cannot shift the target.
+  const sig = label + '|' + cls;
+  const occ = [...document.querySelectorAll('button')].filter((b) => {
+    const bl = (b.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+    return bl + '|' + String(b.className || '').slice(0, 40) === sig;
+  }).indexOf(el);
+  unproven.push({ cls, label, sig, occ });
 }
     const build = document.querySelector('[data-build], #atlas-version, .atlas-version');
     return JSON.stringify({
@@ -221,7 +231,7 @@ for (const el of document.querySelectorAll('button')) {
       failedRequests: ours.slice(0, 10),
       upstreamRequests: upstream.slice(0, 10),
       slowest,
-      dead: dead.slice(0, 8),
+      unproven: unproven.slice(0, 14),
       selectedState: selectedState.slice(0, 8),
       links: [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))
         .filter((h) => h && !h.startsWith('#') && !h.startsWith('mailto:') && !h.startsWith('javascript:')).slice(0, 40),
@@ -235,6 +245,93 @@ for (const el of document.querySelectorAll('button')) {
     }
   }
   const f = JSON.parse(facts);
+
+  // ── click pass ────────────────────────────────────────────────────────────
+  // Press every button the static analysis could not prove alive and watch
+  // the page for a change. This is the only thing that settles a control
+  // wired by a framework the analysis does not recognise — the atlas wires
+  // its buttons through data-* hooks, React wires through __reactProps$,
+  // and MapLibre drives its own. Clicking works for all three.
+  //
+  // The page is reloaded before each press so one control cannot poison the
+  // next, and the button is found by signature rather than by position.
+  const SNAP = `(() => {
+    const vis = (el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
+    const dialogs = [...document.querySelectorAll('dialog, [role="dialog"], [aria-modal="true"], [class*="lightbox"], [class*="modal"], [class*="overlay"]')]
+      .filter(vis).map(d => (d.className || d.tagName).toString().slice(0, 50));
+    const marked = [...document.querySelectorAll('[aria-selected="true"], [aria-expanded="true"], [aria-current="true"], .is-active, .active, [class*="selected"], [class*="active"]')]
+      .filter(vis).map(d => (d.className || d.tagName).toString().slice(0, 40));
+    const main = document.querySelector('main') || document.body;
+    return {
+      url: location.href,
+      bodyClass: document.body.className.slice(0, 120),
+      scrollY: Math.round(window.scrollY),
+      docHeight: document.documentElement.scrollHeight,
+      mainText: (main.innerText || '').replace(/\\s+/g, ' ').slice(0, 400),
+      dialogs, marked,
+    };
+  })()`;
+
+  const clickResults = [];
+  for (const c of (f.unproven || [])) {
+    await browser.send('Page.reload', { ignoreCache: true }, sessionId);
+    let ok = false;
+    for (let i = 0; i < 60; i++) {
+      await sleep(1000);
+      try {
+        ok = await ev(`(()=>{
+          if (document.readyState !== 'complete') return false;
+          const c = document.querySelector('canvas.maplibregl-canvas');
+          if (!c) return true;
+          return c.width > 0 && !!document.querySelector('.maplibregl-ctrl-attrib');
+        })()`);
+        if (ok) break;
+      } catch { /* still booting */ }
+    }
+    if (!ok) break;
+    await sleep(1200);
+
+    const before = await ev(SNAP);
+    const clicked = await ev(`(() => {
+      const want = ${JSON.stringify(c.sig)};
+      const wantOcc = ${c.occ};
+      const seen = [...document.querySelectorAll('button')].filter((b) => {
+        const r = b.getBoundingClientRect();
+        if (!(r.width > 0 && r.height > 0)) return false;
+        const bl = (b.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+        return bl + '|' + String(b.className || '').slice(0, 40) === want;
+      });
+      const el = seen[wantOcc];
+      if (!el) return 'gone';
+      window.__mut = 0;
+      const mo = new MutationObserver((ms) => { window.__mut += ms.length; });
+      mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+      window.__mo = mo;
+      el.click();
+      return 'clicked';
+    })()`);
+    await sleep(1300);
+    const after = await ev(SNAP);
+    const muts = await ev('window.__mut || 0');
+    await ev('window.__mo && window.__mo.disconnect()');
+
+    const changed = [];
+    if (before.url !== after.url) changed.push('url');
+    if (before.mainText !== after.mainText) changed.push('mainText');
+    if (before.bodyClass !== after.bodyClass) changed.push('bodyClass');
+    if (before.scrollY !== after.scrollY) changed.push('scroll');
+    if (before.docHeight !== after.docHeight) changed.push('docHeight');
+    if (JSON.stringify(before.dialogs) !== JSON.stringify(after.dialogs)) changed.push('dialog');
+    if (JSON.stringify(before.marked) !== JSON.stringify(after.marked)) changed.push('marked');
+    if (muts > 0) changed.push(`mutations(${muts})`);
+    clickResults.push({ cls: c.cls, label: c.label, clicked, changed, verdict: changed.length ? 'ALIVE' : 'DEAD' });
+  }
+  const deadControls = clickResults.filter((r) => r.verdict === 'DEAD');
 
   // Every outbound link is fetched for real: a 404 in the nav is a defect.
   const linkResults = [];
@@ -271,7 +368,8 @@ for (const el of document.querySelectorAll('button')) {
     slowest: f.slowest,
     failedRequests: f.failedRequests,
     upstreamRequests: f.upstreamRequests,
-    deadControls: f.dead,
+    deadControls,
+    clickResults,
     selectedControls: f.selectedState,
     linksChecked: linkResults.length,
     brokenLinks: broken,
@@ -294,8 +392,8 @@ for (const el of document.querySelectorAll('button')) {
     console.log(`  upstream   ${f.upstreamRequests.length} refused by a third party (not our defect)`);
     for (const r of f.upstreamRequests.slice(0, 3)) console.log(`     ${r}`);
   }
-  console.log(`  dead ctrls ${f.dead.length}`);
-  for (const d of f.dead.slice(0, 5)) console.log(`     ${d.cls} "${d.label}"`);
+  console.log(`  dead ctrls ${deadControls.length} (of ${(f.unproven || []).length} pressed)`);
+  for (const d of deadControls.slice(0, 5)) console.log(`     ${d.cls} "${d.label}"`);
   if (f.selectedState.length) {
     console.log(`  selected   ${f.selectedState.length} already-active control(s), idempotent by design`);
   }
