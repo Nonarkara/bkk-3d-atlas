@@ -275,7 +275,11 @@ for (const page of PAGES) {
       try {
         if (await ev(`(()=>{
           const c = document.querySelector('canvas.maplibregl-canvas');
-          if (!c || c.width === 0 || c.height === 0) return false;
+          // A page with no map at all is a static document, not a slow map.
+          // Waiting the full minute for a canvas that will never exist
+          // wastes the clock and teaches nothing.
+          if (!c) return document.readyState === 'complete';
+          if (c.width === 0 || c.height === 0) return false;
           // MapLibre adds the attribution control when the style is ready.
           return !!document.querySelector('.maplibregl-ctrl-attrib');
         })()`)) { booted = true; break; }
@@ -287,9 +291,13 @@ for (const page of PAGES) {
     // server answers, the layout is deterministic, and every number is a
     // confident measurement of the WRONG app. This audit once measured a
     // Shanghai city app while aiming at the Bangkok atlas.
+    // A page may declare what its own title must contain, so the check can
+    // be as specific as the page deserves — the atlas papers are not the
+    // atlas and would otherwise be refused or, worse, measured by proxy.
     const identity = await ev('document.title');
-    if (!/atlas|bkkx|bangkok/i.test(String(identity || ''))) {
-      console.error(`\nREFUSING TO MEASURE: ${URL} served "${identity}" — that is not the atlas.`);
+    const expected = page.expect ? new RegExp(page.expect, 'i') : /atlas|bkkx|bangkok/i;
+    if (!expected.test(String(identity || ''))) {
+      console.error(`\nREFUSING TO MEASURE: ${page.url} served "${identity}" — that is not ${page.expect || 'the atlas'}.`);
       await browser.send('Target.closeTarget', { targetId });
       browser.close();
       process.exit(2);

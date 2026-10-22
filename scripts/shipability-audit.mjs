@@ -43,15 +43,19 @@ function connect(url) {
   const ws = new WebSocket(url);
   let id = 0;
   const pending = new Map();
+  const events = [];
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.id && pending.has(m.id)) {
       const { resolve: r, reject: j } = pending.get(m.id);
       pending.delete(m.id);
       m.error ? j(new Error(JSON.stringify(m.error))) : r(m.result);
+    } else if (m.method) {
+      events.push(m);
     }
   });
   return {
+    events,
     ready: new Promise((res, rej) => {
       ws.addEventListener('open', res, { once: true });
       ws.addEventListener('error', rej, { once: true });
@@ -78,6 +82,10 @@ function connect(url) {
 
 const browser = connect(version.webSocketDebuggerUrl);
 await browser.ready;
+// CDP events arrive on the same socket as the replies. The build id of a
+// page can only be read from the response headers — the DOM cannot see its
+// own response — so the document response is kept here.
+const events = browser.events;
 const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank' });
 const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
 for (const m of ['Page.enable', 'Runtime.enable', 'Network.enable', 'Log.enable']) {
@@ -108,6 +116,7 @@ for (const page of PAGES) {
   // was not.
   browser.send('Network.enable', {}, sessionId);
 
+  events.length = 0;
   await browser.send('Page.navigate', { url: page.url }, sessionId);
 
   // Wait for the page to actually settle before measuring. Evaluating while
@@ -246,6 +255,17 @@ for (const el of document.querySelectorAll('button')) {
   }
   const f = JSON.parse(facts);
 
+  // The build id of a page can only be read from its response headers: the
+  // DOM cannot see the response it was served. The atlas prints its build
+  // in the page; BKKx reports it in x-bkkx-build. Read both.
+  const docResponse = events
+    .filter((e) => e.method === 'Network.responseReceived')
+    .map((e) => e.params.response)
+    .filter((r) => r.type === 'Document' && String(r.url).split('?')[0] === page.url.split('?')[0])
+    .pop();
+  const headerBuild = docResponse?.headers?.['x-bkkx-build'] || null;
+  const buildText = f.buildText || headerBuild;
+
   // ── click pass ────────────────────────────────────────────────────────────
   // Press every button the static analysis could not prove alive and watch
   // the page for a change. This is the only thing that settles a control
@@ -360,7 +380,8 @@ for (const el of document.querySelectorAll('button')) {
     url: page.url,
     title: f.title,
     pageErrors: f.pageErrors,
-    buildText: f.buildText,
+    buildText,
+    buildHeader: headerBuild,
     hasMap: f.hasMap,
     canvases: f.canvases,
     resources: f.resources,
@@ -383,7 +404,7 @@ for (const el of document.querySelectorAll('button')) {
     console.log(`  page errors ${f.pageErrors.length}`);
     for (const e of f.pageErrors.slice(0, 3)) console.log(`     ${e}`);
   }
-  console.log(`  build      ${f.buildText ?? '(none on the page)'}`);
+  console.log(`  build      ${buildText ?? '(none on the page)'}`);
   console.log(`  map        ${f.hasMap ? 'canvas present' : 'NO MAP CANVAS'} · ${f.canvases} canvas(es)`);
   console.log(`  payload    ${f.resources} resources · ${f.bytes} KB decoded`);
   console.log(`  failed req ${f.failedRequests.length}`);
