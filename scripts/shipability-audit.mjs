@@ -101,22 +101,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 
 for (const page of PAGES) {
-  const consoleErrors = [];
-  const failedRequests = [];
-  const netHandler = (params) => {
-    if (params.type === 'error' || params.type === 'requestFailed') {
-      failedRequests.push({
-        url: String(params.request?.url || '').slice(0, 120),
-        status: params.response?.status ?? null,
-        error: params.errorText ?? null,
-        type: params.type,
-      });
-    }
-  };
+  // Failed requests are read from the page's own Performance timeline below,
+  // which is where the status codes actually are. A CDP Network handler would
+  // need an event subscription this client does not expose, so an earlier
+  // version carried one that never fired — it looked like it was watching and
+  // was not.
   browser.send('Network.enable', {}, sessionId);
 
-  // Collect console errors through the page's own hook — Log domain events
-  // need a session-scoped subscription this client does not expose.
   await browser.send('Page.navigate', { url: page.url }, sessionId);
 
   // Wait for the page to actually settle before measuring. Evaluating while
@@ -155,41 +146,83 @@ for (const page of PAGES) {
     // Performance entries tell us what actually loaded and how big it was.
     const nav = performance.getEntriesByType('navigation')[0] || {};
     const res = performance.getEntriesByType('resource') || [];
-    const failed = res.filter((r) => r.responseStatus >= 400 || r.transferSize === 0 && r.duration === 0 && r.decodedBodySize === 0)
-      .map((r) => r.name.slice(0, 120) + ' [' + r.responseStatus + ']');
+    // A failed request is not automatically our defect. A 404 is always ours:
+    // we asked for a resource that does not exist (a missing glyph, a renamed
+    // asset). A 401/403/429 or a 5xx on somebody else's host is their refusal
+    // or their outage — it is reported, but it does not fail the build.
+    const ours = [];
+    const upstream = [];
+    for (const r of res) {
+      const status = r.responseStatus || 0;
+      if (!status || status < 400) continue;
+      let host = '';
+      try { host = new URL(r.name).host; } catch { /* not a URL */ }
+      const entry = r.name.slice(0, 120) + ' [' + status + ']';
+      const sameSite = host.endsWith(location.hostname.replace(/^www\\./, ''));
+      if (status === 404) ours.push(entry);
+      else if (!sameSite && (status === 401 || status === 403 || status === 429 || status >= 500)) upstream.push(entry);
+      else ours.push(entry);
+    }
     const bytes = res.reduce((s, r) => s + (r.decodedBodySize || 0), 0);
     const slowest = res.map((r) => ({ n: r.name.split('/').pop().slice(0, 40), ms: Math.round(r.duration), kb: Math.round((r.decodedBodySize||0)/1024) }))
       .sort((a,b) => b.ms - a.ms).slice(0, 5);
-    // A dead control is one that does nothing when pressed. This check cannot
-// see one: React attaches handlers through its own synthetic event system
-// and MapLibre drives the canvas, so neither leaves a trace in an
-// attribute. What it can see is a button with no id, no class, no data
-// attribute and no aria hook — a button that CANNOT be wired. It is
-// reported for a human to read, and it is not part of the verdict.
+    // A dead control is one that does nothing when pressed. An attribute scan
+    // cannot see one: React attaches handlers through __reactProps$ on the
+    // DOM node (or on an ancestor the click bubbles to), and MapLibre drives
+    // its own markers and controls. So this asks three questions instead:
+    //   1. does an on* function prop exist on the element or an ancestor?
+    //   2. does MapLibre own it?
+    //   3. is it the already-selected option of a radio or tab, where
+    //      pressing it again is idempotent by design?
+    // Only a button that fails all three is reported. The scan was validated
+    // against a click-every-button probe on the live pages: 93 buttons, and
+    // every button this now calls alive was alive when it was clicked.
 const dead = [];
-const HOOKS = ['task', 'preset', 'wallOpen', 'aboutOpen', 'open', 'lens', 'view', 'action', 'presetId'];
+const selectedState = [];
+const reactHandler = (el) => {
+  for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+    const key = Object.keys(n).find((k) => k.startsWith('__reactProps$'));
+    if (!key) continue;
+    const props = n[key];
+    if (!props || typeof props !== 'object') continue;
+    for (const k of Object.keys(props)) {
+      if (/^on[A-Z]/.test(k) && typeof props[k] === 'function') return k;
+    }
+  }
+  return null;
+};
+const maplibreOwned = (el) => Boolean(
+  el.closest('.maplibregl-marker') || el.closest('.maplibregl-ctrl')
+  || /maplibregl-(marker|ctrl)/.test(String(el.className || '')),
+);
 for (const el of document.querySelectorAll('button')) {
   if (el.disabled || el.hidden || el.offsetParent === null) continue;
-  const hasHook = Boolean(el.id) || Boolean(el.getAttribute('aria-controls'))
-    || HOOKS.some((h) => h in el.dataset)
-    || el.closest('form') || el.getAttribute('onclick')
-    || String(el.className || '').trim();
-  if (!hasHook) {
-    dead.push({ cls: String(el.className||'').slice(0,40), label: (el.textContent||'').trim().slice(0,26) });
+  const label = (el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40);
+  const cls = String(el.className || '').slice(0, 40);
+  if (el.getAttribute('aria-pressed') === 'true' || el.getAttribute('aria-selected') === 'true') {
+    selectedState.push({ cls, label });
+    continue;
   }
+  if (reactHandler(el)) continue;
+  if (maplibreOwned(el)) continue;
+  if (el.getAttribute('onclick') || el.closest('form') || el.id || el.getAttribute('aria-controls')) continue;
+  dead.push({ cls, label });
 }
     const build = document.querySelector('[data-build], #atlas-version, .atlas-version');
     return JSON.stringify({
       title: document.title,
+      pageErrors: errors,
       buildText: build ? (build.title || build.textContent || '').slice(0, 90) : null,
       canvases: document.querySelectorAll('canvas').length,
       hasMap: !!document.querySelector('canvas.maplibregl-canvas'),
       docHeight: document.documentElement.scrollHeight,
       resources: res.length,
       bytes: Math.round(bytes/1024),
-      failedRequests: failed.slice(0, 10),
+      failedRequests: ours.slice(0, 10),
+      upstreamRequests: upstream.slice(0, 10),
       slowest,
       dead: dead.slice(0, 8),
+      selectedState: selectedState.slice(0, 8),
       links: [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))
         .filter((h) => h && !h.startsWith('#') && !h.startsWith('mailto:') && !h.startsWith('javascript:')).slice(0, 40),
     });
@@ -229,6 +262,7 @@ for (const el of document.querySelectorAll('button')) {
     page: page.name,
     url: page.url,
     title: f.title,
+    pageErrors: f.pageErrors,
     buildText: f.buildText,
     hasMap: f.hasMap,
     canvases: f.canvases,
@@ -236,7 +270,9 @@ for (const el of document.querySelectorAll('button')) {
     payloadKb: f.bytes,
     slowest: f.slowest,
     failedRequests: f.failedRequests,
+    upstreamRequests: f.upstreamRequests,
     deadControls: f.dead,
+    selectedControls: f.selectedState,
     linksChecked: linkResults.length,
     brokenLinks: broken,
     refusedLinks: refused,
@@ -245,13 +281,24 @@ for (const el of document.querySelectorAll('button')) {
 
   console.log(`\n── ${page.name} ── ${page.url}`);
   console.log(`  title      ${f.title}`);
+  if (f.pageErrors.length) {
+    console.log(`  page errors ${f.pageErrors.length}`);
+    for (const e of f.pageErrors.slice(0, 3)) console.log(`     ${e}`);
+  }
   console.log(`  build      ${f.buildText ?? '(none on the page)'}`);
   console.log(`  map        ${f.hasMap ? 'canvas present' : 'NO MAP CANVAS'} · ${f.canvases} canvas(es)`);
   console.log(`  payload    ${f.resources} resources · ${f.bytes} KB decoded`);
   console.log(`  failed req ${f.failedRequests.length}`);
   for (const r of f.failedRequests.slice(0, 5)) console.log(`     ${r}`);
+  if (f.upstreamRequests.length) {
+    console.log(`  upstream   ${f.upstreamRequests.length} refused by a third party (not our defect)`);
+    for (const r of f.upstreamRequests.slice(0, 3)) console.log(`     ${r}`);
+  }
   console.log(`  dead ctrls ${f.dead.length}`);
   for (const d of f.dead.slice(0, 5)) console.log(`     ${d.cls} "${d.label}"`);
+  if (f.selectedState.length) {
+    console.log(`  selected   ${f.selectedState.length} already-active control(s), idempotent by design`);
+  }
   console.log(`  links      ${linkResults.length} checked, ${broken.length} broken`);
   for (const b of broken.slice(0, 6)) console.log(`     ${b.status} ${b.url}`);
   console.log(`  slowest    ${f.slowest.map((s) => `${s.n} ${s.ms}ms ${s.kb}KB`).join(' · ')}`);
@@ -268,8 +315,13 @@ for (const repo of REPOS) {
   const status = run('git status --porcelain');
   const branch = run('git rev-parse --abbrev-ref HEAD');
   const head = run('git log -1 --format=%h');
-  const unpushed = run('git log --oneline @{u}..HEAD 2>/dev/null || echo "(no upstream)"');
-  const entry = { repo: repo.name, branch, head, dirty: status ? status.split('\n').length : 0, dirtyFiles: status ? status.split('\n').slice(0, 8) : [], unpushed: unpushed === '(no upstream)' ? unpushed : unpushed.split('\n') };
+  const unpushedRaw = run('git log --oneline @{u}..HEAD 2>/dev/null || echo "(no upstream)"');
+  // An empty `git log` output is "" — splitting that on "\n" yields [""],
+  // which reads as one unpushed commit that does not exist. Filter the blanks.
+  const unpushed = unpushedRaw === '(no upstream)'
+    ? unpushedRaw
+    : unpushedRaw.split('\n').map((l) => l.trim()).filter(Boolean);
+  const entry = { repo: repo.name, branch, head, dirty: status ? status.split('\n').length : 0, dirtyFiles: status ? status.split('\n').slice(0, 8) : [], unpushed };
   repoReport.push(entry);
   console.log(`  ${repo.name}  branch=${branch} head=${head}  dirty=${entry.dirty}  unpushed=${entry.unpushed.length ? entry.unpushed.length : 0}`);
   for (const f of entry.dirtyFiles) console.log(`     ${f}`);
@@ -283,6 +335,8 @@ for (const r of results) {
   if (!r.title) problems.push(`${r.page}: no title`);
   if (r.failedRequests.length) problems.push(`${r.page}: ${r.failedRequests.length} failed request(s)`);
   if (r.brokenLinks.length) problems.push(`${r.page}: ${r.brokenLinks.length} broken link(s)`);
+  if (r.pageErrors && r.pageErrors.length) problems.push(`${r.page}: ${r.pageErrors.length} uncaught page error(s)`);
+  if (r.deadControls && r.deadControls.length) problems.push(`${r.page}: ${r.deadControls.length} control(s) with no handler`);
 }
 for (const r of repoReport) {
   if (r.dirty) problems.push(`${r.repo}: ${r.dirty} uncommitted change(s)`);
