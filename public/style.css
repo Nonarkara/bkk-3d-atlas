@@ -141,6 +141,11 @@ button { font: inherit; }
 }
 .atlas-title-phone { display: none; }
 .atlas-header-meta small { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
+/* The presence chip is the only thing in this slot, and it is live. A static
+   feature list used to sit here and was cut off at 656px of text in a 493px
+   slot — which also pushed the live counter out of sight entirely. The scope
+   claims live in the About panel, the quick jump and the page description. */
+.atlas-header-meta small:empty { display: none; }
 
 .atlas-header-nav {
   display: flex; align-items: center; gap: 22px;
@@ -3301,6 +3306,32 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   display: grid;
   gap: 0;
 }
+/* The "show all" toggle was styled only below 720px, so on a desktop it
+   rendered as a raw native button — white box, grey border, system font — in
+   a dark panel. It is a control; it looks like one at every width. */
+.atlas-news-watch-more {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
+  color: var(--paper);
+  font: 600 11px/1.4 var(--font-body);
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+}
+.atlas-news-watch-more:hover,
+.atlas-news-watch-more:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+/* The toggle only means something while the list is collapsed. On a desktop
+   the list is always expanded, so the button was a control that looked
+   clickable and did nothing. */
+.atlas-news-watch-list:not(.atlas-news-watch-list-collapsed) ~ .atlas-news-watch-more {
+  display: none;
+}
 .atlas-news-item { padding: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
 .atlas-news-item:last-child { border-bottom: 0; }
 .atlas-news-link {
@@ -3694,19 +3725,12 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     display: none;
   }
   .atlas-news-watch-more {
-    display: block;
-    width: 100%;
-    margin-top: 4px;
     padding: 4px 10px;
-    border: 1px solid var(--rule, rgba(255, 255, 255, 0.18));
-    color: var(--paper);
     font: 600 11px/1 var(--font-body);
-    background: transparent;
-    cursor: pointer;
-    text-align: center;
   }
-  .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::before { content: "Show all "; }
-  .atlas-news-watch-list-collapsed ~ .atlas-news-watch-more::after { content: " headlines"; }
+  /* The button already says "Show all headlines". These pseudo-elements were
+     left over from a version with no text of its own, and they printed the
+     phrase twice: "Show all  Show all headlines  headlines". */
   .atlas-news-watch-list:not(.atlas-news-watch-list-collapsed) ~ .atlas-news-watch-more {
     display: none;
   }
@@ -3879,7 +3903,6 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-header { padding: 6px clamp(16px, 2vw, 32px); gap: 16px; }
   .atlas-brand { flex-direction: row; align-items: center; gap: 8px; }
   .atlas-header-meta { flex-direction: row; align-items: baseline; gap: 12px; }
-  .atlas-header-meta > .atlas-eyebrow { display: none; }
   .atlas-header-meta .atlas-title { font-size: 20px; margin: 0; white-space: nowrap; }
   .atlas-header-meta small { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .atlas-page { grid-template-rows: auto minmax(0, 1fr) minmax(132px, 210px); }
@@ -3894,9 +3917,9 @@ body.atlas-wall-open { overflow: hidden; }
 }
 
 /* Phone: the map owns the screen (Jakarta atlas pattern, 2026-10-16). The
-   header keeps the title and About; the sibling links live at the top of the
-   About drawer. The map takes the viewport minus a peek of the live strip, so
-   the flood verdict is still the first thing below it. */
+   header keeps the brand, the city and About; the sibling links live at the
+   top of the About drawer. The map takes the viewport minus a peek of the
+   live strip, so the flood verdict is still the first thing below it. */
 .atlas-about-family { display: none; }
 @media (max-width: 720px) {
   .atlas-header-nav a[href^="https"] { display: none; }
@@ -3904,9 +3927,16 @@ body.atlas-wall-open { overflow: hidden; }
     display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px;
     background: none; border: 0; color: var(--paper); font: inherit; font-weight: 700; text-transform: uppercase;
   }
+  /* The masthead is one row: brand, city, two drawers. The version chip sat
+     on a row of its own under the wordmark and the title was cut mid-word
+     ("Flood e…") in the 155px the grid left it. Inline the chip and shorten
+     the title to the word that fits, and nothing is truncated. */
+  .atlas-header { padding: 8px clamp(12px, 4.6vw, 18px); gap: 12px; }
+  .atlas-brand { flex-direction: row; align-items: center; gap: 6px; }
+  .atlas-header-nav { gap: 12px; }
   .atlas-header-meta .atlas-title { color: var(--paper); font-size: 13px; }
   .atlas-about-family { display: flex; }
-  .atlas-page { grid-template-rows: auto calc(100svh - 59px - 96px) auto auto; }
+  .atlas-page { grid-template-rows: auto calc(100svh - 60px - 96px) auto auto; }
 }
 
 /* Lens strip: the task bar continues into the presets. One row that scrolls
