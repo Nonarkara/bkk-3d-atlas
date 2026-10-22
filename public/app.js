@@ -9193,7 +9193,14 @@ async function pingPresence() {
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
-    el.textContent = `· 👥 ${j.online.toLocaleString()} online · peak ${j.peak.toLocaleString()} today`;
+    el.textContent = `· 👥 ${j.online.toLocaleString()} online`;
+    // The peak clause is a second line of the same fact, and the masthead
+    // does not always have the room for it. It is a separate element so a
+    // narrow header can drop it without dropping the counter.
+    const peak = document.createElement("span");
+    peak.className = "atlas-presence-peak";
+    peak.textContent = ` · peak ${j.peak.toLocaleString()} today`;
+    el.appendChild(peak);
     el.hidden = false;
   } catch {
     // A failed ping is fine — the chip just stays hidden. The atlas never

@@ -2802,6 +2802,13 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
   letter-spacing: 0.02em;
 }
 .atlas-presence[hidden] { display: none; }
+/* The masthead is 1fr between a fixed brand and a fixed nav; below ~1200px
+   the column cannot hold the title AND the counter's peak clause, and the
+   clause was being cut mid-sentence. The counter itself always fits. */
+.atlas-presence-peak { display: none; }
+@media (min-width: 1200px) {
+  .atlas-presence-peak { display: inline; }
+}
 .atlas-sit-meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
 .atlas-sit-note { margin: 10px 0 0; font-size: 11px; line-height: 1.55; color: var(--muted); max-width: 72ch; }
 .atlas-sit-note a { color: var(--signal); }
