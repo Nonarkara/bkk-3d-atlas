@@ -1,0 +1,123 @@
+<!doctype html>
+<!--
+The signature towers, drawn by the real builders, off the map.
+
+A QA surface, not a shipped page: it lives in scripts/ so it never reaches
+the deployed assets. Serve the repository root and open
+/scripts/icon-lab.html — the module imports resolve against public/.
+
+    node scripts/serve-repo.mjs 8899     # or any static server on the root
+    open http://127.0.0.1:8899/scripts/icon-lab.html
+
+It exists because a silhouette is a shape, not a statistic: the numbers say
+Baiyoke is 45 m wide, only the picture says whether that reads as a tower.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Signature towers — geometry lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #12151a; color: #e8e2d6;
+    font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+  #wrap { display: grid; grid-template-columns: repeat(4, 1fr); height: 100vh; }
+  .cell { position: relative; border-right: 1px solid #232830; }
+  .cell h2 { position: absolute; top: 10px; left: 12px; margin: 0; font-size: 13px;
+    font-weight: 600; letter-spacing: .02em; }
+  .cell p { position: absolute; bottom: 10px; left: 12px; margin: 0; font-size: 11px;
+    color: #8d95a1; max-width: 92%; }
+  canvas { display: block; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+import * as THREE from 'three';
+import { buildCityIcon, cityIconKindFor } from '../public/city-icons.js';
+import { MASSING_PALETTE } from '../public/building-massing.js';
+
+const TOWERS = [
+  { id: 'icon-mahanakhon', label: 'King Power MahaNakhon', note: '314 m — tapering shaft, helical glass ribbon, SkyWalk deck' },
+  { id: 'icon-baiyoke-tower-ii', label: 'Baiyoke Sky II', note: '304 m — three tiers, crown drum, dome, spire' },
+  { id: 'icon-state-tower', label: 'State Tower', note: '247 m — stepped shaft, golden dome, finial' },
+  { id: 'icon-empire-tower', label: 'Empire Tower (generic)', note: 'the generic setback stack, for comparison' },
+];
+
+const registry = await (await fetch('../public/bkk-landmarks.geojson')).json();
+const byId = new Map();
+for (const f of registry.features) if (f.properties?.id) byId.set(f.properties.id, f);
+
+const wrap = document.getElementById('wrap');
+for (const t of TOWERS) {
+  const feature = byId.get(t.id);
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `<h2>${t.label}</h2><p>${t.note}</p>`;
+  wrap.appendChild(cell);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(cell.clientWidth, cell.clientHeight);
+  renderer.setPixelRatio(1);
+  cell.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#12151a');
+  scene.add(new THREE.AmbientLight(0xffffff, 0.66));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.5);
+  sun.position.set(-0.35, 1, 0.2);
+  scene.add(sun);
+
+  const camera = new THREE.PerspectiveCamera(38, cell.clientWidth / cell.clientHeight, 0.5, 5000);
+
+  if (feature) {
+    const ring = feature.geometry.type === 'Polygon'
+      ? feature.geometry.coordinates[0]
+      : feature.geometry.coordinates[0][0];
+    // Centre the footprint on the origin, in metres.
+    const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+    const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+    const mPerDegLat = 110574;
+    const mPerDegLng = 111319.49 * Math.cos(cy * Math.PI / 180);
+    const local = ring.map(([lng, lat]) => [(lng - cx) * mPerDegLng, (lat - cy) * mPerDegLat]);
+    const kind = cityIconKindFor(feature.properties);
+    const height = feature.properties.height;
+    const built = buildCityIcon(kind, local, height, 0, 1);
+
+    const group = new THREE.Group();
+    const groups = { body: built.body, crown: built.crown, roof: built.roof };
+    const colors = { body: built.colors.body, crown: built.colors.crown, roof: built.colors.roof };
+    for (const [name, buf] of Object.entries(groups)) {
+      if (!buf || !buf.positions?.length) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf.positions), 3));
+      const m = new THREE.MeshLambertMaterial({ color: new THREE.Color(colors[name]), side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(g, m);
+      group.add(mesh);
+    }
+    scene.add(group);
+
+    const box = new THREE.Box3().setFromObject(group);
+    const size = box.getSize(new THREE.Vector3());
+    const centre = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(size.x, size.z, size.y * 0.6) || 30;
+    const dist = radius * 3.1;
+    camera.position.set(dist * 0.78, centre.y + size.y * 0.36, dist * 0.78);
+    camera.lookAt(centre);
+    camera.updateProjectionMatrix();
+
+    const span = Math.max(size.x, size.z);
+    const note = cell.querySelector('p');
+    note.textContent = `${note.textContent} · footprint ${span.toFixed(0)} m wide, ${height} m tall, `
+      + `${Math.round(built.body.positions.length / 3)} body tris`;
+  } else {
+    note.textContent = 'not in the registry';
+  }
+
+  renderer.render(scene, camera);
+  window.__ready = true;
+}
+</script>
+</body>
+</html>

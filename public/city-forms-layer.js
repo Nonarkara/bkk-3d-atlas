@@ -35,12 +35,19 @@ export const CITY_FORMS_MIN_ZOOM = 16.2;
 
 let modulePromise = null;
 let threePromise = null;
+// The counters a visitor never sees but a reviewer must be able to trust.
+// `vertices` is how many corners the geometry has; `triangles` is how many
+// faces it draws. They are different numbers and used to share one name.
+function emptyStats() {
+  return { treated: 0, skipped: 0, kinds: {}, vertices: 0, triangles: 0 };
+}
+
 const runtime = {
   map: null,
   layer: null,
   installed: false,
   generation: 0,
-  stats: { treated: 0, skipped: 0, kinds: {}, pieces: 0 },
+  stats: emptyStats(),
   lastError: null,
   // How many building features the last pass actually saw. Zero means the
   // buildings had not arrived yet, which is the signal to retry.
@@ -264,7 +271,10 @@ export function cityFormsDebugState() {
     lastZoom: runtime.lastZoom,
     lastError: runtime.lastError,
     active: runtime.active,
-    triangles: (runtime.mesh?.geometry?.attributes?.position?.count ?? 0) / 3,
+    // Both counts come from the same build, so they cannot disagree. The
+    // geometry has three corners per face.
+    vertices: runtime.stats.vertices ?? 0,
+    triangles: runtime.stats.triangles ?? 0,
     // How many Thai forms were known when this pass ran. Zero means the
     // heritage forms had not loaded yet, and the overlap could not be ruled
     // out on this pass.
@@ -406,7 +416,7 @@ export async function refreshCityForms(map) {
     runtime.active = false;
     if (runtime.content) runtime.content.visible = false;
     runtime.lastSeen = 0;
-    runtime.stats = { treated: 0, skipped: 0, kinds: {}, pieces: 0 };
+    runtime.stats = emptyStats();
     return null;
   }
   try {
@@ -474,7 +484,8 @@ export async function refreshCityForms(map) {
       kept.map((p) => `${p.centroid[0].toFixed(5)}:${p.centroid[1].toFixed(5)}:${p.kind}`).join(','),
     ].join('|');
     if (signature === runtime.signature && runtime.active) {
-      runtime.stats = { treated: kept.length, skipped: skipped + dropped, kinds, pieces: (runtime.mesh?.geometry?.attributes?.position?.count ?? 0) / 3 };
+      const vertices = runtime.mesh?.geometry?.attributes?.position?.count ?? 0;
+      runtime.stats = { treated: kept.length, skipped: skipped + dropped, kinds, vertices, triangles: vertices / 3 };
       return runtime.stats;
     }
 
@@ -522,7 +533,11 @@ export async function refreshCityForms(map) {
     runtime.active = true;
     runtime.plans = kept;
     runtime.signature = signature;
-    runtime.stats = { treated: kept.length, skipped: skipped + dropped, kinds, pieces: positions.length / 3 };
+    // `positions` is a flat float list, three numbers per corner, so its
+    // length is three times the corner count. Dividing by three gives
+    // vertices; vertices over three gives the faces actually drawn.
+    const vertices = positions.length / 3;
+    runtime.stats = { treated: kept.length, skipped: skipped + dropped, kinds, vertices, triangles: vertices / 3 };
     runtime.lastError = null;
     map.triggerRepaint?.();
     return runtime.stats;
@@ -545,5 +560,5 @@ export function uninstallCityForms(map) {
   runtime.installed = false;
   runtime.active = false;
   runtime.lastSeen = 0;
-  runtime.stats = { treated: 0, skipped: 0, kinds: {}, pieces: 0 };
+  runtime.stats = emptyStats();
 }

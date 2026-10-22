@@ -17,8 +17,11 @@ import {
 import {
   buildTowerBuffers,
   resolveHeight,
+  massingHitProperties,
+  toLocal,
 } from '../public/building-massing.js';
 import { classify, buildForm } from '../public/heritage-forms.js';
+import { CURATED_PLANS, cityIconAccuracy, planFor, planMetres } from '../public/city-icons.js';
 
 const landmarks = JSON.parse(
   readFileSync(new URL('../public/bkk-landmarks.geojson', import.meta.url), 'utf8'),
@@ -31,6 +34,42 @@ function featureById(id) {
 function ring2d(f) {
   const g = f.geometry;
   return g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
+}
+
+// The builder works in metres relative to the footprint's own centre, which
+// is what the massing layer hands it. A test that passes raw lng/lat feeds it
+// degrees and measures nothing.
+function localRing(f) {
+  const ring = ring2d(f);
+  const origin = [
+    ring.reduce((s, p) => s + p[0], 0) / ring.length,
+    ring.reduce((s, p) => s + p[1], 0) / ring.length,
+  ];
+  return ring.map(([lng, lat]) => toLocal(lng, lat, origin));
+}
+
+function planSpan(ring) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const [x, z] of ring) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  return { width: maxX - minX, depth: maxZ - minZ, midX: (minX + maxX) / 2, midZ: (minZ + maxZ) / 2 };
+}
+
+// The longest side of the plan. A square's axis-aligned bounding box grows
+// to side x sqrt(2) once it is rotated to the street, so the box measures the
+// screen, not the building.
+function planSide(ring) {
+  let longest = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i];
+    const b = ring[(i + 1) % ring.length];
+    longest = Math.max(longest, Math.hypot(b[0] - a[0], b[1] - a[1]));
+  }
+  return longest;
 }
 
 function heritageFeature(props, ring) {
@@ -69,7 +108,7 @@ test('every icon builds finite geometry at both LODs from the real footprint', (
     const height = resolveHeight(f.properties);
     assert.ok(height >= 200, `${id} height ${height} is not tower scale`);
     for (const lod of [0, 1]) {
-      const built = buildCityIcon(kind, ring2d(f), height, 0, lod);
+      const built = buildCityIcon(kind, localRing(f), height, 0, lod);
       assert.ok(built, `${kind} built nothing at lod ${lod}`);
       for (const part of [built.body, built.crown, built.roof]) {
         if (part === null) continue;
@@ -133,6 +172,116 @@ test('buildTowerBuffers routes the named icons through the signature forms', () 
   assert.equal(built.icon, undefined, 'non-icon must not claim an icon');
 });
 
+// The published figures the plans are derived from, written out here so the
+// test does not read its own answer out of the module. Wikipedia infoboxes
+// citing CTBUH 487 / Emporis 107136 and Emporis 107198, read 2026-10-22.
+const PUBLISHED = {
+  'baiyoke-ii': { floorAreaM2: 179400, storeys: 88, trim: 1 },
+  'state-tower': { floorAreaM2: 300000, storeys: 68, trim: 0.93 },
+};
+
+test('the OSM footprint is not the building, so the plan is corrected', () => {
+  // Baiyoke's OSM way is the lift core (26 m across) and State Tower's
+  // includes the podium (143 m long). Both plans are replaced with one
+  // derived from the published floor area.
+  for (const [kind, id] of [['baiyoke-ii', 'icon-baiyoke-tower-ii'], ['state-tower', 'icon-state-tower']]) {
+    const f = featureById(id);
+    const local = localRing(f);
+    const osm = planSpan(local);
+    const plan = planFor(kind, local);
+    const span = planSpan(plan);
+
+    // The module must carry the published figures, not a typed-in width.
+    assert.equal(CURATED_PLANS[kind].floorAreaM2, PUBLISHED[kind].floorAreaM2,
+      `${kind}'s published floor area was changed — re-read the source`);
+    assert.equal(CURATED_PLANS[kind].storeys, PUBLISHED[kind].storeys,
+      `${kind}'s published storey count was changed — re-read the source`);
+    assert.equal(CURATED_PLANS[kind].trim, PUBLISHED[kind].trim);
+
+    // And the plan must be that figure, derived.
+    const expected = Math.sqrt(PUBLISHED[kind].floorAreaM2 / PUBLISHED[kind].storeys) * PUBLISHED[kind].trim;
+    assert.ok(
+      Math.abs(planMetres(kind) - expected) < 0.01,
+      `${kind}'s plan is not derived from its published floor area`,
+    );
+    assert.ok(
+      Math.abs(planSide(plan) - expected) < 0.5,
+      `${kind} was not drawn on its derived plan`,
+    );
+    assert.equal(plan.length, 5, `${kind} plan should be a square with one cut corner`);
+    assert.notEqual(
+      Math.round(planSide(local)),
+      Math.round(expected),
+      `${kind}'s OSM outline no longer differs from the curated plan — the override may be stale`,
+    );
+    // The plan is centred where the OSM outline was: same plot, right shape.
+    // A square of side s, rotated to the street, puts its corners at s/2 * √2
+    // from the centre. The cut corner pulls its two vertices in.
+    const cornerRadius = Math.max(...plan.map((p) => Math.hypot(p[0], p[1])));
+    const cornerExpected = (expected / 2) * Math.SQRT2;
+    assert.ok(
+      Math.abs(cornerRadius - cornerExpected) < 0.5,
+      `${kind} plan is not centred on its plot: corner at ${cornerRadius.toFixed(1)} m, expected ${cornerExpected.toFixed(1)} m`,
+    );
+    assert.ok(osm.width > 0);
+  }
+});
+
+test('the MahaNakhon keeps its OSM footprint — its way already is the building', () => {
+  const f = featureById('icon-mahanakhon');
+  const local = localRing(f);
+  const plan = planFor('mahanakhon', local);
+  assert.equal(plan, local, 'the MahaNakhon has no curated plan and must be left alone');
+  assert.equal(CURATED_PLANS.mahanakhon, undefined);
+});
+
+test('a tower whose plan was inferred says so, and never claims a survey', () => {
+  for (const kind of CITY_ICON_KINDS) {
+    const note = cityIconAccuracy(kind);
+    assert.match(note, /not a survey/);
+    if (CURATED_PLANS[kind]) {
+      assert.match(note, /inferred from published floor area/,
+        `${kind}'s plan was replaced — the note must say so`);
+      assert.match(note, /not a survey/);
+    }
+  }
+  // The note travels on the feature the popup reports.
+  const built = buildTowerBuffers(featureById('icon-state-tower'), 1);
+  assert.match(String(built.properties.accuracy), /inferred from published floor area/);
+});
+
+test('a click lands on the silhouette you can see', () => {
+  // The hit ring follows the drawn plan, not the OSM outline the icon
+  // replaced: a visitor clicks the tower they see.
+  const f = featureById('icon-baiyoke-tower-ii');
+  const built = buildTowerBuffers(f, 1);
+  const ring = built.ring;
+  assert.ok(ring && ring.length >= 4, 'the icon has no hit ring');
+  const span = planSpan(ring);
+  const metres = Math.abs(ring[0][0] - ring[1][0]) * 111319.49 * Math.cos(13.754 * Math.PI / 180);
+  assert.ok(metres > 20, `the hit ring is the ${26} m OSM core, not the 45 m tower`);
+  assert.ok(span.width > 0);
+});
+
+test('a picked tower keeps the label of how it was modelled', () => {
+  // The massing layer used to stamp every picked tower as 'setback', which
+  // relabelled Mahanakhon's spiral as a generic stack. The builder's own
+  // label must survive into the properties a click reports.
+  const icon = massingHitProperties({ massing: 'icon', accuracy: 'typological silhouette, not a survey' });
+  assert.equal(icon.massing, 'icon', 'an icon must not be relabelled a setback');
+  assert.match(String(icon.accuracy), /not a survey/);
+
+  const plain = massingHitProperties({ render_height: 120 });
+  assert.equal(plain.massing, 'setback', 'a generic tower still says what it is');
+  assert.equal(plain.render_height, 120, 'the other properties must survive');
+
+  // And the builder must actually produce those two labels.
+  const maha = buildTowerBuffers(featureById('icon-mahanakhon'), 1);
+  assert.equal(massingHitProperties(maha.properties).massing, 'icon');
+  const generic = buildTowerBuffers(landmarks.features.find((f) => f.properties?.id === 'icon-empire-tower'), 1);
+  assert.equal(massingHitProperties(generic.properties).massing, 'setback');
+});
+
 test('Loha Prasat classifies as its own form, not a cruciform prasat', () => {
   const kind = classify(heritageFeature({
     name: 'โลหะปราสาท',
@@ -166,6 +315,19 @@ test('the Loha Prasat form carries 37 spires worth of silhouette', () => {
 test('the icon file claims no survey', () => {
   const src = readFileSync(new URL('../public/city-icons.js', import.meta.url), 'utf8');
   assert.match(src, /typological/, 'the file must say what it is');
-  assert.doesNotMatch(src.replace(/\/\/[^\n]*/g, ''), /survey|measured|as-built/i,
-    'executable code must not claim measurement');
+  // Strip comments, then look at the executable code and the strings it
+  // ships. A string may MENTION a survey only to deny one; a bare "measured
+  // footprint" or "as-built" is a claim this layer cannot support.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const strings = [...code.matchAll(/'([^'\n]*)'|"([^"\n]*)"|`([^`\n]*)`/g)]
+    .map((m) => m[1] ?? m[2] ?? m[3] ?? '')
+    .filter(Boolean);
+  for (const text of strings) {
+    if (!/survey|measured|as-built/i.test(text)) continue;
+    assert.match(
+      text,
+      /not a survey|no survey|not measured|never/i,
+      `the code claims measurement: "${text}"`,
+    );
+  }
 });

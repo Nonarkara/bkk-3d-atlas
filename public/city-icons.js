@@ -13,9 +13,67 @@
 // ('body' steel, 'crown' paper, 'roof' gold/paper) plus an edge list, so the
 // massing layer's materials and picking need no changes.
 
-import { MeshDraft, scaleAbout, MASSING_PALETTE } from './building-massing.js';
+import { MeshDraft, scaleAbout, MASSING_PALETTE, longAxis, orientCCW } from './building-massing.js';
 
 export const CITY_ICON_KINDS = ['mahanakhon', 'baiyoke-ii', 'state-tower'];
+
+// Curated plans for the icons whose OSM footprint is not the building.
+//
+// The OSM ways for these two are the wrong shape and the wrong size, and the
+// silhouette inherits both: Baiyoke's way is the lift core (26 m across), so
+// the tower came out an 11:1 needle; State Tower's way includes the podium
+// (143 m long), so it came out a squat 1.7:1 block wearing a dome.
+//
+// The plan is DERIVED, not typed in: the published floor area divided by the
+// published storey count gives the average floor plate, and the square root
+// of that gives the side of a square plate. The OSM footprint still says
+// where the building stands; only its outline is replaced.
+//
+//   Baiyoke II  179,400 m² over 88 storeys -> 2,039 m² a floor -> 45.2 m
+//   State Tower 300,000 m² over 68 storeys -> 4,412 m² a floor -> 66.4 m
+//                trimmed: that area counts the podium and the retail floors,
+//                which are far wider than the tower's own plate.
+//
+// Sources: Wikipedia infoboxes citing CTBUH 487 / Emporis 107136 (Baiyoke
+// II) and Emporis 107198 (State Tower), both read 2026-10-22. A figure, not
+// a survey — and labelled as one wherever the building is reported.
+export const CURATED_PLANS = {
+  'baiyoke-ii': {
+    floorAreaM2: 179400,
+    storeys: 88,
+    trim: 1,
+    // The plan is a square with one corner cut — the tower's prow, which is
+    // what tells it apart from any other block on Pratunam.
+    cut: 0.30,
+    note: 'plan inferred from published floor area 179,400 m² over 88 storeys (CTBUH/Emporis) · not a survey',
+  },
+  'state-tower': {
+    floorAreaM2: 300000,
+    storeys: 68,
+    trim: 0.93,
+    // State Tower presents a cut corner to Silom: a square with one corner
+    // taken off, read from the building's published photographs.
+    cut: 0.26,
+    note: 'plan inferred from published floor area 300,000 m² over 68 storeys (Emporis) · not a survey',
+  },
+};
+
+// The side of the square plan, in metres. Derived from the published floor
+// area so the number cannot drift away from the figure it came from.
+export function planMetres(kind) {
+  const plan = CURATED_PLANS[kind];
+  if (!plan) return null;
+  return Math.sqrt(plan.floorAreaM2 / plan.storeys) * plan.trim;
+}
+
+// The accuracy note a clicked tower carries. An icon whose plan was replaced
+// says so, so nobody reads the silhouette as a measured survey.
+export function cityIconAccuracy(kind) {
+  const plan = CURATED_PLANS[kind];
+  return plan
+    ? `typological silhouette, not a survey · ${plan.note}`
+    : 'typological silhouette, not a survey';
+}
 
 // Match by registry id first, then OSM way id, so a re-curation that renames
 // ids still matches on the way and vice versa.
@@ -234,6 +292,26 @@ function buildStateTower(draft, local, height, base, lod) {
   draft.cap('roof', finial, height);
 }
 
+// The plan the icon is actually drawn on: the OSM outline, or the curated
+// replacement where the OSM outline is not the building. The replacement
+// keeps the OSM ring's long axis, so the tower still sits square to the
+// street it stands on, and keeps its centre, so it still stands in its plot.
+export function planFor(kind, local) {
+  const plan = CURATED_PLANS[kind];
+  if (!plan) return local;
+  const axis = longAxis(local);
+  const h = planMetres(kind) / 2;
+  const c = Math.min(plan.cut * planMetres(kind), h);
+  // A square with one corner cut off, in the axis frame.
+  const corners = [
+    [-h, -h], [h, -h], [h, h - c], [h - c, h], [-h, h],
+  ];
+  return orientCCW(corners.map(([u, v]) => [
+    axis.cx + u * axis.ax + v * axis.px,
+    axis.cz + u * axis.az + v * axis.pz,
+  ]));
+}
+
 const BUILDERS = {
   mahanakhon: buildMahanakhon,
   'baiyoke-ii': buildBaiyokeII,
@@ -248,21 +326,26 @@ const BUILDERS = {
 export function buildCityIcon(kind, local, height, base, lod = 1) {
   const build = BUILDERS[kind];
   if (!build) return null;
+  const plan = planFor(kind, local);
   const draft = new MeshDraft();
   const edges = [];
-  if (lod >= 1 && local.length <= 48) {
-    for (let i = 0; i < local.length; i++) {
-      const a = local[i];
-      const b = local[(i + 1) % local.length];
+  if (lod >= 1 && plan.length <= 48) {
+    for (let i = 0; i < plan.length; i++) {
+      const a = plan[i];
+      const b = plan[(i + 1) % plan.length];
       edges.push(a[0], base, a[1], b[0], base, b[1]);
     }
   }
-  build(draft, local, height, base, lod);
+  build(draft, plan, height, base, lod);
   return {
     body: draft.finish('body'),
     crown: draft.finish('crown'),
     roof: draft.finish('roof'),
     edges,
+    // The plan the geometry was built on, in the same local metres the
+    // caller passed in. The caller uses it to answer clicks on the drawn
+    // silhouette rather than on the OSM outline the icon replaced.
+    plan,
     // Real palette values, not group names: rebuildScene passes these
     // straight to three.js as material colors.
     colors: {

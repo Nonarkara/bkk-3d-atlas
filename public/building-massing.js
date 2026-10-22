@@ -13,7 +13,7 @@
 
 import { GRAND_PALACE_SLOT, PALACE_ROOF_NAME } from './grand-palace-slot.js';
 import { composeProjection } from './custom-layer-matrix.js';
-import { cityIconKindFor, buildCityIcon } from './city-icons.js';
+import { cityIconKindFor, buildCityIcon, cityIconAccuracy } from './city-icons.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
@@ -245,6 +245,16 @@ export function toLocal(lng, lat, origin) {
   const east = (lng - origin[0]) * meters.east;
   const north = (lat - origin[1]) * meters.north;
   return [east, -north];
+}
+
+// The inverse of toLocal, for a plan that was built in local metres and has
+// to go back on the map — a click ring, for instance.
+export function toLngLat(local, origin) {
+  const meters = metersPerDegree(origin[1]);
+  return [
+    origin[0] + local[0] / meters.east,
+    origin[1] - local[1] / meters.north,
+  ];
 }
 
 export function outerRingLngLat(feature) {
@@ -538,12 +548,15 @@ export function buildTowerBuffers(feature, lod = 1) {
   if (iconKind) {
     const icon = buildCityIcon(iconKind, local, height, base, lod);
     if (icon) {
+      // The click ring follows the drawn plan, not the OSM outline the icon
+      // replaced: a visitor clicks the silhouette they can see.
+      const hitRing = icon.plan ? icon.plan.map((point) => toLngLat(point, origin)) : ringLngLat;
       return {
         keys: featureKeys(feature),
         origin,
         ...icon,
-        properties: { ...props, massing: 'icon', accuracy: 'typological silhouette, not a survey' },
-        ring: ringLngLat,
+        properties: { ...props, massing: 'icon', accuracy: cityIconAccuracy(iconKind) },
+        ring: hitRing,
       };
     }
   }
@@ -584,6 +597,12 @@ export function buildTowerBuffers(feature, lod = 1) {
     properties: props,
     ring: ringLngLat,
   };
+}
+
+// The properties a picked tower carries. The builder knows what it drew — a
+// named icon, or a generic setback stack — and this must not relabel it.
+export function massingHitProperties(properties) {
+  return { ...properties, massing: properties?.massing ?? 'setback' };
 }
 
 export function filterHidingIds(baseFilter, ids) {
@@ -976,7 +995,10 @@ function rebuildScene(map, libs, towers, palaceObject) {
       ring: mesh.ring,
       feature: {
         type: 'Feature',
-        properties: { ...mesh.properties, massing: 'setback' },
+        // The builder knows what it drew: a named icon, or a generic setback
+        // stack. Do not relabel an icon as a setback — the label is what the
+        // popup and the API report about how this tower was modelled.
+        properties: massingHitProperties(mesh.properties),
         geometry: built.geometry,
       },
     });

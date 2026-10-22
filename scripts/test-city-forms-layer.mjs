@@ -130,6 +130,30 @@ test('the layer stops retrying once it has built what it can', async (t) => {
   uninstallCityForms(map);
 });
 
+test('the counters say what they mean: corners and faces are different numbers', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const map = fakeMap({ buildings: [] });
+  await installCityForms(map);
+  attachCityFormsRefresh(map);
+  await settle(t, 2);
+  map.state.buildings = [rectangle(0, 0, 9, 7, 7)];
+  await settle(t);
+
+  const state = cityFormsDebugState();
+  assert.ok(state.vertices > 0, 'the layer reported no vertices');
+  assert.ok(state.triangles > 0, 'the layer reported no triangles');
+  // A roof is eight faces over twenty-four corners. If these two collapse
+  // into one number, one of them is a lie.
+  assert.equal(
+    state.vertices,
+    state.triangles * 3,
+    'vertices and triangles must be counted separately: three corners to a face',
+  );
+
+  detachCityFormsRefresh(map);
+  uninstallCityForms(map);
+});
+
 test('a view below the zoom threshold draws nothing and says so', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const map = fakeMap({ buildings: [], zoom: 14 });
