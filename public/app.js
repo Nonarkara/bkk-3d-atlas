@@ -17,6 +17,7 @@ import {
   RATTANAKOSIN_HEIGHT_EXPRESSION,
   RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
 } from './building-heights.js';
+import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
 import {
   installCityForms,
   uninstallCityForms,
@@ -51,17 +52,30 @@ const ESRI_ATTRIBUTION =
 
 const BUILDING_SOURCE_CANDIDATES = ["openfreemap", "openmaptiles", "bkkx-pmtiles-buildings"];
 
-// BKKx 3D buildings PMTiles. 432,077 OSM building footprints for the
+// BKKx 3D buildings PMTiles. 478,027 OSM building footprints for the
 // Bangkok metro (100.30–100.95 E, 13.45–14.10 N). The Worker serves
 // the file from R2 with HTTP Range support.
 const BKKX_BUILDINGS_PMTILES_URL = "/bkk-buildings.pmtiles";
 const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
-// Metro tippecanoe tiles stop at z15 (--simplification=20). Past that,
-// MapLibre overscales the simplified footprints into sawtooth roofs.
-// Hand off to OpenFreeMap planet building tiles at street zoom.
+// The metro archive carries native tiles to z17, so the city no longer
+// stops at z15 and no longer needs a street-zoom handoff.
+//
+// It used to: the tippecanoe tiles stopped at z15 (--simplification=20)
+// and the atlas handed off to OpenFreeMap planet building tiles above
+// that. OpenFreeMap's planet archive declares maxzoom 14 — its z15+
+// tiles are 0 bytes — so the handoff could never fire and the city
+// vanished above z15. The metro archive is now built to z17 at
+// --simplification=8, which is both native and sharper than an
+// overscaled z14 planet tile, so the handoff is gone.
 const BKKX_BUILDINGS_LAYER = "bkkx-3d-buildings";
-const BKKX_BUILDINGS_HI_LAYER = "bkkx-3d-buildings-hi";
-const BKKX_BUILDINGS_HANDOFF_ZOOM = 15;
+const BKKX_BUILDINGS_MAX_ZOOM = 17;
+// The layer's zoom range is [minzoom, maxzoom) — the upper bound is
+// EXCLUSIVE. A layer capped at 17 is therefore not drawn at zoom 17, and
+// because MapLibre only asks a source for tiles when a visible layer
+// needs them, the whole city disappeared at exactly z17: no tiles were
+// requested, so nothing was drawn. The layer's ceiling has to sit ABOVE
+// the source's deepest zoom; the source then overzooms its last tile.
+const BKKX_BUILDINGS_LAYER_MAX_ZOOM = 24;
 
 // Rattanakosin / Grand Palace detail — full unsimplified OSM footprints
 // (GeoJSON) with heritage heights baked in. Replaces the tippecanoe
@@ -137,85 +151,10 @@ const BUILDING_PAINT_MONOCHROME = {
 // the 333K untagged "yes" buildings so the city silhouette still
 // reads at city scale. This is the default paint (see `state.buildingPaint`
 // = "type") — the monochrome signal-yellow look is the alt.
-const BUILDING_COLOR_BY_TYPE = [
-  "match", ["get", "building"],
-  // cultural / religious — gold + warm bronze
-  "temple", "#f5b800",
-  "pagoda", "#f5b800",
-  "shrine", "#e9a91a",
-  "wayside_shrine", "#e9a91a",
-  "monastery", "#b08c1f",
-  "mosque", "#a8c84a",
-  "church", "#c89b3c",
-  "cathedral", "#c89b3c",
-  "chapel", "#c89b3c",
-  "synagogue", "#5b9cb8",
-  // civic / public
-  "civic", "#b8b8b8",
-  "public", "#b8b8b8",
-  "government", "#888888",
-  "fire_station", "#ef4444",
-  "police", "#3b5cdb",
-  "townhall", "#b8b8b8",
-  // hospitality / tourism
-  "hotel", "#ec4899",
-  "motel", "#ec4899",
-  "guest_house", "#d946a0",
-  "hostel", "#d946a0",
-  "museum", "#a855f7",
-  // education — clear blues
-  "school", "#3d74c4",
-  "kindergarten", "#60a5fa",
-  "university", "#1e40af",
-  "college", "#1e40af",
-  // healthcare
-  "hospital", "#10b981",
-  "clinic", "#10b981",
-  // commercial / retail — warm paper
-  "commercial", "#fef3c7",
-  "retail", "#fef3c7",
-  "office", "#e5e5e5",
-  "supermarket", "#e5e5e5",
-  "mall", "#e5e5e5",
-  "marketplace", "#e5e5e5",
-  "market", "#e5e5e5",
-  "shophouse", "#e5e5e5",
-  "kiosk", "#e5e5e5",
-  // industrial
-  "industrial", "#6b7280",
-  "warehouse", "#6b7280",
-  "factory", "#6b7280",
-  "manufacture", "#6b7280",
-  "data_center", "#52525b",
-  // residential variants
-  "house", "#a8a89e",
-  "residential", "#a8a89e",
-  "detached", "#a8a89e",
-  "terrace", "#a8a89e",
-  "semidetached_house", "#a8a89e",
-  "townhouse", "#a8a89e",
-  "bungalow", "#a8a89e",
-  "hut", "#a8a89e",
-  "apartments", "#fb923c",
-  "dormitory", "#fb923c",
-  "condominium", "#fb923c",
-  // transport
-  "train_station", "#f1efe8",
-  "transportation", "#f5b800",
-  "parking", "#525252",
-  "garage", "#525252",
-  "garages", "#525252",
-  "carport", "#525252",
-  "fuel", "#a3a3a3",
-  // storage / outbuildings
-  "shed", "#9a9a90",
-  "roof", "#9a9a90",
-  "stilt_house", "#a8a89e",
-  "construction", "#9a9a90",
-  // default
-  "#9a9a90",
-];
-
+// The building colours live in public/building-colors.js so that the map's
+// MapLibre expression and the three.js massing layer's JavaScript twin are
+// generated from one table and cannot drift apart.
+const BUILDING_COLOR_BY_TYPE = BUILDING_COLOR_BY_TYPE_EXPRESSION;
 const BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
   "fill-extrusion-height": BUILDING_HEIGHT_EXPRESSION,
@@ -799,12 +738,12 @@ const state = {
 const LAYER_STACK = [
   "bkkx-satellite",
   BKKX_BUILDINGS_LAYER,
-  BKKX_BUILDINGS_HI_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   LANDMARKS_LAYER,
   ROOF_LAYER,
   CITY_FORMS_LAYER,
   MASSING_LAYER,
+  "bkkx-parks",
   "bkkx-roads-minor",
   "bkkx-roads-major",
   "bkkx-roads-motorway",
@@ -921,7 +860,7 @@ function applyOverlayCompositing(map) {
       : (state.buildingPaint === "type"
         ? BUILDING_PAINT_BY_TYPE["fill-extrusion-opacity"]
         : BUILDING_PAINT_MONOCHROME["fill-extrusion-opacity"]);
-    for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+    for (const id of [BKKX_BUILDINGS_LAYER]) {
       if (map.getLayer(id)) {
         try { map.setPaintProperty(id, "fill-extrusion-opacity", buildingOpacity); } catch {}
       }
@@ -956,7 +895,7 @@ function applyNightMode(map) {
 
   // Emissive night buildings — warm amber wash over type colours.
   if (state.nightMode) {
-    for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+    for (const id of [BKKX_BUILDINGS_LAYER]) {
       if (!map.getLayer(id)) continue;
       try {
         map.setPaintProperty(id, "fill-extrusion-color", [
@@ -1062,7 +1001,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1084,7 +1023,7 @@ const LAYERS = [
       suspendBuildingMassing(map);
       detachCityFormsRefresh(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1844,6 +1783,12 @@ function registerPmtilesProtocol() {
   if (typeof pmtiles === "undefined") return;
   if (registerPmtilesProtocol._done) return;
   registerPmtilesProtocol._done = true;
+  // `metadata: true` makes the protocol serve the archive's real TileJSON,
+  // including `vector_layers`. Without it the protocol answers with a
+  // bare {tiles,minzoom,maxzoom,bounds}, so MapLibre never learns which
+  // vector layers the archive has and never buckets the "buildings" layer
+  // for the tiles it loads — the source fills with features and the map
+  // draws nothing.
   const protocol = new pmtiles.Protocol();
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
@@ -1852,7 +1797,7 @@ function registerPmtilesProtocol() {
 function hideBaseBuildingFills(map) {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
-    if (layer.id === BKKX_BUILDINGS_LAYER || layer.id === BKKX_BUILDINGS_HI_LAYER) continue;
+    if (layer.id === BKKX_BUILDINGS_LAYER) continue;
     if (layer.id === RATTANAKOSIN_BUILDINGS_LAYER || layer.id === LANDMARKS_LAYER) continue;
     if (layer.id === ROOF_LAYER) continue;
     const sourceLayer = layer["source-layer"];
@@ -1887,7 +1832,7 @@ function installBuildings(map) {
         type: "vector",
         url: "pmtiles://" + BKKX_BUILDINGS_PMTILES_URL,
         attribution: "© OpenStreetMap contributors (ODbL-1.0) · BKKx 3D buildings",
-        maxzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
+        maxzoom: BKKX_BUILDINGS_MAX_ZOOM,
       });
     } catch (error) {
       console.warn("BKKx PMTiles source failed to register:", error);
@@ -1929,6 +1874,35 @@ function installBuildings(map) {
   // source is buildings-only, so road layers stay on the OFM
   // source when present).
   const roadSource = findOpenMapTilesSource(map) || (!source.isPmtiles ? sourceName : null);
+
+  // Parks and gardens — the green the city reads by. Same vector source
+  // the roads use (OpenMapTiles schema, "park" layer), so the geography is
+  // live OSM the basemap already carries: no committed snapshot to go stale.
+  // Painted under the roads so streets stay crisp over green.
+  if (roadSource && !map.getLayer("bkkx-parks")) {
+    try {
+      map.addLayer({
+        id: "bkkx-parks",
+        type: "fill",
+        source: roadSource,
+        "source-layer": "park",
+        minzoom: 10,
+        paint: {
+          "fill-color": "#315c38",
+          "fill-opacity": [
+            "interpolate", ["linear"], ["zoom"],
+            10, 0.22,
+            13, 0.42,
+            16, 0.55,
+          ],
+          "fill-antialias": true,
+        },
+      });
+      // Parks belong under every road, above the basemap's own dim park tint.
+      try { map.moveLayer("bkkx-parks", "bkkx-roads-minor"); } catch { /* stack order recovers */ }
+    } catch { /* style schema may omit the park layer */ }
+  }
+
   if (roadSource && !map.getLayer("bkkx-roads-minor")) {
     const addLine = (id, filter, color, width, opacity) => {
       try {
@@ -1958,8 +1932,9 @@ function installBuildings(map) {
         source: sourceName,
         "source-layer": sourceLayer,
         minzoom: 11,
-        // Stop painting overscaled tippecanoe footprints past native z15.
-        maxzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
+        // The archive carries native tiles to z17, so the layer draws at
+        // street zoom instead of handing off to a source that had none.
+        maxzoom: BKKX_BUILDINGS_LAYER_MAX_ZOOM,
         filter: BUILDING_EXTRUSION_FILTER,
         paint,
       });
@@ -1968,31 +1943,12 @@ function installBuildings(map) {
     }
   }
 
-  // Street-zoom handoff: OpenFreeMap planet tiles keep sharp footprints
-  // where metro PMTiles would overscale into sawteeth.
-  const ofmSource = findOpenMapTilesSource(map);
-  if (ofmSource && !map.getLayer(BKKX_BUILDINGS_HI_LAYER)) {
-    try {
-      map.addLayer({
-        id: BKKX_BUILDINGS_HI_LAYER,
-        type: "fill-extrusion",
-        source: ofmSource,
-        "source-layer": "building",
-        minzoom: BKKX_BUILDINGS_HANDOFF_ZOOM,
-        filter: BUILDING_EXTRUSION_FILTER,
-        paint,
-      });
-    } catch (error) {
-      console.warn("High-zoom OFM buildings layer failed:", error);
-    }
-  }
-
   applyBuildingPaint(map);
 }
 
 function applyBuildingPaint(map) {
   const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
-  for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER]) {
+  for (const id of [BKKX_BUILDINGS_LAYER]) {
     if (!map.getLayer(id)) continue;
     for (const [key, value] of Object.entries(paint)) {
       try { map.setPaintProperty(id, key, value); } catch {}
@@ -2006,7 +1962,7 @@ function applyBuildingPaint(map) {
 }
 
 function uninstallBuildings(map) {
-  for (const id of [BKKX_BUILDINGS_LAYER, BKKX_BUILDINGS_HI_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
+  for (const id of [BKKX_BUILDINGS_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
     if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
   }
   for (const id of ["bkkx-esri-imagery", BKKX_BUILDINGS_PMTILES_LAYER]) {
@@ -7249,7 +7205,6 @@ const INSPECT_BUILDING_LAYERS = [
   LANDMARKS_LAYER,
   RATTANAKOSIN_BUILDINGS_LAYER,
   BKKX_BUILDINGS_LAYER,
-  BKKX_BUILDINGS_HI_LAYER,
 ];
 
 function fillInspectDl(el, rows) {

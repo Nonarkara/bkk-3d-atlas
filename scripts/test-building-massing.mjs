@@ -52,7 +52,7 @@ test('temples and short blocks stay on fill-extrusion', () => {
   assert.equal(isTowerCandidate({ kind: 'tower', height: TALL_MIN_METERS }), true);
   assert.equal(isTowerCandidate({ kind: 'hotel', height: 150 }), true);
   assert.equal(MASSING_MIN_ZOOM, 16);
-  assert.equal(THREE_VERSION, '0.170.0');
+  assert.equal(THREE_VERSION, '0.186.1');
 });
 
 test('tower tiers cover the tagged height and step inward', () => {

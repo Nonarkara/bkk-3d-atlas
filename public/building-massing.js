@@ -2,7 +2,7 @@
 //
 // Below zoom 16 the atlas keeps fill-extrusion. At zoom 16 and closer, and
 // only when a tall tower or the Grand Palace stand-in is in view, this
-// module loads three.js r0.170.0 (import map in index.html) and draws a
+// module loads three.js r0.186.1 (import map in index.html) and draws a
 // MapLibre custom layer. Towers get a short podium and setbacks from the
 // OSM footprint plus height / building:levels. The palace file is
 // public/models/grand-palace.glb — see grand-palace-slot.js to replace it.
@@ -18,7 +18,7 @@ import { cityIconKindFor, buildCityIcon, cityIconAccuracy } from './city-icons.j
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
 export const TALL_MIN_METERS = 80;
-export const THREE_VERSION = '0.170.0';
+export const THREE_VERSION = '0.186.1';
 export const LEVEL_HEIGHT_M = 3.15;
 export const MASSING_PALETTE = {
   paper: 0xf1efe8,
@@ -30,7 +30,12 @@ export const MASSING_PALETTE = {
   shade: 0xcdcbc5,
 };
 
-const HI_LAYER = 'bkkx-3d-buildings-hi';
+// The metro PMTiles layer. It used to be 'bkkx-3d-buildings-hi', the
+// OpenFreeMap street-zoom handoff — a layer whose source declares maxzoom 14
+// and therefore could never draw above z15. The metro archive now carries
+// native tiles to z17, so the massing layer reads the same source the map
+// extrudes and the two agree on every building.
+const METRO_LAYER = 'bkkx-3d-buildings';
 const RATTANAKOSIN_LAYER = 'bkkx-rattanakosin-buildings';
 const LANDMARKS_LAYER = 'bkkx-landmarks-extrusion';
 const LANDMARKS_SOURCE = 'bkkx-landmarks';
@@ -625,7 +630,7 @@ export function reapplyMassingFilters(map) {
   const target = map || runtime.map;
   if (!target?.getLayer) return;
   const ids = runtime.active ? runtime.hiddenIds : [];
-  for (const layerId of [HI_LAYER, RATTANAKOSIN_LAYER]) {
+  for (const layerId of [METRO_LAYER, RATTANAKOSIN_LAYER]) {
     if (!target.getLayer(layerId)) continue;
     try { target.setFilter(layerId, filterHidingIds(runtime.baseFilter, ids)); } catch (error) {
       console.warn('BKKx massing filter failed:', error);
@@ -726,9 +731,9 @@ function collectTowers(map) {
     const key = featureKeys(feature)[0];
     if (key) chosen.set(key, feature);
   }
-  if (map.getLayer?.(HI_LAYER)) {
+  if (map.getLayer?.(METRO_LAYER)) {
     let rendered = [];
-    try { rendered = map.queryRenderedFeatures({ layers: [HI_LAYER] }); } catch { rendered = []; }
+    try { rendered = map.queryRenderedFeatures({ layers: [METRO_LAYER] }); } catch { rendered = []; }
     const inset = insetBounds(bounds, 0.06);
     const knownOsm = new Set();
     const claimed = [];
@@ -762,8 +767,8 @@ function palaceInView(map) {
 }
 
 function buildingsVisible(map) {
-  if (!map.getLayer?.(HI_LAYER) && !map.getLayer?.(LANDMARKS_LAYER)) return true;
-  const id = map.getLayer(HI_LAYER) ? HI_LAYER : LANDMARKS_LAYER;
+  if (!map.getLayer?.(METRO_LAYER) && !map.getLayer?.(LANDMARKS_LAYER)) return true;
+  const id = map.getLayer(METRO_LAYER) ? METRO_LAYER : LANDMARKS_LAYER;
   return map.getLayoutProperty(id, 'visibility') !== 'none';
 }
 
@@ -1085,9 +1090,9 @@ async function refreshMassing(map) {
     const ring = outerRingLngLat(feature);
     if (ring) towerRings.push(ring);
   }
-  if (towerRings.length && map.getLayer?.(HI_LAYER)) {
+  if (towerRings.length && map.getLayer?.(METRO_LAYER)) {
     let rendered = [];
-    try { rendered = map.queryRenderedFeatures({ layers: [HI_LAYER] }); } catch { rendered = []; }
+    try { rendered = map.queryRenderedFeatures({ layers: [METRO_LAYER] }); } catch { rendered = []; }
     for (const key of keysInsideRings(rendered, towerRings)) {
       if (!hidden.includes(key)) hidden.push(key);
     }
