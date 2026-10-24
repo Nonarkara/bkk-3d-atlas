@@ -18,6 +18,7 @@ import {
   RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
 } from './building-heights.js';
 import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
+import { FACADE_BAND_FILTER } from './building-facades.js';
 import {
   installCityForms,
   uninstallCityForms,
@@ -76,6 +77,14 @@ const BKKX_BUILDINGS_MAX_ZOOM = 17;
 // requested, so nothing was drawn. The layer's ceiling has to sit ABOVE
 // the source's deepest zoom; the source then overzooms its last tile.
 const BKKX_BUILDINGS_LAYER_MAX_ZOOM = 24;
+// The band layer: the 13-70 m band held with no opacity, so the facade mesh
+// and the rooftop plant can ask which buildings are in it even when the
+// extrusion has handed the band over to the mesh.
+const FACADE_BAND_LAYER = "bkkx-3d-buildings-band";
+// The band only exists at street zoom — that is where the facades are drawn,
+// and an invisible layer over the whole metro area would cost a pass over
+// every building in the city.
+const BKKX_BUILDINGS_LAYER_MIN_ZOOM = 16;
 
 // Rattanakosin / Grand Palace detail — full unsimplified OSM footprints
 // (GeoJSON) with heritage heights baked in. Replaces the tippecanoe
@@ -1001,7 +1010,7 @@ const LAYERS = [
     description: "OSM heights · 432,077 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1023,7 +1032,7 @@ const LAYERS = [
       suspendBuildingMassing(map);
       detachCityFormsRefresh(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1626,7 +1635,7 @@ function renderQuickJump(areas) {
     button.setAttribute("aria-label", `Jump to ${area.name}`);
     button.innerHTML = `
       <span class="atlas-area-num">${String(index + 1).padStart(2, "0")}</span>
-      <span>${area.name}</span>
+      <span title="${area.name}">${area.short ?? area.name}</span>
     `;
     button.addEventListener("click", () => flyToArea(area.id, { updateHash: true, instant: false }));
     grid.appendChild(button);
@@ -1789,7 +1798,7 @@ function registerPmtilesProtocol() {
   // vector layers the archive has and never buckets the "buildings" layer
   // for the tiles it loads — the source fills with features and the map
   // draws nothing.
-  const protocol = new pmtiles.Protocol();
+  const protocol = new pmtiles.Protocol({ metadata: true });
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
 
@@ -1898,8 +1907,6 @@ function installBuildings(map) {
           "fill-antialias": true,
         },
       });
-      // Parks belong under every road, above the basemap's own dim park tint.
-      try { map.moveLayer("bkkx-parks", "bkkx-roads-minor"); } catch { /* stack order recovers */ }
     } catch { /* style schema may omit the park layer */ }
   }
 
@@ -1920,6 +1927,16 @@ function installBuildings(map) {
     addLine("bkkx-roads-minor", ROAD_FILTERS.minor, "#2c2d28", lineWidth(0.3, 2.4), 0.7);
     addLine("bkkx-roads-major", ROAD_FILTERS.major, "#5e6157", lineWidth(0.4, 3.6), 0.9);
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
+  }
+
+  // Parks belong under every road, above the basemap's own dim park tint.
+  //
+  // This has to happen AFTER the roads exist. Moving a layer before a layer
+  // that is not in the style yet is an error MapLibre reports on every load,
+  // and the move is then silently lost — which leaves the parks painted over
+  // the roads instead of under them.
+  if (map.getLayer("bkkx-parks") && map.getLayer("bkkx-roads-minor")) {
+    try { map.moveLayer("bkkx-parks", "bkkx-roads-minor"); } catch { /* stack order recovers */ }
   }
 
   const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
@@ -1943,6 +1960,32 @@ function installBuildings(map) {
     }
   }
 
+  // The band layer: the 13-70 m band, held with no opacity and no colour.
+  //
+  // While the facade mesh is drawing the band, the band is out of the
+  // extrusion — the mesh and the extrusion must not both claim the same
+  // pixels — and a filtered-out layer cannot be asked which buildings are in
+  // it. This layer keeps the band answerable for the facade mesh and for
+  // the rooftop plant. It only exists at street zoom, where the band is
+  // drawn, and it draws nothing you can see.
+  if (!map.getLayer(FACADE_BAND_LAYER)) {
+    try {
+      map.addLayer({
+        id: FACADE_BAND_LAYER,
+        type: "fill",
+        source: sourceName,
+        "source-layer": sourceLayer,
+        minzoom: BKKX_BUILDINGS_LAYER_MIN_ZOOM,
+        maxzoom: BKKX_BUILDINGS_LAYER_MAX_ZOOM,
+        filter: FACADE_BAND_FILTER,
+        paint: { "fill-opacity": 0, "fill-color": "#000000" },
+      });
+    } catch {
+      // ignore — the band layer is a convenience; the facades fall back to
+      // the plain extrusion when it is missing
+    }
+  }
+
   applyBuildingPaint(map);
 }
 
@@ -1962,7 +2005,7 @@ function applyBuildingPaint(map) {
 }
 
 function uninstallBuildings(map) {
-  for (const id of [BKKX_BUILDINGS_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
+  for (const id of [BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
     if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
   }
   for (const id of ["bkkx-esri-imagery", BKKX_BUILDINGS_PMTILES_LAYER]) {

@@ -95,11 +95,53 @@ await browser.send('Network.enable', {}, sessionId);
 // Without this both captures can read identical cached bytes and a real change
 // looks like no change at all.
 await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
-// Keep the renderer producing frames even when the Chrome window is occluded
-// behind another app. Without this, captureScreenshot never answers: the page
-// goes hidden, Chrome suspends the compositor, and an unsettled top-level await
-// ends the process with exit 0 — a check that measured nothing and passed.
-await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+
+// Pin the viewport.
+//
+// Without this the capture is of whatever the Chrome window happens to be,
+// and the window is often occluded or has no size at all — then
+// captureScreenshot waits for a surface that never comes and the check dies
+// having measured nothing. The script's own header says the number depends
+// on the window ("a wider window at the same zoom/pitch shows more map
+// around the same buildings"), so a fixed viewport also makes the gate
+// comparable between runs.
+await browser.send('Emulation.setDeviceMetricsOverride', {
+  width: 1280,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+}, sessionId);
+// Focus is not visibility. A window that is behind another app is FOCUSED
+// enough for setFocusEmulationEnabled and still HIDDEN, and a hidden page
+// never fires requestAnimationFrame — so the map never draws and
+// captureScreenshot waits for a frame that will not come. It answered in 120
+// s and died with "did not answer", which is a measurement that failed, not
+// a page that is broken.
+//
+// Foreground the tab, then wait until the page really is visible and really
+// is producing frames. That is a stronger guarantee than focus emulation:
+// the renderer may believe it is focused while the compositor still withholds
+// frames, and a capture that waits for a frame then hangs.
+async function ensureFrames() {
+  await browser.send('Target.activateTarget', { targetId });
+  let last = 'unknown';
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    const state = await browser.send('Runtime.evaluate', {
+      expression: `(()=>{if(document.visibilityState!=='visible')return 'hidden';return new Promise((res)=>{let done=false;requestAnimationFrame(()=>{done=true;res('frames')});setTimeout(()=>{if(!done)res('no-frames')},800)})})()`,
+      returnByValue: true,
+      awaitPromise: true,
+    }, sessionId);
+    last = state.result?.value ?? String(state);
+    if (last === 'frames') return true;
+    await browser.send('Target.activateTarget', { targetId });
+  }
+  // Say so. A capture without a frame does not fail: it waits out its
+  // timeout, and the check dies having measured nothing.
+  console.error(`render-check: the page is not producing frames (${last}) — the capture would hang`);
+  return false;
+}
+await ensureFrames();
 
 // Close QA tabs left behind by an earlier run. A run that hangs or is killed
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
@@ -125,6 +167,11 @@ const evaluate = async (expression) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const shot = async () => {
+  // Every capture needs a compositor frame. If the page has gone hidden the
+  // frame never comes and the capture waits out its 120 s timeout — a check
+  // that dies, having measured nothing. Foreground the tab and confirm it is
+  // producing frames before every shot.
+  await ensureFrames();
   const r = await browser.send('Page.captureScreenshot', { format: 'png' }, sessionId);
   return Buffer.from(r.data, 'base64');
 };

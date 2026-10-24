@@ -26,6 +26,8 @@ import { composeProjection } from './custom-layer-matrix.js';
 import { classifyRoof, DEFAULT_OPTIONS } from './city-forms.js';
 import { buildCityGeometry, ACCURACY } from './city-forms-geometry.js';
 import { heightFor } from './building-heights.js';
+import { isFacadeCandidate } from './building-facades.js';
+import { FACADE_BAND_LAYER } from './building-massing.js';
 import { heritageFormIds, heritageFormRings } from './heritage-forms-layer.js';
 import { pointInRing } from './building-massing.js';
 
@@ -202,6 +204,45 @@ function centroidOf(ring) {
 // The Thai forms layer draws real forms on some of these same footprints, at
 // a higher fidelity than a schematic roof. Those buildings are left alone:
 // two roofs on one building is worse than one.
+// The 13-70 m band, read from the band layer.
+//
+// While the facade mesh is drawing the band, the band is taken out of the
+// metro layer's filter — the mesh and the extrusion must not both claim the
+// same pixels. A filtered-out layer cannot be asked which buildings are in
+// it, so the rooftop plant for those buildings would be lost with it. The
+// band layer holds the band with no opacity: it is answerable at all times.
+function collectBandFromBandLayer(map, rendered, into) {
+  if (!map.getLayer?.(FACADE_BAND_LAYER)) return;
+  let features = [];
+  try {
+    features = map.queryRenderedFeatures({ layers: [FACADE_BAND_LAYER] });
+  } catch {
+    return;
+  }
+  const bounds = map.getBounds();
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  const same = (a, b) => {
+    const dx = (a[0] - b[0]) * 108200;
+    const dy = (a[1] - b[1]) * 110500;
+    return Math.hypot(dx, dy) < 3;
+  };
+  for (const feature of features) {
+    if (!isFacadeCandidate(feature?.properties)) continue;
+    const ring = ringOf(feature);
+    if (!ring) continue;
+    const centroid = centroidOf(ring);
+    if (!centroid) continue;
+    if (centroid[0] < west || centroid[0] > east || centroid[1] < south || centroid[1] > north) continue;
+    // The band may also be in the metro layer, when the facade mesh is not
+    // up. Counting it twice would count every mid-rise twice.
+    if (rendered.some((item) => item.centroid && same(item.centroid, centroid))) continue;
+    into.push({ feature, ring, family: 'metro', centroid });
+  }
+}
+
 function buildingsInView(map) {
   const oldtown = [];
   const metro = [];
@@ -216,7 +257,8 @@ function buildingsInView(map) {
     } catch { /* the layer may not be loaded */ }
   };
   collect('bkkx-rattanakosin-buildings', 'oldtown', oldtown);
-  collect('bkkx-3d-buildings-hi', 'metro', metro);
+  collect('bkkx-3d-buildings', 'metro', metro);
+  collectBandFromBandLayer(map, metro, metro);
 
   const sameMetres = (a, b) => {
     const dx = (a[0] - b[0]) * 108200;

@@ -29,7 +29,8 @@
         "satellite",
         "all-buildings",
         "low-zoom"
-      ]
+      ],
+      "short": "Bangkok above"
     },
     {
       "id": "rattanakosin",
@@ -83,7 +84,8 @@
         "gold",
         "chinese-thai",
         "markets"
-      ]
+      ],
+      "short": "Yaowarat"
     },
     {
       "id": "sukhumvit",
@@ -287,7 +289,8 @@
         "expat",
         "condos",
         "bts"
-      ]
+      ],
+      "short": "Thonglor"
     },
     {
       "id": "chao-phraya-riverside",
@@ -313,7 +316,8 @@
         "temples",
         "boats",
         "thonburi"
-      ]
+      ],
+      "short": "Chao Phraya"
     },
     {
       "id": "lumphini",
@@ -364,7 +368,8 @@
         "campus",
         "siam",
         "central"
-      ]
+      ],
+      "short": "Chulalongkorn"
     },
     {
       "id": "don-mueang",

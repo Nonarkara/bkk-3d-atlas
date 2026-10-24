@@ -53,7 +53,16 @@ const SPA_FALLBACK_PATHS = new Set<string>([
   "/atlas/",
 ]);
 const PMTILES_PATH = "/bkk-buildings.pmtiles";
-const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
+// The metro archive. It was "buildings/bangkok.pmtiles" — tippecanoe tiles to
+// z15, which is why the city stopped at z15 and the street-zoom handoff to
+// OpenFreeMap could never fire (its planet archive declares maxzoom 14).
+// The new archive carries native tiles to z17: 478,027 OSM building
+// footprints for the Bangkok metro, built from Geofabrik's Thailand extract
+// with the height rule baked in (scripts/bake-building-heights.py).
+//
+// The old object is still in the bucket, under its own key, so the switch
+// back is one line and one deploy.
+const PMTILES_R2_KEY = "buildings/bangkok-z17.pmtiles";
 const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
 const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
 const FLOOD_ASSET = "/bkk-flood-envelope.geojson";

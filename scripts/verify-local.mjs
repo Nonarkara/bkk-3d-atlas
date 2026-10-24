@@ -330,7 +330,6 @@ for (const token of [
   "applyCivicPoiFilter",
   "loadCivicPoiGeoJson",
   "pointLayersOwningClick",
-  "BKKX_BUILDINGS_HI_LAYER",
   "hideBaseBuildingFills",
   "BUILDING_EXTRUSION_FILTER",
   "antialias: true",
@@ -353,8 +352,22 @@ if (!html.includes('id="toggle-water-transit"') || !html.includes('id="legend-wa
 } else {
   ok("index.html has water-transit toggle + legend");
 }
-if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
-else ok("street-zoom buildings hand off past tippecanoe maxzoom");
+// The street-zoom buildings must not stop where the archive stops.
+//
+// The atlas used to hand off at the tippecanoe maxzoom: the archive carried
+// tiles to z15 and a second source took over above it, which is why the city
+// disappeared above z15. The metro archive now carries native tiles to z17,
+// so there is no handoff any more — and the check has to say THAT, not
+// insist on a constant that now means the opposite.
+if (app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) {
+  fail("street-zoom buildings still hand off to a second source — the metro archive reaches z17 on its own");
+} else if (!/BKKX_BUILDINGS_MAX_ZOOM\s*=\s*17/.test(app)) {
+  fail("BKKX_BUILDINGS_MAX_ZOOM is not 17 — the metro archive carries native tiles to z17");
+} else if (!/BKKX_BUILDINGS_LAYER_MAX_ZOOM\s*=\s*24/.test(app)) {
+  fail("BKKX_BUILDINGS_LAYER_MAX_ZOOM must sit above the source's deepest zoom, or the layer stops early");
+} else {
+  ok("street-zoom buildings come from one archive to z17, with no handoff");
+}
 if (!app.includes("landmark-victory-monument") && !app.includes("bkk-landmarks.geojson")) {
   fail("landmarks layer not wired to bkk-landmarks.geojson");
 } else {
@@ -574,8 +587,32 @@ else {
   if (!json.includes("OpenStreetMap")) fail("grand-palace.glb missing OSM credit");
   else ok("grand-palace.glb credits OpenStreetMap");
 }
-if (!html.includes("three@0.170.0")) fail("index.html missing pinned three.js 0.170.0 import map");
-else ok("index.html pins three.js 0.170.0");
+// The pinned three.js version must agree across the import map and the code
+// that imports it, and this check must not hardcode the version itself: a
+// check that names a version is a check that has to be edited on every bump,
+// and the bump on 2026-10-23 left this one naming 0.170.0 while the atlas
+// pinned 0.186.1 — so it failed for the wrong reason and stayed broken.
+{
+  const importMap = html.match(/<script type="importmap"[^>]*>([\s\S]*?)<\/script>/);
+  const mapText = importMap ? importMap[1] : "";
+  const pinned = mapText.match(/three@([0-9]+\.[0-9]+\.[0-9]+)/);
+  const codeVersions = ["public/building-massing.js", "public/heritage-forms-layer.js", "public/wireframe-landmarks.js"]
+    .map((file) => {
+      const src = readFileSync(join(root, file), "utf8");
+      const m = src.match(/THREE_VERSION\s*=\s*['"]([0-9.]+)['"]/);
+      return m ? m[1] : null;
+    })
+    .filter(Boolean);
+  if (!pinned) {
+    fail("index.html has no three.js import map — the 3D layers cannot resolve 'three'");
+  } else if (!codeVersions.length) {
+    ok(`index.html pins three@${pinned[1]} (no source-level pin to cross-check)`);
+  } else if (!codeVersions.every((v) => v === pinned[1])) {
+    fail(`three.js version disagrees: index.html pins ${pinned[1]}, code pins ${[...new Set(codeVersions)].join(", ")}`);
+  } else {
+    ok(`index.html and the code both pin three@${pinned[1]}`);
+  }
+}
 if (!html.includes('id="atlas-massing-note"') || !html.includes("Approximate model, not an official survey")) {
   fail("index.html missing the Grand Palace stand-in note");
 } else ok("index.html has the Grand Palace stand-in note");

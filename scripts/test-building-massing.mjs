@@ -117,8 +117,42 @@ test('hiding filter keeps the base extrusion filter and lists ids', () => {
   const filter = filterHidingIds(base, ['icon-mahanakhon', '444651219']);
   assert.equal(filter[0], 'all');
   assert.equal(filter[1], base);
-  assert.deepEqual(filter[2][1][2], ['literal', ['icon-mahanakhon', '444651219']]);
+  assert.equal(filter[2][0], 'match');
+  assert.deepEqual(filter[2][2], ['icon-mahanakhon', '444651219']);
+  // In the list means hidden; not in the list means drawn.
+  assert.equal(filter[2][3], false);
+  assert.equal(filter[2][4], true);
   assert.equal(filterHidingIds(base, []), base);
+});
+
+// The filter that hid the whole city.
+//
+// `["id"]` is type Object: it cannot be coerced to a string, so a needle
+// containing it does not compile. MapLibre does not throw on an invalid
+// filter — it compiles one that matches nothing, logs a warning, and the
+// city disappears. This test walks the expression for the token that caused
+// it, because the symptom (an empty city) is nowhere near the cause.
+test('the hiding filter never asks for the tile-local feature id', () => {
+  const filter = filterHidingIds(null, ['icon-mahanakhon', '444651219']);
+  // Walk the expression and collect every node that is an expression of its
+  // own — an array whose head is an operator. `["get","id"]` reads a
+  // property and is fine; `["id"]` is the tile-local feature id and is not.
+  const operators = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) {
+      if (node.length && typeof node[0] === 'string') operators.push(node[0]);
+      for (const child of node) walk(child);
+      return;
+    }
+    if (node && typeof node === 'object') {
+      for (const value of Object.values(node)) walk(value);
+    }
+  };
+  walk(filter);
+  assert.ok(!operators.includes('id'), 'the filter must not use the bare id expression');
+  // The membership test has to be a form MapLibre validates: `in` with a
+  // literal haystack is not one of them.
+  assert.equal(filter[0], 'match');
 });
 
 test('temple silhouettes stack, bell, taper, and stay on the plan', () => {

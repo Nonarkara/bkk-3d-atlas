@@ -64,7 +64,9 @@ button { font: inherit; }
   height: 100dvh;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
+  /* The map is the hero. The panel is a rail, not a column of content:
+     every pixel it takes is a pixel of Bangkok the visitor cannot see. */
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
   grid-template-rows: auto 1fr;
   grid-template-areas: "header header" "map panel";
   background: var(--ink);
@@ -490,7 +492,7 @@ body.is-night .atlas-header {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   cursor: pointer;
   transition: border-color 160ms ease;
@@ -707,7 +709,7 @@ body.is-night .atlas-header {
 .atlas-area-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .atlas-area-btn {
@@ -715,7 +717,7 @@ body.is-night .atlas-header {
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: transparent;
   color: var(--paper);
@@ -734,6 +736,12 @@ body.is-night .atlas-header {
   color: var(--ink);
   background: var(--signal);
   border-color: var(--signal);
+}
+.atlas-area-btn > span:last-child {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .atlas-area-btn .atlas-area-num {
   color: inherit;
@@ -771,7 +779,7 @@ body.is-night .atlas-header {
 }
 .atlas-active-stats div {
   display: flex; flex-direction: column; gap: 2px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 .atlas-active-stats dt { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -858,7 +866,7 @@ body.is-night .atlas-header {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 .atlas-data-list li:hover { border-color: var(--signal); }
@@ -1530,7 +1538,7 @@ body.is-night .atlas-header {
   justify-content: space-between;
   gap: 12px;
   align-items: baseline;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 .atlas-about-contact a {

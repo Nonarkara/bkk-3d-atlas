@@ -26,7 +26,7 @@ test('basemap cleanup preserves heritage roof extrusions and still hides foreign
   const start=app.indexOf('function hideBaseBuildingFills('), end=app.indexOf('function findOpenMapTilesSource(',start);
   const hidden=[];
   const hide=vm.runInNewContext(app.slice(start,end)+'\nhideBaseBuildingFills',{
-    BKKX_BUILDINGS_LAYER:'metro',BKKX_BUILDINGS_HI_LAYER:'hi',RATTANAKOSIN_BUILDINGS_LAYER:'detail',
+    BKKX_BUILDINGS_LAYER:'metro',RATTANAKOSIN_BUILDINGS_LAYER:'detail',
     LANDMARKS_LAYER:'landmarks',ROOF_LAYER:'bkkx-heritage-roofs-3d',
   });
   hide({getStyle:()=>({layers:[{id:'bkkx-heritage-roofs-3d',type:'fill-extrusion'},
