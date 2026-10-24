@@ -18,8 +18,8 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./public"
 binding = "ASSETS"
 
-# R2 bucket that holds the 3D building PMTiles (432,077 OSM buildings,
-# ~17 MB). Served via the Worker at /bkk-buildings.pmtiles with HTTP
+# R2 bucket that holds the 3D building PMTiles (478,027 OSM buildings,
+# ~43 MB). Served via the Worker at /bkk-buildings.pmtiles with HTTP
 # Range passthrough so the pmtiles client lib can stream tiles. The
 # Workers [assets] binding does NOT honor Range requests, so large
 # binary blobs have to go through R2 + the proxy.
@@ -54,11 +54,11 @@ custom_domain = true
 LONGDO_FEED = "https://traffic.longdo.com/api/feed/itsth"
 LONGDO_DATA_ORIGIN = "https://itic.longdo.com/opendata/"
 
-# 3D buildings PMTiles (432,077 OSM buildings, ~17 MB) is served
+# 3D buildings PMTiles (478,027 OSM buildings, ~43 MB) is served
 # from R2 via the Worker Range proxy at /bkk-buildings.pmtiles —
 # not from [assets], which does not honor HTTP Range. The full
 # Bangkok metro (100.30–100.95 E, 13.45–14.10 N) is covered at
-# zoom 11–15.
+# zoom 11–17.
 
 # Cost guard. A cold cron-shaped pass measured ~823 ms of CPU on
 # 2026-10-09 (Node process CPU, network wait excluded): news venue

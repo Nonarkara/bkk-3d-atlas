@@ -4,7 +4,7 @@
 //
 // Sharp edges only. No rounded corners on the chrome.
 // Signal yellow `#c9ff38` means live signal (2026-10-16, owner's choice):
-// ordinary building fabric is warm grey `#9a9a90`, so 432,077 buildings no
+// ordinary building fabric is warm grey `#9a9a90`, so 478,027 buildings no
 // longer compete with flood, rail and camera layers. The "type colors" mode
 // (BUILDING_COLOR_BY_TYPE) colours only distinct types; houses, sheds and
 // untagged fabric stay grey.
@@ -1007,7 +1007,7 @@ const LAYERS = [
   {
     id: "buildings",
     name: "3D buildings",
-    description: "OSM heights · 432,077 features",
+    description: "OSM heights · 478,027 features",
     defaultOn: true,
     softUninstall: true,
     layers: [BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],

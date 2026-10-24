@@ -2985,9 +2985,13 @@ const ATLAS_DISTRICTS_ASSET = "/bkk-districts.geojson";
 const ATLAS_LAND_PRICE_ASSET = "/bkk-land-price-districts.geojson";
 const ATLAS_RAIL_ASSET = "/bkk-rail.geojson";
 const ATLAS_WATER_TRANSIT_ASSET = "/bkk-water-transit.geojson";
-const ATLAS_BUILDINGS_COUNT = 432077;
+// The metro archive's own feature count, read from the baked source that
+// produced buildings/bangkok-z17.pmtiles. It was 432,077 for the z11-15
+// tippecanoe archive; the rebuilt archive carries native tiles to z17 and
+// 478,027 footprints.
+const ATLAS_BUILDINGS_COUNT = 478027;
 const ATLAS_BUILDINGS_RATTANAKOSIN_COUNT = 9275;
-const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-08-04";
+const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-10-23";
 
 /** Local GeoJSON-lite types — kept inline because @types/geojson isn't in
  *  the dep tree. The shapes are exactly what the upstream files use. */
@@ -3775,11 +3779,11 @@ function apiCatalog(request: Request): Response {
         { path: "/api/atlas/districts", method: "GET", description: "50 khet + merged land-price summary." },
         { path: "/api/atlas/at-this-point", method: "GET", description: "District + land + flood + nearest transit at a point.", query: ["lng", "lat"] },
         { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments, scheduled boat corridors and passenger piers.", query: ["lng", "lat", "radius?", "limit?"] },
-        { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 432K buildings." },
+        { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 478K buildings." },
         { path: "/api/atlas/scoreboard", method: "GET", description: "Single-object live health / inventory." },
         { path: "/api/weather/google", method: "GET", description: "Legacy URL for Open-Meteo model weather and hourly rain forecasts. Road and electrical safety remain unknown.", query: ["lng?", "lat?"], cacheSeconds: GOOGLE_WEATHER_CACHE_TTL_SECONDS },
         { path: "/api/predict/timesfm", method: "GET", description: "Explicit unavailable status: no TimesFM inference service is connected. No river arrival times or flood depths are calculated.", query: ["station?", "hours?"], cacheSeconds: 60 },
-        { path: "/bkk-buildings.pmtiles", method: "GET", description: "432,077 OSM buildings — HTTP Range from R2." },
+        { path: "/bkk-buildings.pmtiles", method: "GET", description: "478,027 OSM buildings — HTTP Range from R2." },
         { path: "/bkk-buildings-rattanakosin.pmtiles", method: "GET", description: "Rattanakosin detail buildings PMTiles (zoom 14–18)." },
       ],
       staticGeojson: [

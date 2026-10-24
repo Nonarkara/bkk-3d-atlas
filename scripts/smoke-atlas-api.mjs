@@ -150,7 +150,7 @@ async function checkBuildings() {
   const { ok, status, body, ms } = await fetchJson("/api/atlas/buildings?bbox=100.49,13.74,100.52,13.76&limit=100");
   if (!ok || status !== 200) return logFail("GET /api/atlas/buildings", `status=${status}`);
   assert(body.tool === "atlas-buildings", `tool=${body.tool}`);
-  assert(body.buildings.totalMetro === 432077, `totalMetro=${body.buildings.totalMetro}`);
+  assert(body.buildings.totalMetro === 478027, `totalMetro=${body.buildings.totalMetro}`);
   assert(body.buildings.metroPmtiles.url === "/bkk-buildings.pmtiles", "pmtiles url wrong");
   assert(body.buildings.metroPmtiles.reachable === true, "pmtiles not reachable from worker");
   logOk("GET /api/atlas/buildings", ms, `PMTiles ${(body.buildings.metroPmtiles.sizeBytes / 1024 / 1024).toFixed(1)}MB reachable=${body.buildings.metroPmtiles.reachable}`);
@@ -168,7 +168,7 @@ async function checkScoreboard() {
   const { ok, status, body, ms } = await fetchJson("/api/atlas/scoreboard");
   if (!ok || status !== 200) return logFail("GET /api/atlas/scoreboard", `status=${status}`);
   assert(body.tool === "atlas-scoreboard", `tool=${body.tool}`);
-  assert(body.buildings.totalMetro === 432077, "buildings totalMetro wrong");
+  assert(body.buildings.totalMetro === 478027, "buildings totalMetro wrong");
   assert(body.districts === 50, "districts wrong");
   assert(body.rail.lines === 9, `rail.lines=${body.rail.lines}`);
   assert(body.rail.segments === 126, `rail.segments=${body.rail.segments}`);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>432,077 buildings, 1 system, 0 politicians who care — Dr Non</title>
+  <title>478,027 buildings, 1 system, 0 politicians who care — Dr Non</title>
   <meta name="description" content="A Bangkokian's atlas. A research paper by Dr Non about the BKKx 3D Atlas system and the city it maps." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -20,7 +20,7 @@
   <main class="paper-main">
     <article class="paper-article">
       <p class="paper-kicker">A Bangkokian's atlas · working paper 01</p>
-      <h1 class="paper-title">432,077 buildings, 1 system, 0 politicians who care</h1>
+      <h1 class="paper-title">478,027 buildings, 1 system, 0 politicians who care</h1>
       <p class="paper-subtitle">
         What a 17-megabyte vector tile of Bangkok teaches us about
         the city — and what 30 years inside it taught the author
@@ -41,7 +41,7 @@
       <section class="paper-section">
         <h2>TL;DR</h2>
         <p>
-          A working digital twin of Bangkok — 432,077 OSM
+          A working digital twin of Bangkok — 478,027 OSM
           buildings with real heights, 9 rail lines, 4,063
           canals, live traffic, air quality, rain radar,
           Treasury land prices, and a 9,275-feature high-zoom
@@ -187,14 +187,14 @@
           volunteer-mapped 8-billion-node geographic database.
           The OSM PBF for Thailand is 200 MB. We extract the
           Bangkok bbox (100.30–100.95 E, 13.49–14.10 N) with
-          <code>osmium</code>, get 432,077 building
+          <code>osmium</code>, get 478,027 building
           MultiPolygons, preprocess the height tags (5.5%
           have explicit height or levels, the other 94.5% get
           a type-based default — residential 9 m, apartments
           18 m, office 24 m, hotel 30 m, temple 12 m, school
-          9 m), and tile at zoom 11–15 with
+          9 m), and tile at zoom 11–17 with
           <code>tippecanoe</code> in 90 seconds. The output
-          is 20.3 MB. The Old Town layer is the same data
+          is 42.9 MB. The Old Town layer is the same data
           filtered to the Rattanakosin bbox and re-tiled at
           zoom 14–18 with 8 m simplification, giving 1.27 MB
           and 506 tiles.

@@ -1,7 +1,7 @@
 {
   "name": "BKKx Atlas — Bangkok, live, flood edition",
   "short_name": "BKKx Atlas",
-  "description": "A 3D browser atlas of Bangkok: 432,077 real OSM buildings, transit, CCTV, flood gauges, rain radar, live water.",
+  "description": "A 3D browser atlas of Bangkok: 478,027 real OSM buildings, transit, CCTV, flood gauges, rain radar, live water.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
