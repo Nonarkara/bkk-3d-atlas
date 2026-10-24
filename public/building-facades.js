@@ -40,7 +40,20 @@
 import { heightFor, HEIGHT_GET } from './building-heights.js';
 
 export const FACADE_MIN_METERS = 13;
-export const FACADE_MAX_METERS = 70;
+
+// Where the band stops and the towers begin.
+//
+// The bound is EXCLUSIVE, and it is the same number the tower treatment
+// starts at. That is the whole point: the two ranges partition the city, so
+// every building is drawn exactly once — articulated below the bound, as a
+// tower at or above it — and none is left as a plain prism.
+//
+// The two thresholds used to be two numbers, 70 and 80, and the ten metres
+// between them was a dead zone: buildings 70-80 m tall were too tall for the
+// facade band and too short for a tower, so they fell back to the map's
+// plain extrusion and sat there unarticulated between articulated mid-rises
+// and modelled towers. One number, one bound, no gap.
+export const FACADE_MAX_METERS = 80;
 
 // The band, as a MapLibre filter.
 //
@@ -54,7 +67,7 @@ export const FACADE_MAX_METERS = 70;
 export const FACADE_BAND_FILTER = [
   'all',
   ['>=', HEIGHT_GET, FACADE_MIN_METERS],
-  ['<=', HEIGHT_GET, FACADE_MAX_METERS],
+  ['<', HEIGHT_GET, FACADE_MAX_METERS],
 ];
 
 // The minimum zoom at which the band is articulated at all. Below this the
@@ -101,7 +114,7 @@ export function isFacadeCandidate(props) {
   if (!props) return false;
   const { height, degenerate } = heightFor(props, 'metro');
   if (degenerate) return false;
-  return height >= FACADE_MIN_METERS && height <= FACADE_MAX_METERS;
+  return height >= FACADE_MIN_METERS && height < FACADE_MAX_METERS;
 }
 
 // The storey lines of a building, in metres above its base.

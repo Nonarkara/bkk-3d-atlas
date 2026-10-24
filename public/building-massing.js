@@ -29,7 +29,11 @@ import { HEIGHT_GET, heightFor } from './building-heights.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = 16;
-export const TALL_MIN_METERS = 80;
+// A tower starts exactly where the facade band stops. These are ONE number on
+// purpose: the band is [FACADE_MIN_METERS, TALL_MIN_METERS) and a tower is
+// [TALL_MIN_METERS, infinity), so the two partition the city. Two numbers
+// with a gap between them is a strip of buildings that no treatment reaches.
+export const TALL_MIN_METERS = FACADE_MAX_METERS;
 // How many buildings in the band may be given a facade in one pass. A full
 // street view at z16 holds a few hundred of them, so this is a ceiling that
 // is never reached in practice rather than a budget that bites.
@@ -863,15 +867,28 @@ function setPalaceNote(shown) {
   if (note) note.hidden = !shown;
 }
 
-function viewBounds(map) {
+// The ground box under the viewport.
+//
+// The margin exists because this box is not the same thing as what is on
+// screen once the camera tilts: getBounds() describes the ground under a
+// tilted viewport, and the foreground the reader is actually looking at can
+// fall outside it. Measured at the atlas's pitch limit, a building plainly
+// on screen came back outside the box. Every caller here is asking "is this
+// in view?", so the box is widened before it is asked.
+function viewBounds(map, margin = 0) {
   const bounds = map.getBounds();
   return {
-    west: bounds.getWest(),
-    east: bounds.getEast(),
-    south: bounds.getSouth(),
-    north: bounds.getNorth(),
+    west: bounds.getWest() - margin,
+    east: bounds.getEast() + margin,
+    south: bounds.getSouth() - margin,
+    north: bounds.getNorth() + margin,
   };
 }
+
+// The margin in degrees. 0.02 is about 2.2 km in Bangkok — far more than the
+// foreground a tilted camera leaves out of the ground box, and nothing like
+// enough to pull in a landmark the reader cannot see.
+const VIEW_MARGIN_DEGREES = 0.02;
 
 function ringBox(ring) {
   let west = Infinity;
@@ -900,8 +917,8 @@ function safeSourceFeatures(map, source, sourceLayer) {
   }
 }
 
-function collectTowers(map) {
-  const bounds = viewBounds(map);
+export function collectTowers(map) {
+  const bounds = viewBounds(map, VIEW_MARGIN_DEGREES);
   const chosen = new Map();
   // The curated landmarks file only. The metro tiles carry no stable ids and
   // their footprints are simplified per tile, so a tower taken from there
@@ -925,7 +942,7 @@ function collectTowers(map) {
 // The band is read from the band layer (public/building-facades.js owns the
 // filter): the metro layer hands the band over to the facade mesh while the
 // mesh is up, so the metro layer cannot be the one that answers.
-function collectFacades(map) {
+export function collectFacades(map) {
   if (!map.getLayer?.(FACADE_BAND_LAYER)) return [];
   let features = [];
   try {
@@ -933,7 +950,6 @@ function collectFacades(map) {
   } catch {
     return [];
   }
-  const bounds = viewBounds(map);
   const centre = map.getCenter();
   const chosen = [];
   // Remember what the band layer answered, even if nothing survives the
@@ -943,7 +959,18 @@ function collectFacades(map) {
   for (const feature of features) {
     if (!isFacadeCandidate(feature?.properties)) continue;
     const ring = outerRingLngLat(feature);
-    if (!ring || !boxesOverlap(ringBox(ring), bounds)) continue;
+    // No bounds test here, and that is deliberate. The query above already
+    // answers "what is on screen" — these are the features the band layer
+    // actually rendered. A second gate on map.getBounds() would be a
+    // different question, and at a steep camera the two disagree: getBounds()
+    // describes the ground box under a tilted viewport, which does not cover
+    // the foreground the reader is looking at. A building that is plainly on
+    // screen came back outside that box, was dropped, and the metro extrusion
+    // had already handed the band over — so the building was drawn by nobody.
+    //
+    // The budget below is the real ceiling, and the sort puts the buildings a
+    // reader is looking at first.
+    if (!ring) continue;
     const [lng, lat] = centroidLngLat(ring);
     const dx = (lng - centre.lng) * 108200;
     const dy = (lat - centre.lat) * 110500;
@@ -955,7 +982,7 @@ function collectFacades(map) {
   return chosen.slice(0, FACADE_BUDGET).map((entry) => entry.feature);
 }
 
-function palaceInView(map) {  const bounds = viewBounds(map);
+function palaceInView(map) {  const bounds = viewBounds(map, VIEW_MARGIN_DEGREES);
   const [lng, lat] = GRAND_PALACE_SLOT.anchor;
   return lng >= bounds.west && lng <= bounds.east && lat >= bounds.south && lat <= bounds.north;
 }

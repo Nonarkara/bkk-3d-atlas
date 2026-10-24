@@ -219,11 +219,6 @@ function collectBandFromBandLayer(map, rendered, into) {
   } catch {
     return;
   }
-  const bounds = map.getBounds();
-  const west = bounds.getWest();
-  const east = bounds.getEast();
-  const south = bounds.getSouth();
-  const north = bounds.getNorth();
   const same = (a, b) => {
     const dx = (a[0] - b[0]) * 108200;
     const dy = (a[1] - b[1]) * 110500;
@@ -235,7 +230,12 @@ function collectBandFromBandLayer(map, rendered, into) {
     if (!ring) continue;
     const centroid = centroidOf(ring);
     if (!centroid) continue;
-    if (centroid[0] < west || centroid[0] > east || centroid[1] < south || centroid[1] > north) continue;
+    // No bounds test: the query above already answers "what is on screen",
+    // and this layer has to cover exactly the buildings the facade mesh
+    // covers. A roof on one set and a facade on another is a building with
+    // half a treatment, and a second gate on the ground box (which does not
+    // cover the foreground of a tilted camera) is how the two sets drifted
+    // apart in the first place.
     // The band may also be in the metro layer, when the facade mesh is not
     // up. Counting it twice would count every mid-rise twice.
     if (rendered.some((item) => item.centroid && same(item.centroid, centroid))) continue;
