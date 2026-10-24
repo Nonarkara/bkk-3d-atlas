@@ -1792,12 +1792,17 @@ function registerPmtilesProtocol() {
   if (typeof pmtiles === "undefined") return;
   if (registerPmtilesProtocol._done) return;
   registerPmtilesProtocol._done = true;
-  // `metadata: true` makes the protocol serve the archive's real TileJSON,
-  // including `vector_layers`. Without it the protocol answers with a
-  // bare {tiles,minzoom,maxzoom,bounds}, so MapLibre never learns which
-  // vector layers the archive has and never buckets the "buildings" layer
-  // for the tiles it loads — the source fills with features and the map
-  // draws nothing.
+  // `metadata: true` makes the protocol serve the archive's real TileJSON
+  // instead of a bare {tiles,minzoom,maxzoom,bounds}.
+  //
+  // This flag was long blamed for the city disappearing above z15. It was not.
+  // The cause was an invalid MapLibre filter that compiled into one matching
+  // nothing (public/building-massing.js, filterHidingIds). Measured both ways
+  // on 2026-10-24: the buildings layer renders the same features either way,
+  // and the source's maxzoom is 17 either way, because the atlas sets the
+  // source's maxzoom itself rather than inheriting it from the TileJSON.
+  // Kept because serving the archive's own metadata is the honest thing —
+  // not because the map needs it.
   const protocol = new pmtiles.Protocol({ metadata: true });
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
