@@ -24,4 +24,13 @@ states differ between captures and are not typography changes. No claim of
 fluent-reader testing, blocked-font testing or enlarged-text verification.
 
 Regression tests check self-hosted font files, licence, family order, retained
-Thai bold face and the maximum UI weight. Production receipt follows release.
+Thai bold face and the maximum UI weight.
+
+Release: source 677c356; stamp cc03bf8;
+`bkk-atlas-20261025-1792916000-677c356`. Worker version
+`ff46edd3-2f13-4b69-8c42-0c8099d89c6e`. Typecheck, repository checks,
+172 tests and 34 production smoke checks pass. Three consecutive production
+byte probes match the committed CSS/HTML/JavaScript; both Jost files return
+200 and match local SHA-256. Live browser confirms the Jost/Sao stack at
+600 for the heading; screenshot /tmp/atlas-type-live.png. Local browser
+font fetch was observed as 200 in the preview server log.
