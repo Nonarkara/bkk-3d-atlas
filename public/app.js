@@ -2926,7 +2926,7 @@ function openLandPricePopup(map, feature) {
         </table>
       </div>
       <div class="atlas-cctv-actions">
-        <a href="https://www.home.co.th/hometips/new-land-appraisal-price-53898" target="_blank" rel="noreferrer">Source ↗</a>
+        <a href="https://www.home.co.th/hometips/new-land-appraisal-price-53898" target="_blank" rel="noreferrer">Source <span class="atlas-out" aria-hidden="true"></span></a>
         <span>฿/sq.wah</span>
       </div>
     </div>
@@ -6002,8 +6002,8 @@ function openMaholanCctvPopup(map, feature) {
         <span class="atlas-cctv-snap-age" data-snap-age></span>
       </p>
       <div class="atlas-cctv-actions">
-        ${p.source_url ? `<a href="${escapeHtml(safeHttpUrl(String(p.source_url)))}" target="_blank" rel="noreferrer">Camera source ↗</a>` : ""}
-        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream ↗</a>
+        ${p.source_url ? `<a href="${escapeHtml(safeHttpUrl(String(p.source_url)))}" target="_blank" rel="noreferrer">Camera source <span class="atlas-out" aria-hidden="true"></span></a>` : ""}
+        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream <span class="atlas-out" aria-hidden="true"></span></a>
       </div>
     </div>
   `;
@@ -6500,7 +6500,7 @@ function openCctvPopup(map, feature) {
     ? `<div class="atlas-cctv-flood-banner" data-severity="${liveEntry.depth >= 5 ? "severe" : liveEntry.depth >= 3 ? "moderate" : "shallow"}">
         <div class="atlas-cctv-flood-head">
           <span class="atlas-cctv-flood-kicker">🌊 REPORTED FLOODED · ${liveEntry.distM} m</span>
-          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-road="${escapeHtml(liveEntry.road || "")}">Show road ↗</button>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-road="${escapeHtml(liveEntry.road || "")}">Show road <span class="atlas-out" aria-hidden="true"></span></button>
         </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(liveEntry.road || "Unnamed road")}</strong>
         <span class="atlas-cctv-flood-meta">${escapeHtml(liveBits)} · depth is the reporter's word</span>
@@ -6509,7 +6509,7 @@ function openCctvPopup(map, feature) {
     ? `<div class="atlas-cctv-flood-banner" data-severity="${escapeHtml(floodEntry.severity || "unknown")}">
         <div class="atlas-cctv-flood-head">
           <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD · ${Math.round(floodEntry.distM)} m</span>
-          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-dds="${escapeHtml(floodEntry.roadKey || "")}">Show road ↗</button>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-dds="${escapeHtml(floodEntry.roadKey || "")}">Show road <span class="atlas-out" aria-hidden="true"></span></button>
         </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(floodEntry.roadName)}</strong>
         <span class="atlas-cctv-flood-meta">
@@ -6529,7 +6529,7 @@ function openCctvPopup(map, feature) {
       </div>
       <p class="atlas-cctv-status">Connecting live stream…</p>
       <div class="atlas-cctv-actions">
-        <a href="${escapeHtml(safeHttpUrl(iticUrl))}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
+        <a href="${escapeHtml(safeHttpUrl(iticUrl))}" target="_blank" rel="noreferrer">Open on iTIC <span class="atlas-out" aria-hidden="true"></span></a>
         <span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
       </div>
     </div>
@@ -6593,7 +6593,12 @@ function openCctvPopup(map, feature) {
       if (showedError) return;
       showedError = true;
       errBox.hidden = false;
-      if (status) status.textContent = "Stream not available right now — open on iTIC ↗";
+      // textContent, so the chevron is drawn by the element's own class
+      // rather than pasted in as markup.
+      if (status) {
+        status.textContent = "Stream not available right now — open on iTIC";
+        status.classList.add("atlas-out");
+      }
     };
     video.addEventListener("error", showErr, { once: true });
     // 6 s of no playback after source set = treat as broken.
@@ -6896,7 +6901,7 @@ function openLiveCamPopup(map, feature) {
         <strong class="atlas-cctv-title">${escapeHtml(p.title || "External camera")}</strong>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(safeHttpUrl(p.url || ""))}" target="_blank" rel="noreferrer">Open ↗ (login required)</a>
+          <a href="${escapeHtml(safeHttpUrl(p.url || ""))}" target="_blank" rel="noreferrer">Open <span class="atlas-out" aria-hidden="true"></span> (login required)</a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -6914,7 +6919,7 @@ function openLiveCamPopup(map, feature) {
           allowfullscreen></iframe>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(safeHttpUrl(watchUrl))}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(watchUrl))}" target="_blank" rel="noreferrer">Open on YouTube <span class="atlas-out" aria-hidden="true"></span></a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -7124,7 +7129,7 @@ function wireWaterTransitInteractions(map) {
           <strong class="atlas-cctv-title">${escapeHtml(p.name)}</strong>
           <p class="atlas-cctv-status">${escapeHtml(p.name_th || "")} · ${escapeHtml(p.operator || "")}</p>
           <p class="atlas-cctv-status">${escapeHtml(p.service_note || "Check the operator before travel.")}</p>
-          <a href="${escapeHtml(safeHttpUrl(p.source_url || WATER_TRANSIT_DATA_URL))}" target="_blank" rel="noreferrer">Check operator ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(p.source_url || WATER_TRANSIT_DATA_URL))}" target="_blank" rel="noreferrer">Check operator <span class="atlas-out" aria-hidden="true"></span></a>
         `)
         .addTo(map);
     });
@@ -8257,14 +8262,14 @@ function renderRoadsXref(payload) {
   const sum = document.getElementById("atlas-sit-xref-unconf-summary");
   if (ul) {
     const top = unconfirmed.slice(0, 8);
-    if (sum) sum.textContent = `📋 Other road reports (${unconfirmed.length})`;
+    if (sum) sum.textContent = `Other road reports (${unconfirmed.length})`;
     if (!unconfirmed.length) {
       ul.innerHTML = `<li class="atlas-xref-empty">No other road reports in this snapshot. Unreported streets remain unknown.</li>`;
     } else {
       ul.innerHTML = top.map((r) => {
         const g = r.nearest_gauge;
         const tag =
-          r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">📟 no sensor</span>`
+          r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">no sensor</span>`
           : r.q === "sensor-stale" ? `<span class="atlas-xref-pill atlas-xref-pill-stale">⚠ stale</span>`
           : `<span class="atlas-xref-pill atlas-xref-pill-dry">○ gauge without alert</span>`;
         return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
@@ -9196,7 +9201,7 @@ async function pingPresence() {
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
-    el.textContent = `· 👥 ${j.online.toLocaleString()} online`;
+    el.textContent = `· ${j.online.toLocaleString()} online`;
     // The peak clause is a second line of the same fact, and the masthead
     // does not always have the room for it. It is a separate element so a
     // narrow header can drop it without dropping the counter.
@@ -9485,7 +9490,7 @@ function wallTile(c) {
   return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}" data-traffic-eligible="${trafficCandidate ? 'true' : 'false'}">
     <div class="atlas-wall-media"><img loading="lazy" alt="Camera still: ${name} · capture time unverified" referrerpolicy="no-referrer" src="/api/snap/${encodeURIComponent(c.id)}?w=320" />
     <span class="atlas-wall-state">${c.checked ? "Still · capture time unverified" : "Still · picture and capture time unverified"}</span><span class="atlas-wall-cat atlas-wall-cat-${escapeHtml(c.category || "other")}">${cat}</span></div>
-    <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org} · ${tier}${c.viewer && safeHttpUrl(c.viewer) !== '#' ? ` · <a href="${escapeHtml(safeHttpUrl(c.viewer))}" target="_blank" rel="noopener">viewer ↗</a>` : ""}</small></figcaption></figure>`;
+    <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org} · ${tier}${c.viewer && safeHttpUrl(c.viewer) !== '#' ? ` · <a href="${escapeHtml(safeHttpUrl(c.viewer))}" target="_blank" rel="noopener">viewer <span class="atlas-out" aria-hidden="true"></span></a>` : ""}</small></figcaption></figure>`;
 }
 
 function wireCameraWall(map) {

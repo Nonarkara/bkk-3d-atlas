@@ -140,7 +140,16 @@ function runScript(port, extraEnv = {}) {
     // unbounded CDP call, so it must not wait forever when that call comes back.
     // Without this, deleting the timeout inside phone-qa.mjs hangs the suite
     // instead of failing it — found by mutation testing this very file.
-    const killer = setTimeout(() => { out += '\n[harness killed: it never exited]'; p.kill('SIGKILL'); }, 20000);
+    //
+    // The bound is wall-clock, and this machine is shared: another agent's
+    // browsers have taken the load average past 300, and a script that needs
+    // two seconds of CPU can then miss a twenty-second wall clock. The guard
+    // fired on a loaded machine four times out of four and the suite was
+    // green on an idle one — the failure was the guard, not the thing it
+    // guards. The inner timeout is 1.5 s, so ninety seconds still catches a
+    // broken one with sixty times the headroom, and it cannot be tripped by a
+    // starved CPU.
+    const killer = setTimeout(() => { out += '\n[harness killed: it never exited]'; p.kill('SIGKILL'); }, 90000);
     p.on('close', (code) => { clearTimeout(killer); resolve({ code, out }); });
   });
 }
