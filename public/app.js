@@ -41,9 +41,9 @@ import {
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
-import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261025-1792949240-a45e0e0';
+import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261026-1792987849-cb5132c';
 // Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
-const ATLAS_BUILD = "bkk-atlas-20261025-1792949240-a45e0e0";
+const ATLAS_BUILD = "bkk-atlas-20261026-1792987849-cb5132c";
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -753,6 +753,8 @@ const LAYER_STACK = [
   ROOF_LAYER,
   CITY_FORMS_LAYER,
   MASSING_LAYER,
+  FORMS_LAYER,
+  WIRE_LAYER_ID,
   "bkkx-parks",
   "bkkx-roads-minor",
   "bkkx-roads-major",
@@ -9313,6 +9315,7 @@ async function init() {
         if (!view) return;
         const request = ++landmarkRequest;
         map.flyTo({ ...view, duration: 1400, essential: true });
+        setActiveArea(button.dataset.landmarkView === 'grand-palace' ? 'rattanakosin' : 'chao-phraya-riverside');
         // Moving the camera must not wait for initial city-wide tiles. Layer
         // installation does require a ready style; only the latest jump wins.
         await initialMapLoad;

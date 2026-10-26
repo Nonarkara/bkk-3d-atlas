@@ -53,16 +53,34 @@ check_clean() {
 }
 
 check_clean
+RELEASE_SOURCE_REV="$(git rev-parse HEAD)"
 npx wrangler whoami 2>&1 | grep -q "$EXPECTED_ACCOUNT" || { echo "release refused: wrangler is not on account $EXPECTED_ACCOUNT" >&2; exit 1; }
 npm run typecheck
 npm run verify
 npm test
 check_clean  # a parallel agent may have dirtied the tree during the gate
+if [ "$(git rev-parse HEAD)" != "$RELEASE_SOURCE_REV" ]; then
+  echo "release refused: HEAD changed while checks were running; verify the new revision first." >&2
+  exit 1
+fi
 
 TAG="$(node scripts/stamp-build-id.mjs)"
+# Freeze the expected stamping diff too. A clean-tree check before a network
+# upload cannot catch an agent changing assets during that upload.
+RELEASE_ASSET_DIFF="$(git diff --binary -- public src | git hash-object --stdin)"
+check_release_snapshot() {
+  if [ "$(git rev-parse HEAD)" != "$RELEASE_SOURCE_REV" ] ||
+     [ "$(git diff --binary -- public src | git hash-object --stdin)" != "$RELEASE_ASSET_DIFF" ] ||
+     [ -n "$(git status --porcelain --untracked-files=all -- public src | sed -n '/^??/p')" ]; then
+    echo "release refused: source/assets changed after stamping; do not publish mixed agent work." >&2
+    exit 1
+  fi
+}
 npx wrangler deploy --config wrangler.cron.toml
+check_release_snapshot
 npx wrangler deploy
 DEPLOYED_BUILD="$TAG"
+check_release_snapshot
 
 # Record what reached the edge straight away, before verification, so a later
 # failing check cannot leave the stamp uncommitted. Pathspec only: never sweep

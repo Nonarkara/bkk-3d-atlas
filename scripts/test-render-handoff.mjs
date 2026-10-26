@@ -85,3 +85,20 @@ test('every registered map layer has the control required by setLayerToggle', ()
   assert.ok(ids.length >= 20, 'the registry check must not silently check an empty slice');
   for (const id of ids) assert.ok(html.includes(`id="toggle-${id}"`), `${id} cannot be switched on: missing control`);
 });
+
+test('stack reconciliation retains every architectural custom layer above imagery', () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const start = app.indexOf('const LAYER_STACK = [');
+  const stack = app.slice(start, app.indexOf('\n];', start));
+  for (const name of ['CITY_FORMS_LAYER', 'MASSING_LAYER', 'FORMS_LAYER', 'WIRE_LAYER_ID']) {
+    assert.ok(stack.includes(name), `${name} is stranded below reordered imagery`);
+    assert.ok(stack.indexOf(name) > stack.indexOf('"bkkx-satellite"'));
+  }
+});
+
+test('release freezes checked revision and stamped assets across network uploads', () => {
+  const release = readFileSync(new URL('./deploy-live.sh', import.meta.url), 'utf8');
+  assert.match(release, /RELEASE_SOURCE_REV="\$\(git rev-parse HEAD\)"/);
+  assert.match(release, /RELEASE_ASSET_DIFF=/);
+  assert.match(release, /npx wrangler deploy --config wrangler\.cron\.toml\s+check_release_snapshot\s+npx wrangler deploy/);
+});

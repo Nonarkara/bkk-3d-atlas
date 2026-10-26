@@ -30,6 +30,12 @@ test('Wat Arun solid profiles preserve the drawing envelope, height and five-pra
     assert.ok(box.min[0] >= -18 && box.max[0] <= 18);
     assert.ok(box.min[2] >= -18 && box.max[2] <= 18);
     assert.ok(m.solidPositions.length / 9 < 10000);
+    let moulding = false;
+    for (let i = 0; i < m.solidPositions.length; i += 3) {
+      const y = m.solidPositions[i + 1], radius = Math.hypot(m.solidPositions[i], m.solidPositions[i + 2]);
+      if (y > 6.4 && y < 15 && radius > 7.2 && radius < 8) moulding = true;
+    }
+    assert.ok(moulding, 'corn-cob profile must not alias every moulding to zero');
     for (const [x,z] of [[-13,-13],[13,-13],[13,13],[-13,13]]) {
       let found = false;
       for (let i = 0; i < m.solidPositions.length; i += 3) {

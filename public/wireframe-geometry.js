@@ -400,8 +400,11 @@ function cornRadius(t, rows) {
 function cornPrang(draw, y0, yTip, radius, rows, radial) {
   const cobTop = y0 + (yTip - y0) * 0.72;
   let prev = null;
-  for (let i = 0; i <= rows; i++) {
-    const t = i / rows;
+  // Sampling only at i/rows makes sin(t*rows*pi) exactly zero: the intended
+  // corn-cob mouldings disappear into a smooth cone. Include the half-steps.
+  const samples = rows * 2;
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
     const y = y0 + (cobTop - y0) * t;
     const ring = draw.ring(y, radius * cornRadius(t, rows), radial);
     if (prev) draw.loft(prev, ring);
@@ -425,9 +428,15 @@ function cornPrang(draw, y0, yTip, radius, rows, radial) {
 }
 
 function buildArun(draw, detail) {
-  draw.poly([[-18, 0.4, -18], [18, 0.4, -18], [18, 0.4, 18], [-18, 0.4, 18]], true);
-  draw.poly([[-14, 3.2, -14], [14, 3.2, -14], [14, 3.2, 14], [-14, 3.2, 14]], true);
-  draw.poly([[-10, 6.4, -10], [10, 6.4, -10], [10, 6.4, 10], [-10, 6.4, 10]], true);
+  const terraces = [
+    [[-18, 0.4, -18], [18, 0.4, -18], [18, 0.4, 18], [-18, 0.4, 18]],
+    [[-14, 3.2, -14], [14, 3.2, -14], [14, 3.2, 14], [-14, 3.2, 14]],
+    [[-10, 6.4, -10], [10, 6.4, -10], [10, 6.4, 10], [-10, 6.4, 10]],
+  ];
+  for (const ring of terraces) draw.poly(ring, true);
+  for (let i = 1; i < terraces.length; i++) draw.loft(terraces[i - 1], terraces[i]);
+  draw.triangle(terraces[2][0], terraces[2][1], terraces[2][2]);
+  draw.triangle(terraces[2][0], terraces[2][2], terraces[2][3]);
   for (const [x, z] of [[-18, -18], [18, -18], [18, 18], [-18, 18]]) {
     draw.line([x, 0.4, z], [Math.sign(x) * 10, 6.4, Math.sign(z) * 10]);
   }

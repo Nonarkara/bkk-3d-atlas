@@ -59,6 +59,13 @@ The exact cause of the owner's previous-night incident remains unproven; do not
 present these verified failure paths as a replay of that incident. The projection
 matrix contract is retained, not reverted to the earlier incorrect frustum fix.
 
+Visual comparison exposed an additional paint-order defect: FORMS_LAYER and
+WIRE_LAYER_ID were absent from LAYER_STACK. Reconciliation could therefore move
+imagery above both architectural layers. Both now participate in the explicit
+3D stack above imagery. Before/after captures confirm the formerly faint model
+becomes opaque; see /tmp/atlas-solid-stack-proof/wat-arun.png. This also restores
+the visibility of existing temple roofs and stupas across the river.
+
 Preview pixel check after the handoff repair: forms0.85%, massing0.57%, detail
 8.93%, landmarks0.45%, pilot hidden. Layout/canvas dimensions changed, so these
 percentages must not be interpreted as a before/after quality score.
@@ -89,6 +96,10 @@ models still require appropriate source plans and field/photo validation.
 Geometry tests cover finite coordinates, unchanged70m maximum, envelope,
 five-spire composition and triangle budget at phone/desktop detail levels.
 Geometry/material resources are disposed when the layer is removed.
+Fixed a profile-sampling bug too: sampling sin(t*rows*pi) only at t=i/rows
+made every intended moulding zero. Half-step sampling preserves the existing
+envelope but reveals the corn-cob profile; the existing terrace rings now have
+solid faces rather than just outlines. These remain illustrative details.
 
 ## Audit integrity and remaining verification
 
@@ -112,3 +123,10 @@ with rendered geometry; capture /tmp/atlas-solid-wired/wat-arun.png.
 The first release attempt passed178 tests but correctly refused deployment
 because the stronger QA changes were not yet committed. No unverified version
 was deployed by that attempt.
+
+The subsequent in-flight release was cancelled before the main worker publish
+when the visual paint-order correction was identified. Cron code was unchanged.
+Release guards now freeze the checked HEAD and stamped public/src diff, recheck
+between cron and main uploads, and refuse mixed-agent assets. No other agent's
+process or service was stopped. The final release must use the frozen revision;
+only documentation receipts should follow it.
