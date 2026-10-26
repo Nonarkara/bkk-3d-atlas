@@ -30,7 +30,7 @@ async function ev(expression) {
   return r.result.value;
 }
 async function click(selector) {
-  const point = await ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('missing control');e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();if(!r.width||!r.height||r.top<0||r.bottom>innerHeight)throw Error('control not reachable');return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  const point = await ev(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('missing control');if(e.disabled)throw Error('control disabled');e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();if(!r.width||!r.height||r.top<0||r.bottom>innerHeight)throw Error('control not reachable');return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
 }
@@ -53,7 +53,8 @@ try {
   await send('Page.navigate', { url: `${base}/?debug` });
   await ev(`new Promise((resolve,reject)=>{const start=Date.now();const t=setInterval(()=>{if(document.querySelector('.atlas-area-btn')&&document.querySelector('#atlas-panel').hasAttribute('role')){clearInterval(t);resolve(true)}else if(Date.now()-start>25000){clearInterval(t);reject(Error('atlas did not boot'))}},200)})`);
   mkdirSync(out, { recursive: true });
-  for (const [width, height] of [[1440,900],[1280,900],[1024,768],[768,900],[390,844],[375,812]]) {
+  const sizes = JSON.parse(process.env.MSH_WIDTHS || '[[1440,900],[1280,900],[1024,768],[768,900],[390,844],[375,812]]');
+  for (const [width, height] of sizes) {
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 721 });
     await ev('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r(true))))');
     const state = await ev(`(()=>{const p=document.querySelector('#atlas-panel'),m=document.querySelector('#atlas-map').getBoundingClientRect();return {hidden:p.getAttribute('aria-hidden'),inert:p.inert,map:m.width*m.height/(innerWidth*innerHeight),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth}})()`);
@@ -84,6 +85,7 @@ try {
     await click(`[data-landmark-view="${landmark}"]`);
     const [lng, lat] = LANDMARK_VIEWS[landmark].center;
     const ready = await ev(`new Promise(resolve=>{const start=Date.now();const t=setInterval(()=>{const m=window.__atlas?.map;if(m&&!m.isMoving()&&m.getZoom()>=16&&Math.hypot(m.getCenter().lng-${lng},m.getCenter().lat-${lat})<0.0001&&window.__bkkxWireReady&&window.__bkkxWireStats?.solidTriangles>0){clearInterval(t);resolve(true)}else if(Date.now()-start>25000){clearInterval(t);resolve(false)}},200)})`);
+    if (!ready) console.log('MODEL DIAGNOSTIC', await ev(`({zoom:window.__atlas?.map?.getZoom(),center:window.__atlas?.map?.getCenter(),wireReady:window.__bkkxWireReady,wireStats:window.__bkkxWireStats,layer:!!window.__atlas?.map?.getLayer('bkkx-wireframe-landmarks'),massing:window.__atlas?.massing?.()})`));
     assert.equal(ready, true, `heritage shortcut failed: ${landmark}`);
     const shot = await capture();
     writeFileSync(`${out}/${landmark}.png`, Buffer.from(shot.data, 'base64'));

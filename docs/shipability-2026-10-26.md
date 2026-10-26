@@ -47,7 +47,7 @@ pilot is correctly hidden. These are visibility thresholds, not model accuracy.
 Two concrete defects/gaps were identified:
 
 1. Rattanakosin overview opens at zoom14.6, below heritage forms15 and detailed
-   massing16. New Grand Palace/Wat Arun shortcuts open at16.4/16.6, enable
+   massing16. New Grand Palace/Wat Arun shortcuts open at16.4/17, enable
    buildings and the reference-based monument layer. The overview stays intact.
 2. Native footprints could be hidden before the first successful custom draw.
    Handoff now waits for both custom render passes. Missing projection data
@@ -67,6 +67,12 @@ percentages must not be interpreted as a before/after quality score.
 
 The detailed Old Town GeoJSON contains no Wat Arun monument; its only Arun-name
 match is an unrelated commercial building. The landmark drawing is separate.
+That layer also lacked its required checkbox: setLayerToggle silently returned
+without installing it. Added the missing monument control and an exhaustive
+registry/control check. The check found five other registered but unreachable
+layers (live views, rain gauges, incident reports, dams and Maholan cameras);
+their controls now live in an opt-in Additional public evidence disclosure.
+None is enabled by default, and their source/uncertainty labels remain explicit.
 Added solid surfaces to its existing loft rings: one central prang and four
 satellites. No height, anchor, footprint envelope or evidence tier was enlarged.
 Other monument line drawings remain. No native footprints are hidden for this
@@ -94,3 +100,15 @@ Before screenshots: /tmp/atlas-msh-20261026-before; preview geometry and control
 captures: /tmp/atlas-space-20261026-final. Host load exceeded330; a screenshot
 timed out after the six-width interaction checks. Final solid-model visual
 capture and production release receipt must be recorded after verification.
+
+The stricter shortcut check exposed cold-start readiness issues as well: camera
+movement no longer waits for initial tile completion, and layer installation
+awaits a single initial-load promise. It does not subscribe to a second 'load'
+event when isStyleLoaded becomes false during a fly-to. Only the latest requested
+landmark wins. Independent read-only review reports no confirmed blocker.
+Targeted browser verification now requires an actual monument render announcement
+and nonzero solid-triangle count, not merely a camera zoom. Both shortcuts passed
+with rendered geometry; capture /tmp/atlas-solid-wired/wat-arun.png.
+The first release attempt passed178 tests but correctly refused deployment
+because the stronger QA changes were not yet committed. No unverified version
+was deployed by that attempt.

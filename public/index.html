@@ -625,6 +625,17 @@
           </li>
           <li>
             <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-wireframe-landmarks" />
+              <span class="atlas-layer-name">
+                <strong>Monument drawings</strong>
+                <small>8 reference-based schematics · Wat Arun solid prang profiles · not surveyed</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-wireframe-landmarks-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-wireframe-landmarks" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
               <input type="checkbox" id="toggle-rail" checked />
               <span class="atlas-layer-name">
                 <strong>Rail lines</strong>
@@ -763,6 +774,16 @@
           </li>
         </ul>
 
+        <details class="atlas-layer-fine">
+          <summary>Additional public evidence</summary>
+          <ul class="atlas-layer-list">
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-live-cams" /><span class="atlas-layer-name"><strong>Live views</strong><small>YouTube streams and a bookmark · availability unverified</small></span><span class="atlas-layer-state" id="toggle-live-cams-state">off</span></label><div class="atlas-legend" id="legend-live-cams" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-bkk-rain" /><span class="atlas-layer-name"><strong>BKK rain gauges</strong><small>ThaiWater · check each station's observation time</small></span><span class="atlas-layer-state" id="toggle-bkk-rain-state">off</span></label><div class="atlas-legend" id="legend-bkk-rain" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-flood-incidents" /><span class="atlas-layer-name"><strong>Flood incident reports</strong><small>Reports and gauge context · not measured flood depth or safe routes</small></span><span class="atlas-layer-state" id="toggle-flood-incidents-state">off</span></label><div class="atlas-legend" id="legend-flood-incidents" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-dams" /><span class="atlas-layer-name"><strong>Upstream dams</strong><small>Storage % · not a Bangkok water-arrival forecast</small></span><span class="atlas-layer-state" id="toggle-dams-state">off</span></label><div class="atlas-legend" id="legend-dams" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-maholan-cctv" /><span class="atlas-layer-name"><strong>More CCTV cameras</strong><small>Maholan · operator and unvetted community sources · pictures may be unavailable</small></span><span class="atlas-layer-state" id="toggle-maholan-cctv-state">off</span></label><div class="atlas-legend" id="legend-maholan-cctv" hidden></div></li>
+          </ul>
+        </details>
         <p class="atlas-eyebrow atlas-eyebrow-sub">Landscape</p>
         <ul class="atlas-layer-list atlas-layer-list-sub">
           <li>

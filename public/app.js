@@ -9301,22 +9301,32 @@ async function init() {
   }
 
   state.map = map;
-  map.once('load', () => {
+  // Capture initial readiness once. isStyleLoaded() can become false again
+  // during a fly-to, but the initial 'load' event will not fire a second time.
+  const initialMapLoad = new Promise(resolve => map.once('load', resolve));
+  let landmarkRequest = 0;
+  {
     for (const button of document.querySelectorAll('[data-landmark-view]')) {
       button.disabled = false;
       button.addEventListener('click', async () => {
         const view = LANDMARK_VIEWS[button.dataset.landmarkView];
         if (!view) return;
+        const request = ++landmarkRequest;
         map.flyTo({ ...view, duration: 1400, essential: true });
-        try { await setLayerToggle(map, 'buildings', true); }
-        catch (error) { console.warn('Heritage building view could not load.', error); }
+        // Moving the camera must not wait for initial city-wide tiles. Layer
+        // installation does require a ready style; only the latest jump wins.
+        await initialMapLoad;
+        if (request !== landmarkRequest) return;
         // Wat Arun lies outside the detailed Old Town footprint extract.
         // Its reference-backed monument drawing is a separate opt-in layer.
-        try { await setLayerToggle(map, 'wireframe-landmarks', true); }
+        try { await Promise.all([
+          state.layerOn.buildings ? Promise.resolve() : setLayerToggle(map, 'buildings', true),
+          setLayerToggle(map, 'wireframe-landmarks', true),
+        ]); }
         catch (error) { console.warn('Schematic monument view could not load.', error); }
       });
     }
-  });
+  }
   // ?debug exposes the live state for console inspection; nothing else reads it.
   if (new URLSearchParams(location.search).has("debug")) {
     window.__atlas = state;

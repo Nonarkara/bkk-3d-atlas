@@ -69,4 +69,19 @@ test('heritage entry points land above both model zoom floors at existing anchor
   }
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   for (const id of Object.keys(LANDMARK_VIEWS)) assert.ok(html.includes(`data-landmark-view="${id}"`));
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.match(app, /const initialMapLoad = new Promise/);
+  assert.match(app, /await initialMapLoad/);
+  assert.doesNotMatch(app, /if \(!map.isStyleLoaded\(\)\) await new Promise/);
+});
+
+test('every registered map layer has the control required by setLayerToggle', () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const start = app.indexOf('const LAYERS = [');
+  assert.ok(start >= 0);
+  const registry = app.slice(start, app.indexOf('\n];', start));
+  const ids = [...registry.matchAll(/^    id: "([^"]+)"/gm)].map(m => m[1]);
+  assert.ok(ids.length >= 20, 'the registry check must not silently check an empty slice');
+  for (const id of ids) assert.ok(html.includes(`id="toggle-${id}"`), `${id} cannot be switched on: missing control`);
 });
