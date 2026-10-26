@@ -19,6 +19,7 @@ import {
 } from './building-heights.js';
 import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
 import { FACADE_BAND_FILTER } from './building-facades.js';
+import { LANDMARK_VIEWS } from './landmark-views.js';
 import {
   installCityForms,
   uninstallCityForms,
@@ -1055,13 +1056,14 @@ const LAYERS = [
   },
   {
     id: "wireframe-landmarks",
-    name: "Monument wireframes",
-    description: "Procedural line drawings · 8 landmarks",
+    name: "Monument drawings",
+    description: "8 reference-based schematics · Wat Arun solid prang profiles + line drawings · not surveyed",
     defaultOn: false,
     layers: [WIRE_LAYER_ID],
     install: async (map) => { await installWireframeLandmarks(map); },
     uninstall: (map) => { uninstallWireframeLandmarks(map); },
     legend: [
+      { color: "#e5e0d3", label: "Wat Arun · schematic solid prang profiles" },
       { color: "#f5ecc2", label: "Sulpher Yellow ink on black" },
     ],
     note: "Stylised line drawings from procedural geometry — not a survey, and not a reconstruction. Positions are the monument footprints; proportions are illustrative.",
@@ -7579,7 +7581,7 @@ function revealTask(id) {
   if (!section) return;
   const panel = document.getElementById('atlas-panel');
   if (panel?.contains(section)) panel.setAttribute('aria-hidden','false');
-  if (window.matchMedia('(max-width:720px)').matches && panel?.contains(section) && !panel.classList.contains('is-open')) {
+  if (window.matchMedia('(max-width:1280px)').matches && panel?.contains(section) && !panel.classList.contains('is-open')) {
     document.getElementById('atlas-panel-toggle')?.click();
   }
   if (section.tagName === 'DETAILS') section.open = true;
@@ -9094,21 +9096,29 @@ function wirePhonePanelToggle() {
   const moreBtn = document.getElementById("atlas-news-watch-more");
   if (!btn || !panel) return;
 
-  // Phone only — bail early on desktop.
-  if (window.matchMedia("(min-width: 721px)").matches) return;
-
-  const isPhone = () => window.matchMedia("(max-width: 720px)").matches;
+  const isDrawer = () => window.matchMedia("(max-width: 1280px)").matches;
+  let newsExpanded = false;
 
   function setOpen(open) {
+    const wasOpen = panel.classList.contains('is-open');
+    const drawer = isDrawer();
+    open = drawer && open;
     panel.classList.toggle("is-open", open);
     btn.classList.toggle("is-hidden", open);
     btn.setAttribute("aria-expanded", String(open));
+    panel.inert = drawer && !open;
+    panel.setAttribute("aria-hidden", String(drawer && !open));
+    panel.setAttribute('role', drawer ? 'dialog' : 'complementary');
+    if (open) panel.setAttribute('aria-modal', 'true');
+    else panel.removeAttribute('aria-modal');
     if (open) {
       document.body.style.overflow = "hidden";
       panel.setAttribute("aria-hidden", "false");
+      panel.querySelector('[data-close-sheet]')?.focus();
     } else {
       document.body.style.overflow = "";
-      panel.setAttribute("aria-hidden", "true");
+      if (drawer && wasOpen) btn.focus();
+      else if (!drawer && wasOpen) panel.querySelector('.atlas-area-btn')?.focus();
     }
   }
 
@@ -9122,26 +9132,33 @@ function wirePhonePanelToggle() {
   // Esc closes the sheet
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && panel.classList.contains("is-open")) setOpen(false);
+    if (event.key === 'Tab' && isDrawer() && panel.classList.contains('is-open')) {
+      const controls = [...panel.querySelectorAll('button, a[href], input, select, summary, [tabindex="0"]')]
+        .filter(el => !el.disabled && el.getClientRects().length && !el.closest('[hidden]'));
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
   });
 
   // Collapse news-watch to the 1st headline + a "Show all" toggle.
   // Re-applies every time refreshNewsWatch rebuilds the list.
   function refreshCollapsedNews() {
     if (!newsList) return;
-    if (isPhone()) {
-      newsList.classList.add("atlas-news-watch-list-collapsed");
-    } else {
-      newsList.classList.remove("atlas-news-watch-list-collapsed");
-    }
+    newsList.classList.toggle("atlas-news-watch-list-collapsed", !newsExpanded);
+    if (moreBtn) moreBtn.hidden = newsExpanded || newsList.querySelectorAll('.atlas-news-item').length <= (window.matchMedia('(max-width:720px)').matches ? 1 : 3);
   }
   refreshCollapsedNews();
   window.addEventListener("resize", refreshCollapsedNews);
+  window.addEventListener("resize", () => setOpen(panel.classList.contains('is-open')));
+  setOpen(false);
   // Expose so refreshNewsWatch can re-call it after each refresh
   state._refreshCollapsedNews = refreshCollapsedNews;
 
   // "Show all headlines" button — expands the collapsed news list
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
+      newsExpanded = true;
       newsList?.classList.remove("atlas-news-watch-list-collapsed");
     });
   }
@@ -9150,14 +9167,13 @@ function wirePhonePanelToggle() {
   // knows how many items are inside the sheet.
   function updatePanelToggleCount() {
     if (!btn) return;
-    const newsItems = newsList?.querySelectorAll(".atlas-news-item")?.length ?? 0;
     const sitMods = document.querySelectorAll(".atlas-sit-mod").length;
     const newsCount = newsList?.querySelectorAll(".atlas-news-item").length ?? 0;
     const total = newsCount + sitMods;
     if (total > 0) {
       const countEl = btn.querySelector(".count");
       if (countEl) countEl.textContent = String(total);
-      btn.classList.remove("is-hidden");
+      if (!panel.classList.contains('is-open')) btn.classList.remove("is-hidden");
     }
   }
   updatePanelToggleCount();
@@ -9285,6 +9301,22 @@ async function init() {
   }
 
   state.map = map;
+  map.once('load', () => {
+    for (const button of document.querySelectorAll('[data-landmark-view]')) {
+      button.disabled = false;
+      button.addEventListener('click', async () => {
+        const view = LANDMARK_VIEWS[button.dataset.landmarkView];
+        if (!view) return;
+        map.flyTo({ ...view, duration: 1400, essential: true });
+        try { await setLayerToggle(map, 'buildings', true); }
+        catch (error) { console.warn('Heritage building view could not load.', error); }
+        // Wat Arun lies outside the detailed Old Town footprint extract.
+        // Its reference-backed monument drawing is a separate opt-in layer.
+        try { await setLayerToggle(map, 'wireframe-landmarks', true); }
+        catch (error) { console.warn('Schematic monument view could not load.', error); }
+      });
+    }
+  });
   // ?debug exposes the live state for console inspection; nothing else reads it.
   if (new URLSearchParams(location.search).has("debug")) {
     window.__atlas = state;

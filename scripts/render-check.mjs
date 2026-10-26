@@ -46,8 +46,8 @@ const LAYERS = [
 ];
 
 function die(message, code = 2) {
-  console.error(`render-check: ${message}`);
-  process.exit(code);
+  process.exitCode = code;
+  throw new Error(`render-check: ${message}`);
 }
 
 let version;
@@ -87,7 +87,10 @@ function connect(url) {
 
 const browser = connect(version.webSocketDebuggerUrl);
 await browser.ready;
+let ownedTarget;
+try {
 const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank' });
+ownedTarget = targetId;
 const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
 await browser.send('Page.enable', {}, sessionId);
 await browser.send('Runtime.enable', {}, sessionId);
@@ -147,18 +150,8 @@ await ensureFrames();
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
 // spinning an rAF loop, so they accumulate across a session.
 //
-// This is hygiene, not a fix. It was written on the theory that leaked tabs were
-// starving the compositor; it was not — cleaning them changed nothing about the
-// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
-// still real, not because they caused anything.
-{
-  const { targetInfos } = await browser.send('Target.getTargets');
-  for (const t of targetInfos) {
-    if (t.targetId === targetId || t.type !== 'page') continue;
-    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
-    try { await browser.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
-  }
-}
+// Only the target created by this run belongs to this check. Other Atlas tabs
+// may belong to a person or another audit; URL matching does not grant ownership.
 
 const evaluate = async (expression) => {
   const r = await browser.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
@@ -210,6 +203,28 @@ while (Date.now() < deadline) {
 if (Number(installed) < want.length) {
   die(`only ${installed}/${want.length} layers installed within 75s at zoom ${VIEW.zoom} — the map never finished loading, so nothing can be measured`);
 }
+
+// Wait for the SOURCES, not just the layers.
+//
+// A layer is installed the moment its source is added — long before that
+// source has anything to draw. MapLibre then builds the source's tiles in a
+// worker, and for the 3.8 MB heritage-detail GeoJSON that takes tens of
+// seconds. Measured on the live site: the layer was installed at t=17 s, the
+// source finished loading at t=56 s, and the layer's own pixel footprint
+// climbed 0.03% → 0.31% → 0.80% → 1.0% along that curve.
+//
+// The old check measured in that window and called the layer BLANK. It was
+// installed, it was drawing, and it was 39 seconds away from its real size —
+// so the check reported an empty layer for one that was simply still arriving.
+//
+// So wait for the sources. A source that never loads is not a pass and not a
+// blank: it is a layer that could not be measured, and the run must say so
+// rather than report a number it did not earn.
+const SOURCE_WAIT_MS = 180000;
+const sourceWait = await waitForSources(SOURCE_WAIT_MS);
+if (!sourceWait.ok) {
+  die(`source "${sourceWait.source}" (layer ${sourceWait.id}) had not loaded after ${SOURCE_WAIT_MS / 1000}s — the layer could not be measured, so no verdict can be given`);
+}
 await sleep(6000); // let the first chunks build before anything is measured
 
 // The map is never still: khlongs flow, flood ripples and event pulses animate
@@ -260,6 +275,54 @@ console.log(`render-check: froze ${freeze} animated layer(s); empty-layer calibr
 // this check has had to chase.
 
 mkdirSync(SHOT_DIR, { recursive: true });
+/**
+ * Wait for every measurable layer's source to report loaded.
+ *
+ * Custom layers (the three.js heritage forms, the massing mesh) have no
+ * source — there is nothing to wait for, and MapLibre does not give them one.
+ * They are skipped rather than waited on forever.
+ *
+ * Returns {ok:true} when every source loaded, or {ok:false, id, source} for
+ * the first one that did not, so the caller can name it instead of reporting
+ * a measurement it never took.
+ */
+async function waitForSources(deadlineMs) {
+  const started = Date.now();
+  const waiters = [];
+  for (const { id } of LAYERS) {
+    const source = await evaluate(`(()=>{const m=window.__atlas.map;const l=m.getLayer(${JSON.stringify(id)});if(!l||!l.source)return null;return String(l.source)})()`);
+    if (source) waiters.push({ id, source });
+  }
+  if (!waiters.length) return { ok: true };
+
+  const pending = new Map(waiters.map((w) => [w.source, w.id]));
+  const sources = [...pending.keys()];
+  let lastReport = 0;
+  while (Date.now() - started < deadlineMs) {
+    let state = null;
+    try {
+      state = await evaluate(`(()=>{const m=window.__atlas.map;const out={};for (const s of ${JSON.stringify(sources)}) out[s]=m.isSourceLoaded(s);return out})()`);
+    } catch { /* the page is busy; try again */ }
+    if (state && typeof state === 'object') {
+      for (const [s, id] of [...pending]) {
+        if (state[s]) pending.delete(s);
+      }
+    }
+    const elapsed = (Date.now() - started) / 1000;
+    if (pending.size && elapsed - lastReport >= 10) {
+      lastReport = elapsed;
+      console.log(`render-check: waiting ${pending.size} source(s) to load (${elapsed.toFixed(0)}s): ${[...pending].map(([s, id]) => `${id}<-${s}`).join(', ')}`);
+    }
+    if (!pending.size) {
+      console.log(`render-check: all ${waiters.length} source(s) loaded after ${elapsed.toFixed(1)}s (${waiters.map((w) => w.id).join(', ')})`);
+      return { ok: true };
+    }
+    await sleep(1500);
+  }
+  const [source, id] = [...pending][0];
+  return { ok: false, id, source };
+}
+
 /**
  * Hide a layer, capture, restore, capture. Returns the pixel delta.
  *
@@ -320,8 +383,6 @@ await evaluate(`(()=>{const m=window.__atlas.map;
  return true})()`);
 await sleep(1500);
 
-browser.close();
-
 console.log(`render-check: ${URL} @ zoom ${VIEW.zoom}`);
 let bad = 0;
 for (const r of results) {
@@ -357,7 +418,7 @@ if (bad) {
   if (missing) parts.push(`${missing} not installed`);
   if (bad - missing) parts.push(`${bad - missing} installed but drawing nothing they should`);
   console.error(`render-check: ${parts.join('; ')}`);
-  process.exit(1);
+  die(parts.join('; '), 1);
 }
 console.log('render-check: every expected layer draws');
 
@@ -433,4 +494,9 @@ function differingPixels(aBuf, bBuf) {
     }
   }
   return total ? (100 * diff) / total : 0;
+}
+} finally {
+  try {
+    if (ownedTarget) await browser.send('Target.closeTarget', { targetId: ownedTarget });
+  } finally { browser.close(); }
 }

@@ -4039,3 +4039,41 @@ body.atlas-wall-open { overflow: hidden; }
 .atlas-place-tasks .atlas-lens { color: var(--muted); }
 .atlas-place-tasks .atlas-lens:hover, .atlas-place-tasks .atlas-lens:focus-visible { color: var(--paper); }
 .atlas-place-tasks .atlas-lens.is-active { color: var(--ink); background: var(--signal); }
+
+/* 26 October: compact records, not smaller text or deleted information. */
+.atlas-flood-sources { order: 2; font-size: 11px; }
+.atlas-flood-sources > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; gap: 6px; }
+.atlas-flood-sources > summary::after { content: "+"; }
+.atlas-flood-sources[open] > summary::after { content: "−"; }
+.atlas-flood-sources .atlas-flood-credit { margin: 4px 0; }
+.atlas-flood-sources[open] .atlas-flood-credit > span { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.atlas-quick-stat { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; align-items: baseline; gap: 2px 8px; padding: 4px 10px; }
+.atlas-quick-label { letter-spacing: 0.02em; text-transform: none; }
+.atlas-quick-where { grid-column: 1 / -1; margin: 0; }
+.atlas-quick-value { white-space: nowrap; }
+.atlas-area-btn > span:last-child { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.atlas-bkk-card-place { white-space: normal; overflow-wrap: anywhere; }
+.atlas-news-watch-head { display: block; }
+.atlas-news-watch-meta { display: block; margin-top: 4px; text-align: left; }
+.atlas-news-watch { padding: 8px; margin-bottom: 0; }
+.atlas-news-watch-more[hidden] { display: none; }
+.atlas-operate-bar { gap: 4px; }
+@media (min-width: 721px) {
+  .atlas-news-watch-list-collapsed .atlas-news-item:nth-child(n+4) { display: none; }
+  .atlas-news-watch-more { min-height: 32px; }
+  .atlas-flood-verdict { padding: 6px 8px; gap: 3px; }
+  .atlas-live-band { gap: 0 14px; }
+  .atlas-sit-long { margin-top: 4px; }
+}
+@media (min-width: 1281px) {
+  .atlas-page { grid-template-columns: minmax(0, 1fr) 280px; grid-template-rows: auto minmax(0, 1fr) minmax(0, 180px); }
+  .atlas-panel { padding: 12px; gap: 10px; }
+}
+@media (min-width: 721px) and (max-width: 1280px) {
+  .atlas-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 180px); grid-template-areas: "header" "map" "live"; }
+  .atlas-panel { position: fixed; inset: 0 0 0 auto; width: min(420px, 100%); z-index: 40; height: 100dvh; max-height: none; transform: translateX(100%); padding: 12px; gap: 10px; }
+  .atlas-panel.is-open { transform: none; }
+  .atlas-panel-toggle { display: inline-flex !important; position: fixed; top: 58px; right: 48px; bottom: auto; min-height: 44px; padding: 0 12px; z-index: 19; background: var(--signal); color: var(--ink); border: 1px solid var(--ink); font: inherit; }
+  .atlas-panel-toggle.is-hidden { display: none !important; }
+  .atlas-sheet-close { display: block; min-height: 44px; width: 100%; padding: 8px; color: var(--paper); background: var(--ink); border: 1px solid var(--line); font: inherit; }
+}

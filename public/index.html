@@ -78,6 +78,8 @@
         <button type="button" data-task="place" disabled>Check a place</button>
         <button type="button" data-task="water" disabled>Water now</button>
         <button type="button" data-task="explore" disabled>Explore</button>
+        <button type="button" data-landmark-view="grand-palace" disabled title="Open the source-based schematic heritage models at street scale; not an official survey">Grand Palace 3D</button>
+        <button type="button" data-landmark-view="wat-arun" disabled title="Open Wat Arun's schematic architectural forms at street scale; not an official survey">Wat Arun 3D</button>
         <!-- Lenses: the panel's presets, one tap from the map (Jakarta atlas pattern). -->
         <span class="atlas-lens-divider" aria-hidden="true"></span>
         <button type="button" class="atlas-lens is-active" aria-pressed="true" data-preset="city" title="Buildings, rail, boats, traffic, canals and flood gauges">City</button>
@@ -234,10 +236,13 @@
           <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash <span class="atlas-out" aria-hidden="true"></span></a>
         </div>
         <!-- Visible FloodDash attribution — answers "where does this come from?" -->
+        <details class="atlas-flood-sources">
+        <summary>Data via FloodDash · Sources &amp; limitations</summary>
         <p class="atlas-flood-credit" aria-label="Data source attribution">
           <span class="atlas-flood-credit-dot" aria-hidden="true"></span>
           <span><strong>Data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Nearby-gauge context uses a pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · paired within 250 m; road passability remains unknown. Refresh attempted every 5 min · <span id="atlas-flood-credit-fresh">check each source timestamp</span>.</span>
         </p>
+        </details>
       </div>
       <!-- Compact numbers row — the headline live data, always visible,
            balanced across the width. The long-form board below collapses. -->
@@ -466,7 +471,7 @@
       More <span class="count" id="atlas-panel-toggle-count">…</span>
     </button>
 
-    <aside class="atlas-panel" id="atlas-panel" aria-live="polite" aria-hidden="true">
+    <aside class="atlas-panel" id="atlas-panel" aria-label="City details" aria-live="polite" aria-hidden="true">
       <!-- Sticky close row at the top of the phone sheet. The CSS
            ::before pseudo can't be a real button, so this row is
            rendered for real and given data-close-sheet so the

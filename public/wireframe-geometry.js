@@ -208,19 +208,21 @@ export function segmentCount(positions) {
 export function buildLandmark(id, detail = detailForViewport(1440)) {
   const spec = WIRE_LANDMARKS.find((item) => item.id === id);
   if (!spec) throw new Error(`unknown landmark ${id}`);
-  const draw = createDraw();
+  const draw = createDraw(id === 'arun');
   BUILDERS[id](draw, detail);
   const positions = draw.toArray();
-  return { id, positions, segments: positions.length / 6 };
+  return { id, positions, segments: positions.length / 6, solidPositions: draw.toSurfaces() };
 }
 
 export function buildAll(detail = detailForViewport(1440)) {
   return WIRE_LANDMARKS.map((spec) => ({ spec, ...buildLandmark(spec.id, detail) }));
 }
 
-function createDraw() {
+function createDraw(solid = false) {
   const data = [];
+  const surfaces = [];
   return {
+    triangle(a, b, c) { if (solid) surfaces.push(...a, ...b, ...c); },
     line(a, b) {
       data.push(a[0], a[1], a[2], b[0], b[1], b[2]);
     },
@@ -248,8 +250,14 @@ function createDraw() {
     },
     loft(a, b) {
       const n = Math.min(a.length, b.length);
-      for (let i = 0; i < n; i++) this.line(a[i], b[i]);
+      for (let i = 0; i < n; i++) {
+        this.line(a[i], b[i]);
+        const j = (i + 1) % n;
+        this.triangle(a[i], a[j], b[j]);
+        this.triangle(a[i], b[j], b[i]);
+      }
     },
+    toSurfaces() { return Float32Array.from(surfaces); },
     toArray() {
       return Float32Array.from(data);
     },
@@ -409,7 +417,10 @@ function cornPrang(draw, y0, yTip, radius, rows, radial) {
     draw.loft(shoulder, ring);
     shoulder = ring;
   }
-  for (const p of shoulder) draw.line(p, tip);
+  for (let i = 0; i < shoulder.length; i++) {
+    draw.line(shoulder[i], tip);
+    draw.triangle(shoulder[i], shoulder[(i + 1) % shoulder.length], tip);
+  }
   draw.line([0, cobTop, 0], tip);
 }
 
@@ -430,9 +441,17 @@ function buildArun(draw, detail) {
   cornPrang(draw, 6.4, 70, 7.2, detail.rows, radial);
   const satellites = [[-13, -13], [13, -13], [13, 13], [-13, 13]];
   for (const [x, z] of satellites) {
-    const local = createDraw();
+    const local = createDraw(true);
     cornPrang(local, 1.2, 26, 3.1, Math.max(4, detail.rows - 3), Math.max(6, radial - 2));
     const pts = local.toArray();
+    const faces = local.toSurfaces();
+    for (let i = 0; i < faces.length; i += 9) {
+      draw.triangle(
+        [faces[i] + x, faces[i + 1], faces[i + 2] + z],
+        [faces[i + 3] + x, faces[i + 4], faces[i + 5] + z],
+        [faces[i + 6] + x, faces[i + 7], faces[i + 8] + z],
+      );
+    }
     for (let i = 0; i < pts.length; i += 6) {
       draw.line(
         [pts[i] + x, pts[i + 1], pts[i + 2] + z],

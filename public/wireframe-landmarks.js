@@ -134,6 +134,12 @@ function createLayer(THREE, map, models, detail) {
         this.camera.projectionMatrixAutoUpdate = false;
       }
       this.scene = new THREE.Scene();
+      // Interpretive solid profiles reuse the drawing's credited dimensions.
+      // These are not photogrammetry or surveyed conservation geometry.
+      this.scene.add(new THREE.AmbientLight(0xffffff, 1.8));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+      sun.position.set(-0.5, 1, 0.3);
+      this.scene.add(sun);
       const material = new THREE.LineBasicMaterial({
         color: 0xf5ecc2,
         // depthTest true: heritage buildings render first (bottom of LAYER_STACK),
@@ -158,6 +164,15 @@ function createLayer(THREE, map, models, detail) {
         lines.name = model.id;
         lines.frustumCulled = false;
         root.add(lines);
+        if (model.solidPositions?.length) {
+          const solid = new THREE.BufferGeometry();
+          solid.setAttribute('position', new THREE.Float32BufferAttribute(place(model.solidPositions, east, south, model.spec.yaw), 3));
+          solid.computeVertexNormals();
+          const finish = new THREE.MeshLambertMaterial({ color: 0xe5e0d3, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+          const mesh = new THREE.Mesh(solid, finish);
+          mesh.frustumCulled = false;
+          root.add(mesh);
+        }
         segments += model.segments;
       }
       this.scene.add(root);
@@ -223,6 +238,7 @@ function createLayer(THREE, map, models, detail) {
           phone: !!this.detail?.phone,
           ink: PALETTE.ink,
           models: models.map((model) => model.id),
+          solidTriangles: models.reduce((n, model) => n + (model.solidPositions?.length || 0) / 9, 0),
         };
         window.__bkkxWireReady = true;
         window.__bkkxWireStats = payload;
@@ -231,9 +247,12 @@ function createLayer(THREE, map, models, detail) {
     },
     onRemove() {
       if (this.scene) {
+        const materials = new Set();
         this.scene.traverse((obj) => {
           if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) materials.add(obj.material);
         });
+        for (const material of materials) material.dispose();
       }
       if (this.renderer) {
         try { this.renderer.dispose(); } catch { /* map still owns the context */ }

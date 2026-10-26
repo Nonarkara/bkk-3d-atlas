@@ -132,6 +132,8 @@ const runtime = {
   // triangles it took. Zero means the band is back on the map's extrusion.
   facadeCount: 0,
   facadeTriangles: 0,
+  // Base extrusions stay until a complete custom-layer frame has succeeded.
+  rendered: false,
   // How many buildings the band layer last answered. Zero means the band has
   // not arrived yet — the tiles are still loading — and the refresh keeps
   // waiting for it.
@@ -159,6 +161,7 @@ export function massingDebugState() {
     hiddenIds: runtime.hiddenIds.length,
     facadeCount: runtime.facadeCount,
     facadeTriangles: runtime.facadeTriangles,
+    rendered: runtime.rendered,
     signature: runtime.signature,
     frame: runtime.frame,
     zoom: runtime.map ? Number(runtime.map.getZoom().toFixed(2)) : null,
@@ -806,7 +809,8 @@ export function reapplyMassingFilters(map) {
   if (!runtime.installed) return;
   const target = map || runtime.map;
   if (!target?.getLayer) return;
-  const ids = runtime.active ? runtime.hiddenIds : [];
+  const replacing = runtime.active && runtime.rendered;
+  const ids = replacing ? runtime.hiddenIds : [];
   // The metro layer is NOT id-filtered. Its features come from vector tiles
   // and carry no stable id: the tile-local feature id is a different number
   // in every tile and changes with the zoom, so an id filter over it hides
@@ -818,7 +822,7 @@ export function reapplyMassingFilters(map) {
   // drawing the 13-70 m band, the band is taken out of the extrusion so the
   // two do not fight for the same pixels.
   if (target.getLayer(METRO_LAYER)) {
-    const exclude = runtime.active && runtime.facadeCount > 0 ? ['!', FACADE_BAND_FILTER] : null;
+    const exclude = replacing && runtime.facadeCount > 0 ? ['!', FACADE_BAND_FILTER] : null;
     const filter = exclude && runtime.baseFilter ? ['all', runtime.baseFilter, exclude] : (exclude ? exclude : runtime.baseFilter);
     try { target.setFilter(METRO_LAYER, filter); } catch (error) {
       console.warn('BKKx facade filter failed:', error);
@@ -838,7 +842,7 @@ export function reapplyMassingFilters(map) {
   }
   if (target.getLayer(ROOF_LAYER)) {
     try {
-      target.setFilter(ROOF_LAYER, runtime.palaceShown ? ['!=', ['get', 'name'], PALACE_ROOF_NAME] : null);
+      target.setFilter(ROOF_LAYER, replacing && runtime.palaceShown ? ['!=', ['get', 'name'], PALACE_ROOF_NAME] : null);
     } catch (error) {
       console.warn('BKKx massing roof filter failed:', error);
     }
@@ -1072,6 +1076,7 @@ function createCustomLayer(libs) {
       runtime.facadeContent = this.facadeContent;
     },
     render(gl, args) {
+      const map = this.map;
       if (!runtime.active || !this.renderer || !runtime.content?.visible) return;
       if (typeof maplibregl === 'undefined') return;
       // The scene is built in metres relative to the map centre (rebuildScene
@@ -1087,14 +1092,30 @@ function createCustomLayer(libs) {
         z: coord.z,
         scale: coord.meterInMercatorCoordinateUnits(),
       });
-      if (!matrix) return;
+      if (!matrix) {
+        if (runtime.rendered) {
+          runtime.rendered = false;
+          queueMicrotask(() => reapplyMassingFilters(map));
+        }
+        return;
+      }
       this.camera.projectionMatrix = matrix;
-      this.renderer.resetState();
-      this.renderer.render(this.scene, this.camera);
-      // The facades, lit like the map's own extrusions.
-      if (runtime.facadeContent?.visible) {
+      try {
         this.renderer.resetState();
-        this.renderer.render(runtime.facadeScene, this.camera);
+        this.renderer.render(this.scene, this.camera);
+        // Commit the handoff only after BOTH render passes succeed.
+        if (runtime.facadeContent?.visible) {
+          this.renderer.resetState();
+          this.renderer.render(runtime.facadeScene, this.camera);
+        }
+        if (!runtime.rendered) {
+          runtime.rendered = true;
+          queueMicrotask(() => reapplyMassingFilters(map));
+        }
+      } catch (error) {
+        runtime.rendered = false;
+        console.warn('BKKx custom buildings failed to draw; restoring extrusions.', error);
+        queueMicrotask(() => deactivate(map));
       }
     },
   };
@@ -1195,6 +1216,7 @@ function showPalacePopup(map, lngLat) {
 }
 
 function deactivate(map) {
+  runtime.rendered = false;
   if (!runtime.active && runtime.hiddenIds.length === 0 && !runtime.palaceShown && !runtime.facadeCount) {
     setPalaceNote(false);
     return;
@@ -1216,11 +1238,12 @@ function deactivate(map) {
 }
 
 function rebuildScene(map, libs, towers, palaceObject, facades) {
+  runtime.rendered = false;
   const { THREE } = libs;
   const center = map.getCenter();
   runtime.origin = [center.lng, center.lat];
   runtime.altitude = terrainMeters(map, runtime.origin);
-  if (!runtime.content) return;
+  if (!runtime.content) return [];
   const previous = runtime.content.getObjectByName('towers');
   if (previous) {
     runtime.content.remove(previous);
@@ -1235,9 +1258,11 @@ function rebuildScene(map, libs, towers, palaceObject, facades) {
   towersGroup.name = 'towers';
   towersGroup.frustumCulled = false;
   const hits = [];
+  const builtKeys = new Set();
   for (const built of towers) {
     const mesh = buildTowerBuffers(built, map.getZoom() >= 17 ? 1 : 0);
     if (!mesh) continue;
+    for (const key of mesh.keys) builtKeys.add(key);
     const offset = toLocal(mesh.origin[0], mesh.origin[1], runtime.origin);
     const group = new THREE.Group();
     group.position.set(offset[0], terrainMeters(map, mesh.origin) - runtime.altitude, offset[1]);
@@ -1311,6 +1336,7 @@ function rebuildScene(map, libs, towers, palaceObject, facades) {
   if (runtime.facadeContent) runtime.facadeContent.visible = true;
   runtime.hits = hits;
   runtime.active = true;
+  return [...builtKeys];
 }
 
 async function refreshMassing(map) {
@@ -1370,11 +1396,8 @@ async function refreshMassing(map) {
   }
   if (gen !== runtime.gen) return;
 
-  rebuildScene(map, libs, towers, palaceObject, facades);
-  const hidden = [];
-  for (const feature of towers) {
-    for (const key of featureKeys(feature)) if (!hidden.includes(key)) hidden.push(key);
-  }
+  // A rejected/unsupported footprint has no replacement, so never hide it.
+  const hidden = rebuildScene(map, libs, towers, palaceObject, facades);
   runtime.palaceShown = Boolean(palaceObject);
   if (runtime.palaceShown) {
     for (const key of palaceHideKeys()) if (!hidden.includes(key)) hidden.push(key);
@@ -1410,6 +1433,7 @@ function scheduleRefresh(map) {
     runtime.frame = 0;
     refreshMassing(map).catch((error) => {
       console.warn('BKKx massing refresh failed; extrusions kept.', error);
+      deactivate(map);
     });
   });
 }
@@ -1480,6 +1504,8 @@ export function installBuildingMassing(map, baseFilter) {
   map.on('zoomend', () => armRefresh(map));
   map.on('moveend', () => armRefresh(map));
   map.on('resize', () => armRefresh(map));
+  map.on('webglcontextlost', () => deactivate(map));
+  map.on('webglcontextrestored', () => armRefresh(map));
   map.on('idle', () => scheduleRefresh(map));
   // The map never goes idle here, so the source has to say when it has
   // arrived. This is the signal that the band layer can answer.

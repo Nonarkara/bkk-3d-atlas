@@ -16,7 +16,29 @@ import {
   buildLandmark,
   detailForViewport,
   segmentCount,
+  boundsOf,
 } from '../public/wireframe-geometry.js';
+
+test('Wat Arun solid profiles preserve the drawing envelope, height and five-prang composition', () => {
+  for (const width of [390, 1440]) {
+    const m = buildLandmark('arun', detailForViewport(width));
+    assert.ok(m.solidPositions.length > 0);
+    assert.equal(m.solidPositions.length % 9, 0);
+    assert.ok(m.solidPositions.every(Number.isFinite));
+    const box = boundsOf(m.solidPositions);
+    assert.ok(box.max[1] <= 70.001 && box.max[1] >= 69.99);
+    assert.ok(box.min[0] >= -18 && box.max[0] <= 18);
+    assert.ok(box.min[2] >= -18 && box.max[2] <= 18);
+    assert.ok(m.solidPositions.length / 9 < 10000);
+    for (const [x,z] of [[-13,-13],[13,-13],[13,13],[-13,13]]) {
+      let found = false;
+      for (let i = 0; i < m.solidPositions.length; i += 3) {
+        if (Math.hypot(m.solidPositions[i]-x,m.solidPositions[i+2]-z)<0.2 && m.solidPositions[i+1]>25) found = true;
+      }
+      assert.ok(found, `missing satellite ${x},${z}`);
+    }
+  }
+});
 
 test('every landmark builds finite geometry at every level of detail', () => {
   for (const width of [390, 768, 1440, 2560]) {
