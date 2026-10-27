@@ -129,4 +129,29 @@ when the visual paint-order correction was identified. Cron code was unchanged.
 Release guards now freeze the checked HEAD and stamped public/src diff, recheck
 between cron and main uploads, and refuse mixed-agent assets. No other agent's
 process or service was stopped. The final release must use the frozen revision;
-only documentation receipts should follow it.
+only documentation and QA-only receipts should follow it.
+
+## Production receipt
+
+Published build `bkk-atlas-20261026-1792989375-e62b417`, source e62b417,
+stamp commit deb792b. Main worker version
+401363f5-0fa6-4499-bbeb-e8f6ad4c728c. All181 tests, typecheck and repository
+verification passed. Three consecutive matching production-byte probes and
+34/34 live smoke checks passed. Main and origin/main matched after publishing.
+
+Production pointer/keyboard checks passed at all six listed widths, including
+drawer focus, Escape return, inert closed state and no horizontal overflow.
+The full source credit, situation board and warning expanded successfully.
+Both landmark shortcuts reached the correct camera and an actual monument
+render announcement with nonzero solid triangles. Production captures:
+`/tmp/atlas-live-20261026/`. Independent visual review found no confirmed
+blocker in desktop, phone and both landmark captures. It does not certify
+survey accuracy or every other interface/branch.
+
+Final QA also exposed weaknesses in the older measurement scripts: the phone
+capture could catch a closing drawer mid-transition, and a visible base-road
+layer was wrongly assumed empty for noise calibration. QA now waits for the
+closed drawer to leave the viewport and measures unchanged-state repaint noise
+inside the actual map rectangle. Late custom geometry must settle before the
+pixel gate runs; an unsettled map fails as unproven, never as a blank layer.
+These QA/documentation-only corrections do not change deployed runtime bytes.

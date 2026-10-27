@@ -69,6 +69,9 @@ try {
       assert.equal(await ev(`document.querySelector('#atlas-panel').contains(document.activeElement)`), true);
       await key('Escape', 27);
       assert.equal(await ev(`document.activeElement.id==='atlas-panel-toggle' && document.querySelector('#atlas-panel').inert`), true);
+      // Escape updates semantics immediately; wait for the closing transition
+      // before measuring visible space or taking the phone screenshot.
+      await ev(`new Promise((resolve,reject)=>{const start=Date.now();const t=setInterval(()=>{const r=document.querySelector('#atlas-panel').getBoundingClientRect();if(r.top>=innerHeight-1||r.left>=innerWidth-1){clearInterval(t);resolve(true)}else if(Date.now()-start>3000){clearInterval(t);reject(Error('closed drawer still covers map'))}},50)})`);
     } else {
       assert.equal(state.hidden, 'false'); assert.equal(state.inert, false);
       const hasHeadlines = await ev(`new Promise(resolve=>{const start=Date.now();const t=setInterval(()=>{if(!document.querySelector('#atlas-news-watch-more').hidden){clearInterval(t);resolve(true)}else if(Date.now()-start>15000){clearInterval(t);resolve(false)}},200)})`);
@@ -76,12 +79,25 @@ try {
         await click('#atlas-news-watch-more');
         assert.equal(await ev(`!document.querySelector('#atlas-news-watch-list').classList.contains('atlas-news-watch-list-collapsed')`), true);
       } else console.log('UNVERIFIED headline expansion: upstream supplied fewer than four items');
+      await click('.atlas-flood-sources > summary');
+      assert.equal(await ev(`document.querySelector('.atlas-flood-sources').open && getComputedStyle(document.querySelector('.atlas-flood-credit > span:last-child')).overflow !== 'hidden'`), true);
+      await click('.atlas-flood-sources > summary');
+      await click('#atlas-sit-long > summary');
+      assert.equal(await ev(`document.querySelector('#atlas-sit-long').open`), true);
+      await click('#atlas-sit-long > summary');
+      await click('#atlas-warning-expand');
+      assert.equal(await ev(`document.querySelector('#atlas-warning-expand').getAttribute('aria-expanded')`), 'true');
+      await click('#atlas-warning-expand');
     }
     const shot = await capture();
     writeFileSync(`${out}/${width}.png`, Buffer.from(shot.data, 'base64'));
     console.log(`PASS ${width}×${height}: map ${(state.map*100).toFixed(1)}%, drawer/focus/overflow`);
   }
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  // Restore the real default rail after exercising Show all. Do not change
+  // classes with injected code just to make a more flattering screenshot.
+  await send('Page.reload', { ignoreCache: true });
+  await ev(`new Promise((resolve,reject)=>{const start=Date.now();const t=setInterval(()=>{const b=document.querySelector('[data-landmark-view="grand-palace"]');if(b&&!b.disabled){clearInterval(t);resolve(true)}else if(Date.now()-start>25000){clearInterval(t);reject(Error('landmark controls did not boot'))}},200)})`);
   for (const landmark of ['grand-palace', 'wat-arun']) {
     await click(`[data-landmark-view="${landmark}"]`);
     const [lng, lat] = LANDMARK_VIEWS[landmark].center;
