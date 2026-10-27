@@ -28,6 +28,7 @@ import {
   BUILDINGS_LAYER_MIN_ZOOM,
   BUILDINGS_SOURCE_MAX_ZOOM,
 } from './layer-zooms.js';
+import { hashTarget } from './hash-target.js';
 import { LANDMARK_VIEWS } from './landmark-views.js';
 import {
   installCityForms,
@@ -1718,7 +1719,13 @@ function flyToArea(id, { updateHash = true, instant = false } = {}) {
 
 function parseHashId() {
   if (typeof location === "undefined") return null;
-  const raw = (location.hash || "").replace(/^#/, "").trim();
+  // Tolerate a path-style hash — "#/yaowarat-chinatown" as well as
+  // "#yaowarat-chinatown". A share link that silently does nothing is worse
+  // than one that works: setActiveArea() no-ops on an unknown id without a
+  // word, so the visitor lands on the opening view and concludes the link is
+  // broken. The atlas's own links carry no slash, but a person typing one
+  // (or another site building a path-style hash) should still be understood.
+  const raw = hashTarget(typeof location === "undefined" ? "" : location.hash);
   // Reserved for the About drawer / in-drawer anchors — not area ids.
   if (!raw || raw === "about" || raw.startsWith("about-")) return null;
   return raw;
@@ -7929,7 +7936,7 @@ function wireAboutDrawer() {
     research: ["Research", "How it’s built, and how sure it is"],
   };
   let pane = "about";
-  const isPaneHash = () => PANES.includes(window.location.hash.slice(1));
+  const isPaneHash = () => PANES.includes(hashTarget(typeof location === "undefined" ? "" : location.hash));
 
   const setHashAbout = (open) => {
     const url = new URL(window.location.href);
@@ -8020,9 +8027,9 @@ function wireAboutDrawer() {
     });
   });
 
-  if (isPaneHash()) openAbout(window.location.hash.slice(1));
+  if (isPaneHash()) openAbout(hashTarget(typeof location === "undefined" ? "" : location.hash));
   window.addEventListener("hashchange", () => {
-    if (isPaneHash()) openAbout(window.location.hash.slice(1));
+    if (isPaneHash()) openAbout(hashTarget(typeof location === "undefined" ? "" : location.hash));
     else if (isOpen()) closeAbout();
   });
 }
