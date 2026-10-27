@@ -12,6 +12,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The zoom floors and ceilings the building layers share. Read as VALUES, so
+// a check proves what the app uses rather than how the number was spelled.
+const zoomConstants = await import(new URL("../public/layer-zooms.js", import.meta.url));
 const errors = [];
 const notes = [];
 
@@ -359,12 +362,18 @@ if (!html.includes('id="toggle-water-transit"') || !html.includes('id="legend-wa
 // disappeared above z15. The metro archive now carries native tiles to z17,
 // so there is no handoff any more — and the check has to say THAT, not
 // insist on a constant that now means the opposite.
+//
+// The values are read from the module the app imports, not matched as text
+// in app.js: the floors and ceilings live in public/layer-zooms.js now, and
+// a text match would only prove that a literal was still spelled the old way.
 if (app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) {
   fail("street-zoom buildings still hand off to a second source — the metro archive reaches z17 on its own");
-} else if (!/BKKX_BUILDINGS_MAX_ZOOM\s*=\s*17/.test(app)) {
-  fail("BKKX_BUILDINGS_MAX_ZOOM is not 17 — the metro archive carries native tiles to z17");
-} else if (!/BKKX_BUILDINGS_LAYER_MAX_ZOOM\s*=\s*24/.test(app)) {
-  fail("BKKX_BUILDINGS_LAYER_MAX_ZOOM must sit above the source's deepest zoom, or the layer stops early");
+} else if (zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM !== 17) {
+  fail(`the metro archive's source zoom is ${zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM}, not 17 — the archive carries native tiles to z17`);
+} else if (zoomConstants.BUILDINGS_LAYER_MAX_ZOOM <= zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM) {
+  fail(`the layer's ceiling (z${zoomConstants.BUILDINGS_LAYER_MAX_ZOOM}) must sit above the source's deepest zoom (z${zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM}), or the layer stops early`);
+} else if (zoomConstants.ATLAS_MIN_ZOOM < zoomConstants.BUILDINGS_SOURCE_MIN_ZOOM) {
+  fail(`the map allows z${zoomConstants.ATLAS_MIN_ZOOM} but the archive starts at z${zoomConstants.BUILDINGS_SOURCE_MIN_ZOOM} — below that MapLibre switches the source off and the city is simply absent`);
 } else {
   ok("street-zoom buildings come from one archive to z17, with no handoff");
 }
@@ -617,7 +626,8 @@ if (!html.includes('id="atlas-massing-note"') || !html.includes("Approximate mod
   fail("index.html missing the Grand Palace stand-in note");
 } else ok("index.html has the Grand Palace stand-in note");
 const massingSrc = readFileSync(join(root, "public/building-massing.js"), "utf8");
-if (!app.includes("installBuildingMassing") || !massingSrc.includes("MASSING_MIN_ZOOM = 16") || !massingSrc.includes("await import('three')")) {
+const massingModule = await import(new URL("../public/building-massing.js", import.meta.url));
+if (!app.includes("installBuildingMassing") || massingModule.MASSING_MIN_ZOOM !== 16 || !massingSrc.includes("await import('three')")) {
   fail("building massing is not wired");
 } else ok("building massing is wired and three.js stays lazy");
 const massingTest = spawnSync(process.execPath, ["--test", "scripts/test-building-massing.mjs"], { cwd: root, encoding: "utf8" });

@@ -19,6 +19,15 @@ import {
 } from './building-heights.js';
 import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
 import { FACADE_BAND_FILTER } from './building-facades.js';
+import {
+  ATLAS_MAX_PITCH,
+  ATLAS_MAX_ZOOM,
+  ATLAS_MIN_ZOOM,
+  BAND_LAYER_MIN_ZOOM,
+  BUILDINGS_LAYER_MAX_ZOOM,
+  BUILDINGS_LAYER_MIN_ZOOM,
+  BUILDINGS_SOURCE_MAX_ZOOM,
+} from './layer-zooms.js';
 import { LANDMARK_VIEWS } from './landmark-views.js';
 import {
   installCityForms,
@@ -70,14 +79,14 @@ const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
 // --simplification=8, which is both native and sharper than an
 // overscaled z14 planet tile, so the handoff is gone.
 const BKKX_BUILDINGS_LAYER = "bkkx-3d-buildings";
-const BKKX_BUILDINGS_MAX_ZOOM = 17;
+const BKKX_BUILDINGS_MAX_ZOOM = BUILDINGS_SOURCE_MAX_ZOOM;
 // The layer's zoom range is [minzoom, maxzoom) — the upper bound is
 // EXCLUSIVE. A layer capped at 17 is therefore not drawn at zoom 17, and
 // because MapLibre only asks a source for tiles when a visible layer
 // needs them, the whole city disappeared at exactly z17: no tiles were
 // requested, so nothing was drawn. The layer's ceiling has to sit ABOVE
 // the source's deepest zoom; the source then overzooms its last tile.
-const BKKX_BUILDINGS_LAYER_MAX_ZOOM = 24;
+const BKKX_BUILDINGS_LAYER_MAX_ZOOM = BUILDINGS_LAYER_MAX_ZOOM;
 // The band layer: the 13-70 m band held with no opacity, so the facade mesh
 // and the rooftop plant can ask which buildings are in it even when the
 // extrusion has handed the band over to the mesh.
@@ -85,7 +94,7 @@ const FACADE_BAND_LAYER = "bkkx-3d-buildings-band";
 // The band only exists at street zoom — that is where the facades are drawn,
 // and an invisible layer over the whole metro area would cost a pass over
 // every building in the city.
-const BKKX_BUILDINGS_LAYER_MIN_ZOOM = 16;
+const BKKX_BUILDINGS_LAYER_MIN_ZOOM = BAND_LAYER_MIN_ZOOM;
 
 // Rattanakosin / Grand Palace detail — full unsimplified OSM footprints
 // (GeoJSON) with heritage heights baked in. Replaces the tippecanoe
@@ -1957,7 +1966,7 @@ function installBuildings(map) {
         type: "fill-extrusion",
         source: sourceName,
         "source-layer": sourceLayer,
-        minzoom: 11,
+        minzoom: BUILDINGS_LAYER_MIN_ZOOM,
         // The archive carries native tiles to z17, so the layer draws at
         // street zoom instead of handing off to a source that had none.
         maxzoom: BKKX_BUILDINGS_LAYER_MAX_ZOOM,
@@ -9284,9 +9293,9 @@ async function init() {
     zoom: initialArea ? initialArea.zoom : defaultZoom(state.areas),
     pitch: initialArea ? initialArea.pitch ?? 55 : 55,
     bearing: initialArea ? initialArea.bearing ?? 0 : 0,
-    minZoom: 10,
-    maxZoom: 19,
-    maxPitch: 75,
+    minZoom: ATLAS_MIN_ZOOM,
+    maxZoom: ATLAS_MAX_ZOOM,
+    maxPitch: ATLAS_MAX_PITCH,
     canvasContextAttributes: { antialias: true }, // v5+: moved out of MapOptions
     hash: false,
     attributionControl: { compact: true },

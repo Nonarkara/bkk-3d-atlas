@@ -26,9 +26,10 @@ import {
 } from './building-facades.js';
 import { buildingColorFor } from './building-colors.js';
 import { HEIGHT_GET, heightFor } from './building-heights.js';
+import { MASSING_LAYER_MIN_ZOOM } from './layer-zooms.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
-export const MASSING_MIN_ZOOM = 16;
+export const MASSING_MIN_ZOOM = MASSING_LAYER_MIN_ZOOM;
 // A tower starts exactly where the facade band stops. These are ONE number on
 // purpose: the band is [FACADE_MIN_METERS, TALL_MIN_METERS) and a tower is
 // [TALL_MIN_METERS, infinity), so the two partition the city. Two numbers

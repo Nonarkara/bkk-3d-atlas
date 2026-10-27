@@ -18,7 +18,7 @@
 // measures differently: bkkx-heritage-forms reads 1.83% at 756x469 and 0.66%
 // at 1600x1000. Both are far above noise and both mean the same thing. Do not
 // read a change in this number as a regression without re-running on the same
-// window — compare against the 0.05% floor, not against a previous run.
+// window — compare against the measured noise floor, not a previous run.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
@@ -242,31 +242,32 @@ const freeze = await evaluate(`(()=>{const m=window.__atlas.map;let n=0;
  return n})()`);
 await sleep(2500);
 
-// Two things had to be separated, and both my first attempts got one of them
-// wrong. Still captures with nothing changed agree to 0.000%. But two captures
-// of the same state separated by a hide-and-restore differ by more, because
-// toggling nudges MapLibre into a different render state and some pixels settle
-// differently. That second number is the one that matters — it is
-// indistinguishable from a very faint layer.
-//
-// Calibrating it on an animated layer gave 0.449%, which is that layer's real
-// footprint, not churn, and a 0.897% floor then reported three genuinely-drawing
-// layers BLANK. So calibrate against layers that are empty at this view and are
-// not under test: `background` sits under the satellite layer, and
-// `highway_minor` is the base style's minor roads, which the atlas replaces with
-// bkkx-roads-minor. Take the larger so one of them spiking shows up as a
-// visibly raised floor rather than a silently lenient check.
-// differingPixels returns a percentage (0.15 means 0.15%); these are the same
-// units. An earlier Math.max(0.02, ...) was a fraction measured against
-// percentages and silently set a 0.02% floor.
-const CALIBRATION = ['background', 'highway_minor'];
+// A base-style road is not a valid empty-layer control: after paint-order or
+// imagery changes it may genuinely draw. Measure unchanged-state repaint noise
+// instead, and sample the actual map rectangle rather than a historic crop.
+// Values are percentages: 0.15 means 0.15%, not a fraction of 15%.
+const mapBounds = await evaluate(`(()=>{const r=document.querySelector('#atlas-map').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})()`);
+const CALIBRATION = ['unchanged-repaint-1', 'unchanged-repaint-2'];
 const calib = {};
-for (const id of CALIBRATION) {
-  calib[id] = await toggleDelta(id);
+// Loaded GeoJSON can still be producing custom geometry. Bound the wait for
+// two quiet repaint pairs; never turn that late-arriving geometry into a high
+// noise floor that falsely declares small, visible layers blank.
+let calibFloor = Infinity;
+for (let attempt = 1; attempt <= 4; attempt++) {
+  for (const id of CALIBRATION) {
+    const before = await shot();
+    await evaluate('window.__atlas.map.triggerRepaint(); true');
+    await sleep(2200);
+    calib[id] = differingPixels(before, await shot());
+  }
+  calibFloor = Math.max(...Object.values(calib).map(n => n === null ? Infinity : n));
+  if (calibFloor <= 0.05) break;
+  console.log(`render-check: calibration ${attempt}/4 unsettled (${calibFloor.toFixed(3)}%); waiting for stable map`);
+  await sleep(2500);
 }
-const calibFloor = Math.max(...Object.values(calib).map((n) => (n === null ? 0 : n)));
+if (calibFloor > 0.05) die('unchanged map did not settle below 0.05%; layer visibility is unproven, not blank');
 const FLOOR = Math.max(0.02, calibFloor * 2);
-console.log(`render-check: froze ${freeze} animated layer(s); empty-layer calibration ${Object.entries(calib).map(([k, v]) => `${k}=${v === null ? 'n/a' : v.toFixed(3) + '%'}`).join(' ')} → threshold ${FLOOR.toFixed(3)}%`);
+console.log(`render-check: froze ${freeze} animated layer(s); unchanged-state calibration ${Object.entries(calib).map(([k, v]) => `${k}=${v === null ? 'n/a' : v.toFixed(3) + '%'}`).join(' ')} → threshold ${FLOOR.toFixed(3)}%`);
 
 // They stay frozen for the whole run and go back at the very end. Restoring
 // them here made the map animate again between every capture pair in the
@@ -323,26 +324,6 @@ async function waitForSources(deadlineMs) {
   return { ok: false, id, source };
 }
 
-/**
- * Hide a layer, capture, restore, capture. Returns the pixel delta.
- *
- * Restores the layer's ORIGINAL visibility, not 'visible'. bkkx-heritage-roofs-3d
- * is suppressed by the forms layer, so it already reads 'none'. A restore that
- * assumed 'visible' switched it back on — measured its true 288-feature
- * footprint, reported the deliberately-asleep layer as NOISY, and left it
- * visible for the rest of the run. A check that changes the thing it measures is
- * worse than one that reads it.
- */
-async function toggleDelta(id) {
-  const before = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
-  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility','none')}catch(e){};return true})()`);
-  await sleep(2200);
-  const off = await shot();
-  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility',${JSON.stringify(before)})}catch(e){};return true})()`);
-  await sleep(1600);
-  return differingPixels(await shot(), off);
-}
-
 const results = [];
 
 for (const { id, expect = 'visible', why } of LAYERS) {
@@ -354,7 +335,7 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   const before = await shot();
   // Hide rather than remove: removal tears down state we want to keep for the
   // next layer, and MapLibre's onRemove can mask what the layer actually drew.
-  // Remember and restore the original visibility — see toggleDelta.
+  // Restore the original visibility, never wake the superseded roof pilot.
   const wasVisible = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
   await evaluate(`(()=>{const m=window.__atlas.map; m.setLayoutProperty(${JSON.stringify(id)},'visibility','none'); return true})()`);
   await sleep(400);
@@ -403,7 +384,7 @@ for (const r of results) {
     console.log(`  BROKEN   ${r.id} — the two captures are not comparable`);
     bad++;
   } else if (r.pct <= FLOOR) {
-    console.log(`  BLANK    ${r.id} — installed but changes no pixels (${r.pct.toFixed(3)}%)`);
+    console.log(`  UNPROVEN ${r.id} — delta ${r.pct.toFixed(3)}% does not exceed measured noise`);
     bad++;
   } else {
     console.log(`  draws    ${r.id} — ${r.pct.toFixed(2)}% of the map area`);
@@ -416,7 +397,7 @@ if (bad) {
   const missing = results.filter((r) => !r.present).length;
   const parts = [];
   if (missing) parts.push(`${missing} not installed`);
-  if (bad - missing) parts.push(`${bad - missing} installed but drawing nothing they should`);
+  if (bad - missing) parts.push(`${bad - missing} installed but visibility not proven above noise`);
   console.error(`render-check: ${parts.join('; ')}`);
   die(parts.join('; '), 1);
 }
@@ -477,12 +458,14 @@ function differingPixels(aBuf, bBuf) {
   // carries the build stamp, and either would hand every layer a free few
   // percent of "it draws". Bounds are a fraction of the capture so a different
   // window size samples the same region rather than quietly a different one.
-  const y0 = Math.round(a.h * 0.245);
-  const y1 = Math.round(a.h * 0.87);
+  const y0 = Math.max(0, Math.ceil(mapBounds.y));
+  const y1 = Math.min(a.h, Math.floor(mapBounds.y + mapBounds.height));
+  const x0 = Math.max(0, Math.ceil(mapBounds.x));
+  const x1 = Math.min(a.w, Math.floor(mapBounds.x + mapBounds.width));
   let diff = 0;
   let total = 0;
   for (let y = y0; y < y1; y++) {
-    for (let x = 0; x < a.w; x++) {
+    for (let x = x0; x < x1; x++) {
       const o = (y * a.w + x) * a.channels;
       const d = Math.max(
         Math.abs(a.data[o] - b.data[o]),
