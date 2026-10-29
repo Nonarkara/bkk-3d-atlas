@@ -1,5 +1,10 @@
 # Landmark reconstruction and traffic-vision pilot
 
+For the29 October2026 open-source comparison and repeatable production gates,
+see [Landmark production playbook](landmark-production-playbook.md). It records
+missing roof-tag coverage and concave-plan limits; no new reconstructed model
+is implied by that research.
+
 ## Release boundary
 
 This release builds the intake and local reconstruction path. It does **not** contain a reconstructed Wat Arun or Grand Palace. The existing palace GLB remains an approximate OSM-footprint model. No new geometry has been promoted to the live map and no building fallback has been removed.
