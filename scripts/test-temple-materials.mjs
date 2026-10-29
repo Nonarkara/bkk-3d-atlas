@@ -284,7 +284,7 @@ test('every form the atlas draws carries a declared body material', () => {
 });
 
 test('the Old Town is no longer one colour', () => {
-  // The measure that started this: 298 of 322 temples were the same white.
+  // The measure that started this: 302 of 319 temples were the same white.
   const forms = allForms();
   const temples = forms.filter((f) => f.kind !== 'shophouse');
   const counts = new Map();
@@ -307,7 +307,7 @@ test('the Old Town is no longer one colour', () => {
 
 // ── 3. the plan fits inside the footprint ─────────────────────────────────
 
-test('no form overhangs the footprint it was drawn from', () => {
+test('forms stay within their footprint convex hull plus declared eave allowance', () => {
   // A roof may hang past its walls — that is what a roof does — but the plan
   // itself may not leave the footprint. The allowance is the roof overhang
   // the geometry declares, measured against the footprint's own size, so a

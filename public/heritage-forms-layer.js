@@ -192,25 +192,31 @@ export function visibleCells(bounds, deg = CHUNK_DEG) {
   return out;
 }
 
-function describe(form) {
+function escapeFormText(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+export function describe(form) {
   if (form.kind === 'shophouse') {
     const sh = form.shophouse ?? {};
     return [
-      form.name || 'Shophouse row candidate',
-      `${sh.floors ?? '?'} storeys · ${Math.round(form.height)} m (assumed storey height)`,
-      `Corridor: ${sh.cluster ?? 'unknown'} · ${sh.strength ?? 'unknown strength'}`,
+      escapeFormText(form.name || 'Shophouse row candidate'),
+      `${escapeFormText(sh.floors ?? '?')} storeys · ${Math.round(form.height)} m (assumed storey height)`,
+      `Corridor: ${escapeFormText(sh.cluster ?? 'unknown')} · ${escapeFormText(sh.strength ?? 'unknown strength')}`,
       `<b>Unverified candidate.</b> Detected by morphology screen, not a heritage survey.`,
       'Not a designated heritage structure. Not evidence for protection, value or demolition.',
     ].join('<br>');
   }
   const named = form.confidence === 'named';
   return [
-    form.name || '(unnamed building)',
-    KIND_LABEL[form.kind] || form.kind,
+    escapeFormText(form.name || '(unnamed building)'),
+    escapeFormText(KIND_LABEL[form.kind] || form.kind),
     named
       ? 'Named building · Thai name identifies the type.'
       : 'Inferred from building type and footprint shape.',
     'Roof tiers and profile are a typological reading, not a measurement.',
+    'Colours suggest materials from names/types; they are not verified finishes.',
+    'Plan fitted to a convex hull; courtyards and concavities are not reconstructed.',
     `Height ${Math.round(form.base + form.height)} m from the atlas height value.`,
   ].join('<br>');
 }
