@@ -11,14 +11,21 @@
 // over the map's own extrusions. A building that is orange on the map and
 // grey in the mesh would show a grey patch on an orange wall. So the table
 // is written once, as data, and both copies are generated from it.
+//
+// A religious building is not painted from a colour picked here. It is
+// painted from the temple material table — the same gold the forms mesh
+// gilds its pediments with and the massing layer roofs with — so a wat is
+// one colour in the map, in the massing and in the form standing on it.
+
+import { hexOf } from './temple-materials.js';
 
 export const BUILDING_COLOR_TABLE = {
-  // cultural / religious — gold + warm bronze
-  temple: '#f5b800',
-  pagoda: '#f5b800',
-  shrine: '#e9a91a',
-  wayside_shrine: '#e9a91a',
-  monastery: '#b08c1f',
+  // cultural / religious — the declared gold, and its darker step
+  temple: hexOf('gold'),
+  pagoda: hexOf('gold'),
+  shrine: hexOf('gold', 'shade'),
+  wayside_shrine: hexOf('gold', 'shade'),
+  monastery: hexOf('gold', 'shade'),
   mosque: '#a8c84a',
   church: '#c89b3c',
   cathedral: '#c89b3c',
@@ -75,7 +82,9 @@ export const BUILDING_COLOR_TABLE = {
   condominium: '#fb923c',
   // transport
   train_station: '#f1efe8',
-  transportation: '#f5b800',
+  // A transport shed is not a temple. It used to wear the temple gold, which
+  // made a bus depot read as a wat.
+  transportation: '#b8b8b8',
   parking: '#525252',
   garage: '#525252',
   garages: '#525252',

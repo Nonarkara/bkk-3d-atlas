@@ -9,7 +9,9 @@
 //
 // Colours are the atlas palette: paper #f1efe8, ink #11120f, the existing
 // tower steel #9ba3b4, and gold #c9a227 (paper.css --paper-accent) on roofs
-// only. No textures. Footprints stay © OpenStreetMap contributors, ODbL.
+// only. The gold is read from the temple material table, so the massing roof
+// and the forms mesh's pediment are the same metal. No textures. Footprints
+// stay © OpenStreetMap contributors, ODbL.
 
 import { GRAND_PALACE_SLOT, PALACE_ROOF_NAME } from './grand-palace-slot.js';
 import { composeProjection } from './custom-layer-matrix.js';
@@ -27,6 +29,7 @@ import {
 import { buildingColorFor } from './building-colors.js';
 import { HEIGHT_GET, heightFor } from './building-heights.js';
 import { MASSING_LAYER_MIN_ZOOM } from './layer-zooms.js';
+import { intOf } from './temple-materials.js';
 
 export const MASSING_LAYER = 'bkkx-building-massing';
 export const MASSING_MIN_ZOOM = MASSING_LAYER_MIN_ZOOM;
@@ -46,7 +49,9 @@ export const MASSING_PALETTE = {
   paperStrong: 0xfffdf5,
   ink: 0x11120f,
   steel: 0x9ba3b4,
-  gold: 0xc9a227,
+  // The same gold the forms mesh gilds its pediments with, and the same gold
+  // the map paints a temple with. One metal across the atlas.
+  gold: intOf('gold'),
   // 84% paper mixed with 16% ink, so shade faces stay inside the two tokens.
   shade: 0xcdcbc5,
 };

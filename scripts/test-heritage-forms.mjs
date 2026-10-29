@@ -30,9 +30,9 @@ test('a Thai name identifies the type; the footprint only guesses', () => {
   assert.equal(classify(feature({ name: 'พระวิหารยอด', building: 'temple', height: 20 })).kind, 'hall');
 });
 
-test('attama prangs and gold chedis keep their finish', () => {
-  assert.equal(classify(feature({ name: 'พระสัมมาสัมพุทธมหาเจดีย์', height: 60 })).finish, 'ceramic');
-  assert.equal(classify(feature({ name: 'พระศรีรัตนเจดีย์', height: 60 })).finish, 'gold');
+test('attama prangs and gold chedis keep their material', () => {
+  assert.equal(classify(feature({ name: 'พระสัมมาสัมพุทธมหาเจดีย์', height: 60 })).material, 'ceramic');
+  assert.equal(classify(feature({ name: 'พระศรีรัตนเจดีย์', height: 60 })).material, 'gold');
 });
 
 test('a European-style throne hall is refused, not guessed', () => {
