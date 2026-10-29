@@ -1044,6 +1044,18 @@ body.is-night .atlas-header {
   transform: translateY(2px);
 }
 
+.atlas-heritage-popup .maplibregl-popup-content {
+  background: #fff;
+  color: var(--ink);
+  padding: 12px 44px 12px 12px;
+  box-shadow: none;
+}
+.atlas-heritage-popup .maplibregl-popup-close-button {
+  color: var(--ink);
+  width: 44px;
+  height: 44px;
+  font-size: 24px;
+}
 .atlas-cctv-popup .maplibregl-popup-content {
   background: var(--ink);
   color: var(--paper);

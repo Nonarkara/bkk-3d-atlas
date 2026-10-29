@@ -427,7 +427,7 @@ export async function installHeritageForms(map, features) {
     if (!runtime.active) return;
     const form = nearestForm(event.lngLat);
     if (!form) return;
-    new window.maplibregl.Popup({ closeButton: true, maxWidth: '320px' })
+    new window.maplibregl.Popup({ className: 'atlas-heritage-popup', closeButton: true, maxWidth: '320px' })
       .setLngLat(event.lngLat)
       .setHTML(describe(form))
       .addTo(map);
