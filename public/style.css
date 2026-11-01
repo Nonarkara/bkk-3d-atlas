@@ -4106,3 +4106,55 @@ body.atlas-wall-open { overflow: hidden; }
 @media (pointer: coarse) {
   .atlas-map .maplibregl-ctrl-group button { width: 44px; height: 44px; }
 }
+
+/* MSH blind audit, 2026-11-01, second pass. Defects measured on the live
+   site by an auditor who did not build it.
+   Phone (390 x 844):
+   - The live band kept a two-column grid whose second column (the headline
+     numbers) is hidden on phones, so the verdict got 197 px and an empty
+     141 px column sat under the floating More button. One column now.
+   - The verdict headline was cut mid-glyph at the fold: the peek is now
+     136 px, enough for the strip head and the whole verdict line.
+   - Six verdict actions hid 73% of themselves in a 175 px sideways scroller.
+     They wrap into visible 32 px rows (a dense control group, 11.12).
+   - More floated over the verdict. It docks in the strip's head row and
+     scrolls with it (the page is static on phones, so absolute is
+     document-relative).
+   Desktop:
+   - Verdict meta ran ~99 characters a line; the Thai reason and the notes
+     74-77. Prose stops at 65ch.
+   - The actions wrapped one "FloodDash" onto its own row: tighter padding.
+   - At 1024 More floated 10 px below the lens row and read "More17".
+   - Quick-jump names sat in 54 px boxes (rows stretched to the tallest
+     neighbour); rows are 32 px, names stay one line.
+   Touch: the attribution (i) and the wordmark were 24 and 22 px targets. */
+@media (max-width: 720px) {
+  .atlas-page { grid-template-rows: auto calc(100svh - 61px - 136px) auto auto; }
+  .atlas-live-band { grid-template-columns: minmax(0, 1fr); }
+  .atlas-flood-verdict-actions { flex-wrap: wrap; overflow-x: visible; }
+  .atlas-flood-verdict-btn { min-height: 32px; padding: 0 10px; }
+  .atlas-bkk-live-head { padding-right: 108px; min-height: 44px; }
+  .atlas-panel-toggle { position: absolute; top: calc(100svh - 136px + 2px); bottom: auto; right: 12px; }
+}
+#atlas-flood-verdict-meta, #atlas-flood-verdict-reason-th, .atlas-sit-note, .atlas-water-note { max-width: 65ch; }
+@media (min-width: 721px) {
+  .atlas-flood-verdict-actions { gap: 4px; }
+  .atlas-flood-verdict-btn { padding: 0 8px; }
+}
+@media (min-width: 721px) and (max-width: 1280px) {
+  .atlas-panel-toggle { top: 58px; min-height: 34px; }
+}
+.atlas-panel-toggle .count { margin-left: 6px; }
+/* Names stay one line (title= carries the full name), so every row is the
+   same 32 px and edges meet across the two columns. The track must be
+   minmax(0, 1fr) or the ellipsis never engages. */
+.atlas-area-btn { min-height: 32px; padding: 6px 8px; grid-template-columns: auto minmax(0, 1fr); }
+.atlas-area-grid .atlas-area-btn > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (pointer: coarse) {
+  .atlas-area-btn { min-height: 32px; }
+  /* A 44 px tap area around the unchanged 24 px (i): enlarging the button
+     itself shifted the icon inside MapLibre's rounded credit box. */
+  .atlas-map .maplibregl-ctrl-attrib-button { position: relative; }
+  .atlas-map .maplibregl-ctrl-attrib-button::after { content: ""; position: absolute; inset: -10px; }
+  .atlas-brand > a.wordmark { min-height: 44px; display: inline-flex; align-items: center; }
+}
