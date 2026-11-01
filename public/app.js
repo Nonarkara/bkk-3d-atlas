@@ -7608,7 +7608,7 @@ function revealTask(id) {
     const details = document.getElementById('atlas-water-details');
     if (details) details.open = true;
   }
-  section.scrollIntoView({block:'nearest', behavior:'auto'});
+  section.scrollIntoView({block:'start', behavior:'auto'}); // 'nearest' parked it at the panel's bottom edge (round 3)
   section.querySelector('summary')?.focus({preventScroll:true});
 }
 
@@ -9577,7 +9577,13 @@ function wireCameraWall(map) {
     warningToggle.textContent = expanded ? 'Collapse warning' : 'Read full warning';
     // The band is its own scroller: expanding text below its fold looked
     // like the button did nothing (MSH audit 2026-11-01). Bring it into view.
-    if (expanded) document.getElementById('atlas-flood-verdict-reason')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Scroll to the LAST expanded line (the Thai reason when shown): the
+    // English one was often already visible, so nothing moved (round 3).
+    if (expanded) {
+      const th = document.getElementById('atlas-flood-verdict-reason-th');
+      const target = th && !th.hidden && th.textContent.trim() ? th : document.getElementById('atlas-flood-verdict-reason');
+      target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   });
   const root = document.createElement("section");
   root.className = "atlas-wall";
