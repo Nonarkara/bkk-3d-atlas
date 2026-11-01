@@ -4129,12 +4129,16 @@ body.atlas-wall-open { overflow: hidden; }
      neighbour); rows are 32 px, names stay one line.
    Touch: the attribution (i) and the wordmark were 24 and 22 px targets. */
 @media (max-width: 720px) {
-  .atlas-page { grid-template-rows: auto calc(100svh - 61px - 136px) auto auto; }
+  .atlas-page { grid-template-rows: auto calc(100svh - 61px - 200px) auto auto; }
   .atlas-live-band { grid-template-columns: minmax(0, 1fr); }
   .atlas-flood-verdict-actions { flex-wrap: wrap; overflow-x: visible; }
   .atlas-flood-verdict-btn { min-height: 32px; padding: 0 10px; }
-  .atlas-bkk-live-head { padding-right: 108px; min-height: 44px; }
-  .atlas-panel-toggle { position: absolute; top: calc(100svh - 136px + 2px); bottom: auto; right: 12px; }
+  .atlas-bkk-live-head { min-height: 44px; align-items: center; flex-wrap: nowrap; gap: 8px; }
+  .atlas-bkk-live-head > .atlas-eyebrow { flex: 1 1 auto; min-width: 0; }
+  .atlas-bkk-live-head .atlas-panel-toggle { position: static; margin-left: auto; flex: 0 0 auto; }
+  /* "KPI fetched" dates the headline numbers, which phones show only in the
+     More sheet: on the strip it was an orphan line pushing the verdict down. */
+  .atlas-bkk-live-head .atlas-bkk-live-meta { display: none; }
 }
 #atlas-flood-verdict-meta, #atlas-flood-verdict-reason-th, .atlas-sit-note, .atlas-water-note { max-width: 65ch; }
 @media (min-width: 721px) {
@@ -4145,11 +4149,10 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-panel-toggle { top: 58px; min-height: 34px; }
 }
 .atlas-panel-toggle .count { margin-left: 6px; }
-/* Names stay one line (title= carries the full name), so every row is the
-   same 32 px and edges meet across the two columns. The track must be
-   minmax(0, 1fr) or the ellipsis never engages. */
+/* 32 px rows. A long name wraps (round 2: an ellipsis hid "Silom / Sath…")
+   and its row grows with its neighbour, so edges still meet. */
 .atlas-area-btn { min-height: 32px; padding: 6px 8px; grid-template-columns: auto minmax(0, 1fr); }
-.atlas-area-grid .atlas-area-btn > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.atlas-area-grid .atlas-area-btn > span:last-child { white-space: normal; }
 @media (pointer: coarse) {
   .atlas-area-btn { min-height: 32px; }
   /* A 44 px tap area around the unchanged 24 px (i): enlarging the button
@@ -4158,3 +4161,36 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-map .maplibregl-ctrl-attrib-button::after { content: ""; position: absolute; inset: -10px; }
   .atlas-brand > a.wordmark { min-height: 44px; display: inline-flex; align-items: center; }
 }
+
+/* MSH blind audit, round 2 (2026-11-01).
+   - Phone peek 200 px: verdict, a two-line headline and both action rows
+     whole. More moves into the strip head (app.js), not a pinned overlay.
+   - Lens strip hid 6 lenses past the edge with no cue at 390: a "›" shows
+     while it can scroll (BKKx embed pattern; shown always where the
+     scroll-state query is unsupported).
+   - MapLibre's white credit pill was the brightest object on the map.
+   - "ch" is the width of "0"; mixed Thai/Latin runs ~20% narrower, so
+     65ch measured 72-78 characters. 56ch lands near 65.
+   - At 721-1280 the six actions cannot fit one row and FloodDash orphaned;
+     the band's credit line already links FloodDash there.
+   - News meta wrapped "feed: N min" onto its own line on some rows. */
+@media (max-width: 720px) {
+  .atlas-place-tasks { container-type: scroll-state; container-name: lenses; }
+  .atlas-place-tasks::after {
+    content: "›"; position: sticky; right: 0; flex: 0 0 18px; width: 18px; margin-left: -18px;
+    display: grid; place-items: center; color: var(--paper); background: var(--ink);
+    pointer-events: none; opacity: 0;
+  }
+  @container lenses scroll-state(scrollable: right) { .atlas-place-tasks::after { opacity: 1; } }
+  @supports not (container-type: scroll-state) { .atlas-place-tasks::after { opacity: 1; } }
+}
+.atlas-map .maplibregl-ctrl-attrib.maplibregl-compact { background: rgba(17, 18, 15, 0.86); border-radius: 0; }
+.atlas-map .maplibregl-ctrl-attrib-button { filter: invert(1); }
+#atlas-flood-verdict-reason, #atlas-flood-verdict-meta, #atlas-flood-verdict-reason-th,
+.atlas-sit-note, .atlas-water-note, .atlas-news-watch-note { max-width: 56ch; }
+@media (min-width: 721px) and (max-width: 1280px) {
+  .atlas-flood-verdict-actions a.atlas-flood-verdict-btn[href*="flood.nonarkara.org"] { display: none; }
+}
+.atlas-news-meta { flex-wrap: nowrap; }
+.atlas-news-domain { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.atlas-news-age { flex: 0 0 auto; }

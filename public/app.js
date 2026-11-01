@@ -9117,6 +9117,20 @@ function wirePhonePanelToggle() {
   const isDrawer = () => window.matchMedia("(max-width: 1280px)").matches;
   let newsExpanded = false;
 
+  // Phone: More lives in the live strip's head row, so it scrolls with the
+  // strip. Pinned by CSS it drifted over the verdict once the page scrolled
+  // (MSH audit 2026-11-01). Wider screens keep it where the markup puts it.
+  const stripHead = document.querySelector(".atlas-bkk-live-head");
+  const home = btn.parentElement;
+  const homeNext = btn.nextSibling;
+  const phoneMq = window.matchMedia("(max-width: 720px)");
+  const placeToggle = () => {
+    if (phoneMq.matches && stripHead) stripHead.appendChild(btn);
+    else if (btn.parentElement !== home) home.insertBefore(btn, homeNext);
+  };
+  placeToggle();
+  phoneMq.addEventListener("change", placeToggle);
+
   function setOpen(open) {
     const wasOpen = panel.classList.contains('is-open');
     const drawer = isDrawer();
@@ -9561,6 +9575,9 @@ function wireCameraWall(map) {
     warningToggle.setAttribute('aria-expanded',String(expanded));
     document.getElementById('atlas-flood-verdict')?.classList.toggle('is-expanded',expanded);
     warningToggle.textContent = expanded ? 'Collapse warning' : 'Read full warning';
+    // The band is its own scroller: expanding text below its fold looked
+    // like the button did nothing (MSH audit 2026-11-01). Bring it into view.
+    if (expanded) document.getElementById('atlas-flood-verdict-reason')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
   const root = document.createElement("section");
   root.className = "atlas-wall";
