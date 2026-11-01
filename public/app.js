@@ -16,6 +16,7 @@ import {
   MIN_HEIGHT_GET,
   RATTANAKOSIN_HEIGHT_EXPRESSION,
   RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  heightFor,
 } from './building-heights.js';
 import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
 import { FACADE_BAND_FILTER } from './building-facades.js';
@@ -38,7 +39,7 @@ import {
   detachCityFormsRefresh,
   CITY_FORMS_LAYER,
 } from './city-forms-layer.js';
-import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
+import { installHeritageForms, uninstallHeritageForms, stepAsideForForms, markSpires, FORMS_LAYER } from './heritage-forms-layer.js';
 import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
 import {
   installBuildingMassing,
@@ -183,19 +184,27 @@ const BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-vertical-gradient": true,
 };
 
+// A chedi, prang or mondop drawn as a box at its spire height is a 40 m
+// column; nothing in the Grand Palace looks like that. markSpires() flags a
+// sacred or royal footprint that is far narrower than it is tall, and those
+// draw only their footprint. The Thai forms layer draws the real taper from
+// zoom 15. A low pad says where it stands without inventing a shape.
+const SPIRE_PAD_M = 2;
+const IS_SPIRE = ["==", ["get", "spire"], true];
+const SACRED_KINDS = new Set(["chedi", "prasat", "mondop", "heritage", "throne", "ubosot", "viharn"]);
 // Rattanakosin Old Town — type colors + heritage-aware height defaults.
 // Opacity stays 1 (layer only paints at z14+).
 const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
-  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, RATTANAKOSIN_HEIGHT_EXPRESSION],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, RATTANAKOSIN_MIN_HEIGHT_EXPRESSION],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
 const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#9a9a90",
-  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, RATTANAKOSIN_HEIGHT_EXPRESSION],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, RATTANAKOSIN_MIN_HEIGHT_EXPRESSION],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
@@ -228,8 +237,8 @@ const LANDMARK_COLOR = [
 ];
 const LANDMARK_PAINT = {
   "fill-extrusion-color": LANDMARK_COLOR,
-  "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
-  "fill-extrusion-base": ["coalesce", ["get", "base_height"], 0],
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, ["coalesce", ["get", "height"], 12]],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, ["coalesce", ["get", "base_height"], 0]],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
@@ -2047,11 +2056,15 @@ async function installRattanakosin(map) {
     : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME;
 
   let usedGeoJson = false;
+  let detailFeatures = null;
   if (!map.getSource(HERITAGE_DETAIL_SOURCE)) {
     try {
       const res = await fetch(HERITAGE_DETAIL_URL);
       if (!res.ok) throw new Error(`heritage detail HTTP ${res.status}`);
       const data = await res.json();
+      markSpires(data.features, (p) => heightFor(p, "oldtown").height,
+        (p) => /เจดีย์|ปรางค์|มณฑป|ปราสาท|พระที่นั่ง/.test(p.name ?? "") && !/วิหาร|อุโบสถ/.test(p.name));
+      detailFeatures = data.features ?? [];
       map.addSource(HERITAGE_DETAIL_SOURCE, {
         type: "geojson",
         data,
@@ -2095,6 +2108,7 @@ async function installRattanakosin(map) {
           filter: BUILDING_EXTRUSION_FILTER,
           paint,
         });
+        if (detailFeatures) stepAsideForForms(map, RATTANAKOSIN_BUILDINGS_LAYER, detailFeatures, "id", BUILDING_EXTRUSION_FILTER);
       } else {
         map.addLayer({
           id: RATTANAKOSIN_BUILDINGS_LAYER,
@@ -2138,12 +2152,15 @@ function uninstallRattanakosin(map) {
 // The city forms are rebuilt when the view settles, not on every frame. The
 // refresh machinery lives with the layer that owns the state, because it has
 // to know whether the buildings have actually arrived yet.
+let landmarkFeatures = null;
 async function installLandmarks(map) {
   if (!map.getSource(LANDMARKS_SOURCE)) {
     try {
       const res = await fetch(LANDMARKS_URL);
       if (!res.ok) throw new Error(`landmarks HTTP ${res.status}`);
       const data = await res.json();
+      markSpires(data.features, (p) => Number(p.height) || 12, (p) => SACRED_KINDS.has(p.kind));
+      landmarkFeatures = data.features ?? [];
       map.addSource(LANDMARKS_SOURCE, { type: "geojson", data });
     } catch (error) {
       console.warn("Landmarks source failed:", error);
@@ -2159,6 +2176,7 @@ async function installLandmarks(map) {
         minzoom: 10.5,
         paint: LANDMARK_PAINT,
       });
+      if (landmarkFeatures) stepAsideForForms(map, LANDMARKS_LAYER, landmarkFeatures, "footprint");
     } catch (error) {
       console.warn("Landmarks layer failed:", error);
     }

@@ -323,6 +323,83 @@ function createLayer(THREE, forms) {
   };
 }
 
+// The map also extrudes every one of these footprints as a flat box. A box at
+// a chedi's height is a 40 m column, and at street zoom it swallows the form
+// drawn inside it. So while the forms draw, the boxes they stand on step
+// aside; when the forms stop, each layer gets its own filter back.
+const stepAside = [];
+
+function insideRing([x, y], ring) {
+  let hit = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+function hideFilterFor(reg) {
+  const ids = new Set(runtime.forms.map((f) => String(f.id)));
+  const covered = reg.features
+    .filter((f) => {
+      const id = String(f.properties?.id ?? '');
+      if (reg.how === 'id') return ids.has(id);
+      const g = f.geometry;
+      if (!g || !/Polygon/.test(g.type)) return false;
+      const ring = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
+      let cx = 0;
+      let cy = 0;
+      for (const [x, y] of ring) { cx += x; cy += y; }
+      const c = [cx / ring.length, cy / ring.length];
+      return runtime.forms.some((form) => form.ring && insideRing(c, form.ring));
+    })
+    .map((f) => String(f.properties.id));
+  const keep = ['!', ['in', ['to-string', ['get', 'id']], ['literal', covered]]];
+  return reg.base ? ['all', reg.base, keep] : keep;
+}
+
+function syncStepAside(map) {
+  if (!runtime.forms) return;
+  for (const reg of stepAside) {
+    if (!map.getLayer(reg.layer) || reg.hidden === runtime.active) continue;
+    if (runtime.active) reg.hide ??= hideFilterFor(reg);
+    try {
+      map.setFilter(reg.layer, runtime.active ? reg.hide : reg.base ?? null);
+      reg.hidden = runtime.active;
+    } catch { /* layer replaced mid-flight; next sync retries */ }
+  }
+}
+
+/** Register an extrusion layer whose boxes stand on form footprints.
+ *  how: 'id' matches the form's own feature id, 'footprint' a centroid
+ *  inside a form's ring (for layers keyed by other ids). */
+export function stepAsideForForms(map, layer, features, how, base) {
+  if (stepAside.some((r) => r.layer === layer)) return;
+  stepAside.push({ layer, features, how, base, hidden: false, hide: null });
+  syncStepAside(map);
+}
+
+/** Flag sacred or royal footprints far narrower than they are tall: drawn as
+ *  boxes they become columns, so the map draws only their footprint. */
+export function markSpires(features, heightOf, isSacred) {
+  for (const f of features ?? []) {
+    const g = f.geometry;
+    const p = f.properties;
+    if (!p || !g || !/Polygon/.test(g.type) || !isSacred(p)) continue;
+    const ring = g.type === "Polygon" ? g.coordinates[0] : g.coordinates[0][0];
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [x, y] of ring) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    // ponytail: bounding box, so a rotated footprint reads wider than it is
+    // and is spared; good enough to catch 3-17 m bases under 28-42 m heights.
+    const narrow = Math.min((x1 - x0) * 108_130, (y1 - y0) * 110_540);
+    if (heightOf(p) > 1.5 * narrow) p.spire = true;
+  }
+}
+
 function nearestForm(lngLat) {
   let best = null;
   let bestD = Infinity;
@@ -394,7 +471,10 @@ export async function installHeritageForms(map, features) {
   }
 
   const activate = async () => {
-    if (runtime.layer || !map.getLayer || !map.getCanvas()) return;
+    // Back above the gate after a zoom-out: the layer exists, only the flag
+    // was dropped. Without this the forms never drew again.
+    if (runtime.layer) { runtime.active = true; map.triggerRepaint?.(); return; }
+    if (!map.getLayer || !map.getCanvas()) return;
     try {
       const THREE = await loadThree();
       if (!map.getLayer(FORMS_LAYER)) map.addLayer(createLayer(THREE, runtime.forms));
@@ -405,6 +485,7 @@ export async function installHeritageForms(map, features) {
     }
     try { map.moveLayer(FORMS_LAYER); } catch { /* stack order will catch up */ }
     runtime.active = true;
+    syncStepAside(map);
     // The 2-building roof pilot draws flat gable strips on the same footprints.
     // Real forms now cover those buildings, so suppress the pilot rather than
     // stacking two roofs on Wat Phra Kaew.
@@ -422,6 +503,7 @@ export async function installHeritageForms(map, features) {
   map.on('zoom', () => {
     if (map.getZoom() < FORMS_MIN_ZOOM) runtime.active = false;
     else activate();
+    syncStepAside(map);
   });
   map.on('click', (event) => {
     if (!runtime.active) return;
@@ -436,6 +518,7 @@ export async function installHeritageForms(map, features) {
 
 export function uninstallHeritageForms(map) {
   runtime.active = false;
+  syncStepAside(map);
   if (map?.getLayer?.(FORMS_LAYER)) {
     try { map.removeLayer(FORMS_LAYER); } catch { /* already gone */ }
   }
