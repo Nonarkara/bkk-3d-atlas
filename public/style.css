@@ -4089,3 +4089,20 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-panel-toggle.is-hidden { display: none !important; }
   .atlas-sheet-close { display: block; min-height: 44px; width: 100%; padding: 8px; color: var(--paper); background: var(--ink); border: 1px solid var(--line); font: inherit; }
 }
+
+/* MSH audit, 2026-11-01 (§11.12): boxes fit their words.
+   - The task/lens strip was 44 px tall around 11 px words (4-7x the text's
+     area). A dense group of text controls is 32 px on touch (§11.12, not
+     the 44 px rule for isolated actions), still 4 px of hairline apart.
+   - "Show all headlines" spanned the column (236 px for three words).
+   - The verdict reason ran 48 em; prose stops at 65ch.
+   - Header links were 17 px tall targets; padding gives a 32 px hit area
+     inside the existing 45 px bar, so the bar does not grow.
+   - Map zoom/compass are isolated map controls: real 44 px on touch. */
+.atlas-place-tasks button { min-height: 32px; padding: 6px 10px; }
+.atlas-news-watch-more { display: inline-block; width: auto; }
+.atlas-flood-verdict-reason { max-width: 65ch; }
+.atlas-header-nav a, .atlas-header-nav .atlas-nav-about { padding: 8px 0; }
+@media (pointer: coarse) {
+  .atlas-map .maplibregl-ctrl-group button { width: 44px; height: 44px; }
+}
