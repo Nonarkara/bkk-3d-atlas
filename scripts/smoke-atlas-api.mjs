@@ -732,7 +732,9 @@ function summarize() {
     process.exit(0);
   } else {
     logInfo(`  ${C.red}${C.bold}FAILED${C.reset} ${C.gray}(${failures.length} of ${passes.length + failures.length})${C.reset}\n`);
-    for (const f of failures) logFail(f.name, f.reason);
+    // Print, don't logFail: logFail appends to the array being walked, which
+    // looped forever and crashed the release on the first real failure.
+    for (const f of [...failures]) console.log(`  ${C.red}✗ ${C.bold}${f.name}${C.reset}  ${C.red}${f.reason}${C.reset}`);
     process.exit(1);
   }
 }

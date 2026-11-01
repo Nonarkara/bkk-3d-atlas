@@ -682,6 +682,12 @@ async function fetchPointPm25Uncached(lat: number, lng: number): Promise<number 
   }
 }
 
+// City events promise the same bbox as /api/at-this-point (smoke checks it).
+// The camera bbox reaches 101.1 and let a Chachoengsao crash through.
+function inCityEventBbox(lat: number, lon: number): boolean {
+  return lat >= 13.4 && lat <= 14.2 && lon >= 100.2 && lon <= 101.0;
+}
+
 function inCctvBbox(lat: number, lon: number): boolean {
   return (
     lat >= CCTV_BBOX.minLat &&
@@ -2435,7 +2441,7 @@ async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: 
     const lng = Number(e.longitude);
     const id = e.eid == null ? null : String(e.eid);
     if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) { skipped++; continue; }
-    if (!inCctvBbox(lat, lng)) { skipped++; continue; }        // Bangkok metro only
+    if (!inCityEventBbox(lat, lng)) { skipped++; continue; }   // Bangkok metro only
     const icon = (e.icon ?? "").toLowerCase();
     if (!BREAKING_EVENT_ICONS.has(icon)) { skipped++; continue; }  // rule 1
 
@@ -2496,6 +2502,7 @@ async function listCityEvents(_request: Request, env: Env, _ctx?: ExecutionConte
   ).bind(since).all<CityEventRow>();
 
   const live = results.filter((row) => {
+    if (!inCityEventBbox(Number(row.lat), Number(row.lng))) return false;      // rows stored under the old bbox
     const firstSeen = Date.parse(row.first_seen_at);
     if (Number.isFinite(firstSeen) && nowMs - firstSeen > ttlMs) return false;   // rule 2: our cap
     const stopMs = parseBangkokTime(row.stops_at);
