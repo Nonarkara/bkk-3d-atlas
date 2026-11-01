@@ -9582,7 +9582,13 @@ function wireCameraWall(map) {
     if (expanded) {
       const th = document.getElementById('atlas-flood-verdict-reason-th');
       const target = th && !th.hidden && th.textContent.trim() ? th : document.getElementById('atlas-flood-verdict-reason');
-      target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // Scroll only the band (its own scroller): scrollIntoView could also
+      // shift the overflow:hidden page itself, pushing the header away.
+      const band = document.getElementById('atlas-bkk-live');
+      if (band && target) {
+        const overshoot = target.getBoundingClientRect().bottom - band.getBoundingClientRect().bottom;
+        if (overshoot > 0) band.scrollBy({ top: overshoot + 8, behavior: 'smooth' });
+      }
     }
   });
   const root = document.createElement("section");
