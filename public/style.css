@@ -187,14 +187,12 @@ strong, b { font-weight: 600; }
   text-transform: uppercase;
 }
 
-.atlas-header-meta strong,
-.atlas-header-meta .atlas-title {
+.atlas-header-meta strong {
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.05em;
 }
-.atlas-title-phone { display: none; }
 .atlas-header-meta small { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
 /* The presence chip is the only thing in this slot, and it is live. A static
    feature list used to sit here and was cut off at 656px of text in a 493px
@@ -1681,9 +1679,6 @@ body.atlas-about-open { overflow: hidden; }
 @media (min-width: 721px) {
   .atlas-panel-toggle { display: none !important; }
 }
-
-/* the title is now an <h1> — keep the class styling, drop the UA margins */
-h1.atlas-title { margin: 0; line-height: 1.05; }
 
 /* sibling-site links: same weight as the rest of the nav, one signal on hover */
 .atlas-nav-sibling { color: var(--paper); }
@@ -3607,21 +3602,6 @@ h1.atlas-title { margin: 0; line-height: 1.05; }
     display: none;
   }
 
-  .atlas-header-meta .atlas-title {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--muted);
-  }
-
-  .atlas-title-desk { display: none; }
-  .atlas-title-phone { display: inline; }
-
   .atlas-header-nav {
     gap: 14px;
     font-size: 10px;
@@ -3987,7 +3967,7 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-header { padding: 6px clamp(16px, 2vw, 32px); gap: 16px; }
   .atlas-brand { flex-direction: row; align-items: center; gap: 8px; }
   .atlas-header-meta { flex-direction: row; align-items: baseline; gap: 12px; }
-  .atlas-header-meta .atlas-title { font-size: 20px; margin: 0; white-space: nowrap; }
+  
   .atlas-header-meta small { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .atlas-page { grid-template-rows: auto minmax(0, 1fr) minmax(132px, 210px); }
 }
@@ -4018,7 +3998,7 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-header { padding: 8px clamp(12px, 4.6vw, 18px); gap: 12px; }
   .atlas-brand { flex-direction: row; align-items: center; gap: 6px; }
   .atlas-header-nav { gap: 12px; }
-  .atlas-header-meta .atlas-title { color: var(--paper); font-size: 14px; }
+  
   .atlas-about-family { display: flex; }
   .atlas-page { grid-template-rows: auto calc(100svh - 60px - 96px) auto auto; }
 }
