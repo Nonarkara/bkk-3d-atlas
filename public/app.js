@@ -39,7 +39,7 @@ import {
   detachCityFormsRefresh,
   CITY_FORMS_LAYER,
 } from './city-forms-layer.js';
-import { installHeritageForms, uninstallHeritageForms, stepAsideForForms, markSpires, FORMS_LAYER } from './heritage-forms-layer.js';
+import { installHeritageForms, uninstallHeritageForms, stepAsideForForms, markSpires, FORMS_LAYER, closeHeritageFormPopup, heritageFormNear } from './heritage-forms-layer.js';
 import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
 import {
   installBuildingMassing,
@@ -7578,6 +7578,45 @@ function pointLayersOwningClick(map, point) {
   return map.queryRenderedFeatures(point, { layers: owners });
 }
 
+// Architectural layers the cursor can sit inside. LANDMARKS_LAYER carries
+// the specific monument drawings; RATTANAKOSIN_BUILDINGS_LAYER carries the
+// old-town compound stand-ins. BKKX_BUILDINGS_LAYER is deliberately not
+// here: a plain city building must keep answering with the inspector card,
+// as it always has. `queryRenderedFeatures` is footprint-inside semantics —
+// the "specific, not nearest" rule the arbitration requires. The Grand
+// Palace slot model (massing features flagged `standIn`) is the third
+// compound surface: its own footprint can cover whole courtyards, so it
+// joins the compound tier after the rendered-layer checks.
+function architecturalFootprintAt(map, event) {
+  const layers = [LANDMARKS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER].filter((id) => map.getLayer(id));
+  if (layers.length > 0) {
+    let hits;
+    try {
+      hits = map.queryRenderedFeatures(event.point, { layers });
+    } catch {
+      hits = null;
+    }
+    if (hits && hits.length > 0) {
+      if (hits.some((f) => f?.layer?.id === LANDMARKS_LAYER)) return "monument";
+      return "compound";
+    }
+  }
+  if (massingFeatureAt(event.lngLat)?.properties?.standIn) return "compound";
+  return null;
+}
+
+// One architectural answer per click: overlay > monument > compound > form.
+// Both the inspector and the heritage forms layer consult this same
+// decision (the forms layer reads it off the map as `__atlasClickOwner`),
+// so registration order cannot change the answer. `null` = plain building
+// or bare ground, which the inspector answers as it always has.
+function atlasClickOwner(map, event) {
+  if (pointLayersOwningClick(map, event.point).length) return "overlay";
+  const footprint = architecturalFootprintAt(map, event);
+  if (footprint) return footprint;
+  return heritageFormNear(event.lngLat) ? "form" : null;
+}
+
 function wireInspect(map) {
   setInterval(renderPlaceEvidence,30000);
   document.getElementById('atlas-inspect-centre')?.addEventListener('click', () => {
@@ -7589,8 +7628,20 @@ function wireInspect(map) {
     revealTask(link.dataset.task === 'place' ? 'atlas-inspect' : link.dataset.task === 'water' ? 'atlas-water' : 'atlas-areas');
   }); });
   map.on("click", (event) => {
-    // Interactive overlays own the click instead of also opening building inspect.
-    if (pointLayersOwningClick(map, event.point).length) return;
+    // One architectural answer per click. An overlay owns its click entirely;
+    // the Grand Palace slot model answers with its own stand-in popup; a
+    // monument or compound footprint answers through the inspector card
+    // (which reads the footprint feature); a heritage form answers through
+    // its single on-map popup, and the inspector stays out of the way. A
+    // stale form card never survives a newer answer.
+    const owner = atlasClickOwner(map, event);
+    if (owner === "overlay") {
+      closeHeritageFormPopup();
+      return;
+    }
+    if (owner === "form") return;
+    closeHeritageFormPopup();
+    if (owner === "compound" && massingFeatureAt(event.lngLat)?.properties?.standIn) return;
     runInspect(map, event);
   });
 
@@ -9340,6 +9391,12 @@ async function init() {
     attributionControl: { compact: true },
   });
   wireCameraWall(map);
+
+  // The click-arbitration decision (overlay > monument > compound > form)
+  // is installed on the map itself, before any layer or handler can be
+  // wired, so the heritage forms layer reads the same answer the inspector
+  // does no matter which handler was registered first.
+  map.__atlasClickOwner = (event) => atlasClickOwner(map, event);
 
   // External fly-to (e.g. bkk's quarter chip loaded the atlas with
   // ?at=lng,lat,zoom). Fires after the map is built so the camera

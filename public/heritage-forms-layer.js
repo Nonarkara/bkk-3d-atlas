@@ -26,7 +26,7 @@ const SHOPHOUSE_URL = '/bkk-shophouse-forms.geojson';
 const runtime = {
   map: null, layer: null, forms: null, chunks: new Map(), built: new Map(),
   active: false, installed: false, shophouseSkipped: 0,
-  builtChunks: 0, startPumping: null, pumpNow: null,
+  builtChunks: 0, startPumping: null, pumpNow: null, popup: null, clickHandler: null,
 };
 
 const KIND_LABEL = {
@@ -505,19 +505,96 @@ export async function installHeritageForms(map, features) {
     else activate();
     syncStepAside(map);
   });
-  map.on('click', (event) => {
-    if (!runtime.active) return;
-    const form = nearestForm(event.lngLat);
+  attachHeritageFormClicks(map, {
+    ownerAt: (event) => map.__atlasClickOwner?.(event) ?? null,
+  });
+}
+
+/**
+ * The one-architectural-answer-per-click decision.
+ *
+ * Priority the reconciliation approved, resolved deterministically: an
+ * operational overlay owns its click; then a monument footprint the cursor
+ * is inside; then a compound stand-in footprint; the generic heritage form
+ * answers only when nothing more specific is under the cursor. "Specific"
+ * means inside the feature's own footprint, never the nearest one by
+ * distance — the forms layer is the only caller allowed to answer by
+ * proximity, and only when no footprint hit.
+ */
+export function resolveArchitecturalOwner({ overlayCount = 0, monumentHit = false, compoundHit = false, formNear = false } = {}) {
+  if (overlayCount > 0) return 'overlay';
+  if (monumentHit) return 'monument';
+  if (compoundHit) return 'compound';
+  if (formNear) return 'form';
+  return null;
+}
+
+/**
+ * The form popup this layer opened, if any. One card at a time: opening a
+ * new answer disposes the previous one, and every non-form click clears it
+ * so a stale card never survives beside a newer answer.
+ */
+export function closeHeritageFormPopup() {
+  const popup = runtime.popup;
+  runtime.popup = null;
+  popup?.remove?.();
+}
+
+/**
+ * Whether a heritage form is near this click AND the layer is active.
+ * Inactive forms answer nothing — otherwise the inspector would defer to a
+ * popup that never opens.
+ */
+export function heritageFormNear(lngLat, { active } = {}) {
+  const isActive = active ?? runtime.active;
+  if (!isActive || !runtime.forms) return null;
+  return nearestForm(lngLat);
+}
+
+/** What is live right now, for tests and the audit trail. */
+export function heritageFormsDebugState() {
+  return {
+    active: runtime.active,
+    forms: runtime.forms ? runtime.forms.length : 0,
+    popupOpen: runtime.popup != null,
+  };
+}
+
+/**
+ * The forms layer's click handler, attached with injectable deps so the
+ * arbitration is testable without a WebGL map.
+ */
+export function attachHeritageFormClicks(map, { ownerAt, nearest = nearestForm, Popup, isActive = () => runtime.active } = {}) {
+  if (!map) return () => {};
+  const handler = (event) => {
+    if (!isActive()) return;
+    const owner = ownerAt?.(event) ?? null;
+    if (owner && owner !== 'form') return;
+    closeHeritageFormPopup();
+    const form = nearest(event.lngLat);
     if (!form) return;
-    new window.maplibregl.Popup({ className: 'atlas-heritage-popup', closeButton: true, maxWidth: '320px' })
+    const PopupCtor = Popup ?? window.maplibregl?.Popup;
+    if (!PopupCtor) return;
+    runtime.popup = new PopupCtor({ className: 'atlas-heritage-popup', closeButton: true, maxWidth: '320px' })
       .setLngLat(event.lngLat)
       .setHTML(describe(form))
       .addTo(map);
-  });
+  };
+  map.on('click', handler);
+  runtime.clickHandler = handler;
+  return () => {
+    try { map.off('click', handler); } catch { /* map already torn down */ }
+    if (runtime.clickHandler === handler) runtime.clickHandler = null;
+  };
 }
 
 export function uninstallHeritageForms(map) {
   runtime.active = false;
+  closeHeritageFormPopup();
+  if (runtime.clickHandler && map?.off) {
+    try { map.off('click', runtime.clickHandler); } catch { /* already gone */ }
+    runtime.clickHandler = null;
+  }
   syncStepAside(map);
   if (map?.getLayer?.(FORMS_LAYER)) {
     try { map.removeLayer(FORMS_LAYER); } catch { /* already gone */ }

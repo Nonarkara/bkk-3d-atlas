@@ -1522,7 +1522,12 @@ export function installBuildingMassing(map, baseFilter) {
   });
   map.on('click', (event) => {
     const hit = massingFeatureAt(event.lngLat);
-    if (hit?.properties?.standIn) showPalacePopup(map, event.lngLat);
+    if (!hit?.properties?.standIn) return;
+    // One architectural answer per click: the stand-in popup only answers
+    // when the shared arbitration gives the click to the compound tier.
+    const owner = map.__atlasClickOwner?.(event);
+    if (owner && owner !== 'compound') return;
+    showPalacePopup(map, event.lngLat);
   });
   armRefresh(map);
 }
