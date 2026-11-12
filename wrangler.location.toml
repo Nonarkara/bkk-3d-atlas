@@ -1,0 +1,18 @@
+# Additive path deployment: never upload or alter the live atlas map assets.
+name = "bkk-location-evidence"
+account_id = "74ad6bf8dfaaccf82de6f0847f7d2d54"
+main = "src/location-worker.ts"
+compatibility_date = "2026-05-15"
+workers_dev = false
+preview_urls = false
+[[routes]]
+pattern = "atlas.nonarkara.org/api/location/*"
+zone_name = "nonarkara.org"
+[[d1_databases]]
+binding = "CIVIC_DB"
+database_name = "bkkx-civic-data"
+database_id = "2fed2bc0-b8bf-4497-aa22-c6ac5b39a330"
+[limits]
+cpu_ms = 100
+[observability]
+enabled = true
