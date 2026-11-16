@@ -2,7 +2,7 @@
 //
 // Below zoom 16 the atlas keeps fill-extrusion. At zoom 16 and closer, and
 // only when a tall tower or the Grand Palace stand-in is in view, this
-// module loads three.js r0.186.1 (import map in index.html) and draws a
+// module loads three.js r0.187.0 (import map in index.html) and draws a
 // MapLibre custom layer. Towers get a short podium and setbacks from the
 // OSM footprint plus height / building:levels. The palace file is
 // public/models/grand-palace.glb — see grand-palace-slot.js to replace it.
@@ -42,7 +42,7 @@ export const TALL_MIN_METERS = FACADE_MAX_METERS;
 // street view at z16 holds a few hundred of them, so this is a ceiling that
 // is never reached in practice rather than a budget that bites.
 export const FACADE_BUDGET = 1500;
-export const THREE_VERSION = '0.186.1';
+export const THREE_VERSION = '0.187.0';
 export const LEVEL_HEIGHT_M = 3.15;
 export const MASSING_PALETTE = {
   paper: 0xf1efe8,
