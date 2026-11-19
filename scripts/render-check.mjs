@@ -18,7 +18,7 @@
 // measures differently: bkkx-heritage-forms reads 1.83% at 756x469 and 0.66%
 // at 1600x1000. Both are far above noise and both mean the same thing. Do not
 // read a change in this number as a regression without re-running on the same
-// window — compare against the 0.05% floor, not against a previous run.
+// window — compare against the measured noise floor, not a previous run.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
@@ -46,8 +46,8 @@ const LAYERS = [
 ];
 
 function die(message, code = 2) {
-  console.error(`render-check: ${message}`);
-  process.exit(code);
+  process.exitCode = code;
+  throw new Error(`render-check: ${message}`);
 }
 
 let version;
@@ -87,7 +87,10 @@ function connect(url) {
 
 const browser = connect(version.webSocketDebuggerUrl);
 await browser.ready;
+let ownedTarget;
+try {
 const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank' });
+ownedTarget = targetId;
 const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
 await browser.send('Page.enable', {}, sessionId);
 await browser.send('Runtime.enable', {}, sessionId);
@@ -95,28 +98,60 @@ await browser.send('Network.enable', {}, sessionId);
 // Without this both captures can read identical cached bytes and a real change
 // looks like no change at all.
 await browser.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
-// Keep the renderer producing frames even when the Chrome window is occluded
-// behind another app. Without this, captureScreenshot never answers: the page
-// goes hidden, Chrome suspends the compositor, and an unsettled top-level await
-// ends the process with exit 0 — a check that measured nothing and passed.
-await browser.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+
+// Pin the viewport.
+//
+// Without this the capture is of whatever the Chrome window happens to be,
+// and the window is often occluded or has no size at all — then
+// captureScreenshot waits for a surface that never comes and the check dies
+// having measured nothing. The script's own header says the number depends
+// on the window ("a wider window at the same zoom/pitch shows more map
+// around the same buildings"), so a fixed viewport also makes the gate
+// comparable between runs.
+await browser.send('Emulation.setDeviceMetricsOverride', {
+  width: 1280,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+}, sessionId);
+// Focus is not visibility. A window that is behind another app is FOCUSED
+// enough for setFocusEmulationEnabled and still HIDDEN, and a hidden page
+// never fires requestAnimationFrame — so the map never draws and
+// captureScreenshot waits for a frame that will not come. It answered in 120
+// s and died with "did not answer", which is a measurement that failed, not
+// a page that is broken.
+//
+// Foreground the tab, then wait until the page really is visible and really
+// is producing frames. That is a stronger guarantee than focus emulation:
+// the renderer may believe it is focused while the compositor still withholds
+// frames, and a capture that waits for a frame then hangs.
+async function ensureFrames() {
+  await browser.send('Target.activateTarget', { targetId });
+  let last = 'unknown';
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    const state = await browser.send('Runtime.evaluate', {
+      expression: `(()=>{if(document.visibilityState!=='visible')return 'hidden';return new Promise((res)=>{let done=false;requestAnimationFrame(()=>{done=true;res('frames')});setTimeout(()=>{if(!done)res('no-frames')},800)})})()`,
+      returnByValue: true,
+      awaitPromise: true,
+    }, sessionId);
+    last = state.result?.value ?? String(state);
+    if (last === 'frames') return true;
+    await browser.send('Target.activateTarget', { targetId });
+  }
+  // Say so. A capture without a frame does not fail: it waits out its
+  // timeout, and the check dies having measured nothing.
+  console.error(`render-check: the page is not producing frames (${last}) — the capture would hang`);
+  return false;
+}
+await ensureFrames();
 
 // Close QA tabs left behind by an earlier run. A run that hangs or is killed
 // never reaches its own cleanup, and each survivor is a live WebGL atlas
 // spinning an rAF loop, so they accumulate across a session.
 //
-// This is hygiene, not a fix. It was written on the theory that leaked tabs were
-// starving the compositor; it was not — cleaning them changed nothing about the
-// mid-sweep hang, which was the 2x surface above. Kept because leaked tabs are
-// still real, not because they caused anything.
-{
-  const { targetInfos } = await browser.send('Target.getTargets');
-  for (const t of targetInfos) {
-    if (t.targetId === targetId || t.type !== 'page') continue;
-    if (!/^https?:\/\/(atlas|bkk)\.nonarkara\.org\/|^about:blank/.test(t.url || '')) continue;
-    try { await browser.send('Target.closeTarget', { targetId: t.targetId }); } catch {}
-  }
-}
+// Only the target created by this run belongs to this check. Other Atlas tabs
+// may belong to a person or another audit; URL matching does not grant ownership.
 
 const evaluate = async (expression) => {
   const r = await browser.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId);
@@ -125,6 +160,11 @@ const evaluate = async (expression) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const shot = async () => {
+  // Every capture needs a compositor frame. If the page has gone hidden the
+  // frame never comes and the capture waits out its 120 s timeout — a check
+  // that dies, having measured nothing. Foreground the tab and confirm it is
+  // producing frames before every shot.
+  await ensureFrames();
   const r = await browser.send('Page.captureScreenshot', { format: 'png' }, sessionId);
   return Buffer.from(r.data, 'base64');
 };
@@ -163,6 +203,28 @@ while (Date.now() < deadline) {
 if (Number(installed) < want.length) {
   die(`only ${installed}/${want.length} layers installed within 75s at zoom ${VIEW.zoom} — the map never finished loading, so nothing can be measured`);
 }
+
+// Wait for the SOURCES, not just the layers.
+//
+// A layer is installed the moment its source is added — long before that
+// source has anything to draw. MapLibre then builds the source's tiles in a
+// worker, and for the 3.8 MB heritage-detail GeoJSON that takes tens of
+// seconds. Measured on the live site: the layer was installed at t=17 s, the
+// source finished loading at t=56 s, and the layer's own pixel footprint
+// climbed 0.03% → 0.31% → 0.80% → 1.0% along that curve.
+//
+// The old check measured in that window and called the layer BLANK. It was
+// installed, it was drawing, and it was 39 seconds away from its real size —
+// so the check reported an empty layer for one that was simply still arriving.
+//
+// So wait for the sources. A source that never loads is not a pass and not a
+// blank: it is a layer that could not be measured, and the run must say so
+// rather than report a number it did not earn.
+const SOURCE_WAIT_MS = 180000;
+const sourceWait = await waitForSources(SOURCE_WAIT_MS);
+if (!sourceWait.ok) {
+  die(`source "${sourceWait.source}" (layer ${sourceWait.id}) had not loaded after ${SOURCE_WAIT_MS / 1000}s — the layer could not be measured, so no verdict can be given`);
+}
 await sleep(6000); // let the first chunks build before anything is measured
 
 // The map is never still: khlongs flow, flood ripples and event pulses animate
@@ -180,31 +242,32 @@ const freeze = await evaluate(`(()=>{const m=window.__atlas.map;let n=0;
  return n})()`);
 await sleep(2500);
 
-// Two things had to be separated, and both my first attempts got one of them
-// wrong. Still captures with nothing changed agree to 0.000%. But two captures
-// of the same state separated by a hide-and-restore differ by more, because
-// toggling nudges MapLibre into a different render state and some pixels settle
-// differently. That second number is the one that matters — it is
-// indistinguishable from a very faint layer.
-//
-// Calibrating it on an animated layer gave 0.449%, which is that layer's real
-// footprint, not churn, and a 0.897% floor then reported three genuinely-drawing
-// layers BLANK. So calibrate against layers that are empty at this view and are
-// not under test: `background` sits under the satellite layer, and
-// `highway_minor` is the base style's minor roads, which the atlas replaces with
-// bkkx-roads-minor. Take the larger so one of them spiking shows up as a
-// visibly raised floor rather than a silently lenient check.
-// differingPixels returns a percentage (0.15 means 0.15%); these are the same
-// units. An earlier Math.max(0.02, ...) was a fraction measured against
-// percentages and silently set a 0.02% floor.
-const CALIBRATION = ['background', 'highway_minor'];
+// A base-style road is not a valid empty-layer control: after paint-order or
+// imagery changes it may genuinely draw. Measure unchanged-state repaint noise
+// instead, and sample the actual map rectangle rather than a historic crop.
+// Values are percentages: 0.15 means 0.15%, not a fraction of 15%.
+const mapBounds = await evaluate(`(()=>{const r=document.querySelector('#atlas-map').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})()`);
+const CALIBRATION = ['unchanged-repaint-1', 'unchanged-repaint-2'];
 const calib = {};
-for (const id of CALIBRATION) {
-  calib[id] = await toggleDelta(id);
+// Loaded GeoJSON can still be producing custom geometry. Bound the wait for
+// two quiet repaint pairs; never turn that late-arriving geometry into a high
+// noise floor that falsely declares small, visible layers blank.
+let calibFloor = Infinity;
+for (let attempt = 1; attempt <= 4; attempt++) {
+  for (const id of CALIBRATION) {
+    const before = await shot();
+    await evaluate('window.__atlas.map.triggerRepaint(); true');
+    await sleep(2200);
+    calib[id] = differingPixels(before, await shot());
+  }
+  calibFloor = Math.max(...Object.values(calib).map(n => n === null ? Infinity : n));
+  if (calibFloor <= 0.05) break;
+  console.log(`render-check: calibration ${attempt}/4 unsettled (${calibFloor.toFixed(3)}%); waiting for stable map`);
+  await sleep(2500);
 }
-const calibFloor = Math.max(...Object.values(calib).map((n) => (n === null ? 0 : n)));
+if (calibFloor > 0.05) die('unchanged map did not settle below 0.05%; layer visibility is unproven, not blank');
 const FLOOR = Math.max(0.02, calibFloor * 2);
-console.log(`render-check: froze ${freeze} animated layer(s); empty-layer calibration ${Object.entries(calib).map(([k, v]) => `${k}=${v === null ? 'n/a' : v.toFixed(3) + '%'}`).join(' ')} → threshold ${FLOOR.toFixed(3)}%`);
+console.log(`render-check: froze ${freeze} animated layer(s); unchanged-state calibration ${Object.entries(calib).map(([k, v]) => `${k}=${v === null ? 'n/a' : v.toFixed(3) + '%'}`).join(' ')} → threshold ${FLOOR.toFixed(3)}%`);
 
 // They stay frozen for the whole run and go back at the very end. Restoring
 // them here made the map animate again between every capture pair in the
@@ -214,23 +277,51 @@ console.log(`render-check: froze ${freeze} animated layer(s); empty-layer calibr
 
 mkdirSync(SHOT_DIR, { recursive: true });
 /**
- * Hide a layer, capture, restore, capture. Returns the pixel delta.
+ * Wait for every measurable layer's source to report loaded.
  *
- * Restores the layer's ORIGINAL visibility, not 'visible'. bkkx-heritage-roofs-3d
- * is suppressed by the forms layer, so it already reads 'none'. A restore that
- * assumed 'visible' switched it back on — measured its true 288-feature
- * footprint, reported the deliberately-asleep layer as NOISY, and left it
- * visible for the rest of the run. A check that changes the thing it measures is
- * worse than one that reads it.
+ * Custom layers (the three.js heritage forms, the massing mesh) have no
+ * source — there is nothing to wait for, and MapLibre does not give them one.
+ * They are skipped rather than waited on forever.
+ *
+ * Returns {ok:true} when every source loaded, or {ok:false, id, source} for
+ * the first one that did not, so the caller can name it instead of reporting
+ * a measurement it never took.
  */
-async function toggleDelta(id) {
-  const before = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
-  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility','none')}catch(e){};return true})()`);
-  await sleep(2200);
-  const off = await shot();
-  await evaluate(`(()=>{const m=window.__atlas.map;try{m.setLayoutProperty(${JSON.stringify(id)},'visibility',${JSON.stringify(before)})}catch(e){};return true})()`);
-  await sleep(1600);
-  return differingPixels(await shot(), off);
+async function waitForSources(deadlineMs) {
+  const started = Date.now();
+  const waiters = [];
+  for (const { id } of LAYERS) {
+    const source = await evaluate(`(()=>{const m=window.__atlas.map;const l=m.getLayer(${JSON.stringify(id)});if(!l||!l.source)return null;return String(l.source)})()`);
+    if (source) waiters.push({ id, source });
+  }
+  if (!waiters.length) return { ok: true };
+
+  const pending = new Map(waiters.map((w) => [w.source, w.id]));
+  const sources = [...pending.keys()];
+  let lastReport = 0;
+  while (Date.now() - started < deadlineMs) {
+    let state = null;
+    try {
+      state = await evaluate(`(()=>{const m=window.__atlas.map;const out={};for (const s of ${JSON.stringify(sources)}) out[s]=m.isSourceLoaded(s);return out})()`);
+    } catch { /* the page is busy; try again */ }
+    if (state && typeof state === 'object') {
+      for (const [s, id] of [...pending]) {
+        if (state[s]) pending.delete(s);
+      }
+    }
+    const elapsed = (Date.now() - started) / 1000;
+    if (pending.size && elapsed - lastReport >= 10) {
+      lastReport = elapsed;
+      console.log(`render-check: waiting ${pending.size} source(s) to load (${elapsed.toFixed(0)}s): ${[...pending].map(([s, id]) => `${id}<-${s}`).join(', ')}`);
+    }
+    if (!pending.size) {
+      console.log(`render-check: all ${waiters.length} source(s) loaded after ${elapsed.toFixed(1)}s (${waiters.map((w) => w.id).join(', ')})`);
+      return { ok: true };
+    }
+    await sleep(1500);
+  }
+  const [source, id] = [...pending][0];
+  return { ok: false, id, source };
 }
 
 const results = [];
@@ -244,7 +335,7 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   const before = await shot();
   // Hide rather than remove: removal tears down state we want to keep for the
   // next layer, and MapLibre's onRemove can mask what the layer actually drew.
-  // Remember and restore the original visibility — see toggleDelta.
+  // Restore the original visibility, never wake the superseded roof pilot.
   const wasVisible = await evaluate(`(()=>{const m=window.__atlas.map;try{return String(m.getLayoutProperty(${JSON.stringify(id)},'visibility')||'visible')}catch(e){return 'visible'}})()`);
   await evaluate(`(()=>{const m=window.__atlas.map; m.setLayoutProperty(${JSON.stringify(id)},'visibility','none'); return true})()`);
   await sleep(400);
@@ -273,8 +364,6 @@ await evaluate(`(()=>{const m=window.__atlas.map;
  return true})()`);
 await sleep(1500);
 
-browser.close();
-
 console.log(`render-check: ${URL} @ zoom ${VIEW.zoom}`);
 let bad = 0;
 for (const r of results) {
@@ -295,7 +384,7 @@ for (const r of results) {
     console.log(`  BROKEN   ${r.id} — the two captures are not comparable`);
     bad++;
   } else if (r.pct <= FLOOR) {
-    console.log(`  BLANK    ${r.id} — installed but changes no pixels (${r.pct.toFixed(3)}%)`);
+    console.log(`  UNPROVEN ${r.id} — delta ${r.pct.toFixed(3)}% does not exceed measured noise`);
     bad++;
   } else {
     console.log(`  draws    ${r.id} — ${r.pct.toFixed(2)}% of the map area`);
@@ -308,9 +397,9 @@ if (bad) {
   const missing = results.filter((r) => !r.present).length;
   const parts = [];
   if (missing) parts.push(`${missing} not installed`);
-  if (bad - missing) parts.push(`${bad - missing} installed but drawing nothing they should`);
+  if (bad - missing) parts.push(`${bad - missing} installed but visibility not proven above noise`);
   console.error(`render-check: ${parts.join('; ')}`);
-  process.exit(1);
+  die(parts.join('; '), 1);
 }
 console.log('render-check: every expected layer draws');
 
@@ -369,12 +458,14 @@ function differingPixels(aBuf, bBuf) {
   // carries the build stamp, and either would hand every layer a free few
   // percent of "it draws". Bounds are a fraction of the capture so a different
   // window size samples the same region rather than quietly a different one.
-  const y0 = Math.round(a.h * 0.245);
-  const y1 = Math.round(a.h * 0.87);
+  const y0 = Math.max(0, Math.ceil(mapBounds.y));
+  const y1 = Math.min(a.h, Math.floor(mapBounds.y + mapBounds.height));
+  const x0 = Math.max(0, Math.ceil(mapBounds.x));
+  const x1 = Math.min(a.w, Math.floor(mapBounds.x + mapBounds.width));
   let diff = 0;
   let total = 0;
   for (let y = y0; y < y1; y++) {
-    for (let x = 0; x < a.w; x++) {
+    for (let x = x0; x < x1; x++) {
       const o = (y * a.w + x) * a.channels;
       const d = Math.max(
         Math.abs(a.data[o] - b.data[o]),
@@ -386,4 +477,9 @@ function differingPixels(aBuf, bBuf) {
     }
   }
   return total ? (100 * diff) / total : 0;
+}
+} finally {
+  try {
+    if (ownedTarget) await browser.send('Target.closeTarget', { targetId: ownedTarget });
+  } finally { browser.close(); }
 }

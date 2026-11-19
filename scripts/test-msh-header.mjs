@@ -36,19 +36,12 @@ test('the header has no dead eyebrow', () => {
   assert.doesNotMatch(meta[1], /atlas-eyebrow/, 'the dead eyebrow is back');
 });
 
-test('the phone title is a word that fits, not a phrase that gets cut', () => {
-  // At 390px the grid left the title 155px and the phrase needed 174px, so
-  // it read "Bangkok · live · Flood e…". A cut word is worse than a short
-  // one: the space is paid for and nothing is delivered.
-  const phone = html.match(/<span class="atlas-title-phone">([^<]*)<\/span>/);
-  assert.ok(phone, 'the phone title variant is gone');
-  const text = phone[1].trim();
-  assert.ok(text.length > 0, 'the phone title is empty');
-  assert.ok(
-    text.length <= 12,
-    `the phone title "${text}" is ${text.length} characters — it will be cut at 390px`,
-  );
-  assert.ok(!/…|\.\.\./.test(text), 'the phone title ships an ellipsis');
+test('the title is gone from the header', () => {
+  // The title "Bangkok, live, flood edition" lived above the map as a dead
+  // chrome band — Glance Path §2.5: map products don't bury the map under a
+  // header. The wordmark identifies the atlas; the title is not needed.
+  assert.doesNotMatch(html, /atlas-title/, 'the atlas-title class is gone');
+  assert.doesNotMatch(html, /Bangkok, live/, 'the title phrase is gone');
 });
 
 test('the headline toggle is styled at every width, not only on a phone', () => {

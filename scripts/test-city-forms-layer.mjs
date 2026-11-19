@@ -49,7 +49,7 @@ function fakeMap({ buildings = [], zoom = 17.6 } = {}) {
   const state = { buildings, zoom, handlers: new Map(), layers: new Set() };
   // The building layers the city forms read are present; only their contents
   // arrive late, which is the whole point of the test.
-  state.layers.add('bkkx-3d-buildings-hi');
+  state.layers.add('bkkx-3d-buildings');
   state.layers.add('bkkx-rattanakosin-buildings');
   const map = {
     state,
@@ -59,7 +59,7 @@ function fakeMap({ buildings = [], zoom = 17.6 } = {}) {
     addLayer: (layer) => { state.layers.add(layer.id); },
     removeLayer: (id) => { state.layers.delete(id); },
     queryRenderedFeatures: ({ layers }) => (
-      layers.includes('bkkx-3d-buildings-hi') ? state.buildings : []
+      layers.includes('bkkx-3d-buildings') ? state.buildings : []
     ),
     triggerRepaint: () => {},
     on: (event, handler) => {

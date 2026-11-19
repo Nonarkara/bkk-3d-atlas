@@ -12,6 +12,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The zoom floors and ceilings the building layers share. Read as VALUES, so
+// a check proves what the app uses rather than how the number was spelled.
+const zoomConstants = await import(new URL("../public/layer-zooms.js", import.meta.url));
 const errors = [];
 const notes = [];
 
@@ -330,7 +333,6 @@ for (const token of [
   "applyCivicPoiFilter",
   "loadCivicPoiGeoJson",
   "pointLayersOwningClick",
-  "BKKX_BUILDINGS_HI_LAYER",
   "hideBaseBuildingFills",
   "BUILDING_EXTRUSION_FILTER",
   "antialias: true",
@@ -353,8 +355,28 @@ if (!html.includes('id="toggle-water-transit"') || !html.includes('id="legend-wa
 } else {
   ok("index.html has water-transit toggle + legend");
 }
-if (!app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) fail("missing building zoom handoff constant");
-else ok("street-zoom buildings hand off past tippecanoe maxzoom");
+// The street-zoom buildings must not stop where the archive stops.
+//
+// The atlas used to hand off at the tippecanoe maxzoom: the archive carried
+// tiles to z15 and a second source took over above it, which is why the city
+// disappeared above z15. The metro archive now carries native tiles to z17,
+// so there is no handoff any more — and the check has to say THAT, not
+// insist on a constant that now means the opposite.
+//
+// The values are read from the module the app imports, not matched as text
+// in app.js: the floors and ceilings live in public/layer-zooms.js now, and
+// a text match would only prove that a literal was still spelled the old way.
+if (app.includes("BKKX_BUILDINGS_HANDOFF_ZOOM")) {
+  fail("street-zoom buildings still hand off to a second source — the metro archive reaches z17 on its own");
+} else if (zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM !== 17) {
+  fail(`the metro archive's source zoom is ${zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM}, not 17 — the archive carries native tiles to z17`);
+} else if (zoomConstants.BUILDINGS_LAYER_MAX_ZOOM <= zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM) {
+  fail(`the layer's ceiling (z${zoomConstants.BUILDINGS_LAYER_MAX_ZOOM}) must sit above the source's deepest zoom (z${zoomConstants.BUILDINGS_SOURCE_MAX_ZOOM}), or the layer stops early`);
+} else if (zoomConstants.ATLAS_MIN_ZOOM < zoomConstants.BUILDINGS_SOURCE_MIN_ZOOM) {
+  fail(`the map allows z${zoomConstants.ATLAS_MIN_ZOOM} but the archive starts at z${zoomConstants.BUILDINGS_SOURCE_MIN_ZOOM} — below that MapLibre switches the source off and the city is simply absent`);
+} else {
+  ok("street-zoom buildings come from one archive to z17, with no handoff");
+}
 if (!app.includes("landmark-victory-monument") && !app.includes("bkk-landmarks.geojson")) {
   fail("landmarks layer not wired to bkk-landmarks.geojson");
 } else {
@@ -574,13 +596,38 @@ else {
   if (!json.includes("OpenStreetMap")) fail("grand-palace.glb missing OSM credit");
   else ok("grand-palace.glb credits OpenStreetMap");
 }
-if (!html.includes("three@0.170.0")) fail("index.html missing pinned three.js 0.170.0 import map");
-else ok("index.html pins three.js 0.170.0");
+// The pinned three.js version must agree across the import map and the code
+// that imports it, and this check must not hardcode the version itself: a
+// check that names a version is a check that has to be edited on every bump,
+// and the bump on 2026-10-23 left this one naming 0.170.0 while the atlas
+// pinned 0.186.1 — so it failed for the wrong reason and stayed broken.
+{
+  const importMap = html.match(/<script type="importmap"[^>]*>([\s\S]*?)<\/script>/);
+  const mapText = importMap ? importMap[1] : "";
+  const pinned = mapText.match(/three@([0-9]+\.[0-9]+\.[0-9]+)/);
+  const codeVersions = ["public/building-massing.js", "public/heritage-forms-layer.js", "public/wireframe-landmarks.js"]
+    .map((file) => {
+      const src = readFileSync(join(root, file), "utf8");
+      const m = src.match(/THREE_VERSION\s*=\s*['"]([0-9.]+)['"]/);
+      return m ? m[1] : null;
+    })
+    .filter(Boolean);
+  if (!pinned) {
+    fail("index.html has no three.js import map — the 3D layers cannot resolve 'three'");
+  } else if (!codeVersions.length) {
+    ok(`index.html pins three@${pinned[1]} (no source-level pin to cross-check)`);
+  } else if (!codeVersions.every((v) => v === pinned[1])) {
+    fail(`three.js version disagrees: index.html pins ${pinned[1]}, code pins ${[...new Set(codeVersions)].join(", ")}`);
+  } else {
+    ok(`index.html and the code both pin three@${pinned[1]}`);
+  }
+}
 if (!html.includes('id="atlas-massing-note"') || !html.includes("Approximate model, not an official survey")) {
   fail("index.html missing the Grand Palace stand-in note");
 } else ok("index.html has the Grand Palace stand-in note");
 const massingSrc = readFileSync(join(root, "public/building-massing.js"), "utf8");
-if (!app.includes("installBuildingMassing") || !massingSrc.includes("MASSING_MIN_ZOOM = 16") || !massingSrc.includes("await import('three')")) {
+const massingModule = await import(new URL("../public/building-massing.js", import.meta.url));
+if (!app.includes("installBuildingMassing") || massingModule.MASSING_MIN_ZOOM !== 16 || !massingSrc.includes("await import('three')")) {
   fail("building massing is not wired");
 } else ok("building massing is wired and three.js stays lazy");
 const massingTest = spawnSync(process.execPath, ["--test", "scripts/test-building-massing.mjs"], { cwd: root, encoding: "utf8" });

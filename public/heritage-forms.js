@@ -25,28 +25,34 @@
 // not measured. Every spec carries `confidence`: "named" when a Thai name says
 // what it is, "inferred" when only the type and the shape do. Callers must be
 // able to show that difference.
+//
+// The colour of a form comes from its `material`, and the material is decided
+// by the same evidence: a name that says ไม้ is timber, a name that says gold
+// is gilded, a type that is a pavilion is teak. The colours themselves live in
+// public/temple-materials.js — one declared set, shared with the map's
+// extrusion, the massing layer and the sibling project. Nothing here writes a
+// colour down.
+import { TEMPLE_MATERIALS as M, bodyOf, shadeOf, lightOf, partOf } from './temple-materials.js';
+
 const ORIGIN = { lng: 100.5028, lat: 13.7511 };
 const KX = 111320 * Math.cos(ORIGIN.lat * Math.PI / 180);
 const KY = 110540;
+// The colours are not written here. They live in public/temple-materials.js,
+// one table, so a temple is the same colour in the forms mesh, in the map's
+// extrusion underneath it, and in the sibling project that draws the same
+// Old Town. This block only names the local handles the geometry uses; every
+// colour a form actually wears comes from the material it carries.
 const C = {
-  plinth: [0.8, 0.76, 0.68],
-  wall: [0.93, 0.91, 0.86],
-  roof: [0.76, 0.38, 0.19],
-  // glazed orange tile
-  skirt: [0.25, 0.42, 0.3],
-  // green border tile
-  gold: [0.84, 0.66, 0.2],
-  ceramic: [0.84, 0.82, 0.77],
-  shade: [0.62, 0.6, 0.56],
-  // Shophouses are not temple architecture. Warm lime plaster, a dark band at
-  // every floor line, plain glazed tile. No gold, no chofa, no skirt tile.
-  shopWall: [0.79, 0.68, 0.52],
-  shopBand: [0.36, 0.29, 0.25],
-  shopRoof: [0.29, 0.25, 0.23],
+  plinth: M.plinth.base,
+  roof: M.roof.base,
+  skirt: M.skirt.base,
+  gold: M.gold.base,
+  glass: M.glass.base,
   // Loha Prasat is blackened iron and steel — the "metal castle". No gold.
-  iron: [0.32, 0.32, 0.36],
-  ironShade: [0.24, 0.24, 0.28]
+  iron: M.iron.base,
+  ironShade: M.iron.shade
 };
+
 class Builder {
   positions = [];
   colors = [];
@@ -151,7 +157,10 @@ function hull(points) {
   return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
 function fitRect(local) {
-  const h = hull(local);
+  return minAreaRect(hull(local));
+}
+/** The minimum-area rectangle of a point set, as the classifier measures it. */
+function minAreaRect(h) {
   let best = null;
   let bestArea = Infinity;
   for (let i = 0; i < h.length; i++) {
@@ -182,10 +191,71 @@ function fitRect(local) {
   }
   return best ?? { cx: 0, cy: 0, ux: 1, uy: 0, hl: 1, hw: 1 };
 }
+/**
+ * The rectangle a form is actually drawn on: the minimum-area rectangle of
+ * the footprint, scaled about its own centre until its four corners sit
+ * inside the footprint's convex hull. A convex hull contains a rectangle
+ * exactly when it contains all four of its corners.
+ *
+ * The classifier measures the real footprint on its own (`fitRect`); this is
+ * the plan the drawing is held to.
+ */
+function fitRectInside(local) {
+  const h = hull(local);
+  const rect = minAreaRect(h);
+  const s = inscribeScale(rect, h);
+  if (s < 1) {
+    rect.hl *= s;
+    rect.hw *= s;
+  }
+  return rect;
+}
 const at = (r, u, v) => [r.cx + u * r.ux - v * r.uy, r.cy + u * r.uy + v * r.ux];
+/** Is a point inside a convex polygon? */
+function pointInHull(p, h) {
+  let area = 0;
+  for (let i = 0; i < h.length; i++) {
+    const [x0, y0] = h[i];
+    const [x1, y1] = h[(i + 1) % h.length];
+    area += x0 * y1 - x1 * y0;
+  }
+  const poly = area < 0 ? h.slice().reverse() : h;
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, ay] = poly[i];
+    const [bx, by] = poly[(i + 1) % poly.length];
+    if ((bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax) < -1e-9) return false;
+  }
+  return true;
+}
+/**
+ * The largest scale, at or below 1, that keeps a rectangle's four corners
+ * inside the footprint's convex hull. A convex hull contains a rectangle
+ * exactly when it contains all four of its corners.
+ */
+function inscribeScale(rect, h) {
+  const corners = [[-rect.hl, -rect.hw], [rect.hl, -rect.hw], [rect.hl, rect.hw], [-rect.hl, rect.hw]];
+  const fits = (s) => corners.every(([u, v]) => pointInHull(at(rect, u * s, v * s), h));
+  if (fits(1)) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
 const rectRing = (r, hl, hw) => [at(r, -hl, -hw), at(r, hl, -hw), at(r, hl, hw), at(r, -hl, hw)];
 const square = (r, half) => rectRing(r, half, half);
-function gableTier(b, r, hl, hw, zEave, zRidge, chofa, roofCol, zCap) {
+/**
+ * How far a roof hangs past the walls below it, as a fraction of the plan's
+ * half-width. A temple's roof does overhang — that is what a temple's roof
+ * does — but the plan itself never leaves the footprint. This is the number
+ * the plan is held to, so it is written down once and read by the test.
+ */
+export const ROOF_OVERHANG = 1.04;
+
+function gableTier(b, r, hl, hw, zEave, zRidge, chofa, roofCol, zCap, trimCol = C.gold) {
   const room = Math.max(0, zCap - zRidge);
   const e = (u, v, z) => [...at(r, u, v), z];
   b.quad(e(-hl, -hw, zEave), e(hl, -hw, zEave), e(hl, 0, zRidge), e(-hl, 0, zRidge), roofCol);
@@ -193,10 +263,10 @@ function gableTier(b, r, hl, hw, zEave, zRidge, chofa, roofCol, zCap) {
   for (const s of [-1, 1]) {
     const u = s * hl;
     const inset = s * Math.min(0.6, hl * 0.04);
-    b.tri(e(u - inset, -hw * 0.94, zEave), e(u - inset, hw * 0.94, zEave), e(u - inset, 0, zRidge - 0.05), C.gold);
+    b.tri(e(u - inset, -hw * 0.94, zEave), e(u - inset, hw * 0.94, zEave), e(u - inset, 0, zRidge - 0.05), trimCol);
     const t = Math.min(Math.max(0.18, hw * 0.05), room);
     for (const side of [-1, 1]) {
-      b.quad(e(u, side * hw, zEave), e(u, 0, zRidge), e(u, 0, zRidge + t), e(u, side * hw, zEave + t), C.gold);
+      b.quad(e(u, side * hw, zEave), e(u, 0, zRidge), e(u, 0, zRidge + t), e(u, side * hw, zEave + t), trimCol);
     }
     if (chofa) {
       const s0 = Math.min(Math.max(0.6, hw * 0.16), room / 1.95);
@@ -206,7 +276,7 @@ function gableTier(b, r, hl, hw, zEave, zRidge, chofa, roofCol, zCap) {
         const [du0, dz0] = path[k], [du1, dz1] = path[k + 1];
         const a0 = e(u + s * du0 * s0, -w, zRidge + dz0 * s0), b0 = e(u + s * du0 * s0, w, zRidge + dz0 * s0);
         const a1 = e(u + s * du1 * s0, -w, zRidge + dz1 * s0), b1 = e(u + s * du1 * s0, w, zRidge + dz1 * s0);
-        b.quad(a0, b0, b1, a1, C.gold);
+        b.quad(a0, b0, b1, a1, trimCol);
       }
     }
   }
@@ -222,63 +292,89 @@ function shophouse(b, r, z0, H, floors) {
   const zPl = z0 + Math.min(0.4, 0.05 * H);
   b.prism(rectRing(r, r.hl, r.hw), z0, zPl, C.plinth);
   const wallTop = z0 + 0.78 * H;
-  b.prism(rectRing(r, r.hl * 0.98, r.hw * 0.92), zPl, wallTop, C.shopWall);
+  b.prism(rectRing(r, r.hl * 0.98, r.hw * 0.92), zPl, wallTop, bodyOf("shophouse"));
   // The string course at each floor line is what makes a row read as a row.
   const n = Math.max(1, Math.min(4, floors || 2));
   for (let i = 1; i < n; i++) {
     const z = z0 + (wallTop - z0) * (i / n);
     b.band(
       rectRing(r, r.hl * 1.005, r.hw * 0.95), rectRing(r, r.hl * 0.98, r.hw * 0.92),
-      z - 0.16, z + 0.16, C.shopBand,
+      z - 0.16, z + 0.16, partOf("shophouse", "band"),
     );
   }
   const hl = r.hl * 0.99, hw = r.hw * 0.93;
   const e = (u, v, z) => [...at(r, u, v), z];
   const zRidge = z0 + H;
-  b.quad(e(-hl, -hw, wallTop), e(hl, -hw, wallTop), e(hl, 0, zRidge), e(-hl, 0, zRidge), C.shopRoof);
-  b.quad(e(hl, hw, wallTop), e(-hl, hw, wallTop), e(-hl, 0, zRidge), e(hl, 0, zRidge), C.shopRoof);
+  b.quad(e(-hl, -hw, wallTop), e(hl, -hw, wallTop), e(hl, 0, zRidge), e(-hl, 0, zRidge), partOf("shophouse", "roof"));
+  b.quad(e(hl, hw, wallTop), e(-hl, hw, wallTop), e(-hl, 0, zRidge), e(hl, 0, zRidge), partOf("shophouse", "roof"));
   // Close the gable ends in plaster, not gold.
   for (const s of [-1, 1]) {
     const u = s * hl;
-    b.tri(e(u, -hw, wallTop), e(u, hw, wallTop), e(u, 0, zRidge), C.shopWall);
+    b.tri(e(u, -hw, wallTop), e(u, hw, wallTop), e(u, 0, zRidge), lightOf("shophouse"));
   }
 }
-function hall(b, r, z0, H, tiers, open = false) {
+/**
+ * A hall: an enclosed building with walls, a skirt roof and stacked tiers.
+ *
+ * An open pavilion (`open`) is a different building, not a hall with the door
+ * open. A ศาลา is a timber shed: no skirt tile, no glazed panel band, no gold
+ * pediment and no chofa. Giving it the wat's vocabulary made every ordinary
+ * pavilion in the Old Town read as a shrine.
+ */
+function hall(b, r, z0, H, tiers, open = false, mat = "plaster") {
   const zPl = z0 + Math.min(1.2, 0.06 * H);
   b.prism(rectRing(r, r.hl, r.hw), z0, zPl, C.plinth);
   const wallTop = z0 + (open ? 0.34 : 0.4) * H;
-  b.prism(rectRing(r, r.hl * 0.9, r.hw * 0.84), zPl, wallTop, open ? C.shade : C.wall);
+  const body = bodyOf(mat);
+  b.prism(rectRing(r, r.hl * 0.9, r.hw * 0.84), zPl, wallTop, open ? shadeOf(mat) : body);
   const skirtLo = wallTop - 0.07 * H;
-  b.band(rectRing(r, r.hl * 1, r.hw * 1.04), rectRing(r, r.hl * 0.9, r.hw * 0.84), skirtLo, wallTop + 0.02 * H, C.skirt);
+  if (!open) {
+    b.band(rectRing(r, r.hl * 1, r.hw * ROOF_OVERHANG), rectRing(r, r.hl * 0.9, r.hw * 0.84), skirtLo, wallTop + 0.02 * H, C.skirt);
+    // The glazed panel band under the skirt: กระจกคราม. Thai halls carry a row
+    // of blue ceramic panels in the pediment wall, and it is the one place the
+    // Old Town's temples use a cold colour — which is what makes a hundred
+    // identical white walls read as a hundred separate buildings.
+    const glassLo = wallTop - 0.155 * H;
+    b.band(
+      rectRing(r, r.hl * 0.905, r.hw * 0.845), rectRing(r, r.hl * 0.9, r.hw * 0.84),
+      glassLo, glassLo + 0.07 * H, C.glass,
+    );
+  }
   const zEave = wallTop + 0.02 * H;
   const zTop = z0 + 0.9 * H;
   const n = Math.max(1, Math.min(3, tiers));
   for (let i = n - 1; i >= 0; i--) {
     const hl = r.hl * 0.92 * (1 - 0.15 * (n - 1 - i));
     const zr = zTop - i * 0.09 * H;
-    gableTier(b, r, hl, r.hw * 0.88, zEave, zr, i === 0, C.roof, z0 + H);
+    // Gold pediment, rake trim and chofa belong to the wat. An open pavilion
+    // is trimmed in its own timber.
+    const trim = open ? body : C.gold;
+    gableTier(b, r, hl, r.hw * 0.88, zEave, zr, !open && i === 0, C.roof, z0 + H, trim);
   }
 }
-function chedi(b, r, z0, H, finish, redented) {
+function chedi(b, r, z0, H, mat, redented) {
   const R = Math.min(r.hl, r.hw);
-  const body = finish === "gold" ? C.gold : finish === "ceramic" ? C.ceramic : C.wall;
+  const body = bodyOf(mat);
   [[1, 0, 0.08], [0.86, 0.08, 0.16], [0.74, 0.16, 0.24]].forEach(([s, a, c]) => b.prism(square(r, R * s), z0 + a * H, z0 + c * H, body));
   const P = (pts) => pts.map(([z, k]) => [z0 + z * H, R * k]);
   const phase = Math.atan2(r.uy, r.ux) + (redented ? Math.PI / 12 : 0);
   const segs = redented ? 12 : 32;
   b.lathe(r.cx, r.cy, P([[0.24, 0.66], [0.27, 0.66], [0.27, 0.62], [0.3, 0.6], [0.34, 0.65], [0.41, 0.66], [0.47, 0.62], [0.52, 0.5], [0.555, 0.32], [0.56, 0.24]]), segs, phase, () => body);
-  b.prism(square(r, R * 0.26), z0 + 0.56 * H, z0 + 0.62 * H, finish === "white" ? C.gold : body);
+  // The harmika is the square chamber under the spire, and it is gilded even
+  // on a stucco chedi — that band of gold under the bell is the thing that
+  // makes a white chedi read as a chedi and not as a grain silo.
+  b.prism(square(r, R * 0.26), z0 + 0.56 * H, z0 + 0.62 * H, mat === "plaster" ? C.gold : body);
   const rings = [];
   for (let k = 0; k < 9; k++) {
     const z = 0.62 + k * 0.024, rad = 0.17 - k * 0.012;
     rings.push([z, rad], [z + 0.012, rad + 0.012]);
   }
   rings.push([0.84, 0.06], [0.88, 0.05], [0.9, 0.065], [0.93, 0.03], [1, 4e-3]);
-  b.lathe(r.cx, r.cy, P(rings), 16, phase, (z) => z > z0 + 0.83 * H || finish === "gold" ? C.gold : body);
+  b.lathe(r.cx, r.cy, P(rings), 16, phase, (z) => z > z0 + 0.83 * H || mat === "gold" ? C.gold : body);
 }
-function prang(b, r, z0, H, finish) {
+function prang(b, r, z0, H, mat) {
   const R = Math.min(r.hl, r.hw);
-  const body = finish === "gold" ? C.gold : finish === "white" ? C.wall : C.ceramic;
+  const body = bodyOf(mat);
   [[1, 0, 0.1], [0.84, 0.1, 0.2], [0.7, 0.2, 0.28]].forEach(([s, a, c]) => b.prism(square(r, R * s), z0 + a * H, z0 + c * H, body));
   b.prism(square(r, R * 0.52), z0 + 0.28 * H, z0 + 0.48 * H, body);
   const prof = [];
@@ -294,12 +390,12 @@ function prang(b, r, z0, H, finish) {
     prof.map(([z, k]) => [z0 + z * H, R * k]),
     8,
     phase,
-    (z) => z > z0 + 0.9 * H ? C.gold : body
+    (z) => z > z0 + 0.9 * H ? lightOf("gold") : body
   );
 }
-function mondop(b, r, z0, H, finish) {
+function mondop(b, r, z0, H, mat) {
   const R = Math.min(r.hl, r.hw);
-  const body = finish === "gold" ? C.gold : C.wall;
+  const body = bodyOf(mat);
   b.prism(square(r, R), z0, z0 + 0.1 * H, C.plinth);
   b.prism(square(r, R * 0.88), z0 + 0.1 * H, z0 + 0.2 * H, C.plinth);
   b.prism(square(r, R * 0.72), z0 + 0.2 * H, z0 + 0.46 * H, body);
@@ -307,16 +403,18 @@ function mondop(b, r, z0, H, finish) {
   const steps = 8, dz = 0.44 * H / steps;
   for (let k = 0; k < steps; k++) {
     const s = R * (0.78 - k * 0.085);
-    b.prism(square(r, s * 1.1), z, z + dz * 0.25, k % 2 ? C.gold : C.skirt);
-    b.prism(square(r, s), z + dz * 0.25, z + dz, C.gold);
+    // A mondop is a stack of the same roof, not a stack of gold. The tiers are
+    // the material; only the finial at the very top is gilded.
+    b.prism(square(r, s * 1.1), z, z + dz * 0.25, shadeOf(mat));
+    b.prism(square(r, s), z + dz * 0.25, z + dz, body);
     z += dz;
   }
-  b.lathe(r.cx, r.cy, [[z, R * 0.06], [z0 + H, R * 4e-3]], 8, 0, () => C.gold);
+  b.lathe(r.cx, r.cy, [[z, R * 0.06], [z0 + H, R * 4e-3]], 8, 0, () => lightOf("gold"));
 }
-function cruciform(b, r, z0, H, tiers) {
+function cruciform(b, r, z0, H, tiers, mat = "plaster") {
   const across = { ...r, ux: -r.uy, uy: r.ux, hl: r.hw, hw: r.hl * 0.42 };
-  hall(b, { ...r, hw: r.hw * 0.42 }, z0, H, tiers);
-  hall(b, across, z0, H, tiers);
+  hall(b, { ...r, hw: r.hw * 0.42 }, z0, H, tiers, false, mat);
+  hall(b, across, z0, H, tiers, false, mat);
 }
 // Loha Prasat — วัดราชนัดดาราม's Metal Palace. Three square iron terraces
 // carrying 37 spires: 24 on the ground tier (two rings of twelve), 8 on the
@@ -330,7 +428,7 @@ function lohaPrasat(b, r, z0, H) {
     { half: R * 0.64, from: z0 + 0.34 * H, to: z0 + 0.62 * H },
     { half: R * 0.40, from: z0 + 0.62 * H, to: z0 + 0.84 * H },
   ];
-  for (const tier of tiers) b.prism(square(r, tier.half), tier.from, tier.to, C.wall);
+  for (const tier of tiers) b.prism(square(r, tier.half), tier.from, tier.to, bodyOf("iron"));
   // Spire lathe: a thin tapering metal cone with a collar, iron-shaded.
   const spire = (cx, cy, zBase, h, crown) => {
     const col = crown ? C.ironShade : C.iron;
@@ -372,47 +470,59 @@ function lohaPrasat(b, r, z0, H) {
 }
 function fort(b, local, r, z0, H) {
   const wallTop = z0 + 0.62 * H;
-  b.prism(local, z0, wallTop, C.wall);
+  b.prism(local, z0, wallTop, bodyOf("plaster"));
+  // Which way is out? The footprint's winding decides which side of a wall
+  // is the street, and a merlon must sit on the wall — not half in it and
+  // half in the road.
+  let area = 0;
+  for (let i = 0; i < local.length; i++) {
+    const [x0, y0] = local[i];
+    const [x1, y1] = local[(i + 1) % local.length];
+    area += x0 * y1 - x1 * y0;
+  }
+  const sgn = area >= 0 ? 1 : -1;
   for (let i = 0; i < local.length; i++) {
     const [x0, y0] = local[i], [x1, y1] = local[(i + 1) % local.length];
     const len = Math.hypot(x1 - x0, y1 - y0), n = Math.floor(len / 1.8);
     const ux = (x1 - x0) / len, uy = (y1 - y0) / len, w = 0.35;
+    const ox = uy * sgn, oy = -ux * sgn;
     for (let k = 0; k < n; k++) {
-      const cx = x0 + ux * (k + 0.5) * 1.8, cy = y0 + uy * (k + 0.5) * 1.8;
+      const cx = x0 + ux * (k + 0.5) * 1.8 - ox * w;
+      const cy = y0 + uy * (k + 0.5) * 1.8 - oy * w;
       b.prism([
         [cx - ux * w - uy * w, cy - uy * w + ux * w],
         [cx + ux * w - uy * w, cy + uy * w + ux * w],
         [cx + ux * w + uy * w, cy + uy * w - ux * w],
         [cx - ux * w + uy * w, cy - uy * w - ux * w]
-      ], wallTop, wallTop + 0.9, C.wall);
+      ], wallTop, wallTop + 0.9, bodyOf("plaster"));
     }
   }
   const pav = { ...r, hl: Math.max(1.5, r.hl * 0.3), hw: Math.max(1.2, r.hw * 0.3) };
-  hall(b, pav, wallTop, H * 0.38, 1, true);
+  hall(b, pav, wallTop, H * 0.38, 1, true, "plaster");
 }
 function buildForm(spec) {
   const b = new Builder();
   const local = openRing(spec.ring).map(toLocal);
-  const r = fitRect(local);
+  const r = fitRectInside(local);
   const { base: z0, height: H } = spec;
   switch (spec.kind) {
     case "hall":
-      hall(b, r, z0, H, spec.tiers);
+      hall(b, r, z0, H, spec.tiers, false, spec.material);
       break;
     case "sala":
-      hall(b, r, z0, H, 1, true);
+      hall(b, r, z0, H, 1, true, spec.material);
       break;
     case "chedi":
-      chedi(b, r, z0, H, spec.finish, spec.finish === "ceramic");
+      chedi(b, r, z0, H, spec.material, spec.material === "ceramic");
       break;
     case "prang":
-      prang(b, r, z0, H, spec.finish);
+      prang(b, r, z0, H, spec.material);
       break;
     case "mondop":
-      mondop(b, r, z0, H, spec.finish);
+      mondop(b, r, z0, H, spec.material);
       break;
     case "prasat":
-      cruciform(b, r, z0, H * 0.55, 2);
+      cruciform(b, r, z0, H * 0.55, 2, spec.material);
       prang(b, { ...r, hl: Math.min(r.hl, r.hw) * 0.42, hw: Math.min(r.hl, r.hw) * 0.42 }, z0 + 0.45 * H, 0.55 * H, "gold");
       break;
     case "loha":
@@ -420,8 +530,8 @@ function buildForm(spec) {
       break;
     case "throne": {
       const roofH = spec.spires ? H * 0.6 : H;
-      if (spec.spires === 1 && r.hl / r.hw < 1.5) cruciform(b, r, z0, roofH, spec.tiers);
-      else hall(b, r, z0, roofH, spec.tiers);
+      if (spec.spires === 1 && r.hl / r.hw < 1.5) cruciform(b, r, z0, roofH, spec.tiers, spec.material);
+      else hall(b, r, z0, roofH, spec.tiers, false, spec.material);
       const sp = Math.min(r.hw, r.hl) * 0.34;
       const spots = spec.spires === 3 ? [-0.6, 0, 0.6] : spec.spires === 1 ? [0] : [];
       for (const f of spots) {
@@ -449,7 +559,11 @@ const ATTHAMAHA_PRANGS = [
   "พระโพธิสัตวมหาเจดีย์",
   "พระศรีอริยเมตไตรยมหาเจดีย์"
 ];
-const GOLD_CHEDI = ["พระศรีรัตนเจดีย์", "พระสุวรรณเจดีย์"];
+const GOLD_CHEDI = ["พระศรีรัตนเจดีย์", "พระสุวรรณเจดีย์", "พระมหาเจดีย์ดิลกธรรมกรกนิทาน"];
+// The two great chedis of the Old Town that are clad in coloured glass
+// mosaic rather than stucco. A famous monument's material is a fact about
+// that monument, so it is named rather than inferred from a rule.
+const GLASS_CHEDI = ["พระโพธิสัตว์กฤษฎามหาเจดีย์", "พระมหาเจดีย์มุนีบัตบริขาร"];
 const THAI_THRONE_HALLS = [
   "พระที่นั่งอมรินทรวินิจฉัย",
   "พระที่นั่งไพศาลทักษิณ",
@@ -479,6 +593,29 @@ function shapeOf(ring) {
   const area = polygonArea(local);
   return { area, aspect: r.hl / Math.max(r.hw, 0.01), fill: area / Math.max(4 * r.hl * r.hw, 0.01), vertices: local.length };
 }
+/**
+ * The material of a hall, read off its name.
+ *
+ * A wat's scripture hall says what it is made of: วิหารไม้, อุโบสถไม้สัก.
+ * A hall whose name says nothing is a whitewashed brick one. The name is the
+ * evidence, and where there is none the default stands.
+ */
+function hallMaterial(n) {
+  return n.includes("ไม้") ? "teak" : "plaster";
+}
+/**
+ * The material of a mondop.
+ *
+ * หอไตร, หอระฆัง and มณเฑียร are the timber scripture halls and towers of
+ * the Rattanakosin wats. A มณฑป is a masonry scripture pavilion. The two
+ * spellings of มณเฑียร are both accepted: the OpenStreetMap names spell it
+ * with a ท in places, and a typo must not cost a building its material.
+ */
+function mondopMaterial(n) {
+  const timber = n.includes("หอไตร") || n.includes("หอระฆัง") || n.includes("มณเฑียร") || n.includes("มณเทียร");
+  if (timber) return "teak";
+  return "plaster";
+}
 function classify(f) {
   const p = f.properties;
   const ring = outerRing(f);
@@ -499,7 +636,7 @@ function classify(f) {
     height: height - base,
     tiers: 1,
     spires: 0,
-    finish: "white",
+    material: "plaster",
     confidence: name ? "named" : "inferred",
     heightSource: typeof p.height_source === "string" ? p.height_source : null,
     heightConfidence: null,
@@ -510,32 +647,37 @@ function classify(f) {
   // The Metal Palace before the generic prasat: โลหะปราสาท contains
   // "ปราสาท" and would otherwise classify as a cruciform hall, which reads
   // nothing like the building. Its own form is the 37 iron spires.
-  if (n.includes("โลหะปราสาท")) return spec("loha");
-  if (ATTHAMAHA_PRANGS.some((x) => n.includes(x)) || n.includes("ปรางค์")) return spec("prang", { finish: "ceramic" });
-  if (GOLD_CHEDI.some((x) => n.includes(x))) return spec("chedi", { finish: "gold" });
+  if (n.includes("โลหะปราสาท")) return spec("loha", { material: "iron" });
+  if (ATTHAMAHA_PRANGS.some((x) => n.includes(x)) || n.includes("ปรางค์")) return spec("prang", { material: "ceramic" });
+  if (GOLD_CHEDI.some((x) => n.includes(x))) return spec("chedi", { material: "gold" });
+  if (GLASS_CHEDI.some((x) => n.includes(x))) return spec("chedi", { material: "glass" });
   if (n.includes("พระที่นั่ง")) {
-    if (THAI_THRONE_HALLS.some((x) => n.includes(x))) return spec("hall", { tiers: 3 });
-    if (THAI_THRONE_PAVILIONS.some((x) => n.includes(x))) return spec("hall", { tiers: 2 });
+    if (THAI_THRONE_HALLS.some((x) => n.includes(x))) return spec("hall", { tiers: 3, material: "plaster" });
+    if (THAI_THRONE_PAVILIONS.some((x) => n.includes(x))) return spec("hall", { tiers: 2, material: "plaster" });
     if (!n.includes("ปราสาท")) return null;
-    return spec("throne", { tiers: 3, spires: n.includes("จักรี") ? 3 : 1 });
+    return spec("throne", { tiers: 3, spires: n.includes("จักรี") ? 3 : 1, material: "plaster" });
   }
-  if (n.includes("ปราสาท")) return spec("prasat");
-  if (n.includes("เจดีย์")) return spec("chedi", { finish: n.includes("พระมหาเจดีย์") ? "ceramic" : "white" });
+  if (n.includes("ปราสาท")) return spec("prasat", { material: "plaster" });
+  if (n.includes("เจดีย์")) return spec("chedi", { material: "plaster" });
   // มณเฑียร (a scripture repository / library, as at Wat Suthat) is a mondop
   // in plan and spire even though it is a different kind of building.
-  if (n.includes("มณฑป") || n.includes("มณเฑียร") || n.includes("หอไตร") || n.includes("หอระฆัง")) return spec("mondop");
-  if (n.includes("ป้อม")) return spec("fort");
-  if (/อุโบสถ|โบสถ์|วิหาร/.test(n)) return spec("hall", { tiers: s.area < 150 ? 2 : 3 });
-  if (n.includes("หอพระ")) return spec("hall", { tiers: 2 });
-  if (n.includes("เปรียญ")) return spec("hall", { tiers: 2 });
+  if (n.includes("มณฑป") || n.includes("มณเฑียร") || n.includes("หอไตร") || n.includes("หอระฆัง")) {
+    return spec("mondop", { material: mondopMaterial(n) });
+  }
+  if (n.includes("ป้อม")) return spec("fort", { material: "plaster" });
+  if (/อุโบสถ|โบสถ์|วิหาร/.test(n)) return spec("hall", { tiers: s.area < 150 ? 2 : 3, material: hallMaterial(n) });
+  if (n.includes("หอพระ")) return spec("hall", { tiers: 2, material: hallMaterial(n) });
+  if (n.includes("เปรียญ")) return spec("hall", { tiers: 2, material: hallMaterial(n) });
   if (n.includes("ศาลา") || n.includes("พลับพลา")) {
     const civic = ["commercial", "retail", "office", "theatre", "government", "civic", "hotel", "public"].includes(building);
-    return s.area >= 12 && s.area <= 400 && !civic ? spec("sala") : null;
+    if (!(s.area >= 12 && s.area <= 400 && !civic)) return null;
+    // A ศาลา is a timber pavilion; a พลับพลา is a masonry one.
+    return spec("sala", { material: n.includes("พลับพลา") ? "plaster" : "teak" });
   }
   if (name) return null;
   if (!["temple", "chapel"].includes(building)) return null;
-  if (s.aspect >= 1.3 && s.area >= 100) return spec("hall", { tiers: s.area > 500 ? 3 : s.area > 200 ? 2 : 1 });
-  if (s.vertices >= 8 && s.aspect < 1.2 && s.fill > 0.68 && s.fill < 0.86 && s.area <= 900) return spec("chedi");
+  if (s.aspect >= 1.3 && s.area >= 100) return spec("hall", { tiers: s.area > 500 ? 3 : s.area > 200 ? 2 : 1, material: "plaster" });
+  if (s.vertices >= 8 && s.aspect < 1.2 && s.fill > 0.68 && s.fill < 0.86 && s.area <= 900) return spec("chedi", { material: "plaster" });
   return null;
 }
 /**
@@ -575,7 +717,7 @@ function classifyShophouse(f) {
     height: floors * STOREY_M,
     tiers: Math.round(floors),
     spires: 0,
-    finish: "white",
+    material: "shophouse",
     confidence: "inferred",
     heightSource: `overture-storeys x ${STOREY_M} m (assumed storey)`,
     heightConfidence: null,
@@ -612,9 +754,9 @@ function heroForms(heroFeatures, detailByOsm) {
     "wat-pho-dilok": ["chedi", "ceramic"],
     "wat-pho-munibat": ["chedi", "ceramic"],
     "wat-pho-srisuriyothai": ["chedi", "ceramic"],
-    "dusit-maha-prasat": ["throne", "white", { tiers: 3, spires: 1 }],
-    "aphonphimok-prasat": ["throne", "white", { tiers: 2, spires: 1 }],
-    "siwalai-maha-prasat": ["throne", "white", { tiers: 3, spires: 1 }]
+    "dusit-maha-prasat": ["throne", "plaster", { tiers: 3, spires: 1 }],
+    "aphonphimok-prasat": ["throne", "plaster", { tiers: 2, spires: 1 }],
+    "siwalai-maha-prasat": ["throne", "plaster", { tiers: 3, spires: 1 }]
     // Loha Prasat (37 spires) and the Golden Mount (a chedi on a hill) keep
     // their survey boxes: a generic form would say less than the boxes do.
   };
@@ -649,7 +791,7 @@ function heroForms(heroFeatures, detailByOsm) {
       height: top - base,
       tiers: 1,
       spires: 0,
-      finish: kind[1],
+      material: kind[1],
       confidence: "envelope",
       heightSource: typeof p0.height_source === "string" ? p0.height_source : null,
       heightConfidence: typeof p0.height_confidence === "string" ? p0.height_confidence : null,
@@ -667,6 +809,7 @@ export {
   classifyShophouse,
   earClip,
   fitRect,
+  fitRectInside,
   heroForms,
   openRing,
   outerRing,

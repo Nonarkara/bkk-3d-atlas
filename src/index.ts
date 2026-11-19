@@ -53,7 +53,16 @@ const SPA_FALLBACK_PATHS = new Set<string>([
   "/atlas/",
 ]);
 const PMTILES_PATH = "/bkk-buildings.pmtiles";
-const PMTILES_R2_KEY = "buildings/bangkok.pmtiles";
+// The metro archive. It was "buildings/bangkok.pmtiles" — tippecanoe tiles to
+// z15, which is why the city stopped at z15 and the street-zoom handoff to
+// OpenFreeMap could never fire (its planet archive declares maxzoom 14).
+// The new archive carries native tiles to z17: 478,027 OSM building
+// footprints for the Bangkok metro, built from Geofabrik's Thailand extract
+// with the height rule baked in (scripts/bake-building-heights.py).
+//
+// The old object is still in the bucket, under its own key, so the switch
+// back is one line and one deploy.
+const PMTILES_R2_KEY = "buildings/bangkok-z17.pmtiles";
 const RATTANAKOSIN_PMTILES_PATH = "/bkk-buildings-rattanakosin.pmtiles";
 const RATTANAKOSIN_PMTILES_R2_KEY = "buildings/bangkok-rattanakosin.pmtiles";
 const FLOOD_ASSET = "/bkk-flood-envelope.geojson";
@@ -671,6 +680,12 @@ async function fetchPointPm25Uncached(lat: number, lng: number): Promise<number 
   } catch {
     return null;
   }
+}
+
+// City events promise the same bbox as /api/at-this-point (smoke checks it).
+// The camera bbox reaches 101.1 and let a Chachoengsao crash through.
+function inCityEventBbox(lat: number, lon: number): boolean {
+  return lat >= 13.4 && lat <= 14.2 && lon >= 100.2 && lon <= 101.0;
 }
 
 function inCctvBbox(lat: number, lon: number): boolean {
@@ -2426,7 +2441,7 @@ async function ingestCityEvents(env: Env, request: Request): Promise<{ scanned: 
     const lng = Number(e.longitude);
     const id = e.eid == null ? null : String(e.eid);
     if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) { skipped++; continue; }
-    if (!inCctvBbox(lat, lng)) { skipped++; continue; }        // Bangkok metro only
+    if (!inCityEventBbox(lat, lng)) { skipped++; continue; }   // Bangkok metro only
     const icon = (e.icon ?? "").toLowerCase();
     if (!BREAKING_EVENT_ICONS.has(icon)) { skipped++; continue; }  // rule 1
 
@@ -2487,6 +2502,7 @@ async function listCityEvents(_request: Request, env: Env, _ctx?: ExecutionConte
   ).bind(since).all<CityEventRow>();
 
   const live = results.filter((row) => {
+    if (!inCityEventBbox(Number(row.lat), Number(row.lng))) return false;      // rows stored under the old bbox
     const firstSeen = Date.parse(row.first_seen_at);
     if (Number.isFinite(firstSeen) && nowMs - firstSeen > ttlMs) return false;   // rule 2: our cap
     const stopMs = parseBangkokTime(row.stops_at);
@@ -2976,9 +2992,13 @@ const ATLAS_DISTRICTS_ASSET = "/bkk-districts.geojson";
 const ATLAS_LAND_PRICE_ASSET = "/bkk-land-price-districts.geojson";
 const ATLAS_RAIL_ASSET = "/bkk-rail.geojson";
 const ATLAS_WATER_TRANSIT_ASSET = "/bkk-water-transit.geojson";
-const ATLAS_BUILDINGS_COUNT = 432077;
+// The metro archive's own feature count, read from the baked source that
+// produced buildings/bangkok-z17.pmtiles. It was 432,077 for the z11-15
+// tippecanoe archive; the rebuilt archive carries native tiles to z17 and
+// 478,027 footprints.
+const ATLAS_BUILDINGS_COUNT = 478027;
 const ATLAS_BUILDINGS_RATTANAKOSIN_COUNT = 9275;
-const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-08-04";
+const ATLAS_BUILDINGS_PMTILES_REGEN = "2026-10-23";
 
 /** Local GeoJSON-lite types — kept inline because @types/geojson isn't in
  *  the dep tree. The shapes are exactly what the upstream files use. */
@@ -3766,11 +3786,11 @@ function apiCatalog(request: Request): Response {
         { path: "/api/atlas/districts", method: "GET", description: "50 khet + merged land-price summary." },
         { path: "/api/atlas/at-this-point", method: "GET", description: "District + land + flood + nearest transit at a point.", query: ["lng", "lat"] },
         { path: "/api/atlas/transit", method: "GET", description: "Nearest rail segments, scheduled boat corridors and passenger piers.", query: ["lng", "lat", "radius?", "limit?"] },
-        { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 432K buildings." },
+        { path: "/api/atlas/buildings", method: "GET", description: "PMTiles pointers for 478K buildings." },
         { path: "/api/atlas/scoreboard", method: "GET", description: "Single-object live health / inventory." },
         { path: "/api/weather/google", method: "GET", description: "Legacy URL for Open-Meteo model weather and hourly rain forecasts. Road and electrical safety remain unknown.", query: ["lng?", "lat?"], cacheSeconds: GOOGLE_WEATHER_CACHE_TTL_SECONDS },
         { path: "/api/predict/timesfm", method: "GET", description: "Explicit unavailable status: no TimesFM inference service is connected. No river arrival times or flood depths are calculated.", query: ["station?", "hours?"], cacheSeconds: 60 },
-        { path: "/bkk-buildings.pmtiles", method: "GET", description: "432,077 OSM buildings — HTTP Range from R2." },
+        { path: "/bkk-buildings.pmtiles", method: "GET", description: "478,027 OSM buildings — HTTP Range from R2." },
         { path: "/bkk-buildings-rattanakosin.pmtiles", method: "GET", description: "Rattanakosin detail buildings PMTiles (zoom 14–18)." },
       ],
       staticGeojson: [

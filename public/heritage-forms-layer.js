@@ -26,7 +26,7 @@ const SHOPHOUSE_URL = '/bkk-shophouse-forms.geojson';
 const runtime = {
   map: null, layer: null, forms: null, chunks: new Map(), built: new Map(),
   active: false, installed: false, shophouseSkipped: 0,
-  builtChunks: 0, startPumping: null, pumpNow: null,
+  builtChunks: 0, startPumping: null, pumpNow: null, popup: null, clickHandler: null,
 };
 
 const KIND_LABEL = {
@@ -192,25 +192,31 @@ export function visibleCells(bounds, deg = CHUNK_DEG) {
   return out;
 }
 
-function describe(form) {
+function escapeFormText(value) {
+  return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+export function describe(form) {
   if (form.kind === 'shophouse') {
     const sh = form.shophouse ?? {};
     return [
-      form.name || 'Shophouse row candidate',
-      `${sh.floors ?? '?'} storeys · ${Math.round(form.height)} m (assumed storey height)`,
-      `Corridor: ${sh.cluster ?? 'unknown'} · ${sh.strength ?? 'unknown strength'}`,
+      escapeFormText(form.name || 'Shophouse row candidate'),
+      `${escapeFormText(sh.floors ?? '?')} storeys · ${Math.round(form.height)} m (assumed storey height)`,
+      `Corridor: ${escapeFormText(sh.cluster ?? 'unknown')} · ${escapeFormText(sh.strength ?? 'unknown strength')}`,
       `<b>Unverified candidate.</b> Detected by morphology screen, not a heritage survey.`,
       'Not a designated heritage structure. Not evidence for protection, value or demolition.',
     ].join('<br>');
   }
   const named = form.confidence === 'named';
   return [
-    form.name || '(unnamed building)',
-    KIND_LABEL[form.kind] || form.kind,
+    escapeFormText(form.name || '(unnamed building)'),
+    escapeFormText(KIND_LABEL[form.kind] || form.kind),
     named
       ? 'Named building · Thai name identifies the type.'
       : 'Inferred from building type and footprint shape.',
     'Roof tiers and profile are a typological reading, not a measurement.',
+    'Colours suggest materials from names/types; they are not verified finishes.',
+    'Plan fitted to a convex hull; courtyards and concavities are not reconstructed.',
     `Height ${Math.round(form.base + form.height)} m from the atlas height value.`,
   ].join('<br>');
 }
@@ -317,6 +323,83 @@ function createLayer(THREE, forms) {
   };
 }
 
+// The map also extrudes every one of these footprints as a flat box. A box at
+// a chedi's height is a 40 m column, and at street zoom it swallows the form
+// drawn inside it. So while the forms draw, the boxes they stand on step
+// aside; when the forms stop, each layer gets its own filter back.
+const stepAside = [];
+
+function insideRing([x, y], ring) {
+  let hit = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+function hideFilterFor(reg) {
+  const ids = new Set(runtime.forms.map((f) => String(f.id)));
+  const covered = reg.features
+    .filter((f) => {
+      const id = String(f.properties?.id ?? '');
+      if (reg.how === 'id') return ids.has(id);
+      const g = f.geometry;
+      if (!g || !/Polygon/.test(g.type)) return false;
+      const ring = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
+      let cx = 0;
+      let cy = 0;
+      for (const [x, y] of ring) { cx += x; cy += y; }
+      const c = [cx / ring.length, cy / ring.length];
+      return runtime.forms.some((form) => form.ring && insideRing(c, form.ring));
+    })
+    .map((f) => String(f.properties.id));
+  const keep = ['!', ['in', ['to-string', ['get', 'id']], ['literal', covered]]];
+  return reg.base ? ['all', reg.base, keep] : keep;
+}
+
+function syncStepAside(map) {
+  if (!runtime.forms) return;
+  for (const reg of stepAside) {
+    if (!map.getLayer(reg.layer) || reg.hidden === runtime.active) continue;
+    if (runtime.active) reg.hide ??= hideFilterFor(reg);
+    try {
+      map.setFilter(reg.layer, runtime.active ? reg.hide : reg.base ?? null);
+      reg.hidden = runtime.active;
+    } catch { /* layer replaced mid-flight; next sync retries */ }
+  }
+}
+
+/** Register an extrusion layer whose boxes stand on form footprints.
+ *  how: 'id' matches the form's own feature id, 'footprint' a centroid
+ *  inside a form's ring (for layers keyed by other ids). */
+export function stepAsideForForms(map, layer, features, how, base) {
+  if (stepAside.some((r) => r.layer === layer)) return;
+  stepAside.push({ layer, features, how, base, hidden: false, hide: null });
+  syncStepAside(map);
+}
+
+/** Flag sacred or royal footprints far narrower than they are tall: drawn as
+ *  boxes they become columns, so the map draws only their footprint. */
+export function markSpires(features, heightOf, isSacred) {
+  for (const f of features ?? []) {
+    const g = f.geometry;
+    const p = f.properties;
+    if (!p || !g || !/Polygon/.test(g.type) || !isSacred(p)) continue;
+    const ring = g.type === "Polygon" ? g.coordinates[0] : g.coordinates[0][0];
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [x, y] of ring) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    // ponytail: bounding box, so a rotated footprint reads wider than it is
+    // and is spared; good enough to catch 3-17 m bases under 28-42 m heights.
+    const narrow = Math.min((x1 - x0) * 108_130, (y1 - y0) * 110_540);
+    if (heightOf(p) > 1.5 * narrow) p.spire = true;
+  }
+}
+
 function nearestForm(lngLat) {
   let best = null;
   let bestD = Infinity;
@@ -388,7 +471,10 @@ export async function installHeritageForms(map, features) {
   }
 
   const activate = async () => {
-    if (runtime.layer || !map.getLayer || !map.getCanvas()) return;
+    // Back above the gate after a zoom-out: the layer exists, only the flag
+    // was dropped. Without this the forms never drew again.
+    if (runtime.layer) { runtime.active = true; map.triggerRepaint?.(); return; }
+    if (!map.getLayer || !map.getCanvas()) return;
     try {
       const THREE = await loadThree();
       if (!map.getLayer(FORMS_LAYER)) map.addLayer(createLayer(THREE, runtime.forms));
@@ -399,6 +485,7 @@ export async function installHeritageForms(map, features) {
     }
     try { map.moveLayer(FORMS_LAYER); } catch { /* stack order will catch up */ }
     runtime.active = true;
+    syncStepAside(map);
     // The 2-building roof pilot draws flat gable strips on the same footprints.
     // Real forms now cover those buildings, so suppress the pilot rather than
     // stacking two roofs on Wat Phra Kaew.
@@ -416,20 +503,99 @@ export async function installHeritageForms(map, features) {
   map.on('zoom', () => {
     if (map.getZoom() < FORMS_MIN_ZOOM) runtime.active = false;
     else activate();
+    syncStepAside(map);
   });
-  map.on('click', (event) => {
-    if (!runtime.active) return;
-    const form = nearestForm(event.lngLat);
+  attachHeritageFormClicks(map, {
+    ownerAt: (event) => map.__atlasClickOwner?.(event) ?? null,
+  });
+}
+
+/**
+ * The one-architectural-answer-per-click decision.
+ *
+ * Priority the reconciliation approved, resolved deterministically: an
+ * operational overlay owns its click; then a monument footprint the cursor
+ * is inside; then a compound stand-in footprint; the generic heritage form
+ * answers only when nothing more specific is under the cursor. "Specific"
+ * means inside the feature's own footprint, never the nearest one by
+ * distance — the forms layer is the only caller allowed to answer by
+ * proximity, and only when no footprint hit.
+ */
+export function resolveArchitecturalOwner({ overlayCount = 0, monumentHit = false, compoundHit = false, formNear = false } = {}) {
+  if (overlayCount > 0) return 'overlay';
+  if (monumentHit) return 'monument';
+  if (compoundHit) return 'compound';
+  if (formNear) return 'form';
+  return null;
+}
+
+/**
+ * The form popup this layer opened, if any. One card at a time: opening a
+ * new answer disposes the previous one, and every non-form click clears it
+ * so a stale card never survives beside a newer answer.
+ */
+export function closeHeritageFormPopup() {
+  const popup = runtime.popup;
+  runtime.popup = null;
+  popup?.remove?.();
+}
+
+/**
+ * Whether a heritage form is near this click AND the layer is active.
+ * Inactive forms answer nothing — otherwise the inspector would defer to a
+ * popup that never opens.
+ */
+export function heritageFormNear(lngLat, { active } = {}) {
+  const isActive = active ?? runtime.active;
+  if (!isActive || !runtime.forms) return null;
+  return nearestForm(lngLat);
+}
+
+/** What is live right now, for tests and the audit trail. */
+export function heritageFormsDebugState() {
+  return {
+    active: runtime.active,
+    forms: runtime.forms ? runtime.forms.length : 0,
+    popupOpen: runtime.popup != null,
+  };
+}
+
+/**
+ * The forms layer's click handler, attached with injectable deps so the
+ * arbitration is testable without a WebGL map.
+ */
+export function attachHeritageFormClicks(map, { ownerAt, nearest = nearestForm, Popup, isActive = () => runtime.active } = {}) {
+  if (!map) return () => {};
+  const handler = (event) => {
+    if (!isActive()) return;
+    const owner = ownerAt?.(event) ?? null;
+    if (owner && owner !== 'form') return;
+    closeHeritageFormPopup();
+    const form = nearest(event.lngLat);
     if (!form) return;
-    new window.maplibregl.Popup({ closeButton: true, maxWidth: '320px' })
+    const PopupCtor = Popup ?? window.maplibregl?.Popup;
+    if (!PopupCtor) return;
+    runtime.popup = new PopupCtor({ className: 'atlas-heritage-popup', closeButton: true, maxWidth: '320px' })
       .setLngLat(event.lngLat)
       .setHTML(describe(form))
       .addTo(map);
-  });
+  };
+  map.on('click', handler);
+  runtime.clickHandler = handler;
+  return () => {
+    try { map.off('click', handler); } catch { /* map already torn down */ }
+    if (runtime.clickHandler === handler) runtime.clickHandler = null;
+  };
 }
 
 export function uninstallHeritageForms(map) {
   runtime.active = false;
+  closeHeritageFormPopup();
+  if (runtime.clickHandler && map?.off) {
+    try { map.off('click', runtime.clickHandler); } catch { /* already gone */ }
+    runtime.clickHandler = null;
+  }
+  syncStepAside(map);
   if (map?.getLayer?.(FORMS_LAYER)) {
     try { map.removeLayer(FORMS_LAYER); } catch { /* already gone */ }
   }

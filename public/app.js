@@ -4,7 +4,7 @@
 //
 // Sharp edges only. No rounded corners on the chrome.
 // Signal yellow `#c9ff38` means live signal (2026-10-16, owner's choice):
-// ordinary building fabric is warm grey `#9a9a90`, so 432,077 buildings no
+// ordinary building fabric is warm grey `#9a9a90`, so 478,027 buildings no
 // longer compete with flood, rail and camera layers. The "type colors" mode
 // (BUILDING_COLOR_BY_TYPE) colours only distinct types; houses, sheds and
 // untagged fabric stay grey.
@@ -16,8 +16,21 @@ import {
   MIN_HEIGHT_GET,
   RATTANAKOSIN_HEIGHT_EXPRESSION,
   RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  heightFor,
 } from './building-heights.js';
 import { BUILDING_COLOR_BY_TYPE as BUILDING_COLOR_BY_TYPE_EXPRESSION } from './building-colors.js';
+import { FACADE_BAND_FILTER } from './building-facades.js';
+import {
+  ATLAS_MAX_PITCH,
+  ATLAS_MAX_ZOOM,
+  ATLAS_MIN_ZOOM,
+  BAND_LAYER_MIN_ZOOM,
+  BUILDINGS_LAYER_MAX_ZOOM,
+  BUILDINGS_LAYER_MIN_ZOOM,
+  BUILDINGS_SOURCE_MAX_ZOOM,
+} from './layer-zooms.js';
+import { hashTarget } from './hash-target.js';
+import { LANDMARK_VIEWS } from './landmark-views.js';
 import {
   installCityForms,
   uninstallCityForms,
@@ -26,7 +39,7 @@ import {
   detachCityFormsRefresh,
   CITY_FORMS_LAYER,
 } from './city-forms-layer.js';
-import { installHeritageForms, uninstallHeritageForms, FORMS_LAYER } from './heritage-forms-layer.js';
+import { installHeritageForms, uninstallHeritageForms, stepAsideForForms, markSpires, FORMS_LAYER, closeHeritageFormPopup, heritageFormNear } from './heritage-forms-layer.js';
 import { installWireframeLandmarks, uninstallWireframeLandmarks, WIRE_LAYER_ID } from './wireframe-landmarks.js';
 import {
   installBuildingMassing,
@@ -39,9 +52,9 @@ import {
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
 import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
-import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261022-1792708737-f710286';
+import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261116-1794798374-4bbf6da';
 // Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
-const ATLAS_BUILD = "bkk-atlas-20261022-1792708737-f710286";
+const ATLAS_BUILD = "bkk-atlas-20261116-1794798374-4bbf6da";
 
 const OPENFREEMAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
 const ESRI_IMAGERY_TILES = [
@@ -68,14 +81,22 @@ const BKKX_BUILDINGS_PMTILES_LAYER = "bkkx-pmtiles-buildings";
 // --simplification=8, which is both native and sharper than an
 // overscaled z14 planet tile, so the handoff is gone.
 const BKKX_BUILDINGS_LAYER = "bkkx-3d-buildings";
-const BKKX_BUILDINGS_MAX_ZOOM = 17;
+const BKKX_BUILDINGS_MAX_ZOOM = BUILDINGS_SOURCE_MAX_ZOOM;
 // The layer's zoom range is [minzoom, maxzoom) — the upper bound is
 // EXCLUSIVE. A layer capped at 17 is therefore not drawn at zoom 17, and
 // because MapLibre only asks a source for tiles when a visible layer
 // needs them, the whole city disappeared at exactly z17: no tiles were
 // requested, so nothing was drawn. The layer's ceiling has to sit ABOVE
 // the source's deepest zoom; the source then overzooms its last tile.
-const BKKX_BUILDINGS_LAYER_MAX_ZOOM = 24;
+const BKKX_BUILDINGS_LAYER_MAX_ZOOM = BUILDINGS_LAYER_MAX_ZOOM;
+// The band layer: the 13-70 m band held with no opacity, so the facade mesh
+// and the rooftop plant can ask which buildings are in it even when the
+// extrusion has handed the band over to the mesh.
+const FACADE_BAND_LAYER = "bkkx-3d-buildings-band";
+// The band only exists at street zoom — that is where the facades are drawn,
+// and an invisible layer over the whole metro area would cost a pass over
+// every building in the city.
+const BKKX_BUILDINGS_LAYER_MIN_ZOOM = BAND_LAYER_MIN_ZOOM;
 
 // Rattanakosin / Grand Palace detail — full unsimplified OSM footprints
 // (GeoJSON) with heritage heights baked in. Replaces the tippecanoe
@@ -163,19 +184,27 @@ const BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-vertical-gradient": true,
 };
 
+// A chedi, prang or mondop drawn as a box at its spire height is a 40 m
+// column; nothing in the Grand Palace looks like that. markSpires() flags a
+// sacred or royal footprint that is far narrower than it is tall, and those
+// draw only their footprint. The Thai forms layer draws the real taper from
+// zoom 15. A low pad says where it stands without inventing a shape.
+const SPIRE_PAD_M = 2;
+const IS_SPIRE = ["==", ["get", "spire"], true];
+const SACRED_KINDS = new Set(["chedi", "prasat", "mondop", "heritage", "throne", "ubosot", "viharn"]);
 // Rattanakosin Old Town — type colors + heritage-aware height defaults.
 // Opacity stays 1 (layer only paints at z14+).
 const RATTANAKOSIN_BUILDING_PAINT_BY_TYPE = {
   "fill-extrusion-color": BUILDING_COLOR_BY_TYPE,
-  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, RATTANAKOSIN_HEIGHT_EXPRESSION],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, RATTANAKOSIN_MIN_HEIGHT_EXPRESSION],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
 const RATTANAKOSIN_BUILDING_PAINT_MONOCHROME = {
   "fill-extrusion-color": "#9a9a90",
-  "fill-extrusion-height": RATTANAKOSIN_HEIGHT_EXPRESSION,
-  "fill-extrusion-base": RATTANAKOSIN_MIN_HEIGHT_EXPRESSION,
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, RATTANAKOSIN_HEIGHT_EXPRESSION],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, RATTANAKOSIN_MIN_HEIGHT_EXPRESSION],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
@@ -208,8 +237,8 @@ const LANDMARK_COLOR = [
 ];
 const LANDMARK_PAINT = {
   "fill-extrusion-color": LANDMARK_COLOR,
-  "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
-  "fill-extrusion-base": ["coalesce", ["get", "base_height"], 0],
+  "fill-extrusion-height": ["case", IS_SPIRE, SPIRE_PAD_M, ["coalesce", ["get", "height"], 12]],
+  "fill-extrusion-base": ["case", IS_SPIRE, 0, ["coalesce", ["get", "base_height"], 0]],
   "fill-extrusion-opacity": 1,
   "fill-extrusion-vertical-gradient": true,
 };
@@ -743,6 +772,8 @@ const LAYER_STACK = [
   ROOF_LAYER,
   CITY_FORMS_LAYER,
   MASSING_LAYER,
+  FORMS_LAYER,
+  WIRE_LAYER_ID,
   "bkkx-parks",
   "bkkx-roads-minor",
   "bkkx-roads-major",
@@ -998,10 +1029,10 @@ const LAYERS = [
   {
     id: "buildings",
     name: "3D buildings",
-    description: "OSM heights · 432,077 features",
+    description: "OSM heights · 478,027 features",
     defaultOn: true,
     softUninstall: true,
-    layers: [BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
+    layers: [BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER, "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway"],
     install: async (map) => {
       installBuildings(map);
       await installRattanakosin(map);
@@ -1023,7 +1054,7 @@ const LAYERS = [
       suspendBuildingMassing(map);
       detachCityFormsRefresh(map);
       setLayersVisible(map, [
-        BKKX_BUILDINGS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
+        BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, RATTANAKOSIN_BUILDINGS_LAYER, LANDMARKS_LAYER, ROOF_LAYER, FORMS_LAYER, CITY_FORMS_LAYER, MASSING_LAYER,
         "bkkx-satellite", "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway",
       ], false);
     },
@@ -1046,13 +1077,14 @@ const LAYERS = [
   },
   {
     id: "wireframe-landmarks",
-    name: "Monument wireframes",
-    description: "Procedural line drawings · 8 landmarks",
+    name: "Monument drawings",
+    description: "8 reference-based schematics · Wat Arun solid prang profiles + line drawings · not surveyed",
     defaultOn: false,
     layers: [WIRE_LAYER_ID],
     install: async (map) => { await installWireframeLandmarks(map); },
     uninstall: (map) => { uninstallWireframeLandmarks(map); },
     legend: [
+      { color: "#e5e0d3", label: "Wat Arun · schematic solid prang profiles" },
       { color: "#f5ecc2", label: "Sulpher Yellow ink on black" },
     ],
     note: "Stylised line drawings from procedural geometry — not a survey, and not a reconstruction. Positions are the monument footprints; proportions are illustrative.",
@@ -1626,7 +1658,7 @@ function renderQuickJump(areas) {
     button.setAttribute("aria-label", `Jump to ${area.name}`);
     button.innerHTML = `
       <span class="atlas-area-num">${String(index + 1).padStart(2, "0")}</span>
-      <span>${area.name}</span>
+      <span title="${area.name}">${area.short ?? area.name}</span>
     `;
     button.addEventListener("click", () => flyToArea(area.id, { updateHash: true, instant: false }));
     grid.appendChild(button);
@@ -1696,7 +1728,13 @@ function flyToArea(id, { updateHash = true, instant = false } = {}) {
 
 function parseHashId() {
   if (typeof location === "undefined") return null;
-  const raw = (location.hash || "").replace(/^#/, "").trim();
+  // Tolerate a path-style hash — "#/yaowarat-chinatown" as well as
+  // "#yaowarat-chinatown". A share link that silently does nothing is worse
+  // than one that works: setActiveArea() no-ops on an unknown id without a
+  // word, so the visitor lands on the opening view and concludes the link is
+  // broken. The atlas's own links carry no slash, but a person typing one
+  // (or another site building a path-style hash) should still be understood.
+  const raw = hashTarget(typeof location === "undefined" ? "" : location.hash);
   // Reserved for the About drawer / in-drawer anchors — not area ids.
   if (!raw || raw === "about" || raw.startsWith("about-")) return null;
   return raw;
@@ -1783,13 +1821,18 @@ function registerPmtilesProtocol() {
   if (typeof pmtiles === "undefined") return;
   if (registerPmtilesProtocol._done) return;
   registerPmtilesProtocol._done = true;
-  // `metadata: true` makes the protocol serve the archive's real TileJSON,
-  // including `vector_layers`. Without it the protocol answers with a
-  // bare {tiles,minzoom,maxzoom,bounds}, so MapLibre never learns which
-  // vector layers the archive has and never buckets the "buildings" layer
-  // for the tiles it loads — the source fills with features and the map
-  // draws nothing.
-  const protocol = new pmtiles.Protocol();
+  // `metadata: true` makes the protocol serve the archive's real TileJSON
+  // instead of a bare {tiles,minzoom,maxzoom,bounds}.
+  //
+  // This flag was long blamed for the city disappearing above z15. It was not.
+  // The cause was an invalid MapLibre filter that compiled into one matching
+  // nothing (public/building-massing.js, filterHidingIds). Measured both ways
+  // on 2026-10-24: the buildings layer renders the same features either way,
+  // and the source's maxzoom is 17 either way, because the atlas sets the
+  // source's maxzoom itself rather than inheriting it from the TileJSON.
+  // Kept because serving the archive's own metadata is the honest thing —
+  // not because the map needs it.
+  const protocol = new pmtiles.Protocol({ metadata: true });
   maplibregl.addProtocol("pmtiles", protocol.tile);
 }
 
@@ -1898,8 +1941,6 @@ function installBuildings(map) {
           "fill-antialias": true,
         },
       });
-      // Parks belong under every road, above the basemap's own dim park tint.
-      try { map.moveLayer("bkkx-parks", "bkkx-roads-minor"); } catch { /* stack order recovers */ }
     } catch { /* style schema may omit the park layer */ }
   }
 
@@ -1922,6 +1963,16 @@ function installBuildings(map) {
     addLine("bkkx-roads-motorway", ROAD_FILTERS.motorway, "#c9ff38", lineWidth(0.6, 5.2), 1.0);
   }
 
+  // Parks belong under every road, above the basemap's own dim park tint.
+  //
+  // This has to happen AFTER the roads exist. Moving a layer before a layer
+  // that is not in the style yet is an error MapLibre reports on every load,
+  // and the move is then silently lost — which leaves the parks painted over
+  // the roads instead of under them.
+  if (map.getLayer("bkkx-parks") && map.getLayer("bkkx-roads-minor")) {
+    try { map.moveLayer("bkkx-parks", "bkkx-roads-minor"); } catch { /* stack order recovers */ }
+  }
+
   const paint = state.buildingPaint === "type" ? BUILDING_PAINT_BY_TYPE : BUILDING_PAINT_MONOCHROME;
 
   if (!map.getLayer(BKKX_BUILDINGS_LAYER)) {
@@ -1931,7 +1982,7 @@ function installBuildings(map) {
         type: "fill-extrusion",
         source: sourceName,
         "source-layer": sourceLayer,
-        minzoom: 11,
+        minzoom: BUILDINGS_LAYER_MIN_ZOOM,
         // The archive carries native tiles to z17, so the layer draws at
         // street zoom instead of handing off to a source that had none.
         maxzoom: BKKX_BUILDINGS_LAYER_MAX_ZOOM,
@@ -1940,6 +1991,32 @@ function installBuildings(map) {
       });
     } catch {
       // ignore — style schema may omit extrusion; the layer just won't render
+    }
+  }
+
+  // The band layer: the 13-70 m band, held with no opacity and no colour.
+  //
+  // While the facade mesh is drawing the band, the band is out of the
+  // extrusion — the mesh and the extrusion must not both claim the same
+  // pixels — and a filtered-out layer cannot be asked which buildings are in
+  // it. This layer keeps the band answerable for the facade mesh and for
+  // the rooftop plant. It only exists at street zoom, where the band is
+  // drawn, and it draws nothing you can see.
+  if (!map.getLayer(FACADE_BAND_LAYER)) {
+    try {
+      map.addLayer({
+        id: FACADE_BAND_LAYER,
+        type: "fill",
+        source: sourceName,
+        "source-layer": sourceLayer,
+        minzoom: BKKX_BUILDINGS_LAYER_MIN_ZOOM,
+        maxzoom: BKKX_BUILDINGS_LAYER_MAX_ZOOM,
+        filter: FACADE_BAND_FILTER,
+        paint: { "fill-opacity": 0, "fill-color": "#000000" },
+      });
+    } catch {
+      // ignore — the band layer is a convenience; the facades fall back to
+      // the plain extrusion when it is missing
     }
   }
 
@@ -1962,7 +2039,7 @@ function applyBuildingPaint(map) {
 }
 
 function uninstallBuildings(map) {
-  for (const id of [BKKX_BUILDINGS_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
+  for (const id of [BKKX_BUILDINGS_LAYER, FACADE_BAND_LAYER, "bkkx-roads-minor", "bkkx-roads-major", "bkkx-roads-motorway", "bkkx-satellite"]) {
     if (map.getLayer(id)) try { map.removeLayer(id); } catch {}
   }
   for (const id of ["bkkx-esri-imagery", BKKX_BUILDINGS_PMTILES_LAYER]) {
@@ -1979,11 +2056,15 @@ async function installRattanakosin(map) {
     : RATTANAKOSIN_BUILDING_PAINT_MONOCHROME;
 
   let usedGeoJson = false;
+  let detailFeatures = null;
   if (!map.getSource(HERITAGE_DETAIL_SOURCE)) {
     try {
       const res = await fetch(HERITAGE_DETAIL_URL);
       if (!res.ok) throw new Error(`heritage detail HTTP ${res.status}`);
       const data = await res.json();
+      markSpires(data.features, (p) => heightFor(p, "oldtown").height,
+        (p) => /เจดีย์|ปรางค์|มณฑป|ปราสาท|พระที่นั่ง/.test(p.name ?? "") && !/วิหาร|อุโบสถ/.test(p.name));
+      detailFeatures = data.features ?? [];
       map.addSource(HERITAGE_DETAIL_SOURCE, {
         type: "geojson",
         data,
@@ -2027,6 +2108,7 @@ async function installRattanakosin(map) {
           filter: BUILDING_EXTRUSION_FILTER,
           paint,
         });
+        if (detailFeatures) stepAsideForForms(map, RATTANAKOSIN_BUILDINGS_LAYER, detailFeatures, "id", BUILDING_EXTRUSION_FILTER);
       } else {
         map.addLayer({
           id: RATTANAKOSIN_BUILDINGS_LAYER,
@@ -2070,12 +2152,15 @@ function uninstallRattanakosin(map) {
 // The city forms are rebuilt when the view settles, not on every frame. The
 // refresh machinery lives with the layer that owns the state, because it has
 // to know whether the buildings have actually arrived yet.
+let landmarkFeatures = null;
 async function installLandmarks(map) {
   if (!map.getSource(LANDMARKS_SOURCE)) {
     try {
       const res = await fetch(LANDMARKS_URL);
       if (!res.ok) throw new Error(`landmarks HTTP ${res.status}`);
       const data = await res.json();
+      markSpires(data.features, (p) => Number(p.height) || 12, (p) => SACRED_KINDS.has(p.kind));
+      landmarkFeatures = data.features ?? [];
       map.addSource(LANDMARKS_SOURCE, { type: "geojson", data });
     } catch (error) {
       console.warn("Landmarks source failed:", error);
@@ -2091,6 +2176,7 @@ async function installLandmarks(map) {
         minzoom: 10.5,
         paint: LANDMARK_PAINT,
       });
+      if (landmarkFeatures) stepAsideForForms(map, LANDMARKS_LAYER, landmarkFeatures, "footprint");
     } catch (error) {
       console.warn("Landmarks layer failed:", error);
     }
@@ -2878,7 +2964,7 @@ function openLandPricePopup(map, feature) {
         </table>
       </div>
       <div class="atlas-cctv-actions">
-        <a href="https://www.home.co.th/hometips/new-land-appraisal-price-53898" target="_blank" rel="noreferrer">Source ↗</a>
+        <a href="https://www.home.co.th/hometips/new-land-appraisal-price-53898" target="_blank" rel="noreferrer">Source <span class="atlas-out" aria-hidden="true"></span></a>
         <span>฿/sq.wah</span>
       </div>
     </div>
@@ -5954,8 +6040,8 @@ function openMaholanCctvPopup(map, feature) {
         <span class="atlas-cctv-snap-age" data-snap-age></span>
       </p>
       <div class="atlas-cctv-actions">
-        ${p.source_url ? `<a href="${escapeHtml(safeHttpUrl(String(p.source_url)))}" target="_blank" rel="noreferrer">Camera source ↗</a>` : ""}
-        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream ↗</a>
+        ${p.source_url ? `<a href="${escapeHtml(safeHttpUrl(String(p.source_url)))}" target="_blank" rel="noreferrer">Camera source <span class="atlas-out" aria-hidden="true"></span></a>` : ""}
+        <a href="${safeViewer}" target="_blank" rel="noreferrer">Open live stream <span class="atlas-out" aria-hidden="true"></span></a>
       </div>
     </div>
   `;
@@ -6452,7 +6538,7 @@ function openCctvPopup(map, feature) {
     ? `<div class="atlas-cctv-flood-banner" data-severity="${liveEntry.depth >= 5 ? "severe" : liveEntry.depth >= 3 ? "moderate" : "shallow"}">
         <div class="atlas-cctv-flood-head">
           <span class="atlas-cctv-flood-kicker">🌊 REPORTED FLOODED · ${liveEntry.distM} m</span>
-          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-road="${escapeHtml(liveEntry.road || "")}">Show road ↗</button>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-road="${escapeHtml(liveEntry.road || "")}">Show road <span class="atlas-out" aria-hidden="true"></span></button>
         </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(liveEntry.road || "Unnamed road")}</strong>
         <span class="atlas-cctv-flood-meta">${escapeHtml(liveBits)} · depth is the reporter's word</span>
@@ -6461,7 +6547,7 @@ function openCctvPopup(map, feature) {
     ? `<div class="atlas-cctv-flood-banner" data-severity="${escapeHtml(floodEntry.severity || "unknown")}">
         <div class="atlas-cctv-flood-head">
           <span class="atlas-cctv-flood-kicker">🌊 BMA DDS · FLOODED ROAD · ${Math.round(floodEntry.distM)} m</span>
-          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-dds="${escapeHtml(floodEntry.roadKey || "")}">Show road ↗</button>
+          <button type="button" class="atlas-cctv-road-jump-btn" data-jump-dds="${escapeHtml(floodEntry.roadKey || "")}">Show road <span class="atlas-out" aria-hidden="true"></span></button>
         </div>
         <strong class="atlas-cctv-flood-road" lang="th">${escapeHtml(floodEntry.roadName)}</strong>
         <span class="atlas-cctv-flood-meta">
@@ -6481,7 +6567,7 @@ function openCctvPopup(map, feature) {
       </div>
       <p class="atlas-cctv-status">Connecting live stream…</p>
       <div class="atlas-cctv-actions">
-        <a href="${escapeHtml(safeHttpUrl(iticUrl))}" target="_blank" rel="noreferrer">Open on iTIC ↗</a>
+        <a href="${escapeHtml(safeHttpUrl(iticUrl))}" target="_blank" rel="noreferrer">Open on iTIC <span class="atlas-out" aria-hidden="true"></span></a>
         <span>${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
       </div>
     </div>
@@ -6545,7 +6631,12 @@ function openCctvPopup(map, feature) {
       if (showedError) return;
       showedError = true;
       errBox.hidden = false;
-      if (status) status.textContent = "Stream not available right now — open on iTIC ↗";
+      // textContent, so the chevron is drawn by the element's own class
+      // rather than pasted in as markup.
+      if (status) {
+        status.textContent = "Stream not available right now — open on iTIC";
+        status.classList.add("atlas-out");
+      }
     };
     video.addEventListener("error", showErr, { once: true });
     // 6 s of no playback after source set = treat as broken.
@@ -6848,7 +6939,7 @@ function openLiveCamPopup(map, feature) {
         <strong class="atlas-cctv-title">${escapeHtml(p.title || "External camera")}</strong>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(safeHttpUrl(p.url || ""))}" target="_blank" rel="noreferrer">Open ↗ (login required)</a>
+          <a href="${escapeHtml(safeHttpUrl(p.url || ""))}" target="_blank" rel="noreferrer">Open <span class="atlas-out" aria-hidden="true"></span> (login required)</a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -6866,7 +6957,7 @@ function openLiveCamPopup(map, feature) {
           allowfullscreen></iframe>
         <p class="atlas-cctv-status">${escapeHtml(p.note || "")}</p>
         <div class="atlas-cctv-actions">
-          <a href="${escapeHtml(safeHttpUrl(watchUrl))}" target="_blank" rel="noreferrer">Open on YouTube ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(watchUrl))}" target="_blank" rel="noreferrer">Open on YouTube <span class="atlas-out" aria-hidden="true"></span></a>
           <span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>
         </div>
       </div>
@@ -7076,7 +7167,7 @@ function wireWaterTransitInteractions(map) {
           <strong class="atlas-cctv-title">${escapeHtml(p.name)}</strong>
           <p class="atlas-cctv-status">${escapeHtml(p.name_th || "")} · ${escapeHtml(p.operator || "")}</p>
           <p class="atlas-cctv-status">${escapeHtml(p.service_note || "Check the operator before travel.")}</p>
-          <a href="${escapeHtml(safeHttpUrl(p.source_url || WATER_TRANSIT_DATA_URL))}" target="_blank" rel="noreferrer">Check operator ↗</a>
+          <a href="${escapeHtml(safeHttpUrl(p.source_url || WATER_TRANSIT_DATA_URL))}" target="_blank" rel="noreferrer">Check operator <span class="atlas-out" aria-hidden="true"></span></a>
         `)
         .addTo(map);
     });
@@ -7487,6 +7578,45 @@ function pointLayersOwningClick(map, point) {
   return map.queryRenderedFeatures(point, { layers: owners });
 }
 
+// Architectural layers the cursor can sit inside. LANDMARKS_LAYER carries
+// the specific monument drawings; RATTANAKOSIN_BUILDINGS_LAYER carries the
+// old-town compound stand-ins. BKKX_BUILDINGS_LAYER is deliberately not
+// here: a plain city building must keep answering with the inspector card,
+// as it always has. `queryRenderedFeatures` is footprint-inside semantics —
+// the "specific, not nearest" rule the arbitration requires. The Grand
+// Palace slot model (massing features flagged `standIn`) is the third
+// compound surface: its own footprint can cover whole courtyards, so it
+// joins the compound tier after the rendered-layer checks.
+function architecturalFootprintAt(map, event) {
+  const layers = [LANDMARKS_LAYER, RATTANAKOSIN_BUILDINGS_LAYER].filter((id) => map.getLayer(id));
+  if (layers.length > 0) {
+    let hits;
+    try {
+      hits = map.queryRenderedFeatures(event.point, { layers });
+    } catch {
+      hits = null;
+    }
+    if (hits && hits.length > 0) {
+      if (hits.some((f) => f?.layer?.id === LANDMARKS_LAYER)) return "monument";
+      return "compound";
+    }
+  }
+  if (massingFeatureAt(event.lngLat)?.properties?.standIn) return "compound";
+  return null;
+}
+
+// One architectural answer per click: overlay > monument > compound > form.
+// Both the inspector and the heritage forms layer consult this same
+// decision (the forms layer reads it off the map as `__atlasClickOwner`),
+// so registration order cannot change the answer. `null` = plain building
+// or bare ground, which the inspector answers as it always has.
+function atlasClickOwner(map, event) {
+  if (pointLayersOwningClick(map, event.point).length) return "overlay";
+  const footprint = architecturalFootprintAt(map, event);
+  if (footprint) return footprint;
+  return heritageFormNear(event.lngLat) ? "form" : null;
+}
+
 function wireInspect(map) {
   setInterval(renderPlaceEvidence,30000);
   document.getElementById('atlas-inspect-centre')?.addEventListener('click', () => {
@@ -7498,8 +7628,20 @@ function wireInspect(map) {
     revealTask(link.dataset.task === 'place' ? 'atlas-inspect' : link.dataset.task === 'water' ? 'atlas-water' : 'atlas-areas');
   }); });
   map.on("click", (event) => {
-    // Interactive overlays own the click instead of also opening building inspect.
-    if (pointLayersOwningClick(map, event.point).length) return;
+    // One architectural answer per click. An overlay owns its click entirely;
+    // the Grand Palace slot model answers with its own stand-in popup; a
+    // monument or compound footprint answers through the inspector card
+    // (which reads the footprint feature); a heritage form answers through
+    // its single on-map popup, and the inspector stays out of the way. A
+    // stale form card never survives a newer answer.
+    const owner = atlasClickOwner(map, event);
+    if (owner === "overlay") {
+      closeHeritageFormPopup();
+      return;
+    }
+    if (owner === "form") return;
+    closeHeritageFormPopup();
+    if (owner === "compound" && massingFeatureAt(event.lngLat)?.properties?.standIn) return;
     runInspect(map, event);
   });
 
@@ -7526,7 +7668,7 @@ function revealTask(id) {
   if (!section) return;
   const panel = document.getElementById('atlas-panel');
   if (panel?.contains(section)) panel.setAttribute('aria-hidden','false');
-  if (window.matchMedia('(max-width:720px)').matches && panel?.contains(section) && !panel.classList.contains('is-open')) {
+  if (window.matchMedia('(max-width:1280px)').matches && panel?.contains(section) && !panel.classList.contains('is-open')) {
     document.getElementById('atlas-panel-toggle')?.click();
   }
   if (section.tagName === 'DETAILS') section.open = true;
@@ -7535,7 +7677,7 @@ function revealTask(id) {
     const details = document.getElementById('atlas-water-details');
     if (details) details.open = true;
   }
-  section.scrollIntoView({block:'nearest', behavior:'auto'});
+  section.scrollIntoView({block:'start', behavior:'auto'}); // 'nearest' parked it at the panel's bottom edge (round 3)
   section.querySelector('summary')?.focus({preventScroll:true});
 }
 
@@ -7863,7 +8005,7 @@ function wireAboutDrawer() {
     research: ["Research", "How it’s built, and how sure it is"],
   };
   let pane = "about";
-  const isPaneHash = () => PANES.includes(window.location.hash.slice(1));
+  const isPaneHash = () => PANES.includes(hashTarget(typeof location === "undefined" ? "" : location.hash));
 
   const setHashAbout = (open) => {
     const url = new URL(window.location.href);
@@ -7954,9 +8096,9 @@ function wireAboutDrawer() {
     });
   });
 
-  if (isPaneHash()) openAbout(window.location.hash.slice(1));
+  if (isPaneHash()) openAbout(hashTarget(typeof location === "undefined" ? "" : location.hash));
   window.addEventListener("hashchange", () => {
-    if (isPaneHash()) openAbout(window.location.hash.slice(1));
+    if (isPaneHash()) openAbout(hashTarget(typeof location === "undefined" ? "" : location.hash));
     else if (isOpen()) closeAbout();
   });
 }
@@ -8209,14 +8351,14 @@ function renderRoadsXref(payload) {
   const sum = document.getElementById("atlas-sit-xref-unconf-summary");
   if (ul) {
     const top = unconfirmed.slice(0, 8);
-    if (sum) sum.textContent = `📋 Other road reports (${unconfirmed.length})`;
+    if (sum) sum.textContent = `Other road reports (${unconfirmed.length})`;
     if (!unconfirmed.length) {
       ul.innerHTML = `<li class="atlas-xref-empty">No other road reports in this snapshot. Unreported streets remain unknown.</li>`;
     } else {
       ul.innerHTML = top.map((r) => {
         const g = r.nearest_gauge;
         const tag =
-          r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">📟 no sensor</span>`
+          r.q === "no-sensor" ? `<span class="atlas-xref-pill atlas-xref-pill-none">no sensor</span>`
           : r.q === "sensor-stale" ? `<span class="atlas-xref-pill atlas-xref-pill-stale">⚠ stale</span>`
           : `<span class="atlas-xref-pill atlas-xref-pill-dry">○ gauge without alert</span>`;
         return `<li class="atlas-xref-row" data-lng="${r.center?.[0]}" data-lat="${r.center?.[1]}">
@@ -9041,21 +9183,43 @@ function wirePhonePanelToggle() {
   const moreBtn = document.getElementById("atlas-news-watch-more");
   if (!btn || !panel) return;
 
-  // Phone only — bail early on desktop.
-  if (window.matchMedia("(min-width: 721px)").matches) return;
+  const isDrawer = () => window.matchMedia("(max-width: 1280px)").matches;
+  let newsExpanded = false;
 
-  const isPhone = () => window.matchMedia("(max-width: 720px)").matches;
+  // Phone: More lives in the live strip's head row, so it scrolls with the
+  // strip. Pinned by CSS it drifted over the verdict once the page scrolled
+  // (MSH audit 2026-11-01). Wider screens keep it where the markup puts it.
+  const stripHead = document.querySelector(".atlas-bkk-live-head");
+  const home = btn.parentElement;
+  const homeNext = btn.nextSibling;
+  const phoneMq = window.matchMedia("(max-width: 720px)");
+  const placeToggle = () => {
+    if (phoneMq.matches && stripHead) stripHead.appendChild(btn);
+    else if (btn.parentElement !== home) home.insertBefore(btn, homeNext);
+  };
+  placeToggle();
+  phoneMq.addEventListener("change", placeToggle);
 
   function setOpen(open) {
+    const wasOpen = panel.classList.contains('is-open');
+    const drawer = isDrawer();
+    open = drawer && open;
     panel.classList.toggle("is-open", open);
     btn.classList.toggle("is-hidden", open);
     btn.setAttribute("aria-expanded", String(open));
+    panel.inert = drawer && !open;
+    panel.setAttribute("aria-hidden", String(drawer && !open));
+    panel.setAttribute('role', drawer ? 'dialog' : 'complementary');
+    if (open) panel.setAttribute('aria-modal', 'true');
+    else panel.removeAttribute('aria-modal');
     if (open) {
       document.body.style.overflow = "hidden";
       panel.setAttribute("aria-hidden", "false");
+      panel.querySelector('[data-close-sheet]')?.focus();
     } else {
       document.body.style.overflow = "";
-      panel.setAttribute("aria-hidden", "true");
+      if (drawer && wasOpen) btn.focus();
+      else if (!drawer && wasOpen) panel.querySelector('.atlas-area-btn')?.focus();
     }
   }
 
@@ -9069,26 +9233,33 @@ function wirePhonePanelToggle() {
   // Esc closes the sheet
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && panel.classList.contains("is-open")) setOpen(false);
+    if (event.key === 'Tab' && isDrawer() && panel.classList.contains('is-open')) {
+      const controls = [...panel.querySelectorAll('button, a[href], input, select, summary, [tabindex="0"]')]
+        .filter(el => !el.disabled && el.getClientRects().length && !el.closest('[hidden]'));
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
   });
 
   // Collapse news-watch to the 1st headline + a "Show all" toggle.
   // Re-applies every time refreshNewsWatch rebuilds the list.
   function refreshCollapsedNews() {
     if (!newsList) return;
-    if (isPhone()) {
-      newsList.classList.add("atlas-news-watch-list-collapsed");
-    } else {
-      newsList.classList.remove("atlas-news-watch-list-collapsed");
-    }
+    newsList.classList.toggle("atlas-news-watch-list-collapsed", !newsExpanded);
+    if (moreBtn) moreBtn.hidden = newsExpanded || newsList.querySelectorAll('.atlas-news-item').length <= (window.matchMedia('(max-width:720px)').matches ? 1 : 3);
   }
   refreshCollapsedNews();
   window.addEventListener("resize", refreshCollapsedNews);
+  window.addEventListener("resize", () => setOpen(panel.classList.contains('is-open')));
+  setOpen(false);
   // Expose so refreshNewsWatch can re-call it after each refresh
   state._refreshCollapsedNews = refreshCollapsedNews;
 
   // "Show all headlines" button — expands the collapsed news list
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
+      newsExpanded = true;
       newsList?.classList.remove("atlas-news-watch-list-collapsed");
     });
   }
@@ -9097,14 +9268,13 @@ function wirePhonePanelToggle() {
   // knows how many items are inside the sheet.
   function updatePanelToggleCount() {
     if (!btn) return;
-    const newsItems = newsList?.querySelectorAll(".atlas-news-item")?.length ?? 0;
     const sitMods = document.querySelectorAll(".atlas-sit-mod").length;
     const newsCount = newsList?.querySelectorAll(".atlas-news-item").length ?? 0;
     const total = newsCount + sitMods;
     if (total > 0) {
       const countEl = btn.querySelector(".count");
       if (countEl) countEl.textContent = String(total);
-      btn.classList.remove("is-hidden");
+      if (!panel.classList.contains('is-open')) btn.classList.remove("is-hidden");
     }
   }
   updatePanelToggleCount();
@@ -9148,7 +9318,7 @@ async function pingPresence() {
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
-    el.textContent = `· 👥 ${j.online.toLocaleString()} online`;
+    el.textContent = `· ${j.online.toLocaleString()} online`;
     // The peak clause is a second line of the same fact, and the masthead
     // does not always have the room for it. It is a separate element so a
     // narrow header can drop it without dropping the counter.
@@ -9213,14 +9383,20 @@ async function init() {
     zoom: initialArea ? initialArea.zoom : defaultZoom(state.areas),
     pitch: initialArea ? initialArea.pitch ?? 55 : 55,
     bearing: initialArea ? initialArea.bearing ?? 0 : 0,
-    minZoom: 10,
-    maxZoom: 19,
-    maxPitch: 75,
+    minZoom: ATLAS_MIN_ZOOM,
+    maxZoom: ATLAS_MAX_ZOOM,
+    maxPitch: ATLAS_MAX_PITCH,
     canvasContextAttributes: { antialias: true }, // v5+: moved out of MapOptions
     hash: false,
     attributionControl: { compact: true },
   });
   wireCameraWall(map);
+
+  // The click-arbitration decision (overlay > monument > compound > form)
+  // is installed on the map itself, before any layer or handler can be
+  // wired, so the heritage forms layer reads the same answer the inspector
+  // does no matter which handler was registered first.
+  map.__atlasClickOwner = (event) => atlasClickOwner(map, event);
 
   // External fly-to (e.g. bkk's quarter chip loaded the atlas with
   // ?at=lng,lat,zoom). Fires after the map is built so the camera
@@ -9232,6 +9408,33 @@ async function init() {
   }
 
   state.map = map;
+  // Capture initial readiness once. isStyleLoaded() can become false again
+  // during a fly-to, but the initial 'load' event will not fire a second time.
+  const initialMapLoad = new Promise(resolve => map.once('load', resolve));
+  let landmarkRequest = 0;
+  {
+    for (const button of document.querySelectorAll('[data-landmark-view]')) {
+      button.disabled = false;
+      button.addEventListener('click', async () => {
+        const view = LANDMARK_VIEWS[button.dataset.landmarkView];
+        if (!view) return;
+        const request = ++landmarkRequest;
+        map.flyTo({ ...view, duration: 1400, essential: true });
+        setActiveArea(button.dataset.landmarkView === 'grand-palace' ? 'rattanakosin' : 'chao-phraya-riverside');
+        // Moving the camera must not wait for initial city-wide tiles. Layer
+        // installation does require a ready style; only the latest jump wins.
+        await initialMapLoad;
+        if (request !== landmarkRequest) return;
+        // Wat Arun lies outside the detailed Old Town footprint extract.
+        // Its reference-backed monument drawing is a separate opt-in layer.
+        try { await Promise.all([
+          state.layerOn.buildings ? Promise.resolve() : setLayerToggle(map, 'buildings', true),
+          setLayerToggle(map, 'wireframe-landmarks', true),
+        ]); }
+        catch (error) { console.warn('Schematic monument view could not load.', error); }
+      });
+    }
+  }
   // ?debug exposes the live state for console inspection; nothing else reads it.
   if (new URLSearchParams(location.search).has("debug")) {
     window.__atlas = state;
@@ -9437,7 +9640,7 @@ function wallTile(c) {
   return `<figure class="atlas-wall-tile" data-id="${escapeHtml(c.id)}" data-traffic-eligible="${trafficCandidate ? 'true' : 'false'}">
     <div class="atlas-wall-media"><img loading="lazy" alt="Camera still: ${name} · capture time unverified" referrerpolicy="no-referrer" src="/api/snap/${encodeURIComponent(c.id)}?w=320" />
     <span class="atlas-wall-state">${c.checked ? "Still · capture time unverified" : "Still · picture and capture time unverified"}</span><span class="atlas-wall-cat atlas-wall-cat-${escapeHtml(c.category || "other")}">${cat}</span></div>
-    <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org} · ${tier}${c.viewer && safeHttpUrl(c.viewer) !== '#' ? ` · <a href="${escapeHtml(safeHttpUrl(c.viewer))}" target="_blank" rel="noopener">viewer ↗</a>` : ""}</small></figcaption></figure>`;
+    <figcaption><button type="button" class="atlas-wall-go" data-lon="${c.coords[0]}" data-lat="${c.coords[1]}">${name}</button><small>${org} · ${tier}${c.viewer && safeHttpUrl(c.viewer) !== '#' ? ` · <a href="${escapeHtml(safeHttpUrl(c.viewer))}" target="_blank" rel="noopener">viewer <span class="atlas-out" aria-hidden="true"></span></a>` : ""}</small></figcaption></figure>`;
 }
 
 function wireCameraWall(map) {
@@ -9447,6 +9650,21 @@ function wireCameraWall(map) {
     warningToggle.setAttribute('aria-expanded',String(expanded));
     document.getElementById('atlas-flood-verdict')?.classList.toggle('is-expanded',expanded);
     warningToggle.textContent = expanded ? 'Collapse warning' : 'Read full warning';
+    // The band is its own scroller: expanding text below its fold looked
+    // like the button did nothing (MSH audit 2026-11-01). Bring it into view.
+    // Scroll to the LAST expanded line (the Thai reason when shown): the
+    // English one was often already visible, so nothing moved (round 3).
+    if (expanded) {
+      const th = document.getElementById('atlas-flood-verdict-reason-th');
+      const target = th && !th.hidden && th.textContent.trim() ? th : document.getElementById('atlas-flood-verdict-reason');
+      // Scroll only the band (its own scroller): scrollIntoView could also
+      // shift the overflow:hidden page itself, pushing the header away.
+      const band = document.getElementById('atlas-bkk-live');
+      if (band && target) {
+        const overshoot = target.getBoundingClientRect().bottom - band.getBoundingClientRect().bottom;
+        if (overshoot > 0) band.scrollBy({ top: overshoot + 8, behavior: 'smooth' });
+      }
+    }
   });
   const root = document.createElement("section");
   root.className = "atlas-wall";

@@ -96,6 +96,21 @@ try {
   // The fix for an occluded window. Without it captureScreenshot on an animated
   // page hangs forever and this script exits 0 having checked nothing.
   await b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId);
+  // Focus is not visibility: a window behind another app is focused enough for
+  // the line above and still HIDDEN, and a hidden page never fires
+  // requestAnimationFrame — so there is no compositor frame to capture and the
+  // call waits out its timeout. Foreground the tab and wait for real frames.
+  await b.send('Target.activateTarget', { targetId });
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    const vis = await b.send('Runtime.evaluate', {
+      expression: `(()=>{if(document.visibilityState!=='visible')return 'hidden';return new Promise((res)=>{let done=false;requestAnimationFrame(()=>{done=true;res('frames')});setTimeout(()=>{if(!done)res('no-frames')},800)})})()`,
+      returnByValue: true,
+      awaitPromise: true,
+    }, sessionId);
+    if (vis.result?.value === 'frames') break;
+    await b.send('Target.activateTarget', { targetId });
+  }
   await b.send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
 
   const ev = async (x) => {

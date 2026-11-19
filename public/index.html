@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BKKx 3D Atlas — Bangkok block by block</title>
-  <meta name="description" content="A 3D browser atlas of Bangkok. 432,077 real OSM buildings, rail and boat transit, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol." />
+  <meta name="description" content="A 3D browser atlas of Bangkok. 478,027 real OSM buildings, rail and boat transit, traffic, CCTV, incidents, flood gauges, rain radar, current wind, PM2.5 and NASA satellite aerosol." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#11120f" />
@@ -14,12 +14,12 @@
   <meta name="apple-mobile-web-app-title" content="BKKx Atlas" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="/vendor/maplibre-6.4.1/maplibre-gl.css" />
-  <!-- three.js r0.186.1 is fetched only when app.js dynamic-imports it at zoom 16. -->
+  <!-- three.js r0.187.0 is fetched only when app.js dynamic-imports it at zoom 16. -->
   <script type="importmap">
   {
     "imports": {
-      "three": "https://unpkg.com/three@0.186.1/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.186.1/examples/jsm/"
+      "three": "https://unpkg.com/three@0.187.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.187.0/examples/jsm/"
     }
   }
   </script>
@@ -50,10 +50,6 @@
         <span class="atlas-version" id="atlas-version" title="bkk-3d-atlas release version · v0.3.0 — Maholan snapshot proxy, D1 cache for water endpoints, stream-error fallback">v0.3.0</span>
       </div>
       <div class="atlas-header-meta">
-        <h1 class="atlas-title">
-          <span class="atlas-title-desk">Bangkok, live, flood edition</span>
-          <span class="atlas-title-phone">Bangkok</span>
-        </h1>
         <small><span class="atlas-presence" id="atlas-presence" hidden aria-live="polite" title="Anonymous per-tab counter · pings every 60 s · pattern from JK World"></span></small>
       </div>
       <nav class="atlas-header-nav" aria-label="Atlas navigation">
@@ -68,7 +64,7 @@
         <a href="https://shophouses.nonarkara.org" class="atlas-nav-sibling" title="Shophouse Metropolis — the essay, the Bible, the pressure map">Shophouses</a>
         <a href="https://dao.nonarkara.org" class="atlas-nav-sibling" title="Dao De Jing · Less force. More life. · 81 chapters, three languages — easy read edition">Dao</a>
         <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">
-          GitHub <span aria-hidden="true">↗</span>
+          GitHub <span aria-hidden="true"><span class="atlas-out" aria-hidden="true"></span></span>
         </a>
       </nav>
     </header>
@@ -78,6 +74,8 @@
         <button type="button" data-task="place" disabled>Check a place</button>
         <button type="button" data-task="water" disabled>Water now</button>
         <button type="button" data-task="explore" disabled>Explore</button>
+        <button type="button" data-landmark-view="grand-palace" disabled title="Open the source-based schematic heritage models at street scale; not an official survey">Grand Palace 3D</button>
+        <button type="button" data-landmark-view="wat-arun" disabled title="Open Wat Arun's schematic architectural forms at street scale; not an official survey">Wat Arun 3D</button>
         <!-- Lenses: the panel's presets, one tap from the map (Jakarta atlas pattern). -->
         <span class="atlas-lens-divider" aria-hidden="true"></span>
         <button type="button" class="atlas-lens is-active" aria-pressed="true" data-preset="city" title="Buildings, rail, boats, traffic, canals and flood gauges">City</button>
@@ -231,13 +229,16 @@
           <button type="button" class="atlas-flood-verdict-btn atlas-flood-profile-btn" id="atlas-flood-verdict-profile" title="View Chao Phraya river hydraulic elevation profile and Gulf tidal lock status">
             River profile ⤢
           </button>
-          <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash ↗</a>
+          <a class="atlas-flood-verdict-btn" href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash <span class="atlas-out" aria-hidden="true"></span></a>
         </div>
         <!-- Visible FloodDash attribution — answers "where does this come from?" -->
+        <details class="atlas-flood-sources">
+        <summary>Data via FloodDash · Sources &amp; limitations</summary>
         <p class="atlas-flood-credit" aria-label="Data source attribution">
           <span class="atlas-flood-credit-dot" aria-hidden="true"></span>
           <span><strong>Data via <a href="https://flood.nonarkara.org" target="_blank" rel="noreferrer">FloodDash</a></strong> · gauges, DDS bulletin, BMA road reports, canal gates, news-anchored emergency points, alerts from 40 upstream feeds (HII, TMD, BMA, RID, GISTDA, PCD, Air4Thai). Nearby-gauge context uses a pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer"><strong>JK World</strong></a> · paired within 250 m; road passability remains unknown. Refresh attempted every 5 min · <span id="atlas-flood-credit-fresh">check each source timestamp</span>.</span>
         </p>
+        </details>
       </div>
       <!-- Compact numbers row — the headline live data, always visible,
            balanced across the width. The long-form board below collapses. -->
@@ -310,19 +311,19 @@
               <p class="atlas-xref-where" id="atlas-xref-confirmed-where">—</p>
             </article>
             <article class="atlas-xref-stat" data-stat="sensor-only">
-              <p class="atlas-xref-label">📡 gauge alert · no recent nearby report</p>
+              <p class="atlas-xref-label">Gauge alert · no recent nearby report</p>
               <p class="atlas-xref-value" id="atlas-xref-sensoronly-n">—</p>
               <p class="atlas-xref-where" id="atlas-xref-sensoronly-where">—</p>
             </article>
             <article class="atlas-xref-stat" data-stat="unconfirmed">
-              <p class="atlas-xref-label">📋 other road reports</p>
+              <p class="atlas-xref-label">Other road reports</p>
               <p class="atlas-xref-value" id="atlas-xref-unconfirmed-n">—</p>
               <p class="atlas-xref-where" id="atlas-xref-unconfirmed-where">—</p>
             </article>
           </div>
           <ul class="atlas-sit-xref-list" id="atlas-sit-xref-confirmed" aria-label="Road reports near fresh gauge alerts"></ul>
           <details class="atlas-sit-xref-unconf">
-            <summary id="atlas-sit-xref-unconf-summary">📋 Other road reports</summary>
+            <summary id="atlas-sit-xref-unconf-summary">Other road reports</summary>
             <p class="atlas-sit-note">Road reports cover the last 24 h. Only reports within 6 h are paired with high-confidence gauge alerts observed within 45 min and 250 m. Canal and river gauges do not measure road depth, clearance or passability. A gauge without an alert does not establish that a road is dry. Pattern from <a href="https://world.tehx.dyndns.info/flood" target="_blank" rel="noreferrer">JK World</a>.</p>
             <ul class="atlas-sit-xref-list atlas-sit-xref-list-dim" id="atlas-sit-xref-unconfirmed"></ul>
           </details>
@@ -376,7 +377,7 @@
               <p class="atlas-bkk-card-where"><span class="atlas-bkk-card-place" id="bkk-card-temp-where">—</span></p>
             </article>
           </div>
-          <p class="atlas-sit-note">Bars: daily mean across ~134 Bangkok gauges, via FloodDash. Totals: the single wettest gauge, <a href="https://bangkok.thaiwater.net/dashboard" target="_blank" rel="noreferrer">ThaiWater / HII ↗</a>.</p>
+          <p class="atlas-sit-note">Bars: daily mean across ~134 Bangkok gauges, via FloodDash. Totals: the single wettest gauge, <a href="https://bangkok.thaiwater.net/dashboard" target="_blank" rel="noreferrer">ThaiWater / HII <span class="atlas-out" aria-hidden="true"></span></a>.</p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-trend" id="atlas-sit-trend" aria-labelledby="atlas-sit-trend-h" hidden>
@@ -439,7 +440,7 @@
             </ul>
           </div>
           <p class="atlas-sit-note" id="atlas-weather-hours">Hourly model forecast pending.</p>
-          <p class="atlas-sit-note">Weather forecasts do not establish road clearance or electrical safety. No TimesFM inference is connected. Do not enter floodwater. <a href="https://www.weather.gov/safety/flood-turn-around-dont-drown" target="_blank" rel="noreferrer">Flood safety guidance ↗</a></p>
+          <p class="atlas-sit-note">Weather forecasts do not establish road clearance or electrical safety. No TimesFM inference is connected. Do not enter floodwater. <a href="https://www.weather.gov/safety/flood-turn-around-dont-drown" target="_blank" rel="noreferrer">Flood safety guidance <span class="atlas-out" aria-hidden="true"></span></a></p>
         </section>
 
         <section class="atlas-sit-mod atlas-sit-act" aria-labelledby="atlas-sit-act-h">
@@ -450,7 +451,7 @@
             <li><a href="tel:1784"><strong>1784</strong><span>DDPM disaster line · ปภ.</span></a></li>
             <li><a href="tel:1555"><strong>1555</strong><span>Bangkok city hall · กทม.</span></a></li>
             <li><a href="tel:1669"><strong>1669</strong><span>Medical emergency · การแพทย์ฉุกเฉิน</span></a></li>
-            <li><a href="https://www.traffy.in.th/" target="_blank" rel="noreferrer"><strong>Traffy</strong><span>Report flooding on your street · แจ้งน้ำท่วม ↗</span></a></li>
+            <li><a href="https://www.traffy.in.th/" target="_blank" rel="noreferrer"><strong>Traffy</strong><span>Report flooding on your street · แจ้งน้ำท่วม <span class="atlas-out" aria-hidden="true"></span></span></a></li>
           </ul>
           <p class="atlas-sit-note">Water rising indoors: switch off power at the main, move up, keep your phone charged. Never walk or drive through moving water. This board is not an official warning.</p>
         </section>
@@ -466,7 +467,7 @@
       More <span class="count" id="atlas-panel-toggle-count">…</span>
     </button>
 
-    <aside class="atlas-panel" id="atlas-panel" aria-live="polite" aria-hidden="true">
+    <aside class="atlas-panel" id="atlas-panel" aria-label="City details" aria-live="polite" aria-hidden="true">
       <!-- Sticky close row at the top of the phone sheet. The CSS
            ::before pseudo can't be a real button, so this row is
            rendered for real and given data-close-sheet so the
@@ -490,10 +491,9 @@
       </section>
 
       <div class="atlas-operate-bar">
-        <p class="atlas-eyebrow">Operate</p>
         <button type="button" class="atlas-about-chip" data-about-open aria-haspopup="dialog">
           <span class="atlas-about-chip-kicker">About</span>
-          <span class="atlas-about-chip-title">Who built this · data · contact →</span>
+          <span class="atlas-about-chip-title">Who built this · data · contact&nbsp;→</span>
         </button>
       </div>
 
@@ -575,7 +575,7 @@
             <p class="atlas-inspect-note" id="atlas-inspect-note"></p>
             <div class="atlas-inspect-actions">
               <a class="atlas-inspect-api" id="atlas-inspect-api" href="/api/risk?lng=100.53210&amp;lat=13.73670" target="_blank" rel="noreferrer">
-                Open /api/risk ↗
+                Open /api/risk <span class="atlas-out" aria-hidden="true"></span>
               </a>
               <button type="button" class="atlas-inspect-clear" id="atlas-inspect-clear">Clear</button>
             </div>
@@ -608,7 +608,7 @@
               <input type="checkbox" id="toggle-buildings" checked />
               <span class="atlas-layer-name">
                 <strong>3D buildings</strong>
-                <small>OSM · 432,077 features</small>
+                <small>OSM · 478,027 features</small>
               </span>
               <span class="atlas-layer-state" id="toggle-buildings-state" aria-live="polite">on</span>
             </label>
@@ -617,6 +617,17 @@
               <span>Color by type (temple, hotel, school…)</span>
             </label>
             <div class="atlas-legend" id="legend-buildings" hidden></div>
+          </li>
+          <li>
+            <label class="atlas-layer-toggle">
+              <input type="checkbox" id="toggle-wireframe-landmarks" />
+              <span class="atlas-layer-name">
+                <strong>Monument drawings</strong>
+                <small>8 reference-based schematics · Wat Arun solid prang profiles · not surveyed</small>
+              </span>
+              <span class="atlas-layer-state" id="toggle-wireframe-landmarks-state" aria-live="polite">off</span>
+            </label>
+            <div class="atlas-legend" id="legend-wireframe-landmarks" hidden></div>
           </li>
           <li>
             <label class="atlas-layer-toggle">
@@ -758,6 +769,16 @@
           </li>
         </ul>
 
+        <details class="atlas-layer-fine">
+          <summary>Additional public evidence</summary>
+          <ul class="atlas-layer-list">
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-live-cams" /><span class="atlas-layer-name"><strong>Live views</strong><small>YouTube streams and a bookmark · availability unverified</small></span><span class="atlas-layer-state" id="toggle-live-cams-state">off</span></label><div class="atlas-legend" id="legend-live-cams" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-bkk-rain" /><span class="atlas-layer-name"><strong>BKK rain gauges</strong><small>ThaiWater · check each station's observation time</small></span><span class="atlas-layer-state" id="toggle-bkk-rain-state">off</span></label><div class="atlas-legend" id="legend-bkk-rain" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-flood-incidents" /><span class="atlas-layer-name"><strong>Flood incident reports</strong><small>Reports and gauge context · not measured flood depth or safe routes</small></span><span class="atlas-layer-state" id="toggle-flood-incidents-state">off</span></label><div class="atlas-legend" id="legend-flood-incidents" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-dams" /><span class="atlas-layer-name"><strong>Upstream dams</strong><small>Storage % · not a Bangkok water-arrival forecast</small></span><span class="atlas-layer-state" id="toggle-dams-state">off</span></label><div class="atlas-legend" id="legend-dams" hidden></div></li>
+            <li><label class="atlas-layer-toggle"><input type="checkbox" id="toggle-maholan-cctv" /><span class="atlas-layer-name"><strong>More CCTV cameras</strong><small>Maholan · operator and unvetted community sources · pictures may be unavailable</small></span><span class="atlas-layer-state" id="toggle-maholan-cctv-state">off</span></label><div class="atlas-legend" id="legend-maholan-cctv" hidden></div></li>
+          </ul>
+        </details>
         <p class="atlas-eyebrow atlas-eyebrow-sub">Landscape</p>
         <ul class="atlas-layer-list atlas-layer-list-sub">
           <li>
@@ -800,7 +821,7 @@
                 <option value="10">October</option><option value="11">November</option><option value="12">December</option>
               </select>
               <p id="hii-history-note"></p>
-              <a href="https://data.hii.or.th/dataset/flood-area" target="_blank" rel="noreferrer">HII dataset &amp; non-commercial licence ↗</a>
+              <a href="https://data.hii.or.th/dataset/flood-area" target="_blank" rel="noreferrer">HII dataset &amp; non-commercial licence <span class="atlas-out" aria-hidden="true"></span></a>
             </div>
           </li>
           <li>
@@ -993,10 +1014,10 @@
         <div class="atlas-about-pane" id="atlas-pane-about" role="tabpanel" aria-labelledby="atlas-tab-about">
         <!-- The header's sibling links, for phones, where the header keeps only About. -->
         <nav class="atlas-about-toc atlas-about-family" aria-label="BKKx family">
-          <a href="https://bkk.nonarkara.org">Heritage ↗</a>
-          <a href="https://shophouses.nonarkara.org">Shophouses ↗</a>
-          <a href="https://dao.nonarkara.org">Dao ↗</a>
-          <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href="https://bkk.nonarkara.org">Heritage <span class="atlas-out" aria-hidden="true"></span></a>
+          <a href="https://shophouses.nonarkara.org">Shophouses <span class="atlas-out" aria-hidden="true"></span></a>
+          <a href="https://dao.nonarkara.org">Dao <span class="atlas-out" aria-hidden="true"></span></a>
+          <a href="https://github.com/Nonarkara/bkk-3d-atlas" target="_blank" rel="noreferrer">GitHub <span class="atlas-out" aria-hidden="true"></span></a>
         </nav>
         <nav class="atlas-about-toc" aria-label="About sections">
           <a href="#about-who">Who</a>
@@ -1082,7 +1103,7 @@
               </li>
               <li>
                 <strong>Tiles &amp; store.</strong>
-                432,077 OSM buildings as PMTiles on R2; civic amenities in
+                478,027 OSM buildings as PMTiles on R2; civic amenities in
                 D1 (<code>CIVIC_DB</code>) ingested from BMA / data.go.th.
               </li>
               <li>
@@ -1266,7 +1287,7 @@
             </a>
             <a class="atlas-paper-btn" href="/labs/paper/" target="_blank" rel="noreferrer">
               <span class="atlas-paper-btn-eyebrow">Working paper 01</span>
-              <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
+              <span class="atlas-paper-btn-title">478,027 buildings, 1 system, 0 politicians who care →</span>
             </a>
           </section>
 
@@ -1562,7 +1583,7 @@
 
 <section class="atlas-about-section" id="research-lifesafety"><p class="atlas-eyebrow">Flood preparedness</p><h3>Do not infer safe travel from rainfall</h3><p>Electrical hazards, missing drain covers, currents and vehicle clearance are not measured by this panel. Rain totals alone cannot determine them. Do not enter floodwater; follow DDPM and BMA instructions. For emergency help call 1784, 1555 or 1669.</p></section>
 
-<section class="atlas-about-section" id="research-foundation-ai"><p class="atlas-eyebrow">Weather models and future research</p><h3>What is connected, and what is not</h3><p>Open-Meteo supplies modelled current weather and hourly precipitation forecasts with explicit UTC valid times. It is not a street sensor or an inundation model.</p><p>TimesFM is not connected. No calibrated river crest, tide timing, road depth, vehicle clearance or shophouse lead time is supplied. The cinematic tour is an illustrative sequence, not model inference.</p><p><a href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">Weather source and units ↗</a></p></section>
+<section class="atlas-about-section" id="research-foundation-ai"><p class="atlas-eyebrow">Weather models and future research</p><h3>What is connected, and what is not</h3><p>Open-Meteo supplies modelled current weather and hourly precipitation forecasts with explicit UTC valid times. It is not a street sensor or an inundation model.</p><p>TimesFM is not connected. No calibrated river crest, tide timing, road depth, vehicle clearance or shophouse lead time is supplied. The cinematic tour is an illustrative sequence, not model inference.</p><p><a href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">Weather source and units <span class="atlas-out" aria-hidden="true"></span></a></p></section>
 
           <section class="atlas-about-section" id="research-limits">
             <p class="atlas-eyebrow atlas-eyebrow-sub">Limits</p>
@@ -1581,7 +1602,7 @@
             <p class="atlas-eyebrow atlas-eyebrow-sub">Build log</p>
             <h3>Nine weeks, one laptop, in the open</h3>
             <ol class="atlas-research-log">
-              <li><time datetime="2026-08-04">4 Aug</time><span>Day one. A Worker on atlas.nonarkara.org; 432,077 OSM buildings as PMTiles streamed from R2 with Range passthrough; live iTIC traffic; rail and 4,063 waterways.</span></li>
+              <li><time datetime="2026-08-04">4 Aug</time><span>Day one. A Worker on atlas.nonarkara.org; 478,027 OSM buildings as PMTiles streamed from R2 with Range passthrough; live iTIC traffic; rail and 4,063 waterways.</span></li>
               <li><time datetime="2026-08-05">5 Aug</time><span>CCTV, animated rain radar, the first gauge layer straight from ThaiWater, civic open data in D1. A land-price layer shipped and came out the same day — there was no real geometry behind it — and returned only as a Treasury road-level choropleth.</span></li>
               <li><time datetime="2026-08-06">6–8 Aug</time><span>About drawer, deploy-on-main CI, a clean console, the <code>/api/atlas</code> mirror for agents.</span></li>
               <li><time datetime="2026-08-09">9–11 Aug</time><span>Live incidents, geolocated news, Old Town heights from monument silhouettes.</span></li>
@@ -1617,7 +1638,7 @@
             </ol>
             <a class="atlas-paper-btn" href="/labs/paper" target="_blank" rel="noreferrer">
               <span class="atlas-paper-btn-eyebrow">Research paper</span>
-              <span class="atlas-paper-btn-title">432,077 buildings, 1 system, 0 politicians who care →</span>
+              <span class="atlas-paper-btn-title">478,027 buildings, 1 system, 0 politicians who care →</span>
             </a>
           </section>
 
@@ -1655,6 +1676,6 @@
   </main>
 
   <script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js" integrity="sha384-pbKNZbDshUsLnZMIVsn/t+j3xEY9PGfuX5Z22l5rcy/obXz3EwaMx1F5d9sRsJMn" crossorigin="anonymous" defer></script>
-  <script src="/app.js?v=bkk-atlas-20261022-1792708737-f710286" type="module" defer></script>
+  <script src="/app.js?v=bkk-atlas-20261116-1794798374-4bbf6da" type="module" defer></script>
 </body>
 </html>

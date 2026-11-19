@@ -13,7 +13,7 @@
 // Three families of building exist in the atlas and they do NOT share a
 // height rule:
 //
-//   metro    bkkx-3d-buildings-hi   OpenFreeMap / OpenMapTiles footprints
+//   metro    bkkx-3d-buildings     the metro PMTiles, z11-17
 //   oldtown  bkkx-rattanakosin-buildings  heritage-detail GeoJSON
 //   tiles    bkkx-3d-buildings     the metro PMTiles at zoom 11-15
 //
