@@ -9,6 +9,8 @@
 // hide the layer, capture, restore, capture, compare pixels. A layer that
 // changes nothing is reported, not assumed fine.
 //
+// Pass --wat-arun to exercise that specific landmark's opt-in drawing,
+// comparing the same view on / off / restored. It is not a survey check.
 // Requires a Chrome already running with --remote-debugging-port. Set
 // CHROME_DEBUG_PORT if it is not 9573. Exits non-zero if any layer that is
 // expected to be visible draws no pixels.
@@ -21,6 +23,7 @@
 // window — compare against the measured noise floor, not a previous run.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
+import { LANDMARK_VIEWS } from '../public/landmark-views.js';
 
 const PORT = process.env.CHROME_DEBUG_PORT || '9573';
 const URL = process.env.ATLAS_URL || 'https://atlas.nonarkara.org';
@@ -28,7 +31,9 @@ const SHOT_DIR = process.env.SHOT_DIR || '/tmp/atlas-render-check';
 
 // Layers that must contribute pixels at this view, with the camera parked on
 // the Old Town where the custom 3D layers live.
-const VIEW = { center: [100.4928, 13.7518], zoom: 16.4, pitch: 52, bearing: -25 };
+const watArun = process.argv.includes('--wat-arun');
+const VIEW = watArun ? LANDMARK_VIEWS['wat-arun']
+  : { center: [100.4928, 13.7518], zoom: 16.4, pitch: 52, bearing: -25 };
 // Ids must match the constants in the source. A typo here reports MISSING and
 // looks like a broken layer, which is how one round of this check "found" a
 // bug that was a mistyped id.
@@ -37,7 +42,7 @@ const VIEW = { center: [100.4928, 13.7518], zoom: 16.4, pitch: 52, bearing: -25 
 // buildings with flatter geometry, and drawing both gives Wat Phra Kaew two
 // roofs. Without that note the check reports a failure every run, and a check
 // that always cries wolf is a check people learn to skip.
-const LAYERS = [
+const LAYERS = watArun ? [{ id: 'bkkx-wireframe-landmarks' }] : [
   { id: 'bkkx-heritage-forms' },
   { id: 'bkkx-building-massing' },
   { id: 'bkkx-heritage-roofs-3d', expect: 'hidden', why: 'the forms layer supersedes the 2-building roof pilot' },
@@ -185,6 +190,9 @@ await evaluate(`new Promise((res) => {
 })`);
 
 await evaluate(`window.__atlas.map.jumpTo(${JSON.stringify(VIEW)}); true`);
+if (watArun && !(await evaluate(`window.__atlas.setLayer('wireframe-landmarks', true)`))) {
+  die('Wat Arun detail could not be enabled');
+}
 
 // Wait for the layers to arrive rather than for a fixed number of seconds.
 // A run started seconds after a deploy once reported all five layers MISSING
@@ -346,6 +354,7 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   await sleep(1500);
 
   const pct = differingPixels(before, after);
+  const restoredPct = watArun ? differingPixels(after, await shot()) : null;
   writeFileSync(`${SHOT_DIR}/${id}-on.png`, before);
   writeFileSync(`${SHOT_DIR}/${id}-off.png`, after);
   // Read the visibility back while the layer is still hidden. A layer that
@@ -355,7 +364,7 @@ for (const { id, expect = 'visible', why } of LAYERS) {
   // asleep" when in fact the check never toggled anything. For a visible
   // layer that same 0% reports BLANK, which is loud — so only the asleep
   // direction needs the proof.
-  results.push({ id, present: true, pct, expect, why, probe });
+  results.push({ id, present: true, pct, expect, why, probe, restoredPct });
 }
 
 // Put the animated layers back — the check must not leave the map altered.
@@ -382,6 +391,9 @@ for (const r of results) {
     }
   } else if (r.pct === null) {
     console.log(`  BROKEN   ${r.id} — the two captures are not comparable`);
+    bad++;
+  } else if (watArun && (!r.probe || r.restoredPct === null || r.restoredPct <= FLOOR)) {
+    console.log(`  UNPROVEN ${r.id} — hide/restore did not produce a repeatable delta`);
     bad++;
   } else if (r.pct <= FLOOR) {
     console.log(`  UNPROVEN ${r.id} — delta ${r.pct.toFixed(3)}% does not exceed measured noise`);

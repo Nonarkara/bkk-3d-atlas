@@ -696,7 +696,7 @@ if (!vendorMatch) {
 // auditing working code. Catch it here instead, where it costs nothing.
 {
   const renderCheckPath = join(root, "scripts/render-check.mjs");
-  const sources = ["heritage-forms-layer.js", "heritage-roofs.js", "building-massing.js", "app.js"]
+  const sources = ["heritage-forms-layer.js", "heritage-roofs.js", "building-massing.js", "wireframe-landmarks.js", "app.js"]
     .map((f) => readFileSync(join(root, "public", f), "utf8"))
     .join("\n");
   const declared = new Set([...sources.matchAll(/["'`](bkkx-[a-z0-9-]+)["'`]/g)].map((m) => m[1]));

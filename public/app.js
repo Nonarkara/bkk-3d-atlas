@@ -6372,7 +6372,36 @@ function setTrafficSourceBadge(source) {
   }
 }
 
+let cctvStreamSequence = 0;
+let hlsLibrary = null;
+function loadHlsLibrary() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (hlsLibrary) return hlsLibrary;
+  hlsLibrary = new Promise(resolve => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js';
+    script.integrity = 'sha384-cciJ0zi8d1uMKC2zJd7jvPY4HQt7W4ByUI/FlMkltvBi31aW61rcpVBhpmW8/NwX';
+    script.crossOrigin = 'anonymous';
+    let timer;
+    const finish = () => {
+      clearTimeout(timer);
+      script.onload = script.onerror = null;
+      script.remove();
+      resolve(window.Hls ?? null);
+    };
+    script.onload = script.onerror = finish;
+    timer = setTimeout(finish, 12000);
+    document.head.append(script);
+  }).then(value => {
+    // An actual retry should be able to recover after a transient CDN failure.
+    if (!value) hlsLibrary = null;
+    return value;
+  });
+  return hlsLibrary;
+}
+
 function destroyCctvHls() {
+  cctvStreamSequence++;
   if (state.cctvHls) {
     try { state.cctvHls.destroy(); } catch {}
     state.cctvHls = null;
@@ -6473,15 +6502,17 @@ async function loadCctvData(map, { preferLive = false } = {}) {
   }
 }
 
-function playCctvStream(video, hlsUrl) {
+async function playCctvStream(video, hlsUrl) {
   destroyCctvHls();
+  const sequence = cctvStreamSequence;
   if (!video || !hlsUrl) return;
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = hlsUrl;
     video.play().catch(() => {});
     return;
   }
-  const Hls = window.Hls;
+  const Hls = await loadHlsLibrary();
+  if (sequence !== cctvStreamSequence || !video.isConnected) return;
   if (Hls && Hls.isSupported()) {
     const hls = new Hls({
       enableWorker: true,
@@ -9639,7 +9670,7 @@ function wallDetach(video, refill = true) {
   if (refill && !document.hidden) for (const v of wallVisible) if (!wallPlayers.has(v) && !v.dataset.failed) { wallAttach(v); break; }
 }
 
-function wallAttach(video) {
+async function wallAttach(video) {
   const badge = video.parentElement.querySelector(".atlas-wall-state");
   if (document.hidden || !wallVisible.has(video)) return;
   if (wallPlayers.has(video) || video.dataset.failed) return;
@@ -9652,14 +9683,20 @@ function wallAttach(video) {
   video.addEventListener('playing',playing);
   const cleanup = ()=>{video.removeEventListener('error',failed);video.removeEventListener('playing',playing);};
   wallMediaCleanup.set(video,cleanup);
-  const Hls = window.Hls;
+  // Reserve one of the same 12 slots during library loading. Detach removes
+  // the reservation and invalidates the callback, even if the wall reopens.
+  wallPlayers.set(video, true);
+  const native = video.canPlayType("application/vnd.apple.mpegurl");
+  const Hls = native ? null : await loadHlsLibrary();
+  if (wallMediaCleanup.get(video) !== cleanup) return;
+  if (document.hidden || !wallVisible.has(video)) { wallDetach(video); return; }
   if (Hls && Hls.isSupported()) {
     const hls = new Hls({ enableWorker: false, lowLatencyMode: false, maxBufferLength: 8 });
     wallPlayers.set(video, hls);
     hls.on(Hls.Events.ERROR, (_e, d) => { if (d?.fatal && wallPlayers.get(video) === hls) failed(); });
     hls.loadSource(src);
     hls.attachMedia(video);
-  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+  } else if (native) {
     video.src = src;
     wallPlayers.set(video, true);
   } else return failed();

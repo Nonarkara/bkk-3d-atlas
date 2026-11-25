@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-function harness() {
+function harness(loadHlsLibrary) {
   const document={hidden:false};
-  const ctx=vm.createContext({window:{},document,state:{},console});
+  const ctx=vm.createContext({window:{},document,state:{},console,loadHlsLibrary});
   const code=app.slice(app.indexOf('const WALL_BBOX'),app.indexOf('function wallTile('));
   vm.runInContext(code+'\nthis.wallTest={wallAttach,wallDetach,wallPlayers,wallVisible};',ctx);
   return {...ctx.wallTest,document};
@@ -27,6 +27,49 @@ test('native-video failure frees a slot for a visible waiting camera',()=>{
   assert.equal(h.wallPlayers.has(videos[0]),false);
   assert.equal(h.wallPlayers.has(videos[12]),true);
   assert.equal(h.wallPlayers.size,12);
+});
+test('pending HLS players count toward the cap and cannot attach after detach',async()=>{
+  let ready;
+  const lib = new Promise(resolve=>{ready=resolve;});
+  let attached=0;
+  class FakeHls {
+    static Events={ERROR:'error'};
+    static isSupported(){return true;}
+    on(){}
+    loadSource(){}
+    attachMedia(){attached++;}
+  }
+  const h=harness(()=>lib), videos=Array.from({length:13},()=>new Video());
+  const promises=videos.map(v=>{v.canPlayType=()=>'';h.wallVisible.add(v);return h.wallAttach(v);});
+  assert.equal(h.wallPlayers.size,12);
+  assert.equal(attached,0);
+  h.wallVisible.clear();
+  for(const v of videos) h.wallDetach(v,false);
+  ready(FakeHls);
+  await Promise.all(promises);
+  assert.equal(attached,0);
+  assert.equal(h.wallPlayers.size,0);
+});
+test('HLS uses one integrity-pinned script per attempted load, never the startup HTML',async()=>{
+  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/hls\.min\.js|<link[^>]+(?:camera\.longdo|camerai1\.iticfoundation)/);
+  const tags=[];
+  const ctx=vm.createContext({window:{},setTimeout,clearTimeout,document:{
+    createElement:()=>({remove(){}}),head:{append:s=>tags.push(s)},
+  }});
+  vm.runInContext(app.slice(app.indexOf('let cctvStreamSequence'),app.indexOf('function destroyCctvHls')),ctx);
+  assert.equal(tags.length,0);
+  const a=ctx.loadHlsLibrary(),b=ctx.loadHlsLibrary();
+  assert.equal(a,b);
+  assert.equal(tags.length,1);
+  assert.match(tags[0].integrity,/^sha384-/);
+  assert.equal(tags[0].crossOrigin,'anonymous');
+  tags[0].onerror();
+  assert.equal(await a,null);
+  const retry=ctx.loadHlsLibrary();
+  ctx.window.Hls=class {};
+  tags[1].onload();
+  assert.equal(await retry,ctx.window.Hls);
 });
 test('detaching cleans stale media listeners and pauses the video',()=>{
   const h=harness(),v=new Video();h.wallVisible.add(v);h.wallAttach(v);
