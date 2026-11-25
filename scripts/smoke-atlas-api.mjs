@@ -721,6 +721,26 @@ async function main() {
   await checkCivicPois();
   await checkCityEvents();
   await checkNewsEvents();
+  // The public route is a separate Worker. Local Atlas dev does not bind it.
+  if (baseUrl === DEFAULT_URL || process.env.ATLAS_SMOKE_LOCATION === "1") {
+    const path = "/api/location/evidence";
+    const invalid = await fetchJson(`${path}?lat=&lng=100.5448`);
+    assert(invalid.status === 400 && invalid.headers.get("cache-control") === "no-store",
+      "location evidence must reject a blank coordinate without caching it");
+    logOk("GET /api/location/evidence rejects blank coordinates", invalid.ms);
+    const { ok, body, headers, ms } = await fetchJson(`${path}?lat=13.7796&lng=100.5448`);
+    assert(ok && body.version === 1 && body.query?.radiusM === 800, "unexpected location evidence contract");
+    assert(headers.get("cache-control") === "no-store", "location response freshness must not be replayed by HTTP cache");
+    const civic = body.civic, complaints = body.complaints;
+    const count = (n) => Number.isSafeInteger(n) && n >= 0;
+    assert(civic?.status === "reference" ? count(civic.count) : civic?.status === "unavailable" && civic.count === null,
+      "civic count must distinguish catalogue coverage from unavailable evidence");
+    assert(["available", "stale"].includes(complaints?.status)
+      ? count(complaints.value?.recent) && Number.isFinite(Date.parse(complaints.fetchedAt))
+      : complaints?.status === "unavailable" && complaints.value === null,
+    "complaints must distinguish aged counts from unavailable evidence");
+    logOk("GET /api/location/evidence", ms, `civic=${civic.status} · complaints=${complaints.status}`);
+  }
 
   summarize();
 }
