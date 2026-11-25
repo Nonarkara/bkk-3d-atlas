@@ -10,6 +10,11 @@ interface Env {
   CIVIC_DB: D1Database;
 }
 const hits = new Map();
+const LAST_GOOD_SECONDS = 7 * 24 * 60 * 60;
+type ComplaintRecord = {
+  fetchedAt: string;
+  value: ReturnType<typeof complaintSummary>;
+};
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -17,7 +22,7 @@ function json(data: unknown, status = 200) {
       "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
       "access-control-allow-methods": "GET, OPTIONS",
-      "cache-control": status === 200 ? "public, max-age=300" : "no-store",
+      "cache-control": "no-store",
       "x-content-type-options": "nosniff",
       "referrer-policy": "no-referrer",
     },
@@ -63,24 +68,47 @@ export default {
           },
         },
       );
-    const now = new Date().toISOString();
+    const startedAt = Date.now();
+    const now = new Date(startedAt).toISOString();
     const sourceUrl = `https://traffy.longdo.com/api.php?action=near&lat=${point.lat}&lon=${point.lng}&radius=800&months=12&limit=0`;
-    const cache = await caches.open("location-evidence-v1");
     const key = new Request(
       `https://atlas.nonarkara.org/__location-cache/${point.lat}/${point.lng}`,
     );
     const complaints = async () => {
-      let saved: {
-        fetchedAt: string;
-        value: ReturnType<typeof complaintSummary>;
-      } | null = null;
+      let cache: Cache | undefined;
+      let saved: ComplaintRecord | null = null;
       try {
+        cache = await caches.open("location-evidence-v1");
         const old = await cache.match(key);
-        if (old) saved = await old.json();
+        if (old) {
+          const candidate = await old.json<ComplaintRecord | null>();
+          if (
+            candidate &&
+            typeof candidate.fetchedAt === "string" &&
+            sourceState(candidate.fetchedAt, startedAt) !== "unavailable" &&
+            startedAt - Date.parse(candidate.fetchedAt) < LAST_GOOD_SECONDS * 1000 &&
+            candidate.value
+          ) {
+            const value = candidate.value;
+            saved = {
+              fetchedAt: candidate.fetchedAt,
+              value: complaintSummary({
+                summary: {
+                  total_all_time: value.allTime,
+                  recent: value.recent,
+                  open_now: value.openAllTime,
+                  resolved: value.resolvedAllTime,
+                  by_type: value.categories,
+                },
+                attribution: value.attribution,
+              }),
+            };
+          }
+        }
       } catch {
         /* Cache unavailable: attempt the source. */
       }
-      if (saved && sourceState(saved.fetchedAt) === "available")
+      if (saved && sourceState(saved.fetchedAt, startedAt) === "available")
         return { status: "available", ...saved, sourceUrl };
       try {
         const r = await fetch(sourceUrl, {
@@ -89,15 +117,18 @@ export default {
         });
         if (!r.ok) throw new Error(`Source HTTP ${r.status}`);
         const value = complaintSummary(await r.json());
-        const record = { fetchedAt: now, value };
-        ctx.waitUntil(
-          cache.put(
+        const record = { fetchedAt: new Date().toISOString(), value };
+        if (cache) {
+          const target = cache;
+          ctx.waitUntil(Promise.resolve().then(() => target.put(
             key,
             new Response(JSON.stringify(record), {
-              headers: { "cache-control": "public, max-age=604800" },
+              headers: { "cache-control": `public, max-age=${LAST_GOOD_SECONDS}` },
             }),
-          ),
-        );
+          )).catch(() => {
+            // Storage failure cannot invalidate an already validated source read.
+          }));
+        }
         return { status: "available", ...record, sourceUrl };
       } catch {
         return {
@@ -152,7 +183,7 @@ export default {
     const [reports, amenities] = await Promise.all([complaints(), civic()]);
     return json({
       version: 1,
-      build: "location-pilot-1",
+      build: "location-pilot-2",
       query: { ...point, radiusM: 800 },
       fetchedAt: now,
       complaints: {

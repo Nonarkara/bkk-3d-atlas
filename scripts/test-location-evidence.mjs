@@ -67,6 +67,7 @@ test("nearby civic selection excludes outside-radius and invalid coordinates", (
   );
 });
 test("failed upstream keeps aged evidence, never substitutes zeros; civic failure is independent", async () => {
+  const fetchedAt = new Date(Date.now() - 2 * 3600000).toISOString();
   const oldFetch = globalThis.fetch,
     oldCaches = globalThis.caches;
   globalThis.caches = {
@@ -74,8 +75,8 @@ test("failed upstream keeps aged evidence, never substitutes zeros; civic failur
       match: async () =>
         new Response(
           JSON.stringify({
-            fetchedAt: "2026-01-01T00:00:00Z",
-            value: { recent: 12 },
+            fetchedAt,
+            value: { allTime: 15, recent: 12, openAllTime: 5, resolvedAllTime: 10 },
           }),
         ),
       put: async () => {},
@@ -99,7 +100,7 @@ test("failed upstream keeps aged evidence, never substitutes zeros; civic failur
     const d = await res.json();
     assert.equal(d.complaints.status, "stale");
     assert.equal(d.complaints.value.recent, 12);
-    assert.equal(d.complaints.fetchedAt, "2026-01-01T00:00:00Z");
+    assert.equal(d.complaints.fetchedAt, fetchedAt);
     assert.equal(d.civic.status, "unavailable");
     assert.equal(d.civic.count, null);
     assert.equal(res.headers.get("access-control-allow-origin"), "*");
@@ -117,3 +118,44 @@ test("valid source response retains attribution and strips personal tickets", ()
   assert.equal(d.attribution.url, "https://bangkok.traffy.in.th");
   assert.equal(d.events, undefined);
 });
+
+for (const failure of ["open", "write", "future", "malformed", "upstream"]) {
+  test(`location evidence isolates ${failure}; valid zeros remain report counts`, async () => {
+    const { fetch: oldFetch, caches: oldCaches } = globalThis;
+    const upstreamFails = ["future", "malformed", "upstream"].includes(failure);
+    const pending = [];
+    globalThis.fetch = async () => upstreamFails
+      ? new Response(null, { status: 429 })
+      : Response.json({ summary: { total_all_time: 0, recent: 0, open_now: 0, resolved: 0 } });
+    globalThis.caches = {
+      open: async () => {
+        if (failure === "open") throw Error("cache unavailable");
+        return {
+          match: async () => failure === "future"
+            ? Response.json({ fetchedAt: "2099-01-01T00:00:00Z", value: { recent: 7 } })
+            : failure === "malformed"
+              ? Response.json({ fetchedAt: new Date().toISOString(), value: null })
+              : undefined,
+          put() { throw Error("cannot write"); },
+        };
+      },
+    };
+    try {
+      const res = await worker.fetch(
+        new Request("https://atlas.nonarkara.org/api/location/evidence?lat=13.75&lng=100.5"),
+        { CIVIC_DB: { prepare: () => ({ bind: () => ({ all: async () => ({ results: [] }) }) }) } },
+        { waitUntil(promise) { pending.push(promise); } },
+      );
+      const { civic, complaints } = await res.json();
+      assert.equal(civic.status, "reference");
+      assert.equal(civic.count, 0);
+      assert.equal(complaints.status, upstreamFails ? "unavailable" : "available");
+      assert.equal(complaints.value?.recent ?? null, upstreamFails ? null : 0);
+      if (upstreamFails) assert.equal(complaints.fetchedAt, null);
+      await Promise.all(pending);
+    } finally {
+      globalThis.fetch = oldFetch;
+      globalThis.caches = oldCaches;
+    }
+  });
+}
