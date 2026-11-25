@@ -29,6 +29,35 @@ export function placeBriefing(point, live, now = Date.now(), weather = null) {
   return rows;
 }
 
+export function locationEvidenceRows(data, now = Date.now()) {
+  const catalogue = data?.civic;
+  const reports = data?.complaints;
+  const count = value => Number.isSafeInteger(value) && value >= 0;
+  const age = value => {
+    const elapsed = now - Date.parse(value ?? '');
+    return Number.isFinite(elapsed) && elapsed >= 0 ? Math.floor(elapsed / 60000) : null;
+  };
+  const clock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  const stamp = value => `${clock.format(new Date(value))} ICT`;
+  const civicAge = age(catalogue?.fetchedAt);
+  const reportAge = age(reports?.fetchedAt);
+  const scoped = data?.version === 1 && data.query?.radiusM === 800;
+  const places = Array.isArray(catalogue?.places) ? catalogue.places.filter(p =>
+    typeof p?.name === 'string' && p.name.trim() && count(p.distanceM) && p.distanceM <= 800
+  ).slice(0, 3) : [];
+  return [
+    ['Amenities · สถานที่', scoped && catalogue?.status === 'reference' && count(catalogue.count) && civicAge !== null
+      ? `${catalogue.count} catalogued · Atlas civic catalogue · reference · read ${stamp(catalogue.fetchedAt)}. ${places.map(p => `${p.name} (${p.distanceM} m)`).join(' · ')}${places.length ? '. ' : ''}Straight-line distances; access and hours unverified.`
+      : 'Atlas civic catalogue unavailable · ไม่พร้อมใช้งาน. Nearby services are unknown.'],
+    ['Civic reports · รายงานปัญหา', scoped && ['available', 'stale'].includes(reports?.status) &&
+      count(reports.value?.recent) && reportAge !== null && reportAge < 7 * 1440
+      ? `${reports.value.recent} in the past 12 months · Traffy Fondue · ${reports.status === 'stale' || reportAge >= 60 ? 'last-good copy' : 'source copy'}, retrieved ${stamp(reports.fetchedAt)}. Report counts do not measure safety or problem frequency.`
+      : 'Traffy Fondue aggregate unavailable · ไม่พร้อมใช้งาน. The count is unknown.'],
+  ];
+}
+
 export function nearbyRoadReports(collection, lng, lat, now = Date.now()) {
   return (collection?.features || []).filter(f => {
     const age = now-Date.parse(f.properties?.latest || '');

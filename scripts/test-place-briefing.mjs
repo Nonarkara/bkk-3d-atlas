@@ -2,9 +2,23 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {placeBriefing,nearbyRoadReports,nearestCameras} from '../public/place-briefing.js';
+import {placeBriefing,nearbyRoadReports,nearestCameras,locationEvidenceRows} from '../public/place-briefing.js';
 const now=Date.parse('2026-10-15T06:00:00Z');
 const at=minutes=>new Date(now-minutes*60000).toISOString();
+test('nearby aggregates never conflate reference, last-good, zero or unknown',()=>{
+  const civic={status:'reference',fetchedAt:at(2),count:1,places:[{name:'Test school',distanceM:120}]};
+  const complaints={status:'stale',fetchedAt:at(120),value:{recent:0}};
+  const data={version:1,query:{radiusM:800},civic,complaints};
+  const [amenities,reports]=locationEvidenceRows(data,now).map(row=>row[1]);
+  assert.match(amenities,/1 catalogued.*reference.*12:58 ICT.*Test school \(120 m\).*access and hours unverified/);
+  assert.match(reports,/0 in the past 12 months.*Traffy Fondue.*last-good copy.*11:00 ICT/);
+  for(const fetchedAt of [null,at(-1),at(7*1440)]) {
+    const result=locationEvidenceRows({...data,complaints:{...complaints,fetchedAt}},now);
+    assert.equal(result[0][1],amenities);
+    assert.match(result[1][1],/count is unknown/);
+  }
+  assert.match(locationEvidenceRows(null,now)[0][1],/services are unknown/);
+});
 test('missing, future and stale evidence never gives an all-clear or dry forecast',()=>{
   for(const age of [31,-1,10000]) {
     const rows=placeBriefing(null,{city:{headEn:'ALL CLEAR',updated:at(age)},cityFreshness:{current:true},
@@ -42,7 +56,7 @@ test('late response for a previous selection cannot overwrite the new place',asy
       if(!elements.has(id))elements.set(id,{hidden:false,replaceChildren(){},tagName:'DETAILS',scrollIntoView(){}});
       return elements.get(id);
     }},window:{matchMedia:()=>({matches:true})},
-    massingFeatureAt:()=>null,pickBuildingFeature:()=>null,setInspectMarker(){},revealTask(){},
+    massingFeatureAt:()=>null,pickBuildingFeature:()=>null,setInspectMarker(){},revealTask(){},resetLocationEvidence(){},
     fillInspectDl(){},buildingRowsFromFeature:()=>[],floodHitAt:async()=>null,
     fetchRisk:async lng=>Number(lng)===100.5?first:{live:{district:'new'}},
     fetch:async()=>({ok:false}),renderPlaceEvidence(){},nearestCameras:()=>[],
@@ -53,4 +67,33 @@ test('late response for a previous selection cannot overwrite the new place',asy
   await context.runInspect({}, {lngLat:{lng:100.6,lat:13.75},point:{}});
   release({live:{district:'old'}}); await older;
   assert.equal(context.currentPlace.live.district,'new');
+});
+test('nearby evidence is opt-in and a superseded response cannot repaint the disclosure',async()=>{
+  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  const code=source.slice(source.indexOf('let locationSelection'),source.indexOf('function renderPlaceEvidence'));
+  const details={open:false};
+  const output={replaceChildren(){this.rows=[];}};
+  const pending=[];
+  const ctx=vm.createContext({
+    AbortController,AbortSignal,URLSearchParams,setTimeout,clearTimeout,
+    document:{getElementById:id=>id==='atlas-location-evidence'?details:output},
+    fillInspectDl:(el,rows)=>{el.rows=rows;},
+    locationEvidenceRows:data=>data,
+    fetch:(url,{signal})=>new Promise(resolve=>pending.push({url,signal,resolve})),
+  });
+  vm.runInContext(code,ctx);
+  ctx.resetLocationEvidence({lat:13.75,lng:100.5});
+  await ctx.readLocationEvidence(details);
+  assert.equal(pending.length,0);
+  details.open=true;
+  const old=ctx.readLocationEvidence(details);
+  ctx.resetLocationEvidence({lat:13.76,lng:100.6});
+  assert.equal(pending[0].signal.aborted,true);
+  details.open=true;
+  const latest=ctx.readLocationEvidence(details);
+  pending[1].resolve({ok:true,json:async()=>[['new']]});
+  await latest;
+  pending[0].resolve({ok:true,json:async()=>[['old']]});
+  await old;
+  assert.deepEqual(output.rows,[['new']]);
 });

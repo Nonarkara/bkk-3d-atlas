@@ -3912,6 +3912,16 @@ body.atlas-about-open { overflow: hidden; }
 .atlas-place-briefing dt { margin-top: 14px; color: var(--paper); font-weight: 600; }
 .atlas-place-briefing dd { margin: 4px 0 0; line-height: 1.55; overflow-wrap: anywhere; text-align: left; font-weight: 400; }
 .atlas-place-briefing dt:first-child { margin-top: 0; }
+#atlas-location-evidence > summary {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  padding-block: 4px;
+  color: var(--paper);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+#atlas-location-evidence > summary:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .atlas-header-meta { min-width: 0; }
 @media (max-width:1440px) { .atlas-header-nav [data-task] { display: none; } }
 .atlas-place-camera { display: block; width: 100%; min-height: 44px; padding: 10px; margin: 8px 0; text-align: left; background: transparent; color: var(--paper); border: 1px solid var(--line); font: inherit; }
@@ -4078,8 +4088,9 @@ body.atlas-wall-open { overflow: hidden; }
   .atlas-panel.is-open { transform: none; }
   .atlas-panel-toggle { display: inline-flex !important; position: fixed; top: 58px; right: 48px; bottom: auto; min-height: 44px; padding: 0 12px; z-index: 19; background: var(--signal); color: var(--ink); border: 1px solid var(--ink); font: inherit; }
   .atlas-panel-toggle.is-hidden { display: none !important; }
-  .atlas-sheet-close { display: block; min-height: 44px; width: 100%; padding: 8px; color: var(--paper); background: var(--ink); border: 1px solid var(--line); font: inherit; }
+  .atlas-sheet-close { display: block; position: sticky; top: -12px; z-index: 2; min-height: 44px; width: 100%; padding: 8px; color: var(--paper); background: var(--ink); border: 1px solid var(--line); font: inherit; }
 }
+@media (max-width: 1280px) { #atlas-inspect { scroll-margin-top: 48px; } }
 
 /* MSH audit, 2026-11-01 (§11.12): boxes fit their words.
    - The task/lens strip was 44 px tall around 11 px words (4-7x the text's

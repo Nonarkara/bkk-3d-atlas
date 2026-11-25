@@ -51,7 +51,7 @@ import {
 } from './building-massing.js';
 
 import { installHiiHistory, HII_HISTORY_LAYER } from './hii-history.js';
-import { placeBriefing, nearestCameras, nearbyRoadReports } from './place-briefing.js';
+import { placeBriefing, nearestCameras, nearbyRoadReports, locationEvidenceRows } from './place-briefing.js?v=nearby-1';
 import { installTrafficPilot } from './traffic-vision.js?v=bkk-atlas-20261119-1795079778-e06df0d';
 // Written by scripts/stamp-build-id.mjs at release; "dev" means an unreleased tree.
 const ATLAS_BUILD = "bkk-atlas-20261119-1795079778-e06df0d";
@@ -7357,6 +7357,41 @@ function setInspectMarker(map, lngLat) {
 
 let inspectSequence = 0;
 let currentPlace = null;
+let locationSelection = null;
+let locationRequest = null;
+function resetLocationEvidence(selection = null) {
+  locationRequest?.abort();
+  locationRequest = null;
+  locationSelection = selection;
+  const disclosure = document.getElementById('atlas-location-evidence');
+  if (disclosure) disclosure.open = false;
+  document.getElementById('atlas-location-rows')?.replaceChildren();
+}
+async function readLocationEvidence(disclosure) {
+  const rows = document.getElementById('atlas-location-rows');
+  const selection = locationSelection;
+  if (!disclosure.open || !selection) {
+    locationRequest?.abort();
+    locationRequest = null;
+    return;
+  }
+  locationRequest?.abort();
+  const request = new AbortController();
+  locationRequest = request;
+  fillInspectDl(rows, [['Within 800 m · ภายใน 800 ม.', 'Checking sources… · กำลังตรวจสอบ']]);
+  let data = null;
+  const deadline = setTimeout(() => request.abort(), 12000);
+  try {
+    const params = new URLSearchParams({ lat: selection.lat.toFixed(4), lng: selection.lng.toFixed(4) });
+    const response = await fetch(`/api/location/evidence?${params}`, {
+      signal: request.signal,
+    });
+    if (response.ok) data = await response.json();
+  } catch { /* The two evidence rows explicitly show unavailable data. */ }
+  finally { clearTimeout(deadline); }
+  if (locationRequest !== request || locationSelection !== selection || !disclosure.open) return;
+  fillInspectDl(rows, locationEvidenceRows(data));
+}
 function renderPlaceEvidence() {
   if (!currentPlace) return;
   const {point,live,lng,lat,weather} = currentPlace;
@@ -7370,6 +7405,7 @@ function renderPlaceEvidence() {
 function clearInspect(map) {
   inspectSequence++;
   currentPlace = null;
+  resetLocationEvidence();
   const card = document.getElementById("atlas-inspect-card");
   const hint = document.getElementById("atlas-inspect-hint");
   if (card) card.hidden = true;
@@ -7385,6 +7421,7 @@ async function runInspect(map, event) {
   const sequence = ++inspectSequence;
   currentPlace = null;
   const { lng, lat } = event.lngLat;
+  resetLocationEvidence({lng, lat});
   const feature = massingFeatureAt(event.lngLat) || pickBuildingFeature(map, event.point);
   setInspectMarker(map, [lng, lat]);
 
@@ -7619,6 +7656,9 @@ function atlasClickOwner(map, event) {
 
 function wireInspect(map) {
   setInterval(renderPlaceEvidence,30000);
+  document.getElementById('atlas-location-evidence')?.addEventListener('toggle', event => {
+    readLocationEvidence(event.currentTarget);
+  });
   document.getElementById('atlas-inspect-centre')?.addEventListener('click', () => {
     const lngLat = map.getCenter();
     runInspect(map, {lngLat, point:map.project(lngLat)});
@@ -9218,6 +9258,7 @@ function wirePhonePanelToggle() {
       panel.querySelector('[data-close-sheet]')?.focus();
     } else {
       document.body.style.overflow = "";
+      if (wasOpen) document.getElementById('atlas-location-evidence')?.removeAttribute('open');
       if (drawer && wasOpen) btn.focus();
       else if (!drawer && wasOpen) panel.querySelector('.atlas-area-btn')?.focus();
     }
